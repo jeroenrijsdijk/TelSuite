@@ -1,6 +1,6 @@
-# Telapp suite — rvmk.nl
+# Telapp suite
 
-Verzameling standalone veldonderzoek-tools voor mobiliteit en infrastructuur in Nederland. Alle apps zijn enkelvoudige HTML-bestanden zonder framework of backend. Data wordt lokaal opgeslagen en geëxporteerd als semikolom-CSV (Excel/KNIME-compatibel).
+Verzameling standalone veldonderzoek-tools voor mobiliteit en infrastructuur in Nederland. Alle apps zijn enkelvoudige HTML-bestanden zonder framework of backend. Data wordt lokaal opgeslagen en geëxporteerd als semikolom-CSV.
 
 ## Bestanden
 
