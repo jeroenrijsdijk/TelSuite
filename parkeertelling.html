@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Parkeertelling</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f0f0ec;
+    --surface: #ffffff;
+    --border: #b0b0a8;
+    --text: #1a1918;
+    --muted: #7a776f;
+    --c-goed: #27ae60;
+    --c-goed-bg: #eaf7ef;
+    --c-fout: #c0392b;
+    --c-fout-bg: #fdecea;
+    --c-leeg: #2980b9;
+    --c-leeg-bg: #e8f4fb;
+    --c-spec: #d68910;
+    --c-spec-bg: #fef9e7;
+    --c-route: #2471a3;
+    --font: 'Oswald', sans-serif;
+  }
+
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; -webkit-tap-highlight-color: transparent; }
+
+  header { background: var(--text); color: #fff; padding: 12px 16px 10px; display: flex; align-items: baseline; gap: 10px; }
+  header h1 { font-size: 20px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+  header span { font-size: 12px; font-weight: 300; color: #aaa8a2; }
+
+  .main { padding: 10px; max-width: 540px; margin: 0 auto; }
+
+  /* STATUS */
+  .status-bar { background: var(--surface); border: 1px solid var(--border); padding: 8px 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .gps-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: background 0.3s; }
+  .gps-dot.active { background: var(--c-goed); box-shadow: 0 0 0 3px var(--c-goed-bg); }
+  .gps-dot.searching { background: #e67e22; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .status-text { font-size: 12px; color: var(--muted); flex: 1; }
+  .wl-badge { font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; background: var(--text); color: #fff; padding: 2px 6px; white-space: nowrap; }
+
+  /* STREET */
+  .street-panel { background: var(--surface); border: 1px solid var(--border); padding: 8px 12px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .street-info { min-width: 0; flex: 1; }
+  .street-label { font-size: 9px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+  .street-name { font-size: 18px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .street-name.empty { color: var(--border); }
+  .coords { font-size: 10px; font-weight: 300; color: var(--muted); margin-top: 2px; }
+  .bearing-info { font-size: 11px; font-weight: 400; color: var(--muted); text-align: right; flex-shrink: 0; }
+  .bearing-arrow { font-size: 32px; line-height: 1; display: block; transition: transform 0.3s; text-shadow: 0 0 2px rgba(0,0,0,0.25); }
+  .mini-count { font-size: 22px; font-weight: 700; font-family: var(--font); }
+  .btn-kompas { font-family: var(--font); font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; border: 1px solid var(--border); background: var(--surface); color: var(--muted); padding: 3px 7px; cursor: pointer; touch-action: manipulation; margin-top: 4px; display: block; width: 100%; }
+
+  /* TOTALS */
+  .totals-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+  .tc { background: var(--surface); border: 1px solid var(--border); padding: 7px 6px 5px; text-align: center; }
+  .tc-label { font-size: 9px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 2px; }
+  .tc-num { font-size: 24px; font-weight: 700; line-height: 1; transition: transform 0.12s; }
+  .tc-sub { font-size: 10px; font-weight: 300; color: var(--muted); margin-top: 1px; }
+  .tc.goed .tc-label,.tc.goed .tc-num { color: var(--c-goed); }
+  .tc.fout .tc-label,.tc.fout .tc-num { color: var(--c-fout); }
+  .tc.leeg .tc-label,.tc.leeg .tc-num { color: var(--c-leeg); }
+  .tc.spec .tc-label,.tc.spec .tc-num { color: var(--c-spec); }
+
+  /* SIDE LABELS */
+  .side-labels { display: grid; grid-template-columns: 1fr 32px 1fr; gap: 0; margin-bottom: 4px; }
+  .side-lbl { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); text-align: center; padding: 3px 0; }
+
+  /* BUTTON GRID: left col | middle divider | right col */
+  .btn-grid { display: grid; grid-template-columns: 1fr 32px 1fr; gap: 0; margin-bottom: 8px; }
+
+  .btn-col { display: flex; flex-direction: column; gap: 6px; }
+
+  .street-divider {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; padding: 0 4px;
+  }
+  .divider-line { width: 2px; flex: 1; background: var(--border); }
+  .divider-road { width: 20px; height: 20px; background: var(--text); border-radius: 2px; display: flex; align-items: center; justify-content: center; }
+  .divider-road span { font-size: 8px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+
+  .btn-tel {
+    border: none; font-family: var(--font); font-weight: 600; font-size: 12px;
+    letter-spacing: 0.3px; text-transform: uppercase;
+    padding: 14px 4px 10px; cursor: pointer;
+    transition: transform 0.08s, opacity 0.1s; -webkit-user-select: none; user-select: none;
+    touch-action: manipulation;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .btn-tel .btn-icon { font-size: 18px; line-height: 1; }
+  .btn-tel:active { transform: scale(0.95); }
+  .btn-tel:disabled { opacity: 0.30; cursor: default; }
+
+  /* button colors by type */
+  .t-goed  { background: var(--c-goed); color: #fff; }
+  .t-goed:active:not(:disabled)  { background: #229954; }
+  .t-fout  { background: var(--c-fout); color: #fff; }
+  .t-fout:active:not(:disabled)  { background: #a93226; }
+  .t-leeg  { background: var(--c-leeg); color: #fff; }
+  .t-leeg:active:not(:disabled)  { background: #1f6fa0; }
+  .t-spec  { background: var(--c-spec); color: #fff; }
+  .t-spec:active:not(:disabled)  { background: #b7770d; }
+
+  .btn-undo { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: var(--font); font-size: 11px; font-weight: 400; letter-spacing: 0.5px; text-transform: uppercase; padding: 7px; cursor: pointer; margin-bottom: 8px; touch-action: manipulation; }
+  .btn-undo:disabled { opacity: 0.35; cursor: default; }
+
+  /* Half-width button pair (Fout + Spec naast elkaar) */
+  .btn-half-row { display: flex; gap: 6px; }
+  .btn-half-row .btn-tel { flex: 1; padding: 9px 2px 7px; font-size: 11px; }
+  .btn-half-row .btn-tel .btn-icon { font-size: 14px; }
+
+  /* Download buttons onderaan */
+  .download-row { display: flex; gap: 6px; margin-top: 8px; margin-bottom: 8px; }
+  .btn-dl { flex: 1; font-family: var(--font); font-size: 12px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; padding: 9px 0; border: 1px solid var(--border); cursor: pointer; background: var(--surface); color: var(--muted); transition: background 0.1s; touch-action: manipulation; }
+  .btn-dl:disabled { opacity: 0.35; cursor: default; }
+  .btn-dl:hover:not(:disabled) { background: var(--bg); }
+
+  /* CONTROLS */
+  .controls { display: flex; gap: 6px; margin-bottom: 8px; }
+  .btn-ctrl { flex: 1; font-family: var(--font); font-size: 12px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; padding: 9px 0; border: 1px solid var(--border); cursor: pointer; background: var(--surface); color: var(--text); transition: background 0.1s; touch-action: manipulation; }
+  .btn-ctrl:disabled { opacity: 0.35; cursor: default; }
+  .btn-ctrl.start { border-color: var(--c-goed); color: var(--c-goed); }
+  .btn-ctrl.start:hover { background: var(--c-goed-bg); }
+  .btn-ctrl.stop  { border-color: var(--c-fout); color: var(--c-fout); }
+  .btn-ctrl.stop:hover  { background: var(--c-fout-bg); }
+
+  /* MAP */
+  .map-panel { background: var(--surface); border: 1px solid var(--border); margin-bottom: 8px; overflow: hidden; }
+  .map-header { padding: 6px 12px 5px; border-bottom: 1px solid var(--border); font-size: 9px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  #map { height: 380px; width: 100%; }
+  .map-legend { font-size: 10px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .leg { display: flex; align-items: center; gap: 3px; }
+  .leg-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* LOG */
+  .log-panel { background: var(--surface); border: 1px solid var(--border); }
+  .log-header { padding: 6px 12px 5px; border-bottom: 1px solid var(--border); font-size: 9px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
+  .log-count { color: var(--text); font-weight: 600; }
+  .log-list { max-height: 200px; overflow-y: auto; }
+  .log-item { display: grid; grid-template-columns: 28px 9px 20px 1fr auto; gap: 6px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--bg); font-size: 11px; }
+  .log-item:last-child { border-bottom: none; }
+  .log-nr { font-weight: 700; color: var(--muted); font-size: 10px; }
+  .log-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .log-zijde { font-size: 9px; font-weight: 600; color: var(--muted); letter-spacing: 0.5px; }
+  .log-street { font-weight: 400; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-time { font-weight: 300; color: var(--muted); font-size: 10px; white-space: nowrap; }
+  .log-empty { padding: 14px 12px; font-size: 11px; color: var(--muted); text-align: center; }
+
+  .footer-note { font-size: 10px; color: var(--muted); text-align: center; padding: 10px 12px 18px; font-weight: 300; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" style="color:#aaa8a2;text-decoration:none;font-size:13px;font-weight:300;margin-right:4px;">&#8592;</a>
+  <h1>Parkeertelling</h1>
+  <span>rvmk.nl</span>
+</header>
+
+<div class="main">
+
+  <div class="status-bar">
+    <div class="gps-dot" id="gpsDot"></div>
+    <div class="status-text" id="statusText">Druk op Start om te beginnen</div>
+    <span class="wl-badge" id="wlBadge" style="display:none">&#128274; aan</span>
+  </div>
+
+  <div id="restoreBanner" style="display:none;background:#fef9e7;border:1px solid #d68910;padding:8px 12px;margin-bottom:8px;font-size:12px;font-weight:500;color:#7d5a00;font-family:var(--font);"></div>
+
+  <div class="controls">
+    <button class="btn-ctrl start" id="btnStart" onclick="startSession()">&#9654; Start</button>
+    <button class="btn-ctrl stop"  id="btnStop"  disabled onclick="stopSession()">&#9632; Stop</button>
+  </div>
+
+  <div class="street-panel">
+    <div class="street-info">
+      <div class="street-label">Huidige straat</div>
+      <div class="street-name empty" id="streetName">—</div>
+      <div class="coords" id="coordsText"></div>
+      <div style="font-size:10px;font-weight:300;margin-top:1px;" id="snapStatus"></div>
+      <div style="display:flex;gap:10px;margin-top:6px;">
+        <span class="mini-count" style="color:var(--c-goed)">&#10003; <span id="cntGoed">0</span></span>
+        <span class="mini-count" style="color:var(--c-fout)">&#10005; <span id="cntFout">0</span></span>
+        <span class="mini-count" style="color:var(--c-leeg)">&#9633; <span id="cntLeeg">0</span></span>
+        <span class="mini-count" style="color:var(--c-spec)">&#9675; <span id="cntSpec">0</span></span>
+      </div>
+    </div>
+    <div class="bearing-info">
+      <span class="bearing-arrow" id="bearingArrow">&#11014;</span>
+      <span id="bearingDeg">—</span>
+      <button class="btn-kompas" id="btnKompas" onclick="requestCompass()">kompas</button>
+    </div>
+  </div>
+
+  <div class="side-labels">
+    <div class="side-lbl">&#9664; Links</div>
+    <div></div>
+    <div class="side-lbl">Rechts &#9654;</div>
+  </div>
+
+  <div class="btn-grid">
+    <!-- LINKS -->
+    <div class="btn-col" id="colLinks">
+      <button class="btn-tel t-goed" disabled onclick="addEntry('goed','L')"><span class="btn-icon">&#10003;</span>Goed</button>
+      <div class="btn-half-row">
+        <button class="btn-tel t-fout" disabled onclick="addEntry('fout','L')"><span class="btn-icon">&#10005;</span>Fout</button>
+        <button class="btn-tel t-spec" disabled onclick="addEntry('spec','L')"><span class="btn-icon">&#9675;</span>Spec.</button>
+      </div>
+      <button class="btn-tel t-leeg" disabled onclick="addEntry('leeg','L')"><span class="btn-icon">&#9633;</span>Leeg</button>
+    </div>
+
+    <!-- STRAAT MIDDEN -->
+    <div class="street-divider">
+      <div class="divider-line"></div>
+      <div class="divider-road"><span>WEG</span></div>
+      <div class="divider-line"></div>
+    </div>
+
+    <!-- RECHTS -->
+    <div class="btn-col" id="colRechts">
+      <button class="btn-tel t-goed" disabled onclick="addEntry('goed','R')"><span class="btn-icon">&#10003;</span>Goed</button>
+      <div class="btn-half-row">
+        <button class="btn-tel t-fout" disabled onclick="addEntry('fout','R')"><span class="btn-icon">&#10005;</span>Fout</button>
+        <button class="btn-tel t-spec" disabled onclick="addEntry('spec','R')"><span class="btn-icon">&#9675;</span>Spec.</button>
+      </div>
+      <button class="btn-tel t-leeg" disabled onclick="addEntry('leeg','R')"><span class="btn-icon">&#9633;</span>Leeg</button>
+    </div>
+  </div>
+
+  <button class="btn-undo" id="btnUndo" disabled onclick="undoLast()">&#8617; ongedaan maken</button>
+
+  <div class="map-panel">
+    <div class="map-header">
+      <span>Looproute</span>
+      <div class="map-legend">
+        <div class="leg"><div class="leg-dot" style="background:var(--c-goed)"></div>goed</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-fout)"></div>fout</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-leeg)"></div>leeg</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-spec)"></div>spec.</div>
+      </div>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <div class="log-panel">
+    <div class="log-header">
+      <span>Tellog</span>
+      <span class="log-count" id="logCount">0 vermeldingen</span>
+    </div>
+    <div class="log-list" id="logList">
+      <div class="log-empty">Nog geen tellingen</div>
+    </div>
+  </div>
+
+  <div class="download-row">
+    <button class="btn-dl" id="btnDlCsv" disabled onclick="exportCSV()">&#8595; Download CSV</button>
+    <button class="btn-dl" id="btnDlKaart" disabled onclick="exportMapCanvas()">&#8595; Download kaart</button>
+    <button class="btn-dl" id="btnDlGpx" disabled onclick="exportGPX()">&#8595; Download GPX</button>
+  </div>
+
+  <div class="footer-note">GPS &middot; OpenStreetMap Nominatim &middot; semikolom-CSV</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ── State ────────────────────────────────────────────── */
+var sessionActive = false;
+var watchId = null;
+var entries = [];
+var counts = { goed:{L:0,R:0}, fout:{L:0,R:0}, leeg:{L:0,R:0}, spec:{L:0,R:0} };
+var currentLat = null, currentLon = null, currentAcc = 999;
+var prevLat = null, prevLon = null;
+var currentBearing = null;
+var currentStreet = '—';
+var lastGeocodeLat = null, lastGeocodeLon = null;
+var geocodeTimer = null;
+var geocodeIntervalId = null;
+var trackPoints = [];
+var totalNr = 0;
+var wakeLock = null;
+
+var GPS_THRESHOLD = 25;   // meters accuracy required
+var SIDE_OFFSET_M = 4;    // meters offset left/right from road centerline
+var GEOCODE_INTERVAL = 60000; // street name refresh ms
+var ROAD_FETCH_RADIUS = 300;  // meters around position to fetch roads
+var ROAD_CACHE_DIST   = 150;  // re-fetch when this far from cache center
+var SNAP_MAX_DIST     = 50;   // ignore snap if road is further than this
+
+var csvDownloaded = false;
+var kaartDownloaded = false;
+
+/* Road snap cache */
+var roadSegs = [];          // [{ax,ay,bx,by,brg,lat1,lon1,lat2,lon2}] in local meters
+var roadCacheLat = null, roadCacheLon = null;
+var roadSnapStatus = 'none'; // 'none'|'fetching'|'ok'|'error'
+var roadFetchTimer = null;
+var usedSegIndices = {}; // index → true, segments hit during this session
+
+var OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter'
+];
+
+var COLORS = { goed:'#27ae60', fout:'#c0392b', leeg:'#2980b9', spec:'#d68910' };
+var TYPE_LABELS = { goed:'Goed geparkeerd', fout:'Fout geparkeerd', leeg:'Leeg parkeervak', spec:'Speciaal (gehandicapt/L&L)' };
+
+/* ── Leaflet ──────────────────────────────────────────── */
+var map = L.map('map', { zoomControl: true, attributionControl: false });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+map.setView([51.8714, 4.1913], 12);
+
+var routeLine = L.polyline([], { color: '#2471a3', weight: 3, opacity: 0.75 }).addTo(map);
+var posMarker = null;
+var markerLayer = L.layerGroup().addTo(map);
+
+function makeIcon(type) {
+  var c = COLORS[type];
+  return L.divIcon({
+    html: '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8"><rect x="0.5" y="0.5" width="7" height="7" fill="' + c + '" stroke="#fff" stroke-width="0.5"/></svg>',
+    className:'', iconSize:[8,8], iconAnchor:[4,4], popupAnchor:[0,-4]
+  });
+}
+
+/* ── Wake Lock ─────────────────────────────────────────── */
+function acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  navigator.wakeLock.request('screen').then(function(wl) {
+    wakeLock = wl;
+    wl.addEventListener('release', function(){ wakeLock=null; document.getElementById('wlBadge').style.display='none'; });
+    document.getElementById('wlBadge').style.display='';
+  }).catch(function(){});
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock=null; }
+  document.getElementById('wlBadge').style.display='none';
+}
+/* ── Veiligheidsnet: download bij verlaten pagina ─────── */
+function safetyDownload() {
+  if (!entries.length) return;
+  if (!csvDownloaded) exportCSV();
+  if (!kaartDownloaded) exportMapCanvas();
+}
+
+window.addEventListener('beforeunload', function(e) {
+  if (entries.length && (!csvDownloaded || !kaartDownloaded)) {
+    safetyDownload();
+    // Toon browser-bevestiging zodat gebruiker kan annuleren
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+document.addEventListener('visibilitychange', function() {
+  if (sessionActive && document.visibilityState === 'visible') acquireWakeLock();
+  // Pagina wordt verborgen (app-switch, scherm uit): sla op als nog niet gedaan
+  if (document.visibilityState === 'hidden' && entries.length && (!csvDownloaded || !kaartDownloaded)) {
+    safetyDownload();
+  }
+});
+
+/* ── Helpers ──────────────────────────────────────────── */
+function pad(n) { return String(n).padStart(2,'0'); }
+function timestamp() {
+  var d=new Date();
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
+    ' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+}
+function timeOnly() { var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
+function filestamp() { var d=new Date(); return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes()); }
+
+function haversine(a,b,c,d) {
+  var R=6371000, dLat=(c-a)*Math.PI/180, dLon=(d-b)*Math.PI/180;
+  var x=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+/* bearing in degrees from point A to B */
+function calcBearing(lat1,lon1,lat2,lon2) {
+  var dLon=(lon2-lon1)*Math.PI/180;
+  var la1=lat1*Math.PI/180, la2=lat2*Math.PI/180;
+  var y=Math.sin(dLon)*Math.cos(la2);
+  var x=Math.cos(la1)*Math.sin(la2)-Math.sin(la1)*Math.cos(la2)*Math.cos(dLon);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360;
+}
+
+/* offset lat/lon by distance meters in direction degrees */
+function offsetPoint(lat,lon,bearing,meters) {
+  var R=6371000;
+  var brng=bearing*Math.PI/180;
+  var la1=lat*Math.PI/180, lo1=lon*Math.PI/180;
+  var la2=Math.asin(Math.sin(la1)*Math.cos(meters/R)+Math.cos(la1)*Math.sin(meters/R)*Math.cos(brng));
+  var lo2=lo1+Math.atan2(Math.sin(brng)*Math.sin(meters/R)*Math.cos(la1),Math.cos(meters/R)-Math.sin(la1)*Math.sin(la2));
+  return { lat: la2*180/Math.PI, lon: lo2*180/Math.PI };
+}
+
+/* ── Session ──────────────────────────────────────────── */
+function startSession() {
+  if (!navigator.geolocation) { setStatus('GPS niet beschikbaar.'); return; }
+  sessionActive=true;
+  entries=[]; totalNr=0;
+  counts={goed:{L:0,R:0},fout:{L:0,R:0},leeg:{L:0,R:0},spec:{L:0,R:0}};
+  trackPoints=[]; currentStreet='—'; currentBearing=null;
+  prevLat=null; prevLon=null;
+  if (disableTimer){ clearTimeout(disableTimer); disableTimer=null; }
+  roadSegs=[]; roadCacheLat=null; roadCacheLon=null; roadSnapStatus='none'; usedSegIndices={};
+  if (roadFetchTimer){ clearTimeout(roadFetchTimer); roadFetchTimer=null; }
+  csvDownloaded=false; kaartDownloaded=false;
+  recentBearings=[]; segVisitBuffer={};
+  compassHeading=null;
+  try {
+    var kb=document.getElementById('btnKompas');
+    if (kb) { kb.textContent='kompas'; kb.style.color=''; kb.style.borderColor=''; }
+  } catch(e) {}
+  clearSession();
+  document.getElementById('restoreBanner').style.display='none';
+  routeLine.setLatLngs([]);
+  markerLayer.clearLayers();
+  if (posMarker){ map.removeLayer(posMarker); posMarker=null; }
+  ['Goed','Fout','Leeg','Spec'].forEach(function(t){
+    document.getElementById('cnt'+t).textContent='0';
+  });
+  document.getElementById('streetName').textContent='—';
+  document.getElementById('streetName').className='street-name empty';
+  document.getElementById('coordsText').textContent='';
+  document.getElementById('bearingDeg').textContent='—';
+  document.getElementById('bearingArrow').style.transform='';
+  document.getElementById('logList').innerHTML='<div class="log-empty">Nog geen tellingen</div>';
+  document.getElementById('logCount').textContent='0 vermeldingen';
+  setButtonsEnabled(false);
+  document.getElementById('btnStart').disabled=true;
+  document.getElementById('btnStop').disabled=false;
+  document.getElementById('btnDlCsv').disabled=true;
+  document.getElementById('btnDlKaart').disabled=true;
+  document.getElementById('btnDlGpx').disabled=true;
+  document.getElementById('btnUndo').disabled=true;
+  setStatus('GPS zoeken\u2026', 'searching');
+  acquireWakeLock();
+
+  // Street name refresh every 60s
+  if (geocodeIntervalId) clearInterval(geocodeIntervalId);
+  geocodeIntervalId = setInterval(function(){
+    if (sessionActive && currentLat!==null) doGeocode(currentLat, currentLon);
+  }, GEOCODE_INTERVAL);
+
+  watchId=navigator.geolocation.watchPosition(onPosition, onGPSError,
+    {enableHighAccuracy:true, timeout:15000, maximumAge:2000});
+}
+
+function stopSession() {
+  sessionActive=false;
+  if (watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; }
+  if (geocodeIntervalId){ clearInterval(geocodeIntervalId); geocodeIntervalId=null; }
+  releaseWakeLock();
+  setButtonsEnabled(false);
+  document.getElementById('btnStart').disabled=false;
+  document.getElementById('btnStop').disabled=true;
+  document.getElementById('btnUndo').disabled=true;
+  document.getElementById('gpsDot').className='gps-dot';
+
+  if (entries.length>0) {
+    document.getElementById('btnDlCsv').disabled=false;
+    document.getElementById('btnDlKaart').disabled=false;
+    document.getElementById('btnDlGpx').disabled=false;
+    setStatus('Sessie gestopt \u00b7 '+entries.length+' object'+(entries.length===1?'':'en')+' \u2014 download CSV en kaart hieronder.','off');
+  } else {
+    setStatus('Sessie gestopt \u00b7 geen vermeldingen.','off');
+  }
+}
+
+var disableTimer = null;
+
+function setButtonsEnabled(en) {
+  if (en) {
+    // Direct inschakelen
+    if (disableTimer) { clearTimeout(disableTimer); disableTimer = null; }
+    document.querySelectorAll('.btn-tel').forEach(function(b){ b.disabled=false; });
+  } else {
+    // Uitschakelen na 3 seconden — voorkomt race condition bij korte GPS-uitschieters
+    if (disableTimer) return;
+    disableTimer = setTimeout(function(){
+      disableTimer = null;
+      document.querySelectorAll('.btn-tel').forEach(function(b){ b.disabled=true; });
+    }, 3000);
+  }
+}
+
+/* ── GPS ──────────────────────────────────────────────── */
+var recentBearings = []; // rolling window for bearing smoothing
+var segVisitBuffer = {}; // segIdx -> consecutive hit count
+var compassActive = false;
+var compassHeading = null; // degrees from north, from device compass
+
+function requestCompass() {
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+
+    DeviceOrientationEvent.requestPermission().then(function(state) {
+      if (state === 'granted') {
+        enableCompass();
+      } else {
+        document.getElementById('btnKompas').textContent = 'geweigerd';
+      }
+    }).catch(function() {
+      document.getElementById('btnKompas').textContent = 'niet beschikbaar';
+    });
+  } else {
+    // Android / andere browsers: geen toestemming nodig
+    enableCompass();
+  }
+}
+
+function enableCompass() {
+  window.addEventListener('deviceorientationabsolute', onOrientation, true);
+  window.addEventListener('deviceorientation', onOrientation, true);
+  compassActive = true;
+  document.getElementById('btnKompas').textContent = 'kompas aan';
+  document.getElementById('btnKompas').style.color = 'var(--c-goed)';
+  document.getElementById('btnKompas').style.borderColor = 'var(--c-goed)';
+}
+
+function onOrientation(e) {
+  var heading = null;
+  if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+    // iOS: webkitCompassHeading is al noord-gecorrigeerd
+    heading = e.webkitCompassHeading;
+  } else if (e.absolute && e.alpha !== null) {
+    // Android absolute
+    heading = (360 - e.alpha) % 360;
+  } else if (e.alpha !== null) {
+    heading = (360 - e.alpha) % 360;
+  }
+  if (heading === null) return;
+  compassHeading = heading;
+}
+
+/* Fuseer kompas + GPS bearing, gewogen naar betrouwbaarheid */
+function fusedBearing(gpsBearing, compassHdg, moved) {
+  if (compassHdg === null && gpsBearing === null) return null;
+  if (compassHdg === null) return gpsBearing;
+  if (gpsBearing === null) return compassHdg;
+  // Bij beweging: GPS zwaarder wegen; stilstaand: kompas leidend
+  var gpsWeight = moved ? 0.6 : 0.2;
+  var cmpWeight = 1 - gpsWeight;
+  // Circulair gewogen gemiddelde
+  var sinF = gpsWeight * Math.sin(gpsBearing*Math.PI/180) + cmpWeight * Math.sin(compassHdg*Math.PI/180);
+  var cosF = gpsWeight * Math.cos(gpsBearing*Math.PI/180) + cmpWeight * Math.cos(compassHdg*Math.PI/180);
+  return (Math.atan2(sinF, cosF) * 180/Math.PI + 360) % 360;
+}
+
+function onPosition(pos) {
+  var lat=pos.coords.latitude, lon=pos.coords.longitude;
+  currentAcc=Math.round(pos.coords.accuracy);
+
+  // GPS bearing: update on movement >1m, smooth over last 5 readings
+  var moved = prevLat!==null && haversine(prevLat,prevLon,lat,lon)>1;
+  var gpsBearing = null;
+  if (moved) {
+    var raw=calcBearing(prevLat,prevLon,lat,lon);
+    recentBearings.push(raw);
+    if (recentBearings.length>5) recentBearings.shift();
+    var sinSum=0, cosSum=0;
+    recentBearings.forEach(function(b){ sinSum+=Math.sin(b*Math.PI/180); cosSum+=Math.cos(b*Math.PI/180); });
+    gpsBearing=(Math.atan2(sinSum,cosSum)*180/Math.PI+360)%360;
+  } else if (recentBearings.length) {
+    var sinSum=0, cosSum=0;
+    recentBearings.forEach(function(b){ sinSum+=Math.sin(b*Math.PI/180); cosSum+=Math.cos(b*Math.PI/180); });
+    gpsBearing=(Math.atan2(sinSum,cosSum)*180/Math.PI+360)%360;
+  }
+
+  currentBearing = fusedBearing(gpsBearing, compassActive ? compassHeading : null, moved);
+
+  if (currentBearing !== null) {
+    document.getElementById('bearingArrow').style.transform='rotate('+currentBearing+'deg)';
+    document.getElementById('bearingDeg').textContent=Math.round(currentBearing)+'\u00b0';
+  }
+  prevLat=currentLat; prevLon=currentLon;
+  currentLat=lat; currentLon=lon;
+
+  // Coördinaten met punt als decimaalteken (Excel-compatibel)
+  var latStr=lat.toFixed(6).replace(',','.');
+  var lonStr=lon.toFixed(6).replace(',','.');
+  var hdgStr = currentBearing!==null ? Math.round(currentBearing).toString() : '';
+  trackPoints.push({ts:timestamp(), lat:latStr, lon:lonStr, acc:currentAcc, hdg:hdgStr});
+  document.getElementById('gpsDot').className='gps-dot active';
+  document.getElementById('coordsText').textContent=latStr+', '+lonStr+' (\u00b1'+currentAcc+'m)';
+
+  routeLine.addLatLng([lat,lon]);
+  if (!posMarker) {
+    posMarker=L.circleMarker([lat,lon],{radius:7,color:'#fff',weight:2,fillColor:'#1a1918',fillOpacity:1}).addTo(map);
+  } else { posMarker.setLatLng([lat,lon]); }
+  if (map.getZoom()<16) map.setView([lat,lon],17);
+  else map.panTo([lat,lon]);
+
+  var gpsOk = currentAcc<=GPS_THRESHOLD;
+  setButtonsEnabled(gpsOk);
+  if (gpsOk) {
+    setStatus('GPS actief \u00b7 \u00b1'+currentAcc+'m','active');
+
+    // Track bezochte wegvakken: snap elke GPS-update, markeer na 3 opeenvolgende hits
+    var snap=snapToRoad(lat,lon);
+    if (snap) {
+      var idx=snap.segIdx;
+      segVisitBuffer[idx]=(segVisitBuffer[idx]||0)+1;
+      if (segVisitBuffer[idx]>=3) usedSegIndices[idx]=true;
+    }
+    Object.keys(segVisitBuffer).forEach(function(k){
+      if (snap && parseInt(k)===snap.segIdx) return;
+      segVisitBuffer[k]=0;
+    });
+  } else {
+    setStatus('GPS verbeteren\u2026 \u00b1'+currentAcc+'m (wacht op \u226425m)','searching');
+  }
+
+  // Fetch/refresh road data when needed
+  if (gpsOk) {
+    var needFetch = roadCacheLat === null ||
+      haversine(lat, lon, roadCacheLat, roadCacheLon) > ROAD_CACHE_DIST;
+    if (needFetch && roadSnapStatus !== 'fetching') scheduleRoadFetch(lat, lon);
+  }
+
+  // Geocode on distance
+  if (lastGeocodeLat===null || haversine(lat,lon,lastGeocodeLat,lastGeocodeLon)>40) {
+    scheduleGeocode(lat,lon);
+  }
+}
+
+function onGPSError(err) {
+  var m=['GPS fout','GPS-toegang geweigerd','GPS niet beschikbaar','GPS time-out'];
+  setStatus(m[err.code]||'GPS fout','off');
+  document.getElementById('gpsDot').className='gps-dot';
+}
+
+function scheduleGeocode(lat,lon) {
+  if (geocodeTimer) clearTimeout(geocodeTimer);
+  geocodeTimer=setTimeout(function(){ doGeocode(lat,lon); },800);
+}
+
+function doGeocode(lat,lon) {
+  fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat='+lat+'&lon='+lon+'&zoom=17&addressdetails=1',
+    {headers:{'Accept-Language':'nl','User-Agent':'rvmk-parkeertelling/1.0'}})
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    var a=data.address||{};
+    currentStreet=a.road||a.pedestrian||a.path||a.footway||a.cycleway||a.residential||data.display_name||'(onbekend)';
+    lastGeocodeLat=lat; lastGeocodeLon=lon;
+    var el=document.getElementById('streetName');
+    el.textContent=currentStreet; el.className='street-name';
+    var b=a.suburb||a.neighbourhood||a.town||a.village||a.city||'';
+    if (currentAcc<=GPS_THRESHOLD) setStatus('GPS actief'+(b?' \u00b7 '+b:''),'active');
+  })
+  .catch(function(){});
+}
+
+function setStatus(msg, state) {
+  document.getElementById('statusText').textContent=msg;
+  if (state==='active') document.getElementById('gpsDot').className='gps-dot active';
+  else if (state==='searching') document.getElementById('gpsDot').className='gps-dot searching';
+}
+
+/* ── OSM Road snap engine ─────────────────────────────── */
+
+/* Convert lat/lon to local XY metres relative to a reference point */
+function toXY(lat, lon, refLat, refLon) {
+  var cosRef = Math.cos(refLat * Math.PI / 180);
+  return {
+    x: (lon - refLon) * 111320 * cosRef,
+    y: (lat - refLat) * 111320
+  };
+}
+
+/* Closest point on segment A-B to point P, all in XY metres */
+function closestOnSeg(px, py, ax, ay, bx, by) {
+  var dx = bx - ax, dy = by - ay;
+  var lenSq = dx*dx + dy*dy;
+  if (lenSq === 0) return { x:ax, y:ay, t:0 };
+  var t = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / lenSq));
+  return { x: ax + t*dx, y: ay + t*dy, t: t };
+}
+
+/* Build segment list from Overpass way elements */
+function buildSegments(elements, refLat, refLon) {
+  var segs = [];
+  elements.forEach(function(el) {
+    if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) return;
+    for (var i = 0; i < el.geometry.length - 1; i++) {
+      var a = el.geometry[i], b = el.geometry[i+1];
+      if (!a || !b) continue;
+      var axy = toXY(a.lat, a.lon, refLat, refLon);
+      var bxy = toXY(b.lat, b.lon, refLat, refLon);
+      var brg = calcBearing(a.lat, a.lon, b.lat, b.lon);
+      segs.push({
+        ax:axy.x, ay:axy.y, bx:bxy.x, by:bxy.y, brg:brg,
+        lat1:a.lat, lon1:a.lon, lat2:b.lat, lon2:b.lon
+      });
+    }
+  });
+  return segs;
+}
+
+/* Snap GPS point to nearest road segment.
+   Returns { lat, lon, bearing, distM, segIdx } or null if no roads / too far. */
+function snapToRoad(lat, lon) {
+  if (!roadSegs.length || roadCacheLat === null) return null;
+  var p = toXY(lat, lon, roadCacheLat, roadCacheLon);
+  var bestDist = Infinity, bestSeg = null, bestPt = null, bestIdx = -1;
+  for (var i = 0; i < roadSegs.length; i++) {
+    var s = roadSegs[i];
+    var cp = closestOnSeg(p.x, p.y, s.ax, s.ay, s.bx, s.by);
+    var dx = cp.x - p.x, dy = cp.y - p.y;
+    var d = Math.sqrt(dx*dx + dy*dy);
+    if (d < bestDist) { bestDist = d; bestSeg = s; bestPt = cp; bestIdx = i; }
+  }
+  if (bestDist > SNAP_MAX_DIST || !bestSeg) return null;
+  // Convert bestPt back to lat/lon
+  var cosRef = Math.cos(roadCacheLat * Math.PI / 180);
+  var snapLat = roadCacheLat + bestPt.y / 111320;
+  var snapLon = roadCacheLon + bestPt.x / (111320 * cosRef);
+  return { lat: snapLat, lon: snapLon, bearing: bestSeg.brg, distM: bestDist, segIdx: bestIdx };
+}
+
+/* Fetch road geometries from Overpass, try endpoints in order */
+function fetchRoads(lat, lon, endpointIdx) {
+  if (endpointIdx === undefined) endpointIdx = 0;
+  if (endpointIdx >= OVERPASS_ENDPOINTS.length) {
+    roadSnapStatus = 'error';
+    setSnapBadge();
+    return;
+  }
+  roadSnapStatus = 'fetching';
+  setSnapBadge();
+
+  var query = '[out:json][timeout:8];way["highway"~"residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out geom;';
+  var url = OVERPASS_ENDPOINTS[endpointIdx] + '?data=' + encodeURIComponent(query);
+
+  var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  var timer = setTimeout(function(){ if (controller) controller.abort(); }, 9000);
+
+  fetch(url, controller ? { signal: controller.signal } : {})
+    .then(function(r) {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(data) {
+      if (!data.elements || !data.elements.length) throw new Error('Geen wegen');
+      roadCacheLat = lat; roadCacheLon = lon;
+      roadSegs = buildSegments(data.elements, lat, lon);
+      roadSnapStatus = roadSegs.length ? 'ok' : 'error';
+      setSnapBadge();
+    })
+    .catch(function() {
+      clearTimeout(timer);
+      // Try next endpoint
+      fetchRoads(lat, lon, endpointIdx + 1);
+    });
+}
+
+function scheduleRoadFetch(lat, lon) {
+  if (roadFetchTimer) clearTimeout(roadFetchTimer);
+  roadFetchTimer = setTimeout(function(){ fetchRoads(lat, lon); }, 600);
+}
+
+function setSnapBadge() {
+  /* small indicator appended to coords line */
+  var el = document.getElementById('snapStatus');
+  if (!el) return;
+  if (roadSnapStatus === 'ok')       { el.textContent = '\u2022 wegen geladen'; el.style.color='var(--c-goed)'; }
+  else if (roadSnapStatus === 'fetching') { el.textContent = '\u2022 wegen laden\u2026'; el.style.color='var(--c-spec)'; }
+  else if (roadSnapStatus === 'error')    { el.textContent = '\u2022 wegen niet beschikbaar'; el.style.color='var(--c-fout)'; }
+  else { el.textContent = ''; }
+}
+
+/* touch-action: manipulation op de knoppen (in CSS) voorkomt dubbeltap-zoom,
+   de gewone onclick-handlers doen de rest. */
+
+/* ── Tel-acties ───────────────────────────────────────── */
+function addEntry(type, zijde) {
+  if (!sessionActive) return;
+  totalNr++;
+  counts[type][zijde]++;
+
+  // Teller en feedback — dit lukt altijd
+  var capType = type.charAt(0).toUpperCase()+type.slice(1);
+  var numEl = document.getElementById('cnt'+capType);
+  numEl.textContent = counts[type].L+counts[type].R;
+  numEl.style.transform = 'scale(1.3)';
+  setTimeout(function(){ numEl.style.transform=''; }, 180);
+
+  var flashBtns = document.querySelectorAll('.btn-col .btn-tel.t-'+type);
+  flashBtns.forEach(function(b){
+    b.style.filter='brightness(1.5)';
+    setTimeout(function(){ b.style.filter=''; }, 120);
+  });
+
+  // Heading bepalen
+  var hdgGps     = currentBearing!==null ? Math.round(currentBearing) : null;
+  var hdgKompas  = (compassActive && compassHeading!==null) ? Math.round(compassHeading) : null;
+  var hdgOsm     = null;
+  var hdgGebruikt = currentBearing;
+  var snapped    = false;
+  var markerLat  = currentLat;
+  var markerLon  = currentLon;
+
+  try {
+    var snapInfo = snapToRoad(currentLat, currentLon);
+    if (snapInfo) {
+      var snapBrg = snapInfo.bearing;
+      if (currentBearing!==null) {
+        var diff = ((snapBrg-currentBearing)+360)%360;
+        if (diff>90 && diff<270) snapBrg = (snapBrg+180)%360;
+      }
+      hdgOsm     = Math.round(snapBrg);
+      hdgGebruikt = snapBrg;
+      markerLat  = snapInfo.lat;
+      markerLon  = snapInfo.lon;
+      usedSegIndices[snapInfo.segIdx] = true;
+      snapped    = true;
+    }
+    if (markerLat!==null && hdgGebruikt!==null) {
+      var perp = zijde==='L' ? (hdgGebruikt-90+360)%360 : (hdgGebruikt+90)%360;
+      var off  = offsetPoint(markerLat, markerLon, perp, SIDE_OFFSET_M);
+      markerLat = off.lat; markerLon = off.lon;
+    }
+    if (markerLat===null) { markerLat=currentLat; markerLon=currentLon; }
+  } catch(e) {
+    markerLat=currentLat; markerLon=currentLon;
+  }
+
+  var fmtLat = function(v){ return v!==null ? v.toFixed(6).replace(',','.') : ''; };
+  var entry = {
+    nr:totalNr, type:type, zijde:zijde, ts:timestamp(), time:timeOnly(),
+    street:currentStreet,
+    lat:fmtLat(markerLat), lon:fmtLat(markerLon),
+    gpsLat:fmtLat(currentLat), gpsLon:fmtLat(currentLon),
+    hdgKompas:  hdgKompas!==null  ? String(hdgKompas)  : '',
+    hdgGps:     hdgGps!==null     ? String(hdgGps)     : '',
+    hdgOsm:     hdgOsm!==null     ? String(hdgOsm)     : '',
+    hdgGebruikt:hdgGebruikt!==null ? String(Math.round(hdgGebruikt)) : '',
+    snapped:snapped, marker:null
+  };
+
+  // Entry opslaan vóór map-code — telt altijd
+  entries.push(entry);
+  document.getElementById('btnUndo').disabled=false;
+  updateLog();
+  saveSession();
+
+  // Marker op kaart — apart try-catch
+  try {
+    if (markerLat!==null) {
+      var m = L.marker([markerLat,markerLon], {icon:makeIcon(type)});
+      m.bindPopup('<b>'+TYPE_LABELS[type]+'</b> ('+zijde+')'+(snapped?'':' (GPS)')+
+                  '<br>'+currentStreet+'<br>'+entry.time);
+      markerLayer.addLayer(m);
+      entries[entries.length-1].marker = m;
+    }
+  } catch(e) {}
+}
+
+function undoLast() {
+  if (!entries.length) return;
+  var last=entries.pop();
+  totalNr--;
+  counts[last.type][last.zijde]--;
+  var capType=last.type.charAt(0).toUpperCase()+last.type.slice(1);
+  document.getElementById('cnt'+capType).textContent=counts[last.type].L+counts[last.type].R;
+  if (last.marker) markerLayer.removeLayer(last.marker);
+  if (!entries.length) document.getElementById('btnUndo').disabled=true;
+  updateLog();
+  saveSession();
+}
+
+/* ── localStorage: herstel na crash/refresh ───────────── */
+var LS_KEY = 'parkeertelling_sessie';
+
+function saveSession() {
+  if (!entries.length) return;
+  try {
+    var data = {
+      entries: entries.map(function(e){
+        return { nr:e.nr, type:e.type, zijde:e.zijde, ts:e.ts, time:e.time,
+                 street:e.street, lat:e.lat, lon:e.lon, gpsLat:e.gpsLat, gpsLon:e.gpsLon };
+      }),
+      counts: counts,
+      totalNr: totalNr,
+      trackPoints: trackPoints,
+      savedAt: timestamp()
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
+  } catch(e) {}
+}
+
+function clearSession() {
+  try { localStorage.removeItem(LS_KEY); } catch(e) {}
+}
+
+function restoreSession() {
+  try {
+    var raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    var data = JSON.parse(raw);
+    if (!data.entries || !data.entries.length) return;
+
+    entries = data.entries.map(function(e){ return Object.assign({marker:null}, e); });
+    counts = data.counts;
+    totalNr = data.totalNr;
+    trackPoints = data.trackPoints || [];
+
+    // Toon herstelmelding
+    var banner = document.getElementById('restoreBanner');
+    banner.style.display = '';
+    banner.textContent = '\u26a0\ufe0f ' + entries.length + ' vermeldingen hersteld van ' +
+      data.savedAt + ' \u2014 download hieronder of begin een nieuwe sessie.';
+
+    // Herstel tellers
+    ['Goed','Fout','Leeg','Spec'].forEach(function(t){
+      var tl = t.toLowerCase();
+      var tot = (counts[tl]||{L:0,R:0});
+      document.getElementById('cnt'+t).textContent = tot.L+tot.R;
+    });
+    updateLog();
+    document.getElementById('btnDlCsv').disabled = false;
+    document.getElementById('btnDlKaart').disabled = false;
+    document.getElementById('btnDlGpx').disabled = false;
+    document.getElementById('btnUndo').disabled = false;
+
+    // Herstel markers op kaart
+    entries.forEach(function(e){
+      if (!e.lat) return;
+      var m = L.marker([parseFloat(e.lat), parseFloat(e.lon)], {icon: makeIcon(e.type)});
+      var typeLabel = TYPE_LABELS[e.type]||e.type;
+      m.bindPopup('<b>'+typeLabel+'</b> ('+e.zijde+')<br>'+e.street+'<br>'+e.time);
+      markerLayer.addLayer(m);
+      e.marker = m;
+    });
+
+    // Herstel GPS-track op kaart
+    if (trackPoints.length > 1) {
+      trackPoints.forEach(function(tp){
+        routeLine.addLatLng([parseFloat(tp.lat), parseFloat(tp.lon)]);
+      });
+      var last = trackPoints[trackPoints.length-1];
+      map.setView([parseFloat(last.lat), parseFloat(last.lon)], 17);
+    }
+  } catch(e) {}
+}
+
+/* Roep restoreSession aan zodra de pagina geladen is */
+window.addEventListener('load', restoreSession);
+
+function updateLog() {
+  var n=entries.length;
+  document.getElementById('logCount').textContent=n+' vermelding'+(n===1?'':'en');
+  if (!n){ document.getElementById('logList').innerHTML='<div class="log-empty">Nog geen tellingen</div>'; return; }
+  var html='';
+  for (var i=n-1;i>=0;i--) {
+    var e=entries[i];
+    html+='<div class="log-item">'+
+      '<span class="log-nr">#'+e.nr+'</span>'+
+      '<span class="log-dot" style="background:'+COLORS[e.type]+'"></span>'+
+      '<span class="log-zijde">'+e.zijde+'</span>'+
+      '<span class="log-street">'+e.street+'</span>'+
+      '<span class="log-time">'+e.time+'</span>'+
+      '</div>';
+  }
+  document.getElementById('logList').innerHTML=html;
+}
+
+/* ── Export CSV ───────────────────────────────────────── */
+function exportCSV() {
+  if (!entries.length) return;
+  var lines=['nr;tijdstip;type;zijde;straat;lat_marker;lon_marker;lat_gps;lon_gps;snapped;hdg_kompas;hdg_gps;hdg_osm;hdg_gebruikt'];
+  entries.forEach(function(e){
+    lines.push([e.nr,e.ts,e.type,e.zijde,e.street,e.lat,e.lon,e.gpsLat,e.gpsLon,
+      e.snapped?'1':'0',e.hdgKompas||'',e.hdgGps||'',e.hdgOsm||'',e.hdgGebruikt||''].join(';'));
+  });
+  lines.push('');
+  lines.push('# Samenvatting');
+  lines.push('type;links;rechts;totaal');
+  ['goed','fout','leeg','spec'].forEach(function(t){
+    lines.push([t,counts[t].L,counts[t].R,counts[t].L+counts[t].R].join(';'));
+  });
+  /* Bezettingsgraad per straat */
+  var straatMap = {};
+  entries.forEach(function(e) {
+    var s = e.street || '(onbekend)';
+    if (!straatMap[s]) straatMap[s] = { goed:0, fout:0, leeg:0, spec:0 };
+    straatMap[s][e.type]++;
+  });
+  lines.push('');
+  lines.push('# Bezettingsgraad per straat');
+  lines.push('straat;goed;fout;leeg;spec;bezet;vrij;bezettingsgraad_pct');
+  Object.keys(straatMap).forEach(function(s) {
+    var r = straatMap[s];
+    var bezet = r.goed + r.fout + r.spec;
+    var vrij  = r.leeg;
+    var totaal = bezet + vrij;
+    var pct = totaal > 0 ? Math.round(bezet / totaal * 1000) / 10 : '';
+    lines.push([s, r.goed, r.fout, r.leeg, r.spec, bezet, vrij, pct].join(';'));
+  });
+
+  if (trackPoints.length) {
+    lines.push('');
+    lines.push('# GPS-track');
+    lines.push('tijdstip;lat;lon;nauwkeurigheid_m;heading_deg');
+    trackPoints.forEach(function(tp){ lines.push([tp.ts,tp.lat,tp.lon,tp.acc,tp.hdg||''].join(';')); });
+  }
+  var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download='parkeertelling_'+filestamp()+'.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+  csvDownloaded = true;
+  clearSession();
+}
+
+/* ── Export GPX ───────────────────────────────────────── */
+function exportGPX() {
+  var d = new Date();
+  var creator = 'rvmk-parkeertelling';
+  var TYPE_SYM = { goed:'Parking', fout:'Flag, Red', leeg:'Flag, Blue', spec:'Flag, Orange' };
+
+  var lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<gpx version="1.1" creator="'+creator+'" xmlns="http://www.topografix.com/GPX/1/1">',
+    '  <metadata>',
+    '    <name>Parkeertelling '+d.toISOString().slice(0,10)+'</name>',
+    '    <time>'+d.toISOString()+'</time>',
+    '  </metadata>'
+  ];
+
+  // Waypoints: parkeerpunten
+  entries.forEach(function(e) {
+    if (!e.lat) return;
+    var name = (e.type==='goed'?'Goed':e.type==='fout'?'Fout':e.type==='leeg'?'Leeg':'Spec.')+' '+e.zijde+' #'+e.nr;
+    var sym = TYPE_SYM[e.type]||'Flag';
+    lines.push('  <wpt lat="'+e.lat+'" lon="'+e.lon+'">');
+    lines.push('    <name>'+name+'</name>');
+    lines.push('    <desc>'+e.street+' — '+e.ts+'</desc>');
+    lines.push('    <sym>'+sym+'</sym>');
+    lines.push('    <type>'+e.type+'</type>');
+    lines.push('  </wpt>');
+  });
+
+  // Track: looproute
+  if (trackPoints.length) {
+    lines.push('  <trk>');
+    lines.push('    <name>Looproute</name>');
+    lines.push('    <trkseg>');
+    trackPoints.forEach(function(tp) {
+      lines.push('      <trkpt lat="'+tp.lat+'" lon="'+tp.lon+'">');
+      lines.push('        <time>'+tp.ts.replace(' ','T')+'Z</time>');
+      lines.push('      </trkpt>');
+    });
+    lines.push('    </trkseg>');
+    lines.push('  </trk>');
+  }
+
+  lines.push('</gpx>');
+
+  var blob = new Blob([lines.join('\n')], {type:'application/gpx+xml;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'parkeertelling_'+filestamp()+'.gpx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+}
+
+function exportMapCanvas() {
+  var pts=trackPoints.map(function(tp){ return {lat:parseFloat(tp.lat),lon:parseFloat(tp.lon)}; });
+  if (!pts.length) return;
+
+  /* Bounding box: alleen gelopen route + markers (NIET alle OSM-wegvakken) */
+  var allLats=pts.map(function(p){ return p.lat; });
+  var allLons=pts.map(function(p){ return p.lon; });
+  entries.forEach(function(e){ if(e.lat){ allLats.push(parseFloat(e.lat)); allLons.push(parseFloat(e.lon)); } });
+
+  var minLat=Math.min.apply(null,allLats), maxLat=Math.max.apply(null,allLats);
+  var minLon=Math.min.apply(null,allLons), maxLon=Math.max.apply(null,allLons);
+
+  /* 20% extra ruimte rondom de route */
+  var pLat=Math.max((maxLat-minLat)*0.20, 0.0006);
+  var pLon=Math.max((maxLon-minLon)*0.20, 0.0010);
+  minLat-=pLat; maxLat+=pLat; minLon-=pLon; maxLon+=pLon;
+
+  /* Mercator projection helpers */
+  function mercY(lat){ var r=lat*Math.PI/180; return Math.log(Math.tan(Math.PI/4+r/2)); }
+  var minMY=mercY(minLat), maxMY=mercY(maxLat);
+  /* FIX: both spans in same unit (radians) for correct aspect ratio */
+  var lonSpanRad=(maxLon-minLon)*Math.PI/180;
+  var mercSpan=maxMY-minMY;
+
+  /* Canvas: 1920px breed, hoogte bepaald door Mercator aspect ratio van de route */
+  var W = 1920;
+  var H = Math.round(W * mercSpan / lonSpanRad);
+  H = Math.max(H, 800);
+  H = Math.min(H, 1920);
+
+  var HDR=Math.round(W*0.04), FTR=Math.round(W*0.034);
+  var canvas=document.createElement('canvas');
+  canvas.width=W; canvas.height=H+HDR+FTR;
+  var ctx=canvas.getContext('2d');
+
+  /* Project lat/lon → canvas XY */
+  var lonSpanDeg=maxLon-minLon;
+  function proj(lat,lon){
+    return {
+      x: (lon-minLon)/lonSpanDeg * W,
+      y: HDR + H - (mercY(lat)-minMY)/mercSpan * H
+    };
+  }
+
+  /* Background */
+  ctx.fillStyle='#f0ede6'; ctx.fillRect(0,HDR,W,H);
+
+  /* Road segments: all gray, used ones highlighted */
+  var roadW=Math.max(2, W*0.002);
+  roadSegs.forEach(function(s,i){
+    var a=proj(s.lat1,s.lon1), b=proj(s.lat2,s.lon2);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle = usedSegIndices[i] ? '#c8a96e' : '#d4cfc6';
+    ctx.lineWidth = usedSegIndices[i] ? roadW*1.8 : roadW;
+    ctx.lineCap='round';
+    ctx.stroke();
+  });
+
+  /* GPS route line (blue, on top of roads) */
+  if (pts.length>1) {
+    ctx.beginPath(); ctx.strokeStyle='#2471a3'; ctx.lineWidth=roadW*1.4;
+    ctx.lineJoin='round'; ctx.lineCap='round';
+    var p0=proj(pts[0].lat,pts[0].lon); ctx.moveTo(p0.x,p0.y);
+    for (var i=1;i<pts.length;i++){ var pi=proj(pts[i].lat,pts[i].lon); ctx.lineTo(pi.x,pi.y); }
+    ctx.stroke();
+  }
+
+  /* A / B start-end markers */
+  function drawAB(pt,label){
+    var p=proj(pt.lat,pt.lon), r=W*0.007;
+    ctx.beginPath(); ctx.arc(p.x,p.y,r,0,2*Math.PI);
+    ctx.fillStyle='#fff'; ctx.fill();
+    ctx.strokeStyle='#1a1918'; ctx.lineWidth=W*0.003; ctx.stroke();
+    ctx.fillStyle='#1a1918'; ctx.font='bold '+Math.round(r*1.2)+'px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,p.x,p.y);
+  }
+  drawAB(pts[0],'A');
+  if (pts.length>1) drawAB(pts[pts.length-1],'B');
+
+  /* Entry markers */
+  var MR=Math.max(5, W*0.006);
+  entries.forEach(function(e){
+    if (!e.lat) return;
+    var p=proj(parseFloat(e.lat),parseFloat(e.lon));
+    ctx.beginPath(); ctx.arc(p.x,p.y,MR,0,2*Math.PI);
+    ctx.fillStyle=COLORS[e.type]; ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=Math.max(1,W*0.0015); ctx.stroke();
+  });
+
+  /* Header bar */
+  ctx.fillStyle='#1a1918'; ctx.fillRect(0,0,W,HDR);
+  var fs=Math.round(HDR*0.42);
+  var totGoed=counts.goed.L+counts.goed.R, totFout=counts.fout.L+counts.fout.R;
+  var totLeeg=counts.leeg.L+counts.leeg.R, totSpec=counts.spec.L+counts.spec.R;
+  ctx.font='bold '+fs+'px sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText('PARKEERTELLING', HDR*0.35, HDR*0.4);
+  ctx.font=Math.round(fs*0.62)+'px sans-serif'; ctx.fillStyle='#aaa8a2';
+  var d=new Date(), ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'  '+pad(d.getHours())+':'+pad(d.getMinutes());
+  ctx.fillText(ds+'     goed:'+totGoed+'  fout:'+totFout+'  leeg:'+totLeeg+'  spec:'+totSpec, HDR*0.35, HDR*0.74);
+
+  /* Footer legend */
+  ctx.fillStyle='#fff'; ctx.fillRect(0,H+HDR,W,FTR);
+  var ly=H+HDR+FTR*0.5, legR=FTR*0.14, legFs=Math.round(FTR*0.3);
+  ctx.font=legFs+'px sans-serif'; ctx.textBaseline='middle';
+  var lx=FTR*0.4;
+  /* road legend */
+  ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+legR*3,ly);
+  ctx.strokeStyle='#c8a96e'; ctx.lineWidth=legR*1.2; ctx.lineCap='round'; ctx.stroke();
+  ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText('bezochte weg',lx+legR*3.6,ly);
+  lx+=ctx.measureText('bezochte weg').width+legR*7;
+  /* dot legend */
+  [{c:'#27ae60',l:'Goed ('+totGoed+')'},{c:'#c0392b',l:'Fout ('+totFout+')'},{c:'#2980b9',l:'Leeg ('+totLeeg+')'},{c:'#d68910',l:'Spec. ('+totSpec+')'}]
+  .forEach(function(item){
+    ctx.beginPath(); ctx.arc(lx+legR,ly,legR,0,2*Math.PI); ctx.fillStyle=item.c; ctx.fill();
+    ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText(item.l,lx+legR*2.4,ly);
+    lx+=ctx.measureText(item.l).width+legR*5;
+  });
+  ctx.font=Math.round(FTR*0.25)+'px sans-serif'; ctx.fillStyle='#aaa'; ctx.textAlign='right';
+  ctx.fillText('rvmk.nl / parkeertelling', W-FTR*0.3, ly);
+
+  canvas.toBlob(function(blob){
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download='parkeertelling_kaart_'+filestamp()+'.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+    kaartDownloaded = true;
+  },'image/png');
+}
+</script>
+</body>
+</html>
