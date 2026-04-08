@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traffic Counter — Help</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg:     #f0f0ec;
+    --panel:  #ffffff;
+    --border: #b0b0a8;
+    --text:   #111111;
+    --dim:    #555555;
+    --sub:    #888880;
+    --green:  #0a8a30;
+    --red:    #c8000a;
+    --orange: #b35c00;
+    --violet: #5500cc;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Oswald', sans-serif;
+    max-width: 580px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+  }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 3px solid var(--text); padding-bottom: 10px; margin-bottom: 28px;
+  }
+  header h1 { font-size: 1.2rem; letter-spacing: 3px; text-transform: uppercase; font-weight: 700; }
+  .back-links { display: flex; gap: 8px; }
+  .back {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--dim); text-decoration: none; border: 2px solid var(--border);
+    border-radius: 4px; padding: 5px 10px; transition: color 0.15s, border-color 0.15s;
+  }
+  .back:hover { color: var(--text); border-color: var(--text); }
+
+  /* ── Table of contents ── */
+  .toc {
+    background: var(--panel); border: 2px solid var(--border); border-radius: 8px;
+    padding: 14px 18px; margin-bottom: 32px;
+  }
+  .toc-title { font-size: 0.68rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--sub); margin-bottom: 10px; }
+  .toc ol { padding-left: 18px; }
+  .toc li { font-size: 0.85rem; font-weight: 500; color: var(--dim); line-height: 1.9; }
+  .toc a { color: var(--dim); text-decoration: none; transition: color 0.15s; }
+  .toc a:hover { color: var(--text); }
+
+  /* ── Mode switcher tabs ── */
+  .mode-tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+  .mode-tab {
+    flex: 1; padding: 10px; border: 2px solid var(--border); border-radius: 6px;
+    text-align: center; font-size: 0.75rem; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--dim); text-decoration: none;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .mode-tab:hover { color: var(--text); border-color: var(--text); }
+  .mode-tab.static-tab  { border-color: var(--green); color: var(--green); }
+  .mode-tab.transect-tab { border-color: var(--violet); color: var(--violet); }
+
+  section { margin-bottom: 32px; }
+  h2 {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--sub); border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 14px;
+  }
+  h3 {
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text); margin: 16px 0 8px;
+  }
+
+  p { font-size: 0.88rem; font-weight: 500; line-height: 1.65; color: var(--dim); margin-bottom: 8px; }
+
+  .card { background: var(--panel); border: 2px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .card-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text); margin-bottom: 6px; }
+  .card p { margin-bottom: 0; }
+
+  .card.mode-static   { border-left: 5px solid var(--green); }
+  .card.mode-transect { border-left: 5px solid var(--violet); }
+  .card.mode-both     { border-left: 5px solid var(--orange); }
+
+  .tag {
+    display: inline-block; background: var(--text); color: #fff;
+    font-family: 'Share Tech Mono', monospace; font-size: 0.68rem; padding: 2px 7px;
+    border-radius: 3px; margin: 2px 2px 2px 0; letter-spacing: 1px;
+  }
+  .tag.green  { background: var(--green); }
+  .tag.red    { background: var(--red); }
+  .tag.orange { background: var(--orange); }
+  .tag.violet { background: var(--violet); }
+  .tag.dim    { background: var(--dim); }
+
+  .mode-badge {
+    display: inline-block; font-size: 0.6rem; letter-spacing: 2px; padding: 2px 7px;
+    border-radius: 3px; vertical-align: middle; margin-left: 4px; font-weight: 700;
+  }
+  .mb-static   { background: #d4f0da; color: var(--green); border: 1px solid #7dcc90; }
+  .mb-transect { background: #e8e0ff; color: var(--violet); border: 1px solid #b090ee; }
+  .mb-both     { background: #fde8cc; color: var(--orange); border: 1px solid #e8b070; }
+
+  .key-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  .key-table td {
+    font-size: 0.82rem; font-weight: 500; color: var(--dim); padding: 6px 4px;
+    border-bottom: 1px solid var(--border); vertical-align: top;
+  }
+  .key-table td:first-child {
+    font-family: 'Share Tech Mono', monospace; color: var(--text); font-size: 0.78rem;
+    white-space: nowrap; width: 120px; padding-right: 12px;
+  }
+  .key-table tr:last-child td { border-bottom: none; }
+
+  .status-example {
+    border-radius: 5px; padding: 7px 12px; font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;
+  }
+  .s-idle    { background: #e0e0d8; color: var(--dim);    border: 2px solid var(--border); }
+  .s-running { background: #d4f0da; color: var(--green);  border: 2px solid #7dcc90; }
+  .s-ended   { background: #fde8cc; color: var(--orange); border: 2px solid #e8b070; }
+
+  .file-list { display: flex; flex-direction: column; gap: 6px; }
+  .file-row {
+    display: flex; align-items: baseline; gap: 10px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
+  }
+  .file-name { font-family: 'Share Tech Mono', monospace; font-size: 0.75rem; color: var(--text); white-space: nowrap; }
+  .file-desc { font-size: 0.8rem; font-weight: 500; color: var(--dim); }
+
+  .branding {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding-top: 24px; border-top: 2px solid var(--border); margin-top: 8px;
+  }
+  .branding-logo {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, #cc785c, #a05a3c);
+    display: flex; align-items: center; justify-content: center; font-size: 0.78rem;
+  }
+  .branding-text .built { font-size: 0.55rem; letter-spacing: 2px; text-transform: uppercase; color: var(--sub); display: block; }
+  .branding-text .name  {
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 1px;
+    background: linear-gradient(90deg, #a05a3c, #cc785c);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Help</h1>
+  <div class="back-links">
+    <a class="back" href="traffic_counter.html">Static</a>
+    <a class="back" href="traffic_counter_transect.html">Transect</a>
+    <a class="back" href="parkeertelling.html">Parkeren</a>
+  </div>
+</header>
+
+<!-- Table of contents -->
+<div class="toc">
+  <div class="toc-title">Contents</div>
+  <p style="font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--green);margin:4px 0 6px;">Traffic Counter</p>
+  <ol>
+    <li><a href="#overview">Overview &amp; two modes</a></li>
+    <li><a href="#session">Starting and ending a session</a></li>
+    <li><a href="#counting">Counting vehicles</a></li>
+    <li><a href="#directions">Directions &amp; compass</a></li>
+    <li><a href="#gps">GPS &amp; location</a></li>
+    <li><a href="#transect">Transect mode — walking counts</a></li>
+    <li><a href="#notes">Location / Notes field</a></li>
+    <li><a href="#csv">CSV export</a></li>
+    <li><a href="#keyboard">Keyboard shortcuts</a></li>
+    <li><a href="#tips">Field tips</a></li>
+  </ol>
+  <p style="font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--orange);margin:14px 0 6px;">Parkeertelling</p>
+  <ol start="11">
+    <li><a href="#park-overzicht">Wat doet de parkeertelling?</a></li>
+    <li><a href="#park-modus">Modus kiezen</a></li>
+    <li><a href="#park-sessie">Sessie starten en stoppen</a></li>
+    <li><a href="#park-tellen">Tellen: links en rechts</a></li>
+    <li><a href="#park-gps">GPS &amp; OSM wegsnapping</a></li>
+    <li><a href="#park-recovery">Crash recovery</a></li>
+    <li><a href="#park-csv">CSV-export</a></li>
+    <li><a href="#park-kaart">Kaartexport (PNG)</a></li>
+    <li><a href="#park-tips">Veldtips</a></li>
+  </ol>
+  <p style="font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin:14px 0 6px;">Algemeen</p>
+  <ol start="20">
+    <li><a href="#files">Bestanden</a></li>
+  </ol>
+</div>
+
+<!-- 1. Overview -->
+<section id="overview">
+  <h2>1 — Overview &amp; two modes</h2>
+  <p>Traffic Counter is a browser-based field tool for counting vehicles and pedestrians. All data is stored locally in the browser and exported to a semicolon-delimited CSV ready for Excel or KNIME. No account or internet connection required for counting — internet is only used for map tiles and address lookup.</p>
+  <p>Two modes are available:</p>
+  <div class="mode-tabs">
+    <a class="mode-tab static-tab" href="traffic_counter.html">Static mode</a>
+    <a class="mode-tab transect-tab" href="traffic_counter_transect.html">Transect mode</a>
+  </div>
+  <div class="card mode-static">
+    <div class="card-title">Static mode <span class="mode-badge mb-static">STATIC</span></div>
+    <p>Stand at a fixed location on the roadside. One GPS fix is taken at the start. Counts are totalled per vehicle type and direction, with hourly extrapolation in the CSV.</p>
+  </div>
+  <div class="card mode-transect">
+    <div class="card-title">Transect mode <span class="mode-badge mb-transect">TRANSECT</span></div>
+    <p>Walk a route (dune path, shopping street, cycle path). GPS runs continuously throughout the session. Every count tap is tagged with the coordinates at that moment. A separate route log records your position every 10 seconds. A live map shows your route and count locations.</p>
+  </div>
+</section>
+
+<!-- 2. Session -->
+<section id="session">
+  <h2>2 — Starting and ending a session</h2>
+  <div class="card mode-both">
+    <div class="card-title"><span class="tag green">START</span> button</div>
+    <p>Begins the session clock and activates the counting buttons. In Static mode, starts acquiring a one-time GPS fix. In Transect mode, starts the continuous GPS watch and route logging.</p>
+  </div>
+  <div class="card mode-both">
+    <div class="card-title"><span class="tag red">END</span> button</div>
+    <p>Stops the clock, locks the counting buttons, and automatically downloads the CSV file. In Transect mode, captures one final GPS point and fits the map to the full route.</p>
+  </div>
+  <p>The status bar shows the current state at all times:</p>
+  <div class="status-example s-idle">Press Start to begin counting</div>
+  <div class="status-example s-running">Counting in progress...</div>
+  <div class="status-example s-ended">Session ended — downloading CSV...</div>
+  <p>The <strong>Export CSV</strong> button in the footer lets you download the data at any point during a session without ending it.</p>
+</section>
+
+<!-- 3. Counting -->
+<section id="counting">
+  <h2>3 — Counting vehicles</h2>
+  <p>Five vehicle types are available, top to bottom: <strong>Car, Truck/Van, Motorcycle, Bicycle, Pedestrian</strong>. Each row shows two <span class="tag">+1</span> buttons — one per direction — and a small <span class="tag dim">-</span> button on the right side for quick per-row corrections.</p>
+  <p>The phone vibrates briefly on every tap as tactile confirmation, so you can count without looking at the screen.</p>
+  <div class="card mode-both">
+    <div class="card-title">Undo Last button</div>
+    <p>Removes the most recent count tap regardless of vehicle type or direction. The corresponding log entry is struck through. In Transect mode, the map marker for that tap is also removed. The button is greyed out until at least one count has been made.</p>
+  </div>
+</section>
+
+<!-- 4. Directions -->
+<section id="directions">
+  <h2>4 — Directions &amp; compass</h2>
+  <p>The two direction labels (default: West / East) are free-text fields. Type anything that describes your situation — <em>North</em>, <em>Inbound</em>, <em>Towards Station</em>. These labels appear in the CSV columns.</p>
+  <div class="card mode-both">
+    <div class="card-title"><span class="tag">Compass</span> button</div>
+    <p>Point your phone along the road in one direction of travel, then tap Compass. The app reads the device compass, averages 5 readings for stability, and fills in the two opposing cardinal directions automatically (e.g. SW / NE). The button turns green when directions are set. On iOS 13+ you will be asked for motion sensor permission.</p>
+  </div>
+</section>
+
+<!-- 5. GPS -->
+<section id="gps">
+  <h2>5 — GPS &amp; location</h2>
+  <h3>Static mode <span class="mode-badge mb-static">STATIC</span></h3>
+  <p>When you press Start, the app watches for GPS fixes and waits until the accuracy is <strong>25 metres or better</strong> before locking in the position. It then calls the OpenStreetMap Nominatim API to look up the street name and city. The session panel shows live progress:</p>
+  <table class="key-table">
+    <tr><td>Waiting for GPS fix...</td><td>Searching, no fix yet</td></tr>
+    <tr><td>GPS: +/-48m, improving...</td><td>Fix found but still refining</td></tr>
+    <tr><td>Kerkstraat, Amsterdam</td><td>Reliable fix, address resolved</td></tr>
+    <tr><td>52.373, 4.892 (+/-18m)</td><td>Reliable fix, no internet for address</td></tr>
+    <tr><td>... (low accuracy)</td><td>Timed out after 30s, best fix used</td></tr>
+  </table>
+  <p style="margin-top:10px;">The GPS fix, accuracy, street, city, country, and a reliability flag are all written to the CSV. The fix is marked reliable if accuracy was 25m or better.</p>
+
+  <h3>Transect mode <span class="mode-badge mb-transect">TRANSECT</span></h3>
+  <p>GPS runs continuously for the entire session. The session panel shows the current accuracy in real time. Every +1 tap records the coordinates at that exact moment. A separate route point is saved every 10 seconds regardless of counting activity. Both logs appear in the CSV.</p>
+</section>
+
+<!-- 6. Transect -->
+<section id="transect">
+  <h2>6 — Transect mode in detail</h2>
+  <p>Transect mode is designed for counts taken while walking — dune paths, shopping streets, long cycle routes. The counting interface is identical to Static mode, but the following additional features are active:</p>
+  <div class="card mode-transect">
+    <div class="card-title">Continuous GPS tracking</div>
+    <p>The GPS watch runs from Start to End. Each +1 tap stores the current coordinates. If GPS is temporarily lost (e.g. between dunes), the tap is still recorded with a note that GPS was unavailable at that moment.</p>
+  </div>
+  <div class="card mode-transect">
+    <div class="card-title">Route log</div>
+    <p>Independent of counting, one GPS point is saved every 10 seconds. This captures your full walking route even in sections where nothing was counted. The number of route points is shown live in the session panel.</p>
+  </div>
+  <div class="card mode-transect">
+    <div class="card-title">Live map</div>
+    <p>A Leaflet/OpenStreetMap map appears below the counters once the first route point is logged. A blue line traces your route, and coloured dots mark each count location (colour = vehicle type). Green dot = start, red dot = end. The map follows your position as you walk and zooms to fit the full route when you press End. Requires an internet connection for map tiles.</p>
+  </div>
+  <div class="card mode-transect">
+    <div class="card-title">CSV structure</div>
+    <p>The transect CSV has three sections: a summary table (same as Static), a count log with timestamp and coordinates per tap, and the full route log. This lets you map every individual count in KNIME or GIS software.</p>
+  </div>
+</section>
+
+<!-- 7. Notes -->
+<section id="notes">
+  <h2>7 — Location / Notes field</h2>
+  <p>A free-text input below the status bar, always editable. Use it to describe the measurement location, weather conditions, nearby roadworks, or your name. The content is saved as the first data row in every CSV export.</p>
+</section>
+
+<!-- 8. CSV -->
+<section id="csv">
+  <h2>8 — CSV export</h2>
+  <p>All CSV files use <strong>semicolons</strong> as column delimiters and start with <code>sep=;</code> so Excel opens them correctly without the import wizard. All timestamps are in your local device timezone.</p>
+
+  <h3>Static CSV structure</h3>
+  <table class="key-table">
+    <tr><td>Header block</td><td>Export time, notes, start/end times, duration, GPS data (lat, lon, accuracy, street, city, country, reliability), extrapolation factor</td></tr>
+    <tr><td>Summary table</td><td>Counts per vehicle type and direction, plus per-hour extrapolations if session was 30s or longer</td></tr>
+    <tr><td>Timestamp log</td><td>Every individual tap: time, vehicle type, direction</td></tr>
+  </table>
+
+  <h3>Transect CSV structure</h3>
+  <table class="key-table">
+    <tr><td>Header block</td><td>Export time, notes, start/end times, duration, route point count, extrapolation factor</td></tr>
+    <tr><td>Summary table</td><td>Same as Static</td></tr>
+    <tr><td>Count log</td><td>Every tap: timestamp, vehicle type, direction, latitude, longitude, GPS accuracy at that moment</td></tr>
+    <tr><td>Route log</td><td>One GPS point every 10 seconds: timestamp, latitude, longitude, accuracy</td></tr>
+  </table>
+
+  <div class="card mode-both">
+    <div class="card-title">Hourly extrapolation</div>
+    <p>Calculated as <code>count x (3600 / observed seconds)</code>. Requires a session of at least 30 seconds. The exact factor and observed duration are written to the CSV so you can verify or adjust the calculation in KNIME.</p>
+  </div>
+</section>
+
+<!-- 9. Keyboard -->
+<section id="keyboard">
+  <h2>9 — Keyboard shortcuts (desktop)</h2>
+  <table class="key-table">
+    <tr><td>Space / Enter</td><td>Start session (when idle) or End session (when running)</td></tr>
+    <tr><td>Z</td><td>Undo last tap</td></tr>
+    <tr><td>Q / A</td><td>Car — direction A / direction B</td></tr>
+    <tr><td>W / S</td><td>Truck — direction A / direction B</td></tr>
+    <tr><td>E / D</td><td>Motorcycle — direction A / direction B</td></tr>
+    <tr><td>R / F</td><td>Bicycle — direction A / direction B</td></tr>
+    <tr><td>T / G</td><td>Pedestrian — direction A / direction B</td></tr>
+  </table>
+</section>
+
+<!-- 10. Field tips -->
+<section id="tips">
+  <h2>10 — Field tips</h2>
+  <div class="card mode-both">
+    <div class="card-title">Before you start</div>
+    <p>Fill in the Notes field with the location name. Set direction labels, or use the Compass button while pointing along the road. In Static mode, wait for the GPS fix to reach a good accuracy before pressing Start.</p>
+  </div>
+  <div class="card mode-both">
+    <div class="card-title">Bright sunlight</div>
+    <p>The app uses a light background with high-contrast saturated colors for outdoor readability. Each vehicle type has a solid colored +1 button, so you can tap by color recognition without reading the label.</p>
+  </div>
+  <div class="card mode-both">
+    <div class="card-title">Correcting mistakes</div>
+    <p>Use the small <span class="tag dim">-</span> buttons on the right of each row to subtract from a specific vehicle/direction. Use <strong>Undo Last</strong> to remove the most recent tap of any type. In Transect mode the map marker is removed as well.</p>
+  </div>
+  <div class="card mode-transect">
+    <div class="card-title">Long transect routes</div>
+    <p>For long routes, keep the screen on (turn off screen lock in your phone settings). The GPS and route logging run continuously even if you briefly pocket the phone, as long as the browser tab stays active. Battery usage is higher than normal due to continuous GPS — bring a powerbank for very long sessions.</p>
+  </div>
+  <div class="card mode-transect">
+    <div class="card-title">Poor GPS coverage</div>
+    <p>In areas with poor signal (dense dune vegetation, narrow streets between tall buildings), GPS accuracy may be lower. Each count in the log records the accuracy at that moment, so you can filter out low-confidence points in KNIME later.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     PARKEERTELLING
+     ══════════════════════════════════════════════════════ -->
+<div style="margin:40px 0 32px;border-top:3px solid var(--text);padding-top:20px;display:flex;align-items:center;gap:12px;">
+  <div style="font-size:0.65rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--orange);white-space:nowrap;">Parkeertelling</div>
+  <div style="flex:1;height:1px;background:var(--border);"></div>
+  <a href="parkeertelling.html" style="font-size:0.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:2px solid var(--border);padding:4px 10px;">Open app</a>
+</div>
+
+<!-- 11. Overzicht -->
+<section id="park-overzicht">
+  <h2>11 — Wat doet de parkeertelling?</h2>
+  <p>De parkeertelling is een veldtool voor wandelende parkeerobservaties. Je loopt een straat of route en registreert per parkeervak de toestand — links en rechts van de straat apart. De app snapped je positie op OSM-wegdata, plaatst markers loodrecht op de wegas en exporteert een semikolom-CSV plus een kaart-PNG.</p>
+  <p>Alles werkt in de browser, zonder installatie of account. Internetverbinding is alleen nodig voor kaartweergave, straatnaam en OSM-wegdata.</p>
+</section>
+
+<!-- 12. Modus -->
+<section id="park-modus">
+  <h2>12 — Modus kiezen</h2>
+  <p>Bij het openen verschijnt een keuzescherm. Kies het type parkeren dat je gaat onderzoeken:</p>
+  <div class="card" style="border-left:5px solid var(--orange);">
+    <div class="card-title">🚗 Autoparkeren</div>
+    <p>Vier types: <span class="tag orange">Goed</span> geparkeerd &middot; <span class="tag red">Fout</span> geparkeerd &middot; <span class="tag" style="background:#2980b9">Leeg</span> parkeervak &middot; <span class="tag" style="background:#d68910">Spec.</span> gehandicaptenplek of laden/lossen. CSV-prefix: <code>parkeertelling_</code>.</p>
+  </div>
+  <div class="card" style="border-left:5px solid #0097a7;">
+    <div class="card-title">🚲 Fietsparkeren</div>
+    <p>Vier types: <span class="tag orange">Goed</span> in rek/beugel &middot; <span class="tag red">Fout</span> fout geparkeerd &middot; <span class="tag" style="background:#2980b9">Leeg</span> fietsvak/beugel &middot; <span class="tag" style="background:#d68910">Motor</span> motor/scooter in fietsvak. CSV-prefix: <code>fietsparkeren_</code>.</p>
+  </div>
+  <p>De modus bepaalt ook de header-titel, de Spec.-knoplabel en de tekst op de kaartexport. Wisselen kan alleen door de pagina te herladen.</p>
+</section>
+
+<!-- 13. Sessie -->
+<section id="park-sessie">
+  <h2>13 — Sessie starten en stoppen</h2>
+  <div class="card mode-both">
+    <div class="card-title"><span class="tag green">▶ Start</span></div>
+    <p>Activeert de GPS-watch. Telknoppen worden actief zodra de GPS-nauwkeurigheid 25 meter of beter is. Een oranje knipperende dot geeft aan dat de app nog op een goede fix wacht.</p>
+  </div>
+  <div class="card mode-both">
+    <div class="card-title"><span class="tag red">■ Stop</span></div>
+    <p>Stopt de sessie en downloadt automatisch de CSV én een kaart-PNG. De tijdelijke opslag wordt gewist. Download-knoppen onderaan blijven actief voor handmatige herdownload.</p>
+  </div>
+  <p>De <strong>Wake Lock</strong> — het slotje-icoontje in de header — houdt het scherm aan tijdens de sessie.</p>
+</section>
+
+<!-- 14. Tellen -->
+<section id="park-tellen">
+  <h2>14 — Tellen: links en rechts</h2>
+  <p>Het telscherm heeft twee kolommen gescheiden door een "WEG"-divider. Links = linkerkant van de straat in jouw looprichting, rechts = rechterkant. Per kolom:</p>
+  <div class="card mode-both">
+    <div class="card-title">Knoplayout</div>
+    <p><strong>Goed</strong> loopt vol breed (meest gebruikte actie). <strong>Fout</strong> en <strong>Spec./Motor</strong> staan half naast elkaar. <strong>Leeg</strong> loopt weer vol breed.</p>
+  </div>
+  <div class="card mode-both">
+    <div class="card-title">Ongedaan maken</div>
+    <p>"↩ ongedaan maken" verwijdert de meest recente telling — ongeacht type of zijde. De marker op de kaart verdwijnt mee. De knop is uitgegraad totdat er minstens één telling is.</p>
+  </div>
+</section>
+
+<!-- 15. GPS -->
+<section id="park-gps">
+  <h2>15 — GPS &amp; OSM wegsnapping</h2>
+  <p>De gekleurde stip in de statusbalk toont de GPS-status: grijs = inactief, oranje knipperend = fix onvoldoende (&gt;25m), groen = actief en nauwkeurig genoeg om te tellen.</p>
+  <p>Wegvakken worden opgehaald via Overpass API (straal 300m). Markers komen <strong>4 meter loodrecht op de dichtstbijzijnde wegas</strong> — niet op je GPS-punt. Een kleine indicator onder de straatnaam toont de snapstatus: laden / actief / niet beschikbaar.</p>
+  <p>Bij onbereikbaarheid van Overpass wordt automatisch een tweede eindpunt geprobeerd. Als beide falen, worden markers op de bewegingsrichting geplaatst (minder nauwkeurig, tellen gaat gewoon door).</p>
+</section>
+
+<!-- 16. Recovery -->
+<section id="park-recovery">
+  <h2>16 — Crash recovery</h2>
+  <div class="card mode-both">
+    <div class="card-title">Automatisch opslaan</div>
+    <p>De app slaat de sessie op bij elke telling en elke 30 seconden. Bij een crash of per ongeluk gesloten tab gaat niets verloren.</p>
+  </div>
+  <p>Bij heropenen verschijnt een herstelscherm als er een niet-afgesloten sessie is gevonden (modus, tijdstip, laatste straat, aantal tellingen):</p>
+  <table class="key-table">
+    <tr><td>Doorgaan</td><td>GPS hervat, alle tellingen en markers worden teruggezet op de kaart</td></tr>
+    <tr><td>Exporteer en start nieuw</td><td>CSV wordt direct gedownload, daarna keuzescherm voor nieuwe sessie</td></tr>
+    <tr><td>Verwijder</td><td>Opgeslagen sessie gewist, terug naar keuzescherm</td></tr>
+  </table>
+</section>
+
+<!-- 17. CSV -->
+<section id="park-csv">
+  <h2>17 — CSV-export</h2>
+  <p>Automatisch bij Stop, of handmatig via "↓ Download CSV". Scheidingsteken: puntkomma. Codering: UTF-8.</p>
+  <table class="key-table">
+    <tr><td>Tellog</td><td>Nr, tijdstip, type, zijde (L/R), straat, coördinaten marker, coördinaten GPS</td></tr>
+    <tr><td>Samenvatting</td><td>Totalen per type, gesplitst naar links en rechts</td></tr>
+    <tr><td>Bezettingsgraad</td><td>Per straatnaam: goed/fout/leeg/spec, bezet, vrij, bezettingsgraad %</td></tr>
+    <tr><td>GPS-track</td><td>Alle GPS-punten: tijdstip, coördinaten, nauwkeurigheid</td></tr>
+  </table>
+</section>
+
+<!-- 18. Kaart -->
+<section id="park-kaart">
+  <h2>18 — Kaartexport (PNG)</h2>
+  <p>Automatisch bij Stop, of via "↓ Download kaart". De kaart is 8× de breedte van de kaartdiv — geschikt voor rapporten.</p>
+  <table class="key-table">
+    <tr><td>Achtergrond</td><td>Warm grijs</td></tr>
+    <tr><td>Wegvakken</td><td>Alle geladen wegen lichtgrijs; bezochte wegen zandgeel</td></tr>
+    <tr><td>GPS-route</td><td>Blauwe lijn; A = start, B = einde</td></tr>
+    <tr><td>Markers</td><td>Gekleurde stippen per type, 4m van wegas</td></tr>
+    <tr><td>Header / footer</td><td>Datum, totalen, legenda, rvmk.nl</td></tr>
+  </table>
+</section>
+
+<!-- 19. Tips -->
+<section id="park-tips">
+  <h2>19 — Veldtips</h2>
+  <div class="card mode-both">
+    <div class="card-title">Wacht op de groene dot</div>
+    <p>Knoppen worden pas actief bij ≤25m nauwkeurigheid. Buitenshuis met vrij zicht is GPS doorgaans binnen een minuut op orde.</p>
+  </div>
+  <div class="card mode-both">
+    <div class="card-title">Looprichting</div>
+    <p>Links en rechts worden bepaald vanuit jouw looprichting. Loop de route consequent in één richting, dan klopt de oriëntatie in het CSV. Bij een U-vormige route: nieuwe sessie voor de terugweg.</p>
+  </div>
+  <div class="card mode-both">
+    <div class="card-title">Accu</div>
+    <p>Doorlopend GPS-gebruik vreet accu. Neem een powerbank mee bij sessies langer dan 45 minuten.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     BESTANDEN (gecombineerd)
+     ══════════════════════════════════════════════════════ -->
+<div style="margin:40px 0 32px;border-top:3px solid var(--text);padding-top:20px;">
+  <div style="font-size:0.65rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--dim);">Bestanden</div>
+</div>
+
+<!-- 20. Files -->
+<section id="files">
+  <h2>20 — Bestanden / Files</h2>
+  <p>All files must be placed in the same folder on your server for navigation to work correctly.</p>
+  <div class="file-list">
+    <div class="file-row">
+      <span class="file-name">index.html</span>
+      <span class="file-desc">Start screen — overview of all tools</span>
+    </div>
+    <div class="file-row">
+      <span class="file-name">traffic_counter.html</span>
+      <span class="file-desc">Static mode — fixed location counting</span>
+    </div>
+    <div class="file-row">
+      <span class="file-name">traffic_counter_transect.html</span>
+      <span class="file-desc">Transect mode — walking route counting with live map</span>
+    </div>
+    <div class="file-row">
+      <span class="file-name">parkeertelling.html</span>
+      <span class="file-desc">Parking survey — walking count for cars &amp; bikes</span>
+    </div>
+    <div class="file-row">
+      <span class="file-name">traffic_counter_help.html</span>
+      <span class="file-desc">This help file — covers all tools</span>
+    </div>
+  </div>
+  <p style="margin-top:12px;">External dependencies (CDN, require internet): Google Fonts (Oswald, Share Tech Mono), Leaflet.js, OpenStreetMap tiles &amp; Nominatim, Overpass API.</p>
+</section>
+
+<div class="branding">
+  <div class="branding-logo">*</div>
+  <div class="branding-text">
+    <span class="built">Built with AI by</span>
+    <span class="name">Claude - Anthropic</span>
+  </div>
+</div>
+
+</body>
+</html>
