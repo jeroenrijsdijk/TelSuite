@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Parkeertelling</title>
+<title>Fietsparkeren</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
@@ -23,6 +23,14 @@
     --c-leeg-bg: #e8f4fb;
     --c-spec: #d68910;
     --c-spec-bg: #fef9e7;
+    --c-fiets: #27ae60;
+    --c-fiets-bg: #eaf7ef;
+    --c-brommer: #e67e22;
+    --c-brommer-bg: #fef3e8;
+    --c-breed: #2980b9;
+    --c-breed-bg: #e8f4fb;
+    --c-wrak: #c0392b;
+    --c-wrak-bg: #fdecea;
     --c-route: #2471a3;
     --font: 'Oswald', sans-serif;
   }
@@ -97,14 +105,14 @@
   .btn-tel:disabled { opacity: 0.30; cursor: default; }
 
   /* button colors by type */
-  .t-goed  { background: var(--c-goed); color: #fff; }
-  .t-goed:active:not(:disabled)  { background: #229954; }
-  .t-fout  { background: var(--c-fout); color: #fff; }
-  .t-fout:active:not(:disabled)  { background: #a93226; }
-  .t-leeg  { background: var(--c-leeg); color: #fff; }
-  .t-leeg:active:not(:disabled)  { background: #1f6fa0; }
-  .t-spec  { background: var(--c-spec); color: #fff; }
-  .t-spec:active:not(:disabled)  { background: #b7770d; }
+  .t-fiets   { background: var(--c-fiets);   color: #fff; }
+  .t-fiets:active:not(:disabled)   { background: #229954; }
+  .t-brommer { background: var(--c-brommer); color: #fff; }
+  .t-brommer:active:not(:disabled) { background: #ca6f1e; }
+  .t-breed   { background: var(--c-breed);   color: #fff; }
+  .t-breed:active:not(:disabled)   { background: #1f6fa0; }
+  .t-wrak    { background: var(--c-wrak);    color: #fff; }
+  .t-wrak:active:not(:disabled)    { background: #a93226; }
 
   .btn-undo { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: var(--font); font-size: 11px; font-weight: 400; letter-spacing: 0.5px; text-transform: uppercase; padding: 7px; cursor: pointer; margin-bottom: 8px; touch-action: manipulation; }
   .btn-undo:disabled { opacity: 0.35; cursor: default; }
@@ -158,7 +166,7 @@
 
 <header>
   <a href="index.html" style="color:#aaa8a2;text-decoration:none;font-size:13px;font-weight:300;margin-right:4px;">&#8592;</a>
-  <h1>Parkeertelling</h1>
+  <h1>Fietsparkeren</h1>
   <span>rvmk.nl</span>
 </header>
 
@@ -184,10 +192,10 @@
       <div class="coords" id="coordsText"></div>
       <div style="font-size:10px;font-weight:300;margin-top:1px;" id="snapStatus"></div>
       <div style="display:flex;gap:10px;margin-top:6px;">
-        <span class="mini-count" style="color:var(--c-goed)">&#10003; <span id="cntGoed">0</span></span>
-        <span class="mini-count" style="color:var(--c-fout)">&#10005; <span id="cntFout">0</span></span>
-        <span class="mini-count" style="color:var(--c-leeg)">&#9633; <span id="cntLeeg">0</span></span>
-        <span class="mini-count" style="color:var(--c-spec)">&#9675; <span id="cntSpec">0</span></span>
+        <span class="mini-count" style="color:var(--c-fiets)">&#128690; <span id="cntFiets">0</span></span>
+        <span class="mini-count" style="color:var(--c-brommer)">&#127949; <span id="cntBrommer">0</span></span>
+        <span class="mini-count" style="color:var(--c-breed)">&#11020; <span id="cntBreed">0</span></span>
+        <span class="mini-count" style="color:var(--c-wrak)">&#9851; <span id="cntWrak">0</span></span>
       </div>
     </div>
     <div class="bearing-info">
@@ -206,12 +214,12 @@
   <div class="btn-grid">
     <!-- LINKS -->
     <div class="btn-col" id="colLinks">
-      <button class="btn-tel t-goed" disabled onclick="addEntry('goed','L')"><span class="btn-icon">&#10003;</span>Goed</button>
+      <button class="btn-tel t-fiets"   disabled onclick="addEntry('fiets','L')"><span class="btn-icon">&#128690;</span>Fiets</button>
       <div class="btn-half-row">
-        <button class="btn-tel t-fout" disabled onclick="addEntry('fout','L')"><span class="btn-icon">&#10005;</span>Fout</button>
-        <button class="btn-tel t-spec" disabled onclick="addEntry('spec','L')"><span class="btn-icon">&#9675;</span>Spec.</button>
+        <button class="btn-tel t-brommer" disabled onclick="addEntry('brommer','L')"><span class="btn-icon">&#127949;</span>Brommer</button>
+        <button class="btn-tel t-breed"   disabled onclick="addEntry('breed','L')"><span class="btn-icon">&#11020;</span>Breed</button>
       </div>
-      <button class="btn-tel t-leeg" disabled onclick="addEntry('leeg','L')"><span class="btn-icon">&#9633;</span>Leeg</button>
+      <button class="btn-tel t-wrak"    disabled onclick="addEntry('wrak','L')"><span class="btn-icon">&#9851;</span>Wrak</button>
     </div>
 
     <!-- STRAAT MIDDEN -->
@@ -223,12 +231,12 @@
 
     <!-- RECHTS -->
     <div class="btn-col" id="colRechts">
-      <button class="btn-tel t-goed" disabled onclick="addEntry('goed','R')"><span class="btn-icon">&#10003;</span>Goed</button>
+      <button class="btn-tel t-fiets"   disabled onclick="addEntry('fiets','R')"><span class="btn-icon">&#128690;</span>Fiets</button>
       <div class="btn-half-row">
-        <button class="btn-tel t-fout" disabled onclick="addEntry('fout','R')"><span class="btn-icon">&#10005;</span>Fout</button>
-        <button class="btn-tel t-spec" disabled onclick="addEntry('spec','R')"><span class="btn-icon">&#9675;</span>Spec.</button>
+        <button class="btn-tel t-brommer" disabled onclick="addEntry('brommer','R')"><span class="btn-icon">&#127949;</span>Brommer</button>
+        <button class="btn-tel t-breed"   disabled onclick="addEntry('breed','R')"><span class="btn-icon">&#11020;</span>Breed</button>
       </div>
-      <button class="btn-tel t-leeg" disabled onclick="addEntry('leeg','R')"><span class="btn-icon">&#9633;</span>Leeg</button>
+      <button class="btn-tel t-wrak"    disabled onclick="addEntry('wrak','R')"><span class="btn-icon">&#9851;</span>Wrak</button>
     </div>
   </div>
 
@@ -238,10 +246,10 @@
     <div class="map-header">
       <span>Looproute</span>
       <div class="map-legend">
-        <div class="leg"><div class="leg-dot" style="background:var(--c-goed)"></div>goed</div>
-        <div class="leg"><div class="leg-dot" style="background:var(--c-fout)"></div>fout</div>
-        <div class="leg"><div class="leg-dot" style="background:var(--c-leeg)"></div>leeg</div>
-        <div class="leg"><div class="leg-dot" style="background:var(--c-spec)"></div>spec.</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-fiets)"></div>fiets</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-brommer)"></div>brommer</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-breed)"></div>breed</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-wrak)"></div>wrak</div>
       </div>
     </div>
     <div id="map"></div>
@@ -272,7 +280,7 @@
 var sessionActive = false;
 var watchId = null;
 var entries = [];
-var counts = { goed:{L:0,R:0}, fout:{L:0,R:0}, leeg:{L:0,R:0}, spec:{L:0,R:0} };
+var counts = { fiets:{L:0,R:0}, brommer:{L:0,R:0}, breed:{L:0,R:0}, wrak:{L:0,R:0} };
 var currentLat = null, currentLon = null, currentAcc = 999;
 var prevLat = null, prevLon = null;
 var currentBearing = null;
@@ -306,8 +314,8 @@ var OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter'
 ];
 
-var COLORS = { goed:'#27ae60', fout:'#c0392b', leeg:'#2980b9', spec:'#d68910' };
-var TYPE_LABELS = { goed:'Goed geparkeerd', fout:'Fout geparkeerd', leeg:'Leeg parkeervak', spec:'Speciaal (gehandicapt/L&L)' };
+var COLORS = { fiets:'#27ae60', brommer:'#e67e22', breed:'#2980b9', wrak:'#c0392b' };
+var TYPE_LABELS = { fiets:'Fiets', brommer:'Brommer', breed:'Breed voertuig', wrak:'Fietswrak' };
 
 /* ── Leaflet ──────────────────────────────────────────── */
 var map = L.map('map', { zoomControl: true, attributionControl: false });
@@ -403,7 +411,7 @@ function startSession() {
   if (!navigator.geolocation) { setStatus('GPS niet beschikbaar.'); return; }
   sessionActive=true;
   entries=[]; totalNr=0;
-  counts={goed:{L:0,R:0},fout:{L:0,R:0},leeg:{L:0,R:0},spec:{L:0,R:0}};
+  counts={fiets:{L:0,R:0},brommer:{L:0,R:0},breed:{L:0,R:0},wrak:{L:0,R:0}};
   trackPoints=[]; currentStreet='—'; currentBearing=null;
   prevLat=null; prevLon=null;
   if (disableTimer){ clearTimeout(disableTimer); disableTimer=null; }
@@ -411,7 +419,7 @@ function startSession() {
   if (roadFetchTimer){ clearTimeout(roadFetchTimer); roadFetchTimer=null; }
   csvDownloaded=false; kaartDownloaded=false;
   recentBearings=[]; segVisitBuffer={};
-  displayBearing=null; lastMoved=false;
+  displayBearing=null;
   compassHeading=null;
   try {
     var kb=document.getElementById('btnKompas');
@@ -422,7 +430,7 @@ function startSession() {
   routeLine.setLatLngs([]);
   markerLayer.clearLayers();
   if (posMarker){ map.removeLayer(posMarker); posMarker=null; }
-  ['Goed','Fout','Leeg','Spec'].forEach(function(t){
+  ['Fiets','Brommer','Breed','Wrak'].forEach(function(t){
     document.getElementById('cnt'+t).textContent='0';
   });
   document.getElementById('streetName').textContent='—';
@@ -654,7 +662,7 @@ function scheduleGeocode(lat,lon) {
 
 function doGeocode(lat,lon) {
   fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat='+lat+'&lon='+lon+'&zoom=17&addressdetails=1',
-    {headers:{'Accept-Language':'nl','User-Agent':'rvmk-parkeertelling/1.0'}})
+    {headers:{'Accept-Language':'nl','User-Agent':'rvmk-fietsparkeren/1.0'}})
   .then(function(r){ return r.json(); })
   .then(function(data){
     var a=data.address||{};
@@ -794,13 +802,13 @@ function setSnapBadge() {
 
 /* ── Bearing betrouwbaarheid → kleur ─────────────────── */
 function bearingColor() {
-  if (displayBearing === null) return '#c0392b';
+  if (displayBearing === null) return '#c0392b';                        // rood: geen bearing
   var hasCompass = compassActive && compassHeading !== null;
-  if (lastMoved && hasCompass)  return '#27ae60';
-  if (lastMoved)                return '#8fbc2a';
-  if (hasCompass)               return '#e8b84b';
-  if (recentBearings.length)    return '#e67e22';
-  return '#c0392b';
+  if (lastMoved && hasCompass)  return '#27ae60';                       // groen: bewegend + kompas
+  if (lastMoved)                return '#8fbc2a';                       // geelgroen: bewegend, GPS only
+  if (hasCompass)               return '#e8b84b';                       // geel: stil, kompas dominant
+  if (recentBearings.length)    return '#e67e22';                       // oranje: stil, stale GPS
+  return '#c0392b';                                                     // rood: niets bruikbaars
 }
 
 /* ── Mini-kaart ───────────────────────────────────────── */
@@ -811,7 +819,7 @@ function drawMiniMap() {
   var W = canvas.width, H = canvas.height;
   var cx = W/2, cy = H/2;
   var RADIUS_M = 100;
-  var scale = (W/2 - 6) / RADIUS_M;
+  var scale = (W/2 - 6) / RADIUS_M; // px per meter
 
   ctx.clearRect(0, 0, W, H);
 
@@ -830,17 +838,21 @@ function drawMiniMap() {
     var brg = displayBearing !== null ? displayBearing * Math.PI / 180 : 0;
 
     ctx.save();
+    // Clip binnen de cirkel
     ctx.beginPath();
     ctx.arc(cx, cy, W/2 - 2, 0, 2*Math.PI);
     ctx.clip();
+
     ctx.translate(cx, cy);
-    ctx.rotate(-brg);
+    ctx.rotate(-brg); // omhoog = looprichting
 
     roadSegs.forEach(function(s) {
+      // Verschuif naar GPS-positie, Y omdraaien (canvas Y-as is omgekeerd)
       var ax = (s.ax - posXY.x) * scale;
       var ay = -(s.ay - posXY.y) * scale;
       var bx = (s.bx - posXY.x) * scale;
       var by = -(s.by - posXY.y) * scale;
+      // Sla over als segment ver buiten bereik
       if (Math.min(Math.abs(ax),Math.abs(bx)) > W/2+10 &&
           Math.min(Math.abs(ay),Math.abs(by)) > H/2+10) return;
       ctx.beginPath();
@@ -855,7 +867,7 @@ function drawMiniMap() {
     ctx.restore();
   }
 
-  // Pijl: looprichting omhoog, kleur = betrouwbaarheid
+  // Positiemarker: gevulde driehoek = looprichting omhoog
   var aw = 7, ah = 13;
   ctx.beginPath();
   ctx.moveTo(cx, cy - ah);
@@ -898,17 +910,19 @@ function addEntry(type, zijde) {
     var snapInfo = snapToRoad(currentLat, currentLon);
     if (snapInfo) {
       var snapBrg = snapInfo.bearing;
-      if (currentBearing!==null) {
-        var diff = ((snapBrg-currentBearing)+360)%360;
-        if (diff>90 && diff<270) snapBrg = (snapBrg+180)%360;
+      // Flip-check: gebruik currentBearing als referentie (actueel, niet gedempt)
+      if (currentBearing !== null) {
+        var diff = ((snapBrg - currentBearing) + 360) % 360;
+        if (diff > 90 && diff < 270) snapBrg = (snapBrg + 180) % 360;
       }
-      hdgOsm     = Math.round(snapBrg);
+      hdgOsm      = Math.round(snapBrg);
       hdgGebruikt = snapBrg;
-      markerLat  = snapInfo.lat;
-      markerLon  = snapInfo.lon;
+      markerLat   = snapInfo.lat;
+      markerLon   = snapInfo.lon;
       usedSegIndices[snapInfo.segId] = true;
-      snapped    = true;
+      snapped     = true;
     }
+    // hdgGebruikt blijft currentBearing als er geen snap is
     if (markerLat!==null && hdgGebruikt!==null) {
       var perp = zijde==='L' ? (hdgGebruikt-90+360)%360 : (hdgGebruikt+90)%360;
       var off  = offsetPoint(markerLat, markerLon, perp, SIDE_OFFSET_M);
@@ -964,7 +978,7 @@ function undoLast() {
 }
 
 /* ── localStorage: herstel na crash/refresh ───────────── */
-var LS_KEY = 'parkeertelling_sessie';
+var LS_KEY = 'fietsparkeren_sessie';
 
 function saveSession() {
   if (!entries.length) return;
@@ -1006,7 +1020,7 @@ function restoreSession() {
       data.savedAt + ' \u2014 download hieronder of begin een nieuwe sessie.';
 
     // Herstel tellers
-    ['Goed','Fout','Leeg','Spec'].forEach(function(t){
+    ['Fiets','Brommer','Breed','Wrak'].forEach(function(t){
       var tl = t.toLowerCase();
       var tot = (counts[tl]||{L:0,R:0});
       document.getElementById('cnt'+t).textContent = tot.L+tot.R;
@@ -1070,26 +1084,23 @@ function exportCSV() {
   lines.push('');
   lines.push('# Samenvatting');
   lines.push('type;links;rechts;totaal');
-  ['goed','fout','leeg','spec'].forEach(function(t){
+  ['fiets','brommer','breed','wrak'].forEach(function(t){
     lines.push([t,counts[t].L,counts[t].R,counts[t].L+counts[t].R].join(';'));
   });
   /* Bezettingsgraad per straat */
   var straatMap = {};
   entries.forEach(function(e) {
     var s = e.street || '(onbekend)';
-    if (!straatMap[s]) straatMap[s] = { goed:0, fout:0, leeg:0, spec:0 };
+    if (!straatMap[s]) straatMap[s] = { fiets:0, brommer:0, breed:0, wrak:0 };
     straatMap[s][e.type]++;
   });
   lines.push('');
-  lines.push('# Bezettingsgraad per straat');
-  lines.push('straat;goed;fout;leeg;spec;bezet;vrij;bezettingsgraad_pct');
+  lines.push('# Aantallen per straat');
+  lines.push('straat;fiets;brommer;breed;wrak;totaal');
   Object.keys(straatMap).forEach(function(s) {
     var r = straatMap[s];
-    var bezet = r.goed + r.fout + r.spec;
-    var vrij  = r.leeg;
-    var totaal = bezet + vrij;
-    var pct = totaal > 0 ? Math.round(bezet / totaal * 1000) / 10 : '';
-    lines.push([s, r.goed, r.fout, r.leeg, r.spec, bezet, vrij, pct].join(';'));
+    var totaal = r.fiets + r.brommer + r.breed + r.wrak;
+    lines.push([s, r.fiets, r.brommer, r.breed, r.wrak, totaal].join(';'));
   });
 
   if (trackPoints.length) {
@@ -1101,7 +1112,7 @@ function exportCSV() {
   var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url; a.download='parkeertelling_'+filestamp()+'.csv';
+  a.href=url; a.download='fietsparkeren_'+filestamp()+'.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1113,14 +1124,14 @@ function exportCSV() {
 /* ── Export GPX ───────────────────────────────────────── */
 function exportGPX() {
   var d = new Date();
-  var creator = 'rvmk-parkeertelling';
-  var TYPE_SYM = { goed:'Parking', fout:'Flag, Red', leeg:'Flag, Blue', spec:'Flag, Orange' };
+  var creator = 'rvmk-fietsparkeren';
+  var TYPE_SYM = { fiets:'Parking', brommer:'Flag, Orange', breed:'Flag, Blue', wrak:'Flag, Red' };
 
   var lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<gpx version="1.1" creator="'+creator+'" xmlns="http://www.topografix.com/GPX/1/1">',
     '  <metadata>',
-    '    <name>Parkeertelling '+d.toISOString().slice(0,10)+'</name>',
+    '    <name>Fietsparkeren '+d.toISOString().slice(0,10)+'</name>',
     '    <time>'+d.toISOString()+'</time>',
     '  </metadata>'
   ];
@@ -1128,7 +1139,7 @@ function exportGPX() {
   // Waypoints: parkeerpunten
   entries.forEach(function(e) {
     if (!e.lat) return;
-    var name = (e.type==='goed'?'Goed':e.type==='fout'?'Fout':e.type==='leeg'?'Leeg':'Spec.')+' '+e.zijde+' #'+e.nr;
+    var name = (TYPE_LABELS[e.type]||e.type)+' '+e.zijde+' #'+e.nr;
     var sym = TYPE_SYM[e.type]||'Flag';
     lines.push('  <wpt lat="'+e.lat+'" lon="'+e.lon+'">');
     lines.push('    <name>'+name+'</name>');
@@ -1158,7 +1169,7 @@ function exportGPX() {
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
-  a.download = 'parkeertelling_'+filestamp()+'.gpx';
+  a.download = 'fietsparkeren_'+filestamp()+'.gpx';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1257,13 +1268,13 @@ function exportMapCanvas() {
   /* Header bar */
   ctx.fillStyle='#1a1918'; ctx.fillRect(0,0,W,HDR);
   var fs=Math.round(HDR*0.42);
-  var totGoed=counts.goed.L+counts.goed.R, totFout=counts.fout.L+counts.fout.R;
-  var totLeeg=counts.leeg.L+counts.leeg.R, totSpec=counts.spec.L+counts.spec.R;
+  var totFiets=counts.fiets.L+counts.fiets.R, totBrommer=counts.brommer.L+counts.brommer.R;
+  var totBreed=counts.breed.L+counts.breed.R, totWrak=counts.wrak.L+counts.wrak.R;
   ctx.font='bold '+fs+'px sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.fillText('PARKEERTELLING', HDR*0.35, HDR*0.4);
+  ctx.fillText('FIETSPARKEREN', HDR*0.35, HDR*0.4);
   ctx.font=Math.round(fs*0.62)+'px sans-serif'; ctx.fillStyle='#aaa8a2';
   var d=new Date(), ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'  '+pad(d.getHours())+':'+pad(d.getMinutes());
-  ctx.fillText(ds+'     goed:'+totGoed+'  fout:'+totFout+'  leeg:'+totLeeg+'  spec:'+totSpec, HDR*0.35, HDR*0.74);
+  ctx.fillText(ds+'     fiets:'+totFiets+'  brommer:'+totBrommer+'  breed:'+totBreed+'  wrak:'+totWrak, HDR*0.35, HDR*0.74);
 
   /* Footer legend */
   ctx.fillStyle='#fff'; ctx.fillRect(0,H+HDR,W,FTR);
@@ -1276,19 +1287,19 @@ function exportMapCanvas() {
   ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText('bezochte weg',lx+legR*3.6,ly);
   lx+=ctx.measureText('bezochte weg').width+legR*7;
   /* dot legend */
-  [{c:'#27ae60',l:'Goed ('+totGoed+')'},{c:'#c0392b',l:'Fout ('+totFout+')'},{c:'#2980b9',l:'Leeg ('+totLeeg+')'},{c:'#d68910',l:'Spec. ('+totSpec+')'}]
+  [{c:'#27ae60',l:'Fiets ('+totFiets+')'},{c:'#e67e22',l:'Brommer ('+totBrommer+')'},{c:'#2980b9',l:'Breed ('+totBreed+')'},{c:'#c0392b',l:'Wrak ('+totWrak+')'}]
   .forEach(function(item){
     ctx.beginPath(); ctx.arc(lx+legR,ly,legR,0,2*Math.PI); ctx.fillStyle=item.c; ctx.fill();
     ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText(item.l,lx+legR*2.4,ly);
     lx+=ctx.measureText(item.l).width+legR*5;
   });
   ctx.font=Math.round(FTR*0.25)+'px sans-serif'; ctx.fillStyle='#aaa'; ctx.textAlign='right';
-  ctx.fillText('rvmk.nl / parkeertelling', W-FTR*0.3, ly);
+  ctx.fillText('rvmk.nl / fietsparkeren', W-FTR*0.3, ly);
 
   canvas.toBlob(function(blob){
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
-    a.href=url; a.download='parkeertelling_kaart_'+filestamp()+'.png';
+    a.href=url; a.download='fietsparkeren_kaart_'+filestamp()+'.png';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
