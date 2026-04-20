@@ -779,6 +779,20 @@ function scheduleRoadFetch(lat, lon) {
   roadFetchTimer = setTimeout(function(){ fetchRoads(lat, lon); }, 600);
 }
 
+/* Kies de beste OSM-richting: snapBrg of snapBrg+180, gebaseerd op referentie-bearing.
+   Referentie: currentBearing → compassHeading → geen flip (geef snapBrg terug). */
+function bestOsmBearing(snapBrg) {
+  var ref = currentBearing !== null ? currentBearing
+          : (compassActive && compassHeading !== null) ? compassHeading
+          : null;
+  if (ref === null) return snapBrg;
+  var candA = snapBrg;
+  var candB = (snapBrg + 180) % 360;
+  var diffA = Math.abs(((candA - ref) + 540) % 360 - 180);
+  var diffB = Math.abs(((candB - ref) + 540) % 360 - 180);
+  return diffA <= diffB ? candA : candB;
+}
+
 function setSnapBadge() {
   /* small indicator appended to coords line */
   var el = document.getElementById('snapStatus');
@@ -897,11 +911,7 @@ function addEntry(type, zijde) {
   try {
     var snapInfo = snapToRoad(currentLat, currentLon);
     if (snapInfo) {
-      var snapBrg = snapInfo.bearing;
-      if (currentBearing!==null) {
-        var diff = ((snapBrg-currentBearing)+360)%360;
-        if (diff>90 && diff<270) snapBrg = (snapBrg+180)%360;
-      }
+      var snapBrg = bestOsmBearing(snapInfo.bearing);
       hdgOsm     = Math.round(snapBrg);
       hdgGebruikt = snapBrg;
       markerLat  = snapInfo.lat;
