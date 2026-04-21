@@ -265,6 +265,9 @@
     </div>
   </div>
 
+  <div style="margin-bottom:6px;">
+    <button class="btn-dl" id="btnDlZip" disabled onclick="exportZip()" style="width:100%;border-color:var(--text);color:var(--text);font-weight:600;">&#8595; Download ZIP (CSV + GPX + kaart)</button>
+  </div>
   <div class="download-row">
     <button class="btn-dl" id="btnDlCsv" disabled onclick="exportCSV()">&#8595; Download CSV</button>
     <button class="btn-dl" id="btnDlKaart" disabled onclick="exportMapCanvas()">&#8595; Download kaart</button>
@@ -275,6 +278,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 /* ── State ────────────────────────────────────────────── */
 var sessionActive = false;
@@ -446,6 +450,7 @@ function startSession() {
   document.getElementById('btnDlCsv').disabled=true;
   document.getElementById('btnDlKaart').disabled=true;
   document.getElementById('btnDlGpx').disabled=true;
+  document.getElementById('btnDlZip').disabled=true;
   document.getElementById('btnUndo').disabled=true;
   setStatus('GPS zoeken\u2026', 'searching');
   acquireWakeLock();
@@ -475,6 +480,7 @@ function stopSession() {
     document.getElementById('btnDlCsv').disabled=false;
     document.getElementById('btnDlKaart').disabled=false;
     document.getElementById('btnDlGpx').disabled=false;
+    document.getElementById('btnDlZip').disabled=false;
     setStatus('Sessie gestopt \u00b7 '+entries.length+' object'+(entries.length===1?'':'en')+' \u2014 download CSV en kaart hieronder.','off');
   } else {
     setStatus('Sessie gestopt \u00b7 geen vermeldingen.','off');
@@ -1038,6 +1044,7 @@ function restoreSession() {
     document.getElementById('btnDlCsv').disabled = false;
     document.getElementById('btnDlKaart').disabled = false;
     document.getElementById('btnDlGpx').disabled = false;
+    document.getElementById('btnDlZip').disabled = false;
     document.getElementById('btnUndo').disabled = false;
 
     // Herstel markers op kaart
@@ -1082,9 +1089,8 @@ function updateLog() {
   document.getElementById('logList').innerHTML=html;
 }
 
-/* ── Export CSV ───────────────────────────────────────── */
-function exportCSV() {
-  if (!entries.length) return;
+/* ── Export helpers ───────────────────────────────────── */
+function buildCsvString() {
   var lines=['nr;tijdstip;type;zijde;straat;lat_marker;lon_marker;lat_gps;lon_gps;snapped;hdg_kompas;hdg_gps;hdg_osm;hdg_gebruikt'];
   entries.forEach(function(e){
     lines.push([e.nr,e.ts,e.type,e.zijde,e.street,e.lat,e.lon,e.gpsLat,e.gpsLon,
@@ -1096,7 +1102,6 @@ function exportCSV() {
   ['fiets','brommer','breed','wrak'].forEach(function(t){
     lines.push([t,counts[t].L,counts[t].R,counts[t].L+counts[t].R].join(';'));
   });
-  /* Bezettingsgraad per straat */
   var straatMap = {};
   entries.forEach(function(e) {
     var s = e.street || '(onbekend)';
@@ -1111,14 +1116,143 @@ function exportCSV() {
     var totaal = r.fiets + r.brommer + r.breed + r.wrak;
     lines.push([s, r.fiets, r.brommer, r.breed, r.wrak, totaal].join(';'));
   });
-
   if (trackPoints.length) {
     lines.push('');
     lines.push('# GPS-track');
     lines.push('tijdstip;lat;lon;nauwkeurigheid_m;heading_deg');
     trackPoints.forEach(function(tp){ lines.push([tp.ts,tp.lat,tp.lon,tp.acc,tp.hdg||''].join(';')); });
   }
-  var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+  return lines.join('\n');
+}
+
+function buildGpxString() {
+  var d = new Date();
+  var creator = 'rvmk-fietsparkeren';
+  var TYPE_SYM = { fiets:'Parking', brommer:'Flag, Orange', breed:'Flag, Blue', wrak:'Flag, Red' };
+  var lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<gpx version="1.1" creator="'+creator+'" xmlns="http://www.topografix.com/GPX/1/1">',
+    '  <metadata>',
+    '    <n>Fietsparkeren '+d.toISOString().slice(0,10)+'</n>',
+    '    <time>'+d.toISOString()+'</time>',
+    '  </metadata>'
+  ];
+  entries.forEach(function(e) {
+    if (!e.lat) return;
+    var name = (TYPE_LABELS[e.type]||e.type)+' '+e.zijde+' #'+e.nr;
+    var sym = TYPE_SYM[e.type]||'Flag';
+    lines.push('  <wpt lat="'+e.lat+'" lon="'+e.lon+'">');
+    lines.push('    <n>'+name+'</n>');
+    lines.push('    <desc>'+e.street+' — '+e.ts+'</desc>');
+    lines.push('    <sym>'+sym+'</sym>');
+    lines.push('    <type>'+e.type+'</type>');
+    lines.push('  </wpt>');
+  });
+  if (trackPoints.length) {
+    lines.push('  <trk>');
+    lines.push('    <n>Looproute</n>');
+    lines.push('    <trkseg>');
+    trackPoints.forEach(function(tp) {
+      lines.push('      <trkpt lat="'+tp.lat+'" lon="'+tp.lon+'">');
+      lines.push('        <time>'+tp.ts.replace(' ','T')+'Z</time>');
+      lines.push('      </trkpt>');
+    });
+    lines.push('    </trkseg>');
+    lines.push('  </trk>');
+  }
+  lines.push('</gpx>');
+  return lines.join('\n');
+}
+
+function buildMapBlob(cb) {
+  var pts=trackPoints.map(function(tp){ return {lat:parseFloat(tp.lat),lon:parseFloat(tp.lon)}; });
+  if (!pts.length) { cb(null); return; }
+  var allLats=pts.map(function(p){ return p.lat; });
+  var allLons=pts.map(function(p){ return p.lon; });
+  entries.forEach(function(e){ if(e.lat){ allLats.push(parseFloat(e.lat)); allLons.push(parseFloat(e.lon)); } });
+  var minLat=Math.min.apply(null,allLats), maxLat=Math.max.apply(null,allLats);
+  var minLon=Math.min.apply(null,allLons), maxLon=Math.max.apply(null,allLons);
+  var pLat=Math.max((maxLat-minLat)*0.20, 0.0006);
+  var pLon=Math.max((maxLon-minLon)*0.20, 0.0010);
+  minLat-=pLat; maxLat+=pLat; minLon-=pLon; maxLon+=pLon;
+  function mercY(lat){ var r=lat*Math.PI/180; return Math.log(Math.tan(Math.PI/4+r/2)); }
+  var minMY=mercY(minLat), maxMY=mercY(maxLat);
+  var lonSpanRad=(maxLon-minLon)*Math.PI/180;
+  var mercSpan=maxMY-minMY;
+  var W=1920, H=Math.max(800,Math.min(1920,Math.round(W*mercSpan/lonSpanRad)));
+  var HDR=Math.round(W*0.04), FTR=Math.round(W*0.034);
+  var canvas=document.createElement('canvas');
+  canvas.width=W; canvas.height=H+HDR+FTR;
+  var ctx=canvas.getContext('2d');
+  var lonSpanDeg=maxLon-minLon;
+  function proj(lat,lon){ return { x:(lon-minLon)/lonSpanDeg*W, y:HDR+H-(mercY(lat)-minMY)/mercSpan*H }; }
+  ctx.fillStyle='#f0ede6'; ctx.fillRect(0,HDR,W,H);
+  var roadW=Math.max(2,W*0.002);
+  roadSegs.forEach(function(s){
+    var a=proj(s.lat1,s.lon1), b=proj(s.lat2,s.lon2);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle=usedSegIndices[s.id]?'#c8a96e':'#d4cfc6';
+    ctx.lineWidth=usedSegIndices[s.id]?roadW*1.8:roadW;
+    ctx.lineCap='round'; ctx.stroke();
+  });
+  if (pts.length>1) {
+    ctx.beginPath(); ctx.strokeStyle='#2471a3'; ctx.lineWidth=roadW*1.4;
+    ctx.lineJoin='round'; ctx.lineCap='round';
+    var p0=proj(pts[0].lat,pts[0].lon); ctx.moveTo(p0.x,p0.y);
+    for (var i=1;i<pts.length;i++){ var pi=proj(pts[i].lat,pts[i].lon); ctx.lineTo(pi.x,pi.y); }
+    ctx.stroke();
+  }
+  function drawAB(pt,label){
+    var p=proj(pt.lat,pt.lon), r=W*0.007;
+    ctx.beginPath(); ctx.arc(p.x,p.y,r,0,2*Math.PI);
+    ctx.fillStyle='#fff'; ctx.fill();
+    ctx.strokeStyle='#1a1918'; ctx.lineWidth=W*0.003; ctx.stroke();
+    ctx.fillStyle='#1a1918'; ctx.font='bold '+Math.round(r*1.2)+'px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,p.x,p.y);
+  }
+  drawAB(pts[0],'A');
+  if (pts.length>1) drawAB(pts[pts.length-1],'B');
+  var MR=Math.max(5,W*0.006);
+  entries.forEach(function(e){
+    if (!e.lat) return;
+    var p=proj(parseFloat(e.lat),parseFloat(e.lon));
+    ctx.beginPath(); ctx.arc(p.x,p.y,MR,0,2*Math.PI);
+    ctx.fillStyle=COLORS[e.type]; ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=Math.max(1,W*0.0015); ctx.stroke();
+  });
+  ctx.fillStyle='#1a1918'; ctx.fillRect(0,0,W,HDR);
+  var fs=Math.round(HDR*0.42);
+  var totFiets=counts.fiets.L+counts.fiets.R, totBrommer=counts.brommer.L+counts.brommer.R;
+  var totBreed=counts.breed.L+counts.breed.R, totWrak=counts.wrak.L+counts.wrak.R;
+  ctx.font='bold '+fs+'px sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText('FIETSPARKEREN', HDR*0.35, HDR*0.4);
+  ctx.font=Math.round(fs*0.62)+'px sans-serif'; ctx.fillStyle='#aaa8a2';
+  var d=new Date(), ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'  '+pad(d.getHours())+':'+pad(d.getMinutes());
+  ctx.fillText(ds+'     fiets:'+totFiets+'  brommer:'+totBrommer+'  breed:'+totBreed+'  wrak:'+totWrak, HDR*0.35, HDR*0.74);
+  ctx.fillStyle='#fff'; ctx.fillRect(0,H+HDR,W,FTR);
+  var ly=H+HDR+FTR*0.5, legR=FTR*0.14, legFs=Math.round(FTR*0.3);
+  ctx.font=legFs+'px sans-serif'; ctx.textBaseline='middle';
+  var lx=FTR*0.4;
+  ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+legR*3,ly);
+  ctx.strokeStyle='#c8a96e'; ctx.lineWidth=legR*1.2; ctx.lineCap='round'; ctx.stroke();
+  ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText('bezochte weg',lx+legR*3.6,ly);
+  lx+=ctx.measureText('bezochte weg').width+legR*7;
+  [{c:'#27ae60',l:'Fiets ('+totFiets+')'},{c:'#e67e22',l:'Brommer ('+totBrommer+')'},{c:'#2980b9',l:'Breed ('+totBreed+')'},{c:'#c0392b',l:'Wrak ('+totWrak+')'}]
+  .forEach(function(item){
+    ctx.beginPath(); ctx.arc(lx+legR,ly,legR,0,2*Math.PI); ctx.fillStyle=item.c; ctx.fill();
+    ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText(item.l,lx+legR*2.4,ly);
+    lx+=ctx.measureText(item.l).width+legR*5;
+  });
+  ctx.font=Math.round(FTR*0.25)+'px sans-serif'; ctx.fillStyle='#aaa'; ctx.textAlign='right';
+  ctx.fillText('rvmk.nl / fietsparkeren', W-FTR*0.3, ly);
+  canvas.toBlob(function(blob){ cb(blob); }, 'image/png');
+}
+
+/* ── Export CSV ───────────────────────────────────────── */
+function exportCSV() {
+  if (!entries.length) return;
+  var str = buildCsvString();
+  var blob=new Blob([str],{type:'text/csv;charset=utf-8;'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
   a.href=url; a.download='fietsparkeren_'+filestamp()+'.csv';
@@ -1132,49 +1266,8 @@ function exportCSV() {
 
 /* ── Export GPX ───────────────────────────────────────── */
 function exportGPX() {
-  var d = new Date();
-  var creator = 'rvmk-fietsparkeren';
-  var TYPE_SYM = { fiets:'Parking', brommer:'Flag, Orange', breed:'Flag, Blue', wrak:'Flag, Red' };
-
-  var lines = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<gpx version="1.1" creator="'+creator+'" xmlns="http://www.topografix.com/GPX/1/1">',
-    '  <metadata>',
-    '    <name>Fietsparkeren '+d.toISOString().slice(0,10)+'</name>',
-    '    <time>'+d.toISOString()+'</time>',
-    '  </metadata>'
-  ];
-
-  // Waypoints: parkeerpunten
-  entries.forEach(function(e) {
-    if (!e.lat) return;
-    var name = (TYPE_LABELS[e.type]||e.type)+' '+e.zijde+' #'+e.nr;
-    var sym = TYPE_SYM[e.type]||'Flag';
-    lines.push('  <wpt lat="'+e.lat+'" lon="'+e.lon+'">');
-    lines.push('    <name>'+name+'</name>');
-    lines.push('    <desc>'+e.street+' — '+e.ts+'</desc>');
-    lines.push('    <sym>'+sym+'</sym>');
-    lines.push('    <type>'+e.type+'</type>');
-    lines.push('  </wpt>');
-  });
-
-  // Track: looproute
-  if (trackPoints.length) {
-    lines.push('  <trk>');
-    lines.push('    <name>Looproute</name>');
-    lines.push('    <trkseg>');
-    trackPoints.forEach(function(tp) {
-      lines.push('      <trkpt lat="'+tp.lat+'" lon="'+tp.lon+'">');
-      lines.push('        <time>'+tp.ts.replace(' ','T')+'Z</time>');
-      lines.push('      </trkpt>');
-    });
-    lines.push('    </trkseg>');
-    lines.push('  </trk>');
-  }
-
-  lines.push('</gpx>');
-
-  var blob = new Blob([lines.join('\n')], {type:'application/gpx+xml;charset=utf-8;'});
+  var str = buildGpxString();
+  var blob = new Blob([str], {type:'application/gpx+xml;charset=utf-8;'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
@@ -1186,126 +1279,8 @@ function exportGPX() {
 }
 
 function exportMapCanvas() {
-  var pts=trackPoints.map(function(tp){ return {lat:parseFloat(tp.lat),lon:parseFloat(tp.lon)}; });
-  if (!pts.length) return;
-
-  /* Bounding box: alleen gelopen route + markers (NIET alle OSM-wegvakken) */
-  var allLats=pts.map(function(p){ return p.lat; });
-  var allLons=pts.map(function(p){ return p.lon; });
-  entries.forEach(function(e){ if(e.lat){ allLats.push(parseFloat(e.lat)); allLons.push(parseFloat(e.lon)); } });
-
-  var minLat=Math.min.apply(null,allLats), maxLat=Math.max.apply(null,allLats);
-  var minLon=Math.min.apply(null,allLons), maxLon=Math.max.apply(null,allLons);
-
-  /* 20% extra ruimte rondom de route */
-  var pLat=Math.max((maxLat-minLat)*0.20, 0.0006);
-  var pLon=Math.max((maxLon-minLon)*0.20, 0.0010);
-  minLat-=pLat; maxLat+=pLat; minLon-=pLon; maxLon+=pLon;
-
-  /* Mercator projection helpers */
-  function mercY(lat){ var r=lat*Math.PI/180; return Math.log(Math.tan(Math.PI/4+r/2)); }
-  var minMY=mercY(minLat), maxMY=mercY(maxLat);
-  /* FIX: both spans in same unit (radians) for correct aspect ratio */
-  var lonSpanRad=(maxLon-minLon)*Math.PI/180;
-  var mercSpan=maxMY-minMY;
-
-  /* Canvas: 1920px breed, hoogte bepaald door Mercator aspect ratio van de route */
-  var W = 1920;
-  var H = Math.round(W * mercSpan / lonSpanRad);
-  H = Math.max(H, 800);
-  H = Math.min(H, 1920);
-
-  var HDR=Math.round(W*0.04), FTR=Math.round(W*0.034);
-  var canvas=document.createElement('canvas');
-  canvas.width=W; canvas.height=H+HDR+FTR;
-  var ctx=canvas.getContext('2d');
-
-  /* Project lat/lon → canvas XY */
-  var lonSpanDeg=maxLon-minLon;
-  function proj(lat,lon){
-    return {
-      x: (lon-minLon)/lonSpanDeg * W,
-      y: HDR + H - (mercY(lat)-minMY)/mercSpan * H
-    };
-  }
-
-  /* Background */
-  ctx.fillStyle='#f0ede6'; ctx.fillRect(0,HDR,W,H);
-
-  /* Road segments: all gray, used ones highlighted */
-  var roadW=Math.max(2, W*0.002);
-  roadSegs.forEach(function(s){
-    var a=proj(s.lat1,s.lon1), b=proj(s.lat2,s.lon2);
-    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
-    ctx.strokeStyle = usedSegIndices[s.id] ? '#c8a96e' : '#d4cfc6';
-    ctx.lineWidth = usedSegIndices[s.id] ? roadW*1.8 : roadW;
-    ctx.lineCap='round';
-    ctx.stroke();
-  });
-
-  /* GPS route line (blue, on top of roads) */
-  if (pts.length>1) {
-    ctx.beginPath(); ctx.strokeStyle='#2471a3'; ctx.lineWidth=roadW*1.4;
-    ctx.lineJoin='round'; ctx.lineCap='round';
-    var p0=proj(pts[0].lat,pts[0].lon); ctx.moveTo(p0.x,p0.y);
-    for (var i=1;i<pts.length;i++){ var pi=proj(pts[i].lat,pts[i].lon); ctx.lineTo(pi.x,pi.y); }
-    ctx.stroke();
-  }
-
-  /* A / B start-end markers */
-  function drawAB(pt,label){
-    var p=proj(pt.lat,pt.lon), r=W*0.007;
-    ctx.beginPath(); ctx.arc(p.x,p.y,r,0,2*Math.PI);
-    ctx.fillStyle='#fff'; ctx.fill();
-    ctx.strokeStyle='#1a1918'; ctx.lineWidth=W*0.003; ctx.stroke();
-    ctx.fillStyle='#1a1918'; ctx.font='bold '+Math.round(r*1.2)+'px sans-serif';
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,p.x,p.y);
-  }
-  drawAB(pts[0],'A');
-  if (pts.length>1) drawAB(pts[pts.length-1],'B');
-
-  /* Entry markers */
-  var MR=Math.max(5, W*0.006);
-  entries.forEach(function(e){
-    if (!e.lat) return;
-    var p=proj(parseFloat(e.lat),parseFloat(e.lon));
-    ctx.beginPath(); ctx.arc(p.x,p.y,MR,0,2*Math.PI);
-    ctx.fillStyle=COLORS[e.type]; ctx.fill();
-    ctx.strokeStyle='#fff'; ctx.lineWidth=Math.max(1,W*0.0015); ctx.stroke();
-  });
-
-  /* Header bar */
-  ctx.fillStyle='#1a1918'; ctx.fillRect(0,0,W,HDR);
-  var fs=Math.round(HDR*0.42);
-  var totFiets=counts.fiets.L+counts.fiets.R, totBrommer=counts.brommer.L+counts.brommer.R;
-  var totBreed=counts.breed.L+counts.breed.R, totWrak=counts.wrak.L+counts.wrak.R;
-  ctx.font='bold '+fs+'px sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.fillText('FIETSPARKEREN', HDR*0.35, HDR*0.4);
-  ctx.font=Math.round(fs*0.62)+'px sans-serif'; ctx.fillStyle='#aaa8a2';
-  var d=new Date(), ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'  '+pad(d.getHours())+':'+pad(d.getMinutes());
-  ctx.fillText(ds+'     fiets:'+totFiets+'  brommer:'+totBrommer+'  breed:'+totBreed+'  wrak:'+totWrak, HDR*0.35, HDR*0.74);
-
-  /* Footer legend */
-  ctx.fillStyle='#fff'; ctx.fillRect(0,H+HDR,W,FTR);
-  var ly=H+HDR+FTR*0.5, legR=FTR*0.14, legFs=Math.round(FTR*0.3);
-  ctx.font=legFs+'px sans-serif'; ctx.textBaseline='middle';
-  var lx=FTR*0.4;
-  /* road legend */
-  ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+legR*3,ly);
-  ctx.strokeStyle='#c8a96e'; ctx.lineWidth=legR*1.2; ctx.lineCap='round'; ctx.stroke();
-  ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText('bezochte weg',lx+legR*3.6,ly);
-  lx+=ctx.measureText('bezochte weg').width+legR*7;
-  /* dot legend */
-  [{c:'#27ae60',l:'Fiets ('+totFiets+')'},{c:'#e67e22',l:'Brommer ('+totBrommer+')'},{c:'#2980b9',l:'Breed ('+totBreed+')'},{c:'#c0392b',l:'Wrak ('+totWrak+')'}]
-  .forEach(function(item){
-    ctx.beginPath(); ctx.arc(lx+legR,ly,legR,0,2*Math.PI); ctx.fillStyle=item.c; ctx.fill();
-    ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText(item.l,lx+legR*2.4,ly);
-    lx+=ctx.measureText(item.l).width+legR*5;
-  });
-  ctx.font=Math.round(FTR*0.25)+'px sans-serif'; ctx.fillStyle='#aaa'; ctx.textAlign='right';
-  ctx.fillText('rvmk.nl / fietsparkeren', W-FTR*0.3, ly);
-
-  canvas.toBlob(function(blob){
+  buildMapBlob(function(blob) {
+    if (!blob) return;
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
     a.href=url; a.download='fietsparkeren_kaart_'+filestamp()+'.png';
@@ -1314,7 +1289,45 @@ function exportMapCanvas() {
     document.body.removeChild(a);
     setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
     kaartDownloaded = true;
-  },'image/png');
+  });
+}
+
+/* ── Export ZIP ───────────────────────────────────────── */
+function exportZip() {
+  if (!entries.length) return;
+  var stamp = filestamp();
+  var csvStr = buildCsvString();
+  var gpxStr = buildGpxString();
+  buildMapBlob(function(pngBlob) {
+    var zip = new JSZip();
+    zip.file('fietsparkeren_'+stamp+'.csv', csvStr);
+    zip.file('fietsparkeren_'+stamp+'.gpx', gpxStr);
+    if (pngBlob) zip.file('fietsparkeren_kaart_'+stamp+'.png', pngBlob);
+    zip.generateAsync({type:'blob'}).then(function(zipBlob) {
+      var zipName = 'fietsparkeren_'+stamp+'.zip';
+      var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
+      if (navigator.canShare && navigator.canShare({files:[zipFile]})) {
+        navigator.share({files:[zipFile], title:zipName}).catch(function(){
+          downloadBlob(zipBlob, zipName);
+        });
+      } else {
+        downloadBlob(zipBlob, zipName);
+      }
+      csvDownloaded = true;
+      kaartDownloaded = true;
+      clearSession();
+    });
+  });
+}
+
+function downloadBlob(blob, name) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
 }
 </script>
 </body>
