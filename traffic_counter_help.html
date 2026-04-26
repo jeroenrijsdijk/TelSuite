@@ -157,7 +157,8 @@
   <div class="back-links">
     <a class="back" href="traffic_counter.html">Static</a>
     <a class="back" href="traffic_counter_transect.html">Transect</a>
-    <a class="back" href="parkeertelling.html">Parkeren</a>
+    <a class="back" href="parkeertelling.html">Autoparkeren</a>
+    <a class="back" href="fietsparkeren.html">Fietsparkeren</a>
   </div>
 </header>
 
@@ -177,16 +178,16 @@
     <li><a href="#keyboard">Keyboard shortcuts</a></li>
     <li><a href="#tips">Field tips</a></li>
   </ol>
-  <p style="font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--orange);margin:14px 0 6px;">Parkeertelling</p>
+  <p style="font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--orange);margin:14px 0 6px;">Parkeertelling (auto &amp; fiets)</p>
   <ol start="11">
-    <li><a href="#park-overzicht">Wat doet de parkeertelling?</a></li>
-    <li><a href="#park-modus">Modus kiezen</a></li>
+    <li><a href="#park-overzicht">Wat doen de parkeertellingen?</a></li>
+    <li><a href="#park-types">Auto vs. Fietsparkeren</a></li>
     <li><a href="#park-sessie">Sessie starten en stoppen</a></li>
     <li><a href="#park-tellen">Tellen: links en rechts</a></li>
+    <li><a href="#park-minimap">Mini-kaart &amp; bearing</a></li>
     <li><a href="#park-gps">GPS &amp; OSM wegsnapping</a></li>
     <li><a href="#park-recovery">Crash recovery</a></li>
-    <li><a href="#park-csv">CSV-export</a></li>
-    <li><a href="#park-kaart">Kaartexport (PNG)</a></li>
+    <li><a href="#park-export">Exporteren (ZIP / CSV / GPX / PNG)</a></li>
     <li><a href="#park-tips">Veldtips</a></li>
   </ol>
   <p style="font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin:14px 0 6px;">Algemeen</p>
@@ -370,41 +371,52 @@
 <div style="margin:40px 0 32px;border-top:3px solid var(--text);padding-top:20px;display:flex;align-items:center;gap:12px;">
   <div style="font-size:0.65rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--orange);white-space:nowrap;">Parkeertelling</div>
   <div style="flex:1;height:1px;background:var(--border);"></div>
-  <a href="parkeertelling.html" style="font-size:0.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:2px solid var(--border);padding:4px 10px;">Open app</a>
+  <a href="parkeertelling.html" style="font-size:0.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:2px solid var(--border);padding:4px 10px;margin-right:6px;">Autoparkeren</a>
+  <a href="fietsparkeren.html" style="font-size:0.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:2px solid var(--border);padding:4px 10px;">Fietsparkeren</a>
 </div>
 
 <!-- 11. Overzicht -->
 <section id="park-overzicht">
-  <h2>11 — Wat doet de parkeertelling?</h2>
-  <p>De parkeertelling is een veldtool voor wandelende parkeerobservaties. Je loopt een straat of route en registreert per parkeervak de toestand — links en rechts van de straat apart. De app snapped je positie op OSM-wegdata, plaatst markers loodrecht op de wegas en exporteert een semikolom-CSV plus een kaart-PNG.</p>
-  <p>Alles werkt in de browser, zonder installatie of account. Internetverbinding is alleen nodig voor kaartweergave, straatnaam en OSM-wegdata.</p>
+  <h2>11 — Wat doen de parkeertellingen?</h2>
+  <p>De parkeertellingen zijn veldtools voor wandelende parkeerobservaties. Je loopt een straat of route en registreert per parkeervak de toestand — links en rechts van de straat apart. De app snapped je positie op OSM-wegdata, plaatst markers loodrecht op de wegas en exporteert een ZIP met CSV, GPX en kaart-PNG.</p>
+  <p>Er zijn twee aparte apps: <strong>parkeertelling.html</strong> voor autoparkeren en <strong>fietsparkeren.html</strong> voor fietsparkeren. Beide werken identiek qua bediening.</p>
 </section>
 
-<!-- 12. Modus -->
-<section id="park-modus">
-  <h2>12 — Modus kiezen</h2>
-  <p>Bij het openen verschijnt een keuzescherm. Kies het type parkeren dat je gaat onderzoeken:</p>
+<!-- 12. Types -->
+<section id="park-types">
+  <h2>12 — Auto vs. Fietsparkeren</h2>
   <div class="card" style="border-left:5px solid var(--orange);">
-    <div class="card-title">🚗 Autoparkeren</div>
-    <p>Vier types: <span class="tag orange">Goed</span> geparkeerd &middot; <span class="tag red">Fout</span> geparkeerd &middot; <span class="tag" style="background:#2980b9">Leeg</span> parkeervak &middot; <span class="tag" style="background:#d68910">Spec.</span> gehandicaptenplek of laden/lossen. CSV-prefix: <code>parkeertelling_</code>.</p>
+    <div class="card-title">🚗 Autoparkeren — parkeertelling.html</div>
+    <p>
+      <span class="tag" style="background:#27ae60;">Goed</span> geparkeerd &middot;
+      <span class="tag" style="background:#c0392b;">Fout</span> geparkeerd &middot;
+      <span class="tag" style="background:#2980b9;">Leeg</span> parkeervak &middot;
+      <span class="tag" style="background:#d68910;">Spec.</span> gehandicapt / laden&amp;lossen
+    </p>
+    <p style="margin-top:6px;">CSV-prefix: <code>parkeertelling_</code></p>
   </div>
   <div class="card" style="border-left:5px solid #0097a7;">
-    <div class="card-title">🚲 Fietsparkeren</div>
-    <p>Vier types: <span class="tag orange">Goed</span> in rek/beugel &middot; <span class="tag red">Fout</span> fout geparkeerd &middot; <span class="tag" style="background:#2980b9">Leeg</span> fietsvak/beugel &middot; <span class="tag" style="background:#d68910">Motor</span> motor/scooter in fietsvak. CSV-prefix: <code>fietsparkeren_</code>.</p>
+    <div class="card-title">🚲 Fietsparkeren — fietsparkeren.html</div>
+    <p>
+      <span class="tag" style="background:#27ae60;">Fiets</span> normaal geparkeerd &middot;
+      <span class="tag" style="background:#e67e22;">Brommer</span> brommer/scooter &middot;
+      <span class="tag" style="background:#2980b9;">Breed</span> breed voertuig &middot;
+      <span class="tag" style="background:#c0392b;">Wrak</span> fietswrak
+    </p>
+    <p style="margin-top:6px;">CSV-prefix: <code>fietsparkeren_</code></p>
   </div>
-  <p>De modus bepaalt ook de header-titel, de Spec.-knoplabel en de tekst op de kaartexport. Wisselen kan alleen door de pagina te herladen.</p>
 </section>
 
 <!-- 13. Sessie -->
 <section id="park-sessie">
   <h2>13 — Sessie starten en stoppen</h2>
   <div class="card mode-both">
-    <div class="card-title"><span class="tag green">▶ Start</span></div>
-    <p>Activeert de GPS-watch. Telknoppen worden actief zodra de GPS-nauwkeurigheid 25 meter of beter is. Een oranje knipperende dot geeft aan dat de app nog op een goede fix wacht.</p>
+    <div class="card-title"><span class="tag green">&#9654; Start</span></div>
+    <p>Activeert de GPS-watch. Telknoppen worden actief zodra de GPS-nauwkeurigheid 25 meter of beter is. Een oranje knipperende dot geeft aan dat de app nog op een goede fix wacht. Knoppen blijven 3 seconden actief bij een korte GPS-uitval (debounce).</p>
   </div>
   <div class="card mode-both">
-    <div class="card-title"><span class="tag red">■ Stop</span></div>
-    <p>Stopt de sessie en downloadt automatisch de CSV én een kaart-PNG. De tijdelijke opslag wordt gewist. Download-knoppen onderaan blijven actief voor handmatige herdownload.</p>
+    <div class="card-title"><span class="tag red">&#9632; Stop</span></div>
+    <p>Stopt de sessie. De ZIP-knop bovenaan de downloadrij wordt actief. Download-knoppen voor CSV, GPX en kaart blijven apart beschikbaar.</p>
   </div>
   <p>De <strong>Wake Lock</strong> — het slotje-icoontje in de header — houdt het scherm aan tijdens de sessie.</p>
 </section>
@@ -412,62 +424,68 @@
 <!-- 14. Tellen -->
 <section id="park-tellen">
   <h2>14 — Tellen: links en rechts</h2>
-  <p>Het telscherm heeft twee kolommen gescheiden door een "WEG"-divider. Links = linkerkant van de straat in jouw looprichting, rechts = rechterkant. Per kolom:</p>
+  <p>Het telscherm heeft twee kolommen gescheiden door een "WEG"-divider. <strong>Links</strong> = linkerkant van de straat in jouw looprichting, <strong>Rechts</strong> = rechterkant. Per kolom:</p>
   <div class="card mode-both">
     <div class="card-title">Knoplayout</div>
-    <p><strong>Goed</strong> loopt vol breed (meest gebruikte actie). <strong>Fout</strong> en <strong>Spec./Motor</strong> staan half naast elkaar. <strong>Leeg</strong> loopt weer vol breed.</p>
+    <p>Het eerste type loopt vol breed (meest gebruikt). De twee middelste types staan half naast elkaar. Het laatste type loopt weer vol breed onderaan.</p>
   </div>
   <div class="card mode-both">
     <div class="card-title">Ongedaan maken</div>
-    <p>"↩ ongedaan maken" verwijdert de meest recente telling — ongeacht type of zijde. De marker op de kaart verdwijnt mee. De knop is uitgegraad totdat er minstens één telling is.</p>
+    <p>"&#8617; ongedaan maken" verwijdert de meest recente telling — ongeacht type of zijde. De marker op de kaart verdwijnt mee.</p>
   </div>
 </section>
 
-<!-- 15. GPS -->
-<section id="park-gps">
-  <h2>15 — GPS &amp; OSM wegsnapping</h2>
-  <p>De gekleurde stip in de statusbalk toont de GPS-status: grijs = inactief, oranje knipperend = fix onvoldoende (&gt;25m), groen = actief en nauwkeurig genoeg om te tellen.</p>
-  <p>Wegvakken worden opgehaald via Overpass API (straal 300m). Markers komen <strong>4 meter loodrecht op de dichtstbijzijnde wegas</strong> — niet op je GPS-punt. Een kleine indicator onder de straatnaam toont de snapstatus: laden / actief / niet beschikbaar.</p>
-  <p>Bij onbereikbaarheid van Overpass wordt automatisch een tweede eindpunt geprobeerd. Als beide falen, worden markers op de bewegingsrichting geplaatst (minder nauwkeurig, tellen gaat gewoon door).</p>
+<!-- 15. Mini-kaart -->
+<section id="park-minimap">
+  <h2>15 — Mini-kaart &amp; bearing</h2>
+  <p>Rechts in het straatpaneel staat een rond mini-kaartje van 90×90 px. Het toont de wegen binnen 100 meter, geroteerd zodat jouw looprichting altijd omhoog wijst. Bezochte wegvakken kleuren zandgeel.</p>
+  <p>De driehoekige pijl in het midden geeft de betrouwbaarheid van de bearing aan:</p>
+  <table class="key-table">
+    <tr><td>&#9650; Groen</td><td>Bewegend + kompas actief — meest betrouwbaar</td></tr>
+    <tr><td>&#9650; Geelgroen</td><td>Bewegend, alleen GPS</td></tr>
+    <tr><td>&#9650; Geel</td><td>Stilstaand, kompas dominant</td></tr>
+    <tr><td>&#9650; Oranje</td><td>Stilstaand, stale GPS-history</td></tr>
+    <tr><td>&#9650; Rood</td><td>Geen bearing beschikbaar — tel nog niet</td></tr>
+  </table>
+  <div class="card mode-both">
+    <div class="card-title">Kompasknop</div>
+    <p>Op iOS vraagt de "kompas"-knop toestemming voor DeviceOrientation. Eenmaal actief fust de app GPS-bearing (60%) en kompas (40%) bij beweging, en kompas-dominant (80%) bij stilstand. Kalibreer het kompas met een acht-beweging als de pijl structureel afwijkt.</p>
+  </div>
 </section>
 
-<!-- 16. Recovery -->
+<!-- 16. GPS -->
+<section id="park-gps">
+  <h2>16 — GPS &amp; OSM wegsnapping</h2>
+  <p>De gekleurde stip in de statusbalk toont de GPS-status: grijs = inactief, oranje knipperend = fix onvoldoende (&gt;25m), groen = actief.</p>
+  <p>Wegvakken worden opgehaald via Overpass API (straal 300m). Markers komen <strong>4 meter loodrecht op de dichtstbijzijnde wegas</strong>. Een indicator onder de straatnaam toont de snapstatus.</p>
+  <p>De OSM-wegrichting kan 180° verkeerd zijn t.o.v. looprichting. De app corrigeert dit automatisch door beide mogelijke richtingen te vergelijken met GPS+kompas en de best passende te kiezen.</p>
+  <p>Bij onbereikbaarheid van Overpass wordt automatisch een tweede eindpunt geprobeerd. Als beide falen, worden markers op de GPS-positie geplaatst.</p>
+</section>
+
+<!-- 17. Recovery -->
 <section id="park-recovery">
-  <h2>16 — Crash recovery</h2>
+  <h2>17 — Crash recovery</h2>
   <div class="card mode-both">
     <div class="card-title">Automatisch opslaan</div>
-    <p>De app slaat de sessie op bij elke telling en elke 30 seconden. Bij een crash of per ongeluk gesloten tab gaat niets verloren.</p>
+    <p>De app slaat de sessie op in localStorage bij elke telling. Bij een crash of per ongeluk gesloten tab gaat niets verloren.</p>
   </div>
-  <p>Bij heropenen verschijnt een herstelscherm als er een niet-afgesloten sessie is gevonden (modus, tijdstip, laatste straat, aantal tellingen):</p>
-  <table class="key-table">
-    <tr><td>Doorgaan</td><td>GPS hervat, alle tellingen en markers worden teruggezet op de kaart</td></tr>
-    <tr><td>Exporteer en start nieuw</td><td>CSV wordt direct gedownload, daarna keuzescherm voor nieuwe sessie</td></tr>
-    <tr><td>Verwijder</td><td>Opgeslagen sessie gewist, terug naar keuzescherm</td></tr>
-  </table>
+  <p>Bij heropenen verschijnt een herstelmelding als er een niet-afgesloten sessie is. Download-knoppen worden direct actief zodat de data exporteerbaar is.</p>
 </section>
 
-<!-- 17. CSV -->
-<section id="park-csv">
-  <h2>17 — CSV-export</h2>
-  <p>Automatisch bij Stop, of handmatig via "↓ Download CSV". Scheidingsteken: puntkomma. Codering: UTF-8.</p>
+<!-- 18. Export -->
+<section id="park-export">
+  <h2>18 — Exporteren (ZIP / CSV / GPX / PNG)</h2>
+  <div class="card mode-both">
+    <div class="card-title">&#8595; Download ZIP</div>
+    <p>Bundelt CSV, GPX en kaart-PNG in één zipbestand. Op iOS/Android opent het deelmenu (AirDrop, Drive, WhatsApp, etc.). Op desktop gewone download. Dit is de aanbevolen manier om resultaten naar de computer te krijgen.</p>
+  </div>
   <table class="key-table">
-    <tr><td>Tellog</td><td>Nr, tijdstip, type, zijde (L/R), straat, coördinaten marker, coördinaten GPS</td></tr>
-    <tr><td>Samenvatting</td><td>Totalen per type, gesplitst naar links en rechts</td></tr>
-    <tr><td>Bezettingsgraad</td><td>Per straatnaam: goed/fout/leeg/spec, bezet, vrij, bezettingsgraad %</td></tr>
-    <tr><td>GPS-track</td><td>Alle GPS-punten: tijdstip, coördinaten, nauwkeurigheid</td></tr>
-  </table>
-</section>
-
-<!-- 18. Kaart -->
-<section id="park-kaart">
-  <h2>18 — Kaartexport (PNG)</h2>
-  <p>Automatisch bij Stop, of via "↓ Download kaart". De kaart is 8× de breedte van de kaartdiv — geschikt voor rapporten.</p>
-  <table class="key-table">
-    <tr><td>Achtergrond</td><td>Warm grijs</td></tr>
-    <tr><td>Wegvakken</td><td>Alle geladen wegen lichtgrijs; bezochte wegen zandgeel</td></tr>
-    <tr><td>GPS-route</td><td>Blauwe lijn; A = start, B = einde</td></tr>
-    <tr><td>Markers</td><td>Gekleurde stippen per type, 4m van wegas</td></tr>
-    <tr><td>Header / footer</td><td>Datum, totalen, legenda, rvmk.nl</td></tr>
+    <tr><td>CSV — Tellog</td><td>Nr, tijdstip, type, zijde (L/R), straat, coördinaten marker + GPS, snapped, alle bearings</td></tr>
+    <tr><td>CSV — Samenvatting</td><td>Totalen per type, gesplitst naar L en R</td></tr>
+    <tr><td>CSV — Per straat</td><td>Aantallen per straatnaam</td></tr>
+    <tr><td>CSV — GPS-track</td><td>Alle GPS-punten: tijdstip, coördinaten, nauwkeurigheid, heading</td></tr>
+    <tr><td>GPX</td><td>Waypoints per geteld object + tracklog looproute</td></tr>
+    <tr><td>PNG</td><td>1920px breed, Mercator-correct, route + markers + wegvakken, header met totalen</td></tr>
   </table>
 </section>
 
@@ -475,12 +493,12 @@
 <section id="park-tips">
   <h2>19 — Veldtips</h2>
   <div class="card mode-both">
-    <div class="card-title">Wacht op de groene dot</div>
-    <p>Knoppen worden pas actief bij ≤25m nauwkeurigheid. Buitenshuis met vrij zicht is GPS doorgaans binnen een minuut op orde.</p>
+    <div class="card-title">Wacht op de groene pijl</div>
+    <p>Tel pas als de pijl in de mini-kaart groen of geelgroen is. Rood of oranje betekent dat de bearing onbetrouwbaar is en markers verkeerd geplaatst kunnen worden.</p>
   </div>
   <div class="card mode-both">
     <div class="card-title">Looprichting</div>
-    <p>Links en rechts worden bepaald vanuit jouw looprichting. Loop de route consequent in één richting, dan klopt de oriëntatie in het CSV. Bij een U-vormige route: nieuwe sessie voor de terugweg.</p>
+    <p>Houd de telefoon recht vooruit gericht met de bovenkant naar voren. Loop de route in één richting — bij een U-vormige route is een nieuwe sessie voor de terugweg nauwkeuriger.</p>
   </div>
   <div class="card mode-both">
     <div class="card-title">Accu</div>
@@ -502,7 +520,7 @@
   <div class="file-list">
     <div class="file-row">
       <span class="file-name">index.html</span>
-      <span class="file-desc">Start screen — overview of all tools</span>
+      <span class="file-desc">Startscherm — overzicht van alle tools</span>
     </div>
     <div class="file-row">
       <span class="file-name">traffic_counter.html</span>
@@ -515,6 +533,10 @@
     <div class="file-row">
       <span class="file-name">parkeertelling.html</span>
       <span class="file-desc">Parking survey — walking count for cars &amp; bikes</span>
+    </div>
+    <div class="file-row">
+      <span class="file-name">fietsparkeren.html</span>
+      <span class="file-desc">Fietsparkeren — wandelende fietsparkeerobservaties</span>
     </div>
     <div class="file-row">
       <span class="file-name">traffic_counter_help.html</span>

@@ -157,6 +157,54 @@
   .log-empty { padding: 14px 12px; font-size: 11px; color: var(--muted); text-align: center; }
 
   .footer-note { font-size: 10px; color: var(--muted); text-align: center; padding: 10px 12px 18px; font-weight: 300; }
+
+/* Moduskeuze */
+#modusRow { display: flex; gap: 6px; margin-bottom: 8px; }
+.modus-pill {
+  flex: 1; padding: 10px 0; border: 1px solid var(--border);
+  border-radius: 3px; background: var(--surface);
+  font-family: var(--font); font-size: 12px; font-weight: 500;
+  letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--muted); cursor: pointer;
+  touch-action: manipulation; text-align: center;
+}
+.modus-pill.actief { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+
+/* Kantelmodus */
+#tiltStrip { display: none; gap: 5px; margin-bottom: 6px; }
+.tilt-type-btn {
+  flex: 1; padding: 11px 2px; border: 1.5px solid var(--border);
+  border-radius: 4px; background: var(--surface);
+  font-family: var(--font); font-size: 12px; font-weight: 600;
+  color: var(--muted); cursor: pointer;
+  text-align: center; touch-action: manipulation;
+}
+.tilt-type-btn.sel { color: var(--text); border-color: var(--text); }
+#tikZone {
+  display: none; min-height: 120px; margin-bottom: 8px;
+  border: 1.5px solid var(--border); border-radius: 4px;
+  background: var(--surface);
+  align-items: center; justify-content: center; flex-direction: column; gap: 6px;
+  touch-action: manipulation; -webkit-user-select: none; user-select: none;
+}
+#tikZoneZijde {
+  font-size: 56px; font-weight: 700; line-height: 1; color: var(--muted);
+}
+#tikZoneZijde.L { color: #2471a3; }
+#tikZoneZijde.R { color: #c0392b; }
+#tikZoneHint { font-size: 11px; color: var(--muted); }
+#tilt-overlay {
+  position: absolute; inset: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none; opacity: 0;
+  font-size: 26px; font-weight: 700;
+}
+#tilt-overlay.visible { opacity: 1; }
+#tilt-overlay.side-L { color: #2471a3; background: rgba(36,113,163,0.18); }
+#tilt-overlay.side-R { color: #c0392b; background: rgba(192,57,43,0.18); }
+#tilt-overlay.side-N { color: var(--muted); background: rgba(0,0,0,0.07); }
+
 </style>
 </head>
 <body>
@@ -184,6 +232,11 @@
     </div>
   </div>
 
+  <div id="modusRow">
+    <div class="modus-pill actief" id="pilKnoppen" onclick="kiesKnoppen()">knoppen</div>
+    <div class="modus-pill"        id="pilKantelen" onclick="kiesKantelen()">kantelen</div>
+  </div>
+
   <div class="controls">
     <button class="btn-ctrl start" id="btnStart" onclick="startSession()">&#9654; Start</button>
     <button class="btn-ctrl stop"  id="btnStop"  disabled onclick="stopSession()">&#9632; Stop</button>
@@ -203,10 +256,25 @@
       </div>
     </div>
     <div class="bearing-info">
-      <canvas id="miniMap" width="90" height="90" style="display:block;border-radius:50%;"></canvas>
+      <div style="position:relative;display:inline-block;">
+        <canvas id="miniMap" width="90" height="90" style="display:block;border-radius:50%;"></canvas>
+        <div id="tilt-overlay" class="side-N">&#183;</div>
+      </div>
       <span id="bearingDeg" style="display:block;text-align:center;font-size:11px;margin-top:3px;">—</span>
       <button class="btn-kompas" id="btnKompas" onclick="requestCompass()">kompas</button>
     </div>
+  </div>
+
+  <div id="tiltStrip">
+    <div class="tilt-type-btn sel" data-tilttype="goed" onclick="setTiltType(this)">&#9989;&thinsp;goed</div>
+    <div class="tilt-type-btn" data-tilttype="leeg" onclick="setTiltType(this)">&#9744;&thinsp;leeg</div>
+    <div class="tilt-type-btn" data-tilttype="fout" onclick="setTiltType(this)">&#10060;&thinsp;fout</div>
+    <div class="tilt-type-btn" data-tilttype="spec" onclick="setTiltType(this)">&#9733;&thinsp;spec</div>
+  </div>
+
+  <div id="tikZone" ontouchend="onTikzoneTap(event)">
+    <div id="tikZoneZijde">&#183;</div>
+    <div id="tikZoneHint">kantel en tik</div>
   </div>
 
   <div class="side-labels">
@@ -225,14 +293,11 @@
       </div>
       <button class="btn-tel t-leeg" disabled onclick="addEntry('leeg','L')"><span class="btn-icon">&#9633;</span>Leeg</button>
     </div>
-
-    <!-- STRAAT MIDDEN -->
     <div class="street-divider">
       <div class="divider-line"></div>
       <div class="divider-road"><span>WEG</span></div>
       <div class="divider-line"></div>
     </div>
-
     <!-- RECHTS -->
     <div class="btn-col" id="colRechts">
       <button class="btn-tel t-goed" disabled onclick="addEntry('goed','R')"><span class="btn-icon">&#10003;</span>Goed</button>
@@ -242,7 +307,7 @@
       </div>
       <button class="btn-tel t-leeg" disabled onclick="addEntry('leeg','R')"><span class="btn-icon">&#9633;</span>Leeg</button>
     </div>
-  </div>
+  </div>>
 
   <button class="btn-undo" id="btnUndo" disabled onclick="undoLast()">&#8617; ongedaan maken</button>
 
@@ -448,16 +513,15 @@ function startSession() {
   if (tellerEl) tellerEl.disabled = true;
   displayBearing=null; lastMoved=false;
   compassHeading=null;
-  try {
-    var kb=document.getElementById('btnKompas');
-    if (kb) { kb.textContent='kompas'; kb.style.color=''; kb.style.borderColor=''; }
-  } catch(e) {}
+  compassActive = false; lastCompassValue = null; lastCompassChangeTime = null; compassFrozen = false;
+  try { setCompassBadge(); } catch(e) {}
   clearSession();
   document.getElementById('restoreBanner').style.display='none';
   try {
     var savedTeller = localStorage.getItem('parkeer_teller');
     if (savedTeller) document.getElementById('inputTeller').value = savedTeller;
   } catch(e) {}
+
   routeLine.setLatLngs([]);
   markerLayer.clearLayers();
   if (posMarker){ map.removeLayer(posMarker); posMarker=null; }
@@ -541,6 +605,9 @@ var displayBearing = null; // gedempt voor mini-kaart weergave
 var lastMoved = false;    // laatste GPS-update: bewogen of stilstaand
 var compassActive = false;
 var compassHeading = null; // degrees from north, from device compass
+var lastCompassValue = null;
+var lastCompassChangeTime = null;
+var compassFrozen = false;
 
 function requestCompass() {
   if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -565,9 +632,8 @@ function enableCompass() {
   window.addEventListener('deviceorientationabsolute', onOrientation, true);
   window.addEventListener('deviceorientation', onOrientation, true);
   compassActive = true;
-  document.getElementById('btnKompas').textContent = 'kompas aan';
-  document.getElementById('btnKompas').style.color = 'var(--c-goed)';
-  document.getElementById('btnKompas').style.borderColor = 'var(--c-goed)';
+  lastCompassValue = null; lastCompassChangeTime = null; compassFrozen = false;
+  setCompassBadge();
 }
 
 function onOrientation(e) {
@@ -582,7 +648,14 @@ function onOrientation(e) {
     heading = (360 - e.alpha) % 360;
   }
   if (heading === null) return;
+  if (lastCompassValue === null || Math.abs(((heading - lastCompassValue) + 540) % 360 - 180) > 2) {
+    lastCompassValue = heading;
+    lastCompassChangeTime = Date.now();
+    if (compassFrozen) { compassFrozen = false; setCompassBadge(); }
+  }
   compassHeading = heading;
+  tiltGamma = e.gamma || 0;
+  if (telModus === "kantelen") updateTiltUI();
 }
 
 /* Fuseer kompas + GPS bearing, gewogen naar betrouwbaarheid */
@@ -621,6 +694,11 @@ function onPosition(pos) {
   }
 
   currentBearing = fusedBearing(gpsBearing, compassActive ? compassHeading : null, moved);
+  if (compassActive && moved && lastCompassChangeTime !== null) {
+    if ((Date.now() - lastCompassChangeTime) > 10000 && !compassFrozen) {
+      compassFrozen = true; setCompassBadge();
+    }
+  }
 
   // displayBearing: exponentieel voortschrijdend gemiddelde voor vloeiende mini-kaart
   if (currentBearing !== null) {
@@ -651,7 +729,8 @@ function onPosition(pos) {
       hdgKompas: compassHeading !== null ? Math.round(compassHeading) : '',
       hdgFused:  currentBearing !== null ? Math.round(currentBearing) : '',
       gesnapped: snapAtGps ? true : false,
-      wayId:     snapAtGps ? String(snapAtGps.wayId || '') : ''
+      wayId:     snapAtGps ? String(snapAtGps.wayId || '') : '',
+      kompasBev: compassFrozen ? true : false
     });
     lastGpsLogLat = lat; lastGpsLogLon = lon;
   }
@@ -731,7 +810,8 @@ function doGeocode(lat,lon) {
   .then(function(r){ return r.json(); })
   .then(function(data){
     var a=data.address||{};
-    currentStreet=a.road||a.pedestrian||a.path||a.footway||a.cycleway||a.residential||data.display_name||'(onbekend)';
+    var rawStreet=a.road||a.pedestrian||a.path||a.footway||a.cycleway||a.residential||data.display_name||'(onbekend)';
+    currentStreet=rawStreet.split(',')[0].trim()||'(onbekend)';
     lastGeocodeLat=lat; lastGeocodeLon=lon;
     var el=document.getElementById('streetName');
     el.textContent=currentStreet; el.className='street-name';
@@ -781,7 +861,8 @@ function buildSegments(elements, refLat, refLon) {
       segs.push({
         ax:axy.x, ay:axy.y, bx:bxy.x, by:bxy.y, brg:brg,
         lat1:a.lat, lon1:a.lon, lat2:b.lat, lon2:b.lon,
-        id: el.id + '_' + i, wayId: el.id
+        id: el.id + '_' + i, wayId: el.id,
+        osmName: (el.tags && el.tags.name) ? el.tags.name : ''
       });
     }
   });
@@ -806,21 +887,37 @@ function snapToRoad(lat, lon) {
   var cosRef = Math.cos(roadCacheLat * Math.PI / 180);
   var snapLat = roadCacheLat + bestPt.y / 111320;
   var snapLon = roadCacheLon + bestPt.x / (111320 * cosRef);
-  return { lat: snapLat, lon: snapLon, bearing: bestSeg.brg, distM: bestDist, segId: bestSeg.id, wayId: bestSeg.wayId };
+  return { lat: snapLat, lon: snapLon, bearing: bestSeg.brg, distM: bestDist, segId: bestSeg.id, wayId: bestSeg.wayId, osmName: bestSeg.osmName || '' };
 }
 
-/* Fetch road geometries from Overpass, try endpoints in order */
+/* Fetch road geometries from Overpass, try endpoints in order + retry */
+var _roadFetchRetry = 0;
+var _roadFetchRetryTimer = null;
+var MAX_RETRIES = 4;
+var RETRY_DELAY = 5000; // ms
+
 function fetchRoads(lat, lon, endpointIdx) {
   if (endpointIdx === undefined) endpointIdx = 0;
+
+  // Alle endpoints geprobeerd — wacht en probeer opnieuw
   if (endpointIdx >= OVERPASS_ENDPOINTS.length) {
-    roadSnapStatus = 'error';
-    setSnapBadge();
+    _roadFetchRetry++;
+    if (_roadFetchRetry <= MAX_RETRIES) {
+      roadSnapStatus = 'fetching';
+      setSnapBadge();
+      if (_roadFetchRetryTimer) clearTimeout(_roadFetchRetryTimer);
+      _roadFetchRetryTimer = setTimeout(function(){ fetchRoads(lat, lon, 0); }, RETRY_DELAY);
+    } else {
+      roadSnapStatus = 'error';
+      setSnapBadge();
+    }
     return;
   }
+
   roadSnapStatus = 'fetching';
   setSnapBadge();
 
-  var query = '[out:json][timeout:8];way["highway"~"residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out geom;';
+  var query = '[out:json][timeout:8];way["highway"~"residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out tags geom;';
   var url = OVERPASS_ENDPOINTS[endpointIdx] + '?data=' + encodeURIComponent(query);
 
   var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -834,6 +931,7 @@ function fetchRoads(lat, lon, endpointIdx) {
     })
     .then(function(data) {
       if (!data.elements || !data.elements.length) throw new Error('Geen wegen');
+      _roadFetchRetry = 0; // succes — reset teller
       roadCacheLat = lat; roadCacheLon = lon;
       roadSegs = buildSegments(data.elements, lat, lon);
       osmNetworkElements = data.elements;
@@ -844,7 +942,6 @@ function fetchRoads(lat, lon, endpointIdx) {
     })
     .catch(function() {
       clearTimeout(timer);
-      // Try next endpoint
       fetchRoads(lat, lon, endpointIdx + 1);
     });
 }
@@ -893,6 +990,20 @@ function setSnapBadge() {
     el.style.color = 'var(--c-fout)';
   } else {
     el.textContent = '';
+  }
+}
+
+function setCompassBadge() {
+  var btn = document.getElementById('btnKompas');
+  if (!btn) return;
+  if (!compassActive) {
+    btn.textContent = 'kompas'; btn.style.color = ''; btn.style.borderColor = '';
+  } else if (compassFrozen) {
+    btn.textContent = 'kompas bevroren';
+    btn.style.color = 'var(--c-fout)'; btn.style.borderColor = 'var(--c-fout)';
+  } else {
+    btn.textContent = 'kompas aan';
+    btn.style.color = 'var(--c-goed)'; btn.style.borderColor = 'var(--c-goed)';
   }
 }
 
@@ -976,6 +1087,7 @@ function drawMiniMap() {
 /* ── Tel-acties ───────────────────────────────────────── */
 function addEntry(type, zijde) {
   if (!sessionActive) return;
+  if (navigator.vibrate) navigator.vibrate(40);
   totalNr++;
   counts[type][zijde]++;
 
@@ -1022,10 +1134,18 @@ function addEntry(type, zijde) {
     markerLat=currentLat; markerLon=currentLon;
   }
 
+  var entryOsmName = snapped && snapInfo ? (snapInfo.osmName || '') : '';
+  var displayStreet = currentStreet;
+  if (displayStreet === '—' && entryOsmName) {
+    displayStreet = entryOsmName;
+    currentStreet = entryOsmName;
+    var snel = document.getElementById('streetName');
+    if (snel) { snel.textContent = entryOsmName; snel.className = 'street-name'; }
+  }
   var fmtLat = function(v){ return v!==null ? v.toFixed(6).replace(',','.') : ''; };
   var entry = {
     nr:totalNr, type:type, zijde:zijde, ts:timestamp(), time:timeOnly(),
-    street:currentStreet,
+    street:displayStreet,
     lat:fmtLat(markerLat), lon:fmtLat(markerLon),
     gpsLat:fmtLat(currentLat), gpsLon:fmtLat(currentLon),
     hdgKompas:  hdgKompas!==null  ? String(hdgKompas)  : '',
@@ -1034,6 +1154,7 @@ function addEntry(type, zijde) {
     hdgGebruikt:hdgGebruikt!==null ? String(Math.round(hdgGebruikt)) : '',
     snapped:snapped,
     osmWayId: snapped && snapInfo ? String(snapInfo.wayId || '') : '',
+    osmName: entryOsmName,
     sessieId: sessionId,
     marker:null
   };
@@ -1079,7 +1200,7 @@ function saveSession() {
       entries: entries.map(function(e){
         return { nr:e.nr, type:e.type, zijde:e.zijde, ts:e.ts, time:e.time,
                  street:e.street, lat:e.lat, lon:e.lon, gpsLat:e.gpsLat, gpsLon:e.gpsLon,
-                 snapped:e.snapped, osmWayId:e.osmWayId||'', sessieId:e.sessieId||'',
+                 snapped:e.snapped, osmWayId:e.osmWayId||'', osmName:e.osmName||'', sessieId:e.sessieId||'',
                  hdgKompas:e.hdgKompas||'', hdgGps:e.hdgGps||'',
                  hdgOsm:e.hdgOsm||'', hdgGebruikt:e.hdgGebruikt||'' };
       }),
@@ -1262,7 +1383,7 @@ function buildGpxString() {
 }
 
 function buildMapBlob(cb) {
-  var pts=trackPoints.map(function(tp){ return {lat:parseFloat(tp.lat),lon:parseFloat(tp.lon)}; });
+  var pts=trackPoints.map(function(tp){ return {lat:parseFloat(tp.lat),lon:parseFloat(tp.lon),acc:parseInt(tp.acc)||999}; });
   if (!pts.length) { cb(null); return; }
   var allLats=pts.map(function(p){ return p.lat; });
   var allLons=pts.map(function(p){ return p.lon; });
@@ -1293,11 +1414,13 @@ function buildMapBlob(cb) {
     ctx.lineCap='round'; ctx.stroke();
   });
   if (pts.length>1) {
-    ctx.beginPath(); ctx.strokeStyle='#2471a3'; ctx.lineWidth=roadW*1.4;
-    ctx.lineJoin='round'; ctx.lineCap='round';
-    var p0=proj(pts[0].lat,pts[0].lon); ctx.moveTo(p0.x,p0.y);
-    for (var i=1;i<pts.length;i++){ var pi=proj(pts[i].lat,pts[i].lon); ctx.lineTo(pi.x,pi.y); }
-    ctx.stroke();
+    for (var i=1;i<pts.length;i++) {
+      var pa=proj(pts[i-1].lat,pts[i-1].lon), pb=proj(pts[i].lat,pts[i].lon);
+      var segAcc=pts[i-1].acc;
+      ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y);
+      ctx.strokeStyle = segAcc<=10 ? '#2471a3' : segAcc<=20 ? '#e67e22' : '#c0392b';
+      ctx.lineWidth=roadW*1.4; ctx.lineCap='round'; ctx.stroke();
+    }
   }
   function drawAB(pt,label){
     var p=proj(pt.lat,pt.lon), r=W*0.007;
@@ -1341,7 +1464,7 @@ function buildMapBlob(cb) {
     lx+=ctx.measureText(item.l).width+legR*5;
   });
   ctx.font=Math.round(FTR*0.25)+'px sans-serif'; ctx.fillStyle='#aaa'; ctx.textAlign='right';
-  ctx.fillText('rvmk.nl / parkeertelling', W-FTR*0.3, ly);
+  ctx.fillText('route: blauw ≤10m · oranje ≤20m · rood >20m GPS  ·  rvmk.nl / parkeertelling', W-FTR*0.3, ly);
   canvas.toBlob(function(blob){ cb(blob); }, 'image/png');
 }
 
@@ -1447,7 +1570,7 @@ function generateSessionId() {
 /* ── Sessie-metadata CSV ──────────────────────────────── */
 function buildSessieCsvString() {
   var lines = ['sessie_id;teller;datum;start_tijd;eind_tijd;app_type;n_waarnemingen'];
-  var datum = sessionId ? sessionId.slice(0,8) : '';
+  var datum = sessionId ? sessionId.slice(0,4)+'-'+sessionId.slice(4,6)+'-'+sessionId.slice(6,8) : '';
   var eindT = sessionEndTime || timestamp();
   lines.push([sessionId, sessionTeller, datum, sessionStartTime||'', eindT, 'auto', entries.length].join(';'));
   return lines.join('\n');
@@ -1470,31 +1593,47 @@ function buildTelregelsCsvString() {
 
 /* ── Straten CSV (samenvatting per straat) ────────────── */
 function buildStratenCsvString() {
-  var straatMap = {};
+  var nameMap = {};
+  var notSnapped = { goed:0, fout:0, leeg:0, spec:0, eerste:null, laatste:null };
   entries.forEach(function(e) {
-    var s = e.street || '(onbekend)';
-        if (!straatMap[s]) straatMap[s] = { goed:0, fout:0, leeg:0, spec:0, wayIds:{}, eerste:e.ts, laatste:e.ts };
-    if (e.osmWayId) straatMap[s].wayIds[e.osmWayId] = true;
-    if (e.ts < straatMap[s].eerste) straatMap[s].eerste = e.ts;
-    if (e.ts > straatMap[s].laatste) straatMap[s].laatste = e.ts;
-        straatMap[s][e.type]++;
+    if (!e.snapped) {
+      notSnapped[e.type]++;
+      if (!notSnapped.eerste || e.ts < notSnapped.eerste) notSnapped.eerste = e.ts;
+      if (!notSnapped.laatste || e.ts > notSnapped.laatste) notSnapped.laatste = e.ts;
+      return;
+    }
+    var naam = e.osmName || (e.street && e.street !== '—' ? e.street : '') || '(onbekend)';
+    if (!nameMap[naam]) nameMap[naam] = { goed:0, fout:0, leeg:0, spec:0, wayIds:{}, eerste:e.ts, laatste:e.ts };
+    var r = nameMap[naam];
+    if (e.osmWayId) r.wayIds[e.osmWayId] = true;
+    if (e.ts < r.eerste) r.eerste = e.ts;
+    if (e.ts > r.laatste) r.laatste = e.ts;
+    r[e.type]++;
   });
-  var lines = ['sessie_id;straat;osm_way_ids;goed;fout;leeg;spec;bezet;vrij;bezettingsgraad_pct;eerste_waarneming;laatste_waarneming'];
-  Object.keys(straatMap).forEach(function(s) {
-    var r = straatMap[s];
+  var lines = ['sessie_id;naam;osm_way_ids;goed;fout;leeg;spec;bezet;vrij;bezettingsgraad_pct;eerste_waarneming;laatste_waarneming'];
+  Object.keys(nameMap).forEach(function(naam) {
+    var r = nameMap[naam];
     var bezet = r.goed + r.fout + r.spec;
     var vrij  = r.leeg;
     var totaal = bezet + vrij;
     var pct = totaal > 0 ? Math.round(bezet / totaal * 1000) / 10 : '';
     var wayIds = Object.keys(r.wayIds).join('|');
-    lines.push([sessionId, s, wayIds, r.goed, r.fout, r.leeg, r.spec, bezet, vrij, pct, r.eerste, r.laatste].join(';'));
+    lines.push([sessionId, naam, wayIds, r.goed, r.fout, r.leeg, r.spec, bezet, vrij, pct, r.eerste, r.laatste].join(';'));
   });
+  var ns = notSnapped.goed + notSnapped.fout + notSnapped.leeg + notSnapped.spec;
+  if (ns > 0) {
+    var bezet = notSnapped.goed + notSnapped.fout + notSnapped.spec;
+    var vrij  = notSnapped.leeg;
+    var totaal = bezet + vrij;
+    var pct = totaal > 0 ? Math.round(bezet / totaal * 1000) / 10 : '';
+    lines.push([sessionId, '(niet gesnapped)', '', notSnapped.goed, notSnapped.fout, notSnapped.leeg, notSnapped.spec, bezet, vrij, pct, notSnapped.eerste||'', notSnapped.laatste||''].join(';'));
+  }
   return lines.join('\n');
 }
 
 /* ── GPS-log CSV ──────────────────────────────────────── */
 function buildGpsCsvString() {
-  var lines = ['sessie_id;tijdstip;lat;lon;nauwkeurigheid;hdg_gps;hdg_kompas;hdg_fused;gesnapped;osm_way_id'];
+  var lines = ['sessie_id;tijdstip;lat;lon;nauwkeurigheid;hdg_gps;hdg_kompas;hdg_fused;gesnapped;osm_way_id;kompas_bevroren'];
   gpsLog.forEach(function(p) {
     lines.push([
       sessionId||'', p.ts, p.lat, p.lon, p.acc,
@@ -1502,7 +1641,8 @@ function buildGpsCsvString() {
       p.hdgKompas !== undefined && p.hdgKompas !== '' ? p.hdgKompas : '',
       p.hdgFused !== undefined && p.hdgFused !== '' ? p.hdgFused : '',
       p.gesnapped ? '1' : '0',
-      p.wayId || ''
+      p.wayId || '',
+      p.kompasBev ? '1' : '0'
     ].join(';'));
   });
   return lines.join('\n');
@@ -1526,6 +1666,80 @@ function buildNetwerkCsvString() {
   return lines.join('\n');
 }
 
+
+
+/* Kantelmodus */
+var telModus     = 'knoppen';
+var tiltGamma    = 0;
+var tiltLastTap  = 0;
+var TILT_DEBOUNCE = 300;
+var TILT_DREMPEL  = 15;
+
+function applyModus() {
+  var isKant = (telModus === 'kantelen');
+  document.getElementById('pilKnoppen').classList.toggle('actief', !isKant);
+  document.getElementById('pilKantelen').classList.toggle('actief',  isKant);
+  document.getElementById('tiltStrip').style.display   = isKant ? 'flex' : 'none';
+  document.getElementById('tikZone').style.display     = isKant ? 'flex' : 'none';
+  document.querySelector('.side-labels').style.display = isKant ? 'none' : '';
+  document.querySelector('.btn-grid').style.display    = isKant ? 'none' : '';
+}
+
+function kiesKnoppen() {
+  if (sessionActive) return;
+  telModus = 'knoppen';
+  applyModus();
+}
+
+function kiesKantelen() {
+  if (sessionActive) return;
+  telModus = 'kantelen';
+  applyModus();
+}
+
+function getTiltZijde() {
+  if (tiltGamma < -TILT_DREMPEL) return 'L';
+  if (tiltGamma >  TILT_DREMPEL) return 'R';
+  return 'N';
+}
+
+function updateTiltUI() {
+  var z = getTiltZijde();
+  var ov = document.getElementById('tilt-overlay');
+  if (ov) { ov.className = 'visible side-' + z; ov.textContent = z === 'N' ? '·' : z; }
+  var zd = document.getElementById('tikZoneZijde');
+  if (zd) { zd.className = z; zd.textContent = z === 'N' ? '·' : z; }
+  var hint = document.getElementById('tikZoneHint');
+  if (hint) hint.textContent = z === 'N' ? 'kantel en tik' : (z==='L' ? 'links – tik!' : 'rechts – tik!');
+}
+
+function setTiltType(btn) {
+  var tiltType = btn.dataset.tilttype;
+  document.querySelectorAll('.tilt-type-btn').forEach(function(b){
+    b.classList.toggle('sel', b === btn);
+  });
+  try { localStorage.setItem('tiltType', tiltType); } catch(e) {}
+}
+
+function onTikzoneTap(e) {
+  e.preventDefault();
+  if (!sessionActive) return;
+  var now = Date.now();
+  if (now - tiltLastTap < TILT_DEBOUNCE) return;
+  tiltLastTap = now;
+  var z = getTiltZijde();
+  if (z === 'N') { if (navigator.vibrate) navigator.vibrate([15,20,15]); return; }
+  if (navigator.vibrate) navigator.vibrate(40);
+  var tikz = document.getElementById('tikZone');
+  if (tikz) {
+    var prev = tikz.style.background;
+    tikz.style.background = z==='L' ? 'rgba(36,113,163,0.2)' : 'rgba(192,57,43,0.2)';
+    setTimeout(function(){ tikz.style.background = prev; }, 150);
+  }
+  var selBtn = document.querySelector('.tilt-type-btn.sel');
+  var tiltType = selBtn ? selBtn.dataset.tilttype : 'fiets';
+  addEntry(tiltType, z);
+}
 
 </script>
 </body>

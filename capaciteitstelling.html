@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Fietsparkeren</title>
+<title>Capaciteitstelling</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
@@ -23,14 +23,6 @@
     --c-leeg-bg: #e8f4fb;
     --c-spec: #d68910;
     --c-spec-bg: #fef9e7;
-    --c-fiets: #27ae60;
-    --c-fiets-bg: #eaf7ef;
-    --c-brommer: #e67e22;
-    --c-brommer-bg: #fef3e8;
-    --c-breed: #2980b9;
-    --c-breed-bg: #e8f4fb;
-    --c-wrak: #c0392b;
-    --c-wrak-bg: #fdecea;
     --c-route: #2471a3;
     --font: 'Oswald', sans-serif;
   }
@@ -110,14 +102,14 @@
   .btn-tel:disabled { opacity: 0.30; cursor: default; }
 
   /* button colors by type */
-  .t-fiets   { background: var(--c-fiets);   color: #fff; }
-  .t-fiets:active:not(:disabled)   { background: #229954; }
-  .t-brommer { background: var(--c-brommer); color: #fff; }
-  .t-brommer:active:not(:disabled) { background: #ca6f1e; }
-  .t-breed   { background: var(--c-breed);   color: #fff; }
-  .t-breed:active:not(:disabled)   { background: #1f6fa0; }
-  .t-wrak    { background: var(--c-wrak);    color: #fff; }
-  .t-wrak:active:not(:disabled)    { background: #a93226; }
+  .t-reg  { background: var(--c-goed); color: #fff; }
+  .t-reg:active:not(:disabled)  { background: #229954; }
+  .t-hand  { background: var(--c-fout); color: #fff; }
+  .t-hand:active:not(:disabled)  { background: #a93226; }
+  .t-laad  { background: var(--c-leeg); color: #fff; }
+  .t-laad:active:not(:disabled)  { background: #1f6fa0; }
+  .t-res  { background: var(--c-spec); color: #fff; }
+  .t-res:active:not(:disabled)  { background: #b7770d; }
 
   .btn-undo { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: var(--font); font-size: 11px; font-weight: 400; letter-spacing: 0.5px; text-transform: uppercase; padding: 7px; cursor: pointer; margin-bottom: 8px; touch-action: manipulation; }
   .btn-undo:disabled { opacity: 0.35; cursor: default; }
@@ -219,7 +211,7 @@
 
 <header>
   <a href="index.html" style="color:#aaa8a2;text-decoration:none;font-size:13px;font-weight:300;margin-right:4px;">&#8592;</a>
-  <h1>Fietsparkeren</h1>
+  <h1>Parkeertelling</h1>
   <span>rvmk.nl</span>
 </header>
 
@@ -243,6 +235,7 @@
   <div id="modusRow">
     <div class="modus-pill actief" id="pilKnoppen" onclick="kiesKnoppen()">knoppen</div>
     <div class="modus-pill"        id="pilKantelen" onclick="kiesKantelen()">kantelen</div>
+    <div class="modus-pill"        id="pilTerrein" onclick="kiesTerreinModus()">&#9632; terrein</div>
   </div>
 
   <div class="controls">
@@ -257,10 +250,10 @@
       <div class="coords" id="coordsText"></div>
       <div style="font-size:10px;font-weight:300;margin-top:1px;" id="snapStatus"></div>
       <div style="display:flex;gap:10px;margin-top:6px;">
-        <span class="mini-count" style="color:var(--c-fiets)">&#128690; <span id="cntFiets">0</span></span>
-        <span class="mini-count" style="color:var(--c-brommer)">&#127949; <span id="cntBrommer">0</span></span>
-        <span class="mini-count" style="color:var(--c-breed)">&#11020; <span id="cntBreed">0</span></span>
-        <span class="mini-count" style="color:var(--c-wrak)">&#9851; <span id="cntWrak">0</span></span>
+        <span class="mini-count" style="color:var(--c-goed)">&#10003; <span id="cntGoed">0</span></span>
+        <span class="mini-count" style="color:var(--c-fout)">&#10005; <span id="cntFout">0</span></span>
+        <span class="mini-count" style="color:var(--c-leeg)">&#9633; <span id="cntLeeg">0</span></span>
+        <span class="mini-count" style="color:var(--c-spec)">&#9675; <span id="cntSpec">0</span></span>
       </div>
     </div>
     <div class="bearing-info">
@@ -274,10 +267,10 @@
   </div>
 
   <div id="tiltStrip">
-    <div class="tilt-type-btn sel" data-tilttype="fiets" onclick="setTiltType(this)">&#128690;&thinsp;fiets</div>
-    <div class="tilt-type-btn" data-tilttype="wrak" onclick="setTiltType(this)">&#9851;&thinsp;wrak</div>
-    <div class="tilt-type-btn" data-tilttype="brommer" onclick="setTiltType(this)">&#127949;&thinsp;brommer</div>
-    <div class="tilt-type-btn" data-tilttype="breed" onclick="setTiltType(this)">&#11020;&thinsp;breed</div>
+    <div class="tilt-type-btn sel" data-tilttype="goed" onclick="setTiltType(this)">&#9989;&thinsp;goed</div>
+    <div class="tilt-type-btn" data-tilttype="leeg" onclick="setTiltType(this)">&#9744;&thinsp;leeg</div>
+    <div class="tilt-type-btn" data-tilttype="fout" onclick="setTiltType(this)">&#10060;&thinsp;fout</div>
+    <div class="tilt-type-btn" data-tilttype="spec" onclick="setTiltType(this)">&#9733;&thinsp;spec</div>
   </div>
 
   <div id="tikZone" ontouchend="onTikzoneTap(event)">
@@ -294,12 +287,12 @@
   <div class="btn-grid">
     <!-- LINKS -->
     <div class="btn-col" id="colLinks">
-      <button class="btn-tel t-fiets"   disabled onclick="addEntry('fiets','L')"><span class="btn-icon">&#128690;</span>Fiets</button>
+      <button class="btn-tel t-goed" disabled onclick="addEntry('goed','L')"><span class="btn-icon">&#10003;</span>Reg.</button>
       <div class="btn-half-row">
-        <button class="btn-tel t-brommer" disabled onclick="addEntry('brommer','L')"><span class="btn-icon">&#127949;</span>Brommer</button>
-        <button class="btn-tel t-breed"   disabled onclick="addEntry('breed','L')"><span class="btn-icon">&#11020;</span>Breed</button>
+        <button class="btn-tel t-fout" disabled onclick="addEntry('fout','L')"><span class="btn-icon">&#10005;</span>Hand.</button>
+        <button class="btn-tel t-spec" disabled onclick="addEntry('spec','L')"><span class="btn-icon">&#9675;</span>Spec.</button>
       </div>
-      <button class="btn-tel t-wrak"    disabled onclick="addEntry('wrak','L')"><span class="btn-icon">&#9851;</span>Wrak</button>
+      <button class="btn-tel t-leeg" disabled onclick="addEntry('leeg','L')"><span class="btn-icon">&#9633;</span>Laad</button>
     </div>
     <div class="street-divider">
       <div class="divider-line"></div>
@@ -308,14 +301,44 @@
     </div>
     <!-- RECHTS -->
     <div class="btn-col" id="colRechts">
-      <button class="btn-tel t-fiets"   disabled onclick="addEntry('fiets','R')"><span class="btn-icon">&#128690;</span>Fiets</button>
+      <button class="btn-tel t-goed" disabled onclick="addEntry('goed','R')"><span class="btn-icon">&#10003;</span>Reg.</button>
       <div class="btn-half-row">
-        <button class="btn-tel t-brommer" disabled onclick="addEntry('brommer','R')"><span class="btn-icon">&#127949;</span>Brommer</button>
-        <button class="btn-tel t-breed"   disabled onclick="addEntry('breed','R')"><span class="btn-icon">&#11020;</span>Breed</button>
+        <button class="btn-tel t-fout" disabled onclick="addEntry('fout','R')"><span class="btn-icon">&#10005;</span>Hand.</button>
+        <button class="btn-tel t-spec" disabled onclick="addEntry('spec','R')"><span class="btn-icon">&#9675;</span>Spec.</button>
       </div>
-      <button class="btn-tel t-wrak"    disabled onclick="addEntry('wrak','R')"><span class="btn-icon">&#9851;</span>Wrak</button>
+      <button class="btn-tel t-leeg" disabled onclick="addEntry('leeg','R')"><span class="btn-icon">&#9633;</span>Laad</button>
     </div>
   </div>>
+
+
+  <!-- ── TERREIN MODULE ── -->
+  <div id="terreinModule" style="display:none">
+    <div style="margin-bottom:6px;">
+      <div id="terreinKaart" style="width:100%;height:240px;border:1px solid var(--border);border-radius:2px;margin-bottom:6px;"></div>
+      <div style="font-size:10px;color:var(--muted);text-align:center;margin-bottom:8px;letter-spacing:0.5px;">Tik een terrein op de kaart</div>
+    </div>
+    <div id="terreinForm" style="display:none;background:var(--surface);border:1px solid var(--border);padding:12px;margin-bottom:6px;">
+      <div id="terreinFormNaam" style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--text);"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+        <label style="font-size:12px;flex:1;">&#9646; Regulier</label>
+        <input type="number" id="inp-regulier" min="0" value="0" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+        <label style="font-size:12px;flex:1;">&#9855; Gehandicapt</label>
+        <input type="number" id="inp-gehandicapt" min="0" value="0" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+        <label style="font-size:12px;flex:1;">&#9889; Laadpaal</label>
+        <input type="number" id="inp-laadpaal" min="0" value="0" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <label style="font-size:12px;flex:1;">&#9632; Gereserveerd</label>
+        <input type="number" id="inp-gereserveerd" min="0" value="0" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
+      </div>
+      <button onclick="slaTerreinOp()" style="width:100%;padding:11px 0;background:var(--text);color:var(--bg);border:none;border-radius:2px;font-family:var(--font);font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;touch-action:manipulation;">Opslaan</button>
+    </div>
+    <div id="terreinLog" style="background:var(--surface);border:1px solid var(--border);padding:8px 12px;font-size:12px;color:var(--muted);min-height:36px;margin-bottom:6px;">Nog niets opgeslagen</div>
+  </div>
 
   <button class="btn-undo" id="btnUndo" disabled onclick="undoLast()">&#8617; ongedaan maken</button>
 
@@ -323,10 +346,10 @@
     <div class="map-header">
       <span>Looproute</span>
       <div class="map-legend">
-        <div class="leg"><div class="leg-dot" style="background:var(--c-fiets)"></div>fiets</div>
-        <div class="leg"><div class="leg-dot" style="background:var(--c-brommer)"></div>brommer</div>
-        <div class="leg"><div class="leg-dot" style="background:var(--c-breed)"></div>breed</div>
-        <div class="leg"><div class="leg-dot" style="background:var(--c-wrak)"></div>wrak</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-goed)"></div>goed</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-fout)"></div>fout</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-leeg)"></div>leeg</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-spec)"></div>spec.</div>
       </div>
     </div>
     <div id="map"></div>
@@ -355,13 +378,15 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 /* ── State ────────────────────────────────────────────── */
 var sessionActive = false;
 var watchId = null;
 var entries = [];
-var counts = { fiets:{L:0,R:0}, brommer:{L:0,R:0}, breed:{L:0,R:0}, wrak:{L:0,R:0} };
+var counts = { goed:{L:0,R:0}, fout:{L:0,R:0}, leeg:{L:0,R:0}, spec:{L:0,R:0} };
 var currentLat = null, currentLon = null, currentAcc = 999;
 var prevLat = null, prevLon = null;
 var currentBearing = null;
@@ -405,8 +430,8 @@ var OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter'
 ];
 
-var COLORS = { fiets:'#27ae60', brommer:'#e67e22', breed:'#2980b9', wrak:'#c0392b' };
-var TYPE_LABELS = { fiets:'Fiets', brommer:'Brommer', breed:'Breed voertuig', wrak:'Fietswrak' };
+var COLORS = { goed:'#27ae60', fout:'#c0392b', leeg:'#2980b9', spec:'#d68910' };
+var TYPE_LABELS = { goed:'Goed geparkeerd', fout:'Fout geparkeerd', leeg:'Leeg parkeervak', spec:'Speciaal (gehandicapt/L&L)' };
 
 /* ── Leaflet ──────────────────────────────────────────── */
 var map = L.map('map', { zoomControl: true, attributionControl: false });
@@ -502,7 +527,7 @@ function startSession() {
   if (!navigator.geolocation) { setStatus('GPS niet beschikbaar.'); return; }
   sessionActive=true;
   entries=[]; totalNr=0;
-  counts={fiets:{L:0,R:0},brommer:{L:0,R:0},breed:{L:0,R:0},wrak:{L:0,R:0}};
+  counts={regulier:{L:0,R:0},gehandicapt:{L:0,R:0},laadpaal:{L:0,R:0},gereserveerd:{L:0,R:0}};
   trackPoints=[]; currentStreet='—'; currentBearing=null;
   prevLat=null; prevLon=null;
   if (disableTimer){ clearTimeout(disableTimer); disableTimer=null; }
@@ -513,27 +538,27 @@ function startSession() {
   snapHistory=[]; snapStable=true;
   sessionId = generateSessionId();
   sessionTeller = (document.getElementById('inputTeller').value||'').trim()||'(onbekend)';
-  try { localStorage.setItem('parkeer_teller', sessionTeller); } catch(e) {}
+  try { localStorage.setItem('cap_teller', sessionTeller); } catch(e) {}
   sessionStartTime = timestamp(); sessionEndTime = null;
   gpsLog = []; lastGpsLogLat = null; lastGpsLogLon = null;
   osmNetworkElements = [];
   var tellerEl = document.getElementById('inputTeller');
   if (tellerEl) tellerEl.disabled = true;
-  displayBearing=null;
+  displayBearing=null; lastMoved=false;
   compassHeading=null;
   compassActive = false; lastCompassValue = null; lastCompassChangeTime = null; compassFrozen = false;
   try { setCompassBadge(); } catch(e) {}
   clearSession();
   document.getElementById('restoreBanner').style.display='none';
   try {
-    var savedTeller = localStorage.getItem('parkeer_teller');
+    var savedTeller = localStorage.getItem('cap_teller');
     if (savedTeller) document.getElementById('inputTeller').value = savedTeller;
   } catch(e) {}
 
   routeLine.setLatLngs([]);
   markerLayer.clearLayers();
   if (posMarker){ map.removeLayer(posMarker); posMarker=null; }
-  ['Fiets','Brommer','Breed','Wrak'].forEach(function(t){
+  ['Goed','Fout','Leeg','Spec'].forEach(function(t){
     document.getElementById('cnt'+t).textContent='0';
   });
   document.getElementById('streetName').textContent='—';
@@ -683,6 +708,17 @@ function fusedBearing(gpsBearing, compassHdg, moved) {
 function onPosition(pos) {
   var lat=pos.coords.latitude, lon=pos.coords.longitude;
   currentAcc=Math.round(pos.coords.accuracy);
+  var isFirstFix = (currentLat === null);
+  currentLat=lat; currentLon=lon;
+
+  // Terrein-modus: GPS stip updaten, en bij eerste fix kaart centreren + zoeken
+  if (terreinModus && terreinMap) {
+    updateGpsCircle();
+    if (isFirstFix) {
+      terreinMap.setView([lat, lon], 16);
+      zoekTerreinen();
+    }
+  }
 
   // GPS bearing: update on movement >3m, smooth over last 5 readings
   var moved = prevLat!==null && haversine(prevLat,prevLon,lat,lon)>3;
@@ -721,7 +757,7 @@ function onPosition(pos) {
   }
   drawMiniMap();
   prevLat=currentLat; prevLon=currentLon;
-  currentLat=lat; currentLon=lon;
+
 
   // Coördinaten met punt als decimaalteken (Excel-compatibel)
   var latStr=lat.toFixed(6).replace(',','.');
@@ -814,7 +850,7 @@ function scheduleGeocode(lat,lon) {
 
 function doGeocode(lat,lon) {
   fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat='+lat+'&lon='+lon+'&zoom=17&addressdetails=1',
-    {headers:{'Accept-Language':'nl','User-Agent':'rvmk-fietsparkeren/1.0'}})
+    {headers:{'Accept-Language':'nl','User-Agent':'rvmk-parkeertelling/1.0'}})
   .then(function(r){ return r.json(); })
   .then(function(data){
     var a=data.address||{};
@@ -965,7 +1001,7 @@ function bestOsmBearing(snapBrg) {
   var ref = currentBearing !== null ? currentBearing
           : (compassActive && compassHeading !== null) ? compassHeading
           : null;
-  if (ref === null) return snapBrg; // geen referentie, gebruik as-is
+  if (ref === null) return snapBrg;
   var candA = snapBrg;
   var candB = (snapBrg + 180) % 360;
   var diffA = Math.abs(((candA - ref) + 540) % 360 - 180);
@@ -1020,13 +1056,13 @@ function setCompassBadge() {
 
 /* ── Bearing betrouwbaarheid → kleur ─────────────────── */
 function bearingColor() {
-  if (displayBearing === null) return '#c0392b';                        // rood: geen bearing
+  if (displayBearing === null) return '#c0392b';
   var hasCompass = compassActive && compassHeading !== null;
-  if (lastMoved && hasCompass)  return '#27ae60';                       // groen: bewegend + kompas
-  if (lastMoved)                return '#8fbc2a';                       // geelgroen: bewegend, GPS only
-  if (hasCompass)               return '#e8b84b';                       // geel: stil, kompas dominant
-  if (recentBearings.length)    return '#e67e22';                       // oranje: stil, stale GPS
-  return '#c0392b';                                                     // rood: niets bruikbaars
+  if (lastMoved && hasCompass)  return '#27ae60';
+  if (lastMoved)                return '#8fbc2a';
+  if (hasCompass)               return '#e8b84b';
+  if (recentBearings.length)    return '#e67e22';
+  return '#c0392b';
 }
 
 /* ── Mini-kaart ───────────────────────────────────────── */
@@ -1037,7 +1073,7 @@ function drawMiniMap() {
   var W = canvas.width, H = canvas.height;
   var cx = W/2, cy = H/2;
   var RADIUS_M = 100;
-  var scale = (W/2 - 6) / RADIUS_M; // px per meter
+  var scale = (W/2 - 6) / RADIUS_M;
 
   ctx.clearRect(0, 0, W, H);
 
@@ -1056,21 +1092,17 @@ function drawMiniMap() {
     var brg = displayBearing !== null ? displayBearing * Math.PI / 180 : 0;
 
     ctx.save();
-    // Clip binnen de cirkel
     ctx.beginPath();
     ctx.arc(cx, cy, W/2 - 2, 0, 2*Math.PI);
     ctx.clip();
-
     ctx.translate(cx, cy);
-    ctx.rotate(-brg); // omhoog = looprichting
+    ctx.rotate(-brg);
 
     roadSegs.forEach(function(s) {
-      // Verschuif naar GPS-positie, Y omdraaien (canvas Y-as is omgekeerd)
       var ax = (s.ax - posXY.x) * scale;
       var ay = -(s.ay - posXY.y) * scale;
       var bx = (s.bx - posXY.x) * scale;
       var by = -(s.by - posXY.y) * scale;
-      // Sla over als segment ver buiten bereik
       if (Math.min(Math.abs(ax),Math.abs(bx)) > W/2+10 &&
           Math.min(Math.abs(ay),Math.abs(by)) > H/2+10) return;
       ctx.beginPath();
@@ -1085,7 +1117,7 @@ function drawMiniMap() {
     ctx.restore();
   }
 
-  // Positiemarker: gevulde driehoek = looprichting omhoog
+  // Pijl: looprichting omhoog, kleur = betrouwbaarheid
   var aw = 7, ah = 13;
   ctx.beginPath();
   ctx.moveTo(cx, cy - ah);
@@ -1129,14 +1161,13 @@ function addEntry(type, zijde) {
     var snapInfo = snapToRoad(currentLat, currentLon);
     if (snapInfo) {
       var snapBrg = bestOsmBearing(snapInfo.bearing);
-      hdgOsm      = Math.round(snapBrg);
+      hdgOsm     = Math.round(snapBrg);
       hdgGebruikt = snapBrg;
-      markerLat   = snapInfo.lat;
-      markerLon   = snapInfo.lon;
+      markerLat  = snapInfo.lat;
+      markerLon  = snapInfo.lon;
       usedSegIndices[snapInfo.segId] = true;
-      snapped     = true;
+      snapped    = true;
     }
-    // hdgGebruikt blijft currentBearing als er geen snap is
     if (markerLat!==null && hdgGebruikt!==null) {
       var perp = zijde==='L' ? (hdgGebruikt-90+360)%360 : (hdgGebruikt+90)%360;
       var off  = offsetPoint(markerLat, markerLon, perp, SIDE_OFFSET_M);
@@ -1204,7 +1235,7 @@ function undoLast() {
 }
 
 /* ── localStorage: herstel na crash/refresh ───────────── */
-var LS_KEY = 'fietsparkeren_sessie';
+var LS_KEY = 'parkeertelling_sessie';
 
 function saveSession() {
   if (!entries.length) return;
@@ -1263,7 +1294,7 @@ function restoreSession() {
       data.savedAt + ' \u2014 download hieronder of begin een nieuwe sessie.';
 
     // Herstel tellers
-    ['Fiets','Brommer','Breed','Wrak'].forEach(function(t){
+    ['Goed','Fout','Leeg','Spec'].forEach(function(t){
       var tl = t.toLowerCase();
       var tot = (counts[tl]||{L:0,R:0});
       document.getElementById('cnt'+t).textContent = tot.L+tot.R;
@@ -1327,22 +1358,25 @@ function buildCsvString() {
   lines.push('');
   lines.push('# Samenvatting');
   lines.push('type;links;rechts;totaal');
-  ['fiets','brommer','breed','wrak'].forEach(function(t){
+  ['goed','fout','leeg','spec'].forEach(function(t){
     lines.push([t,counts[t].L,counts[t].R,counts[t].L+counts[t].R].join(';'));
   });
   var straatMap = {};
   entries.forEach(function(e) {
     var s = e.street || '(onbekend)';
-    if (!straatMap[s]) straatMap[s] = { fiets:0, brommer:0, breed:0, wrak:0 };
+    if (!straatMap[s]) straatMap[s] = { goed:0, fout:0, leeg:0, spec:0 };
     straatMap[s][e.type]++;
   });
   lines.push('');
-  lines.push('# Aantallen per straat');
-  lines.push('straat;fiets;brommer;breed;wrak;totaal');
+  lines.push('# Bezettingsgraad per straat');
+  lines.push('straat;goed;fout;leeg;spec;bezet;vrij;bezettingsgraad_pct');
   Object.keys(straatMap).forEach(function(s) {
     var r = straatMap[s];
-    var totaal = r.fiets + r.brommer + r.breed + r.wrak;
-    lines.push([s, r.fiets, r.brommer, r.breed, r.wrak, totaal].join(';'));
+    var bezet = r.goed + r.fout + r.spec;
+    var vrij  = r.leeg;
+    var totaal = bezet + vrij;
+    var pct = totaal > 0 ? Math.round(bezet / totaal * 1000) / 10 : '';
+    lines.push([s, r.goed, r.fout, r.leeg, r.spec, bezet, vrij, pct].join(';'));
   });
   if (trackPoints.length) {
     lines.push('');
@@ -1355,19 +1389,19 @@ function buildCsvString() {
 
 function buildGpxString() {
   var d = new Date();
-  var creator = 'rvmk-fietsparkeren';
-  var TYPE_SYM = { fiets:'Parking', brommer:'Flag, Orange', breed:'Flag, Blue', wrak:'Flag, Red' };
+  var creator = 'rvmk-parkeertelling';
+  var TYPE_SYM = { goed:'Parking', fout:'Flag, Red', leeg:'Flag, Blue', spec:'Flag, Orange' };
   var lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<gpx version="1.1" creator="'+creator+'" xmlns="http://www.topografix.com/GPX/1/1">',
     '  <metadata>',
-    '    <n>Fietsparkeren '+d.toISOString().slice(0,10)+'</n>',
+    '    <n>Parkeertelling '+d.toISOString().slice(0,10)+'</n>',
     '    <time>'+d.toISOString()+'</time>',
     '  </metadata>'
   ];
   entries.forEach(function(e) {
     if (!e.lat) return;
-    var name = (TYPE_LABELS[e.type]||e.type)+' '+e.zijde+' #'+e.nr;
+    var name = (e.type==='goed'?'Goed':e.type==='fout'?'Fout':e.type==='leeg'?'Leeg':'Spec.')+' '+e.zijde+' #'+e.nr;
     var sym = TYPE_SYM[e.type]||'Flag';
     lines.push('  <wpt lat="'+e.lat+'" lon="'+e.lon+'">');
     lines.push('    <n>'+name+'</n>');
@@ -1452,13 +1486,13 @@ function buildMapBlob(cb) {
   });
   ctx.fillStyle='#1a1918'; ctx.fillRect(0,0,W,HDR);
   var fs=Math.round(HDR*0.42);
-  var totFiets=counts.fiets.L+counts.fiets.R, totBrommer=counts.brommer.L+counts.brommer.R;
-  var totBreed=counts.breed.L+counts.breed.R, totWrak=counts.wrak.L+counts.wrak.R;
+  var totGoed=counts.goed.L+counts.goed.R, totFout=counts.fout.L+counts.fout.R;
+  var totLeeg=counts.leeg.L+counts.leeg.R, totSpec=counts.spec.L+counts.spec.R;
   ctx.font='bold '+fs+'px sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.fillText('FIETSPARKEREN', HDR*0.35, HDR*0.4);
+  ctx.fillText('CAPACITEITSTELLING', HDR*0.35, HDR*0.4);
   ctx.font=Math.round(fs*0.62)+'px sans-serif'; ctx.fillStyle='#aaa8a2';
   var d=new Date(), ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'  '+pad(d.getHours())+':'+pad(d.getMinutes());
-  ctx.fillText(ds+'     fiets:'+totFiets+'  brommer:'+totBrommer+'  breed:'+totBreed+'  wrak:'+totWrak, HDR*0.35, HDR*0.74);
+  ctx.fillText(ds+'     goed:'+totGoed+'  fout:'+totFout+'  leeg:'+totLeeg+'  spec:'+totSpec, HDR*0.35, HDR*0.74);
   ctx.fillStyle='#fff'; ctx.fillRect(0,H+HDR,W,FTR);
   var ly=H+HDR+FTR*0.5, legR=FTR*0.14, legFs=Math.round(FTR*0.3);
   ctx.font=legFs+'px sans-serif'; ctx.textBaseline='middle';
@@ -1467,14 +1501,14 @@ function buildMapBlob(cb) {
   ctx.strokeStyle='#c8a96e'; ctx.lineWidth=legR*1.2; ctx.lineCap='round'; ctx.stroke();
   ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText('bezochte weg',lx+legR*3.6,ly);
   lx+=ctx.measureText('bezochte weg').width+legR*7;
-  [{c:'#27ae60',l:'Fiets ('+totFiets+')'},{c:'#e67e22',l:'Brommer ('+totBrommer+')'},{c:'#2980b9',l:'Breed ('+totBreed+')'},{c:'#c0392b',l:'Wrak ('+totWrak+')'}]
+  [{c:'#27ae60',l:'Goed ('+totGoed+')'},{c:'#c0392b',l:'Fout ('+totFout+')'},{c:'#2980b9',l:'Leeg ('+totLeeg+')'},{c:'#d68910',l:'Spec. ('+totSpec+')'}]
   .forEach(function(item){
     ctx.beginPath(); ctx.arc(lx+legR,ly,legR,0,2*Math.PI); ctx.fillStyle=item.c; ctx.fill();
     ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText(item.l,lx+legR*2.4,ly);
     lx+=ctx.measureText(item.l).width+legR*5;
   });
   ctx.font=Math.round(FTR*0.25)+'px sans-serif'; ctx.fillStyle='#aaa'; ctx.textAlign='right';
-  ctx.fillText('route: blauw ≤10m · oranje ≤20m · rood >20m GPS  ·  rvmk.nl / fietsparkeren', W-FTR*0.3, ly);
+  ctx.fillText('route: blauw ≤10m · oranje ≤20m · rood >20m GPS  ·  rvmk.nl / capaciteitstelling', W-FTR*0.3, ly);
   canvas.toBlob(function(blob){ cb(blob); }, 'image/png');
 }
 
@@ -1485,7 +1519,7 @@ function exportCSV() {
   var blob=new Blob([str],{type:'text/csv;charset=utf-8;'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url; a.download=(sessionId||'fietsparkeren_'+filestamp())+'_telregels.csv';
+  a.href=url; a.download=(sessionId||'parkeertelling_'+filestamp())+'_telregels.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1501,7 +1535,7 @@ function exportGPX() {
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
-  a.download = 'fietsparkeren_'+filestamp()+'.gpx';
+  a.download = 'parkeertelling_'+filestamp()+'.gpx';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1513,7 +1547,7 @@ function exportMapCanvas() {
     if (!blob) return;
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
-    a.href=url; a.download='fietsparkeren_kaart_'+filestamp()+'.png';
+    a.href=url; a.download='parkeertelling_kaart_'+filestamp()+'.png';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1524,9 +1558,11 @@ function exportMapCanvas() {
 
 /* ── Export ZIP ───────────────────────────────────────── */
 function exportZip() {
-  if (!entries.length) return;
+  var allEntries = entries.concat(terreinEntries||[]);
+  if (!allEntries.length) return;
+  if (!sessionEndTime) sessionEndTime = timestamp();
   sessionEndTime = timestamp();
-  var sid = sessionId || ('fietsparkeren_' + filestamp());
+  var sid = sessionId || ('parkeertelling_' + filestamp());
   var sessieStr   = buildSessieCsvString();
   var telregelsStr = buildTelregelsCsvString();
   var stratenStr  = buildStratenCsvString();
@@ -1536,8 +1572,16 @@ function exportZip() {
   buildMapBlob(function(pngBlob) {
     var zip = new JSZip();
     zip.file(sid + '_sessie.csv',    sessieStr);
-    zip.file(sid + '_telregels.csv', telregelsStr);
-    zip.file(sid + '_straten.csv',   stratenStr);
+    // Terrein-entries toevoegen aan capaciteit CSV
+    if ((terreinEntries||[]).length) {
+      var terreinLines = [];
+      terreinEntries.forEach(function(e){
+        terreinLines.push([sessionId||sid, e.osmWayId, e.osmType, e.naam, e.zijde, e.type, e.n, e.ts].join(';'));
+      });
+      stratenStr += '\n' + terreinLines.join('\n');
+    }
+    zip.file(sid + '_telregels.csv',  telregelsStr);
+    zip.file(sid + '_capaciteit.csv', stratenStr);
     zip.file(sid + '_gps.csv',       gpsStr);
     if (netwerkStr.split('\n').length > 1) zip.file(sid + '_netwerk.csv', netwerkStr);
     zip.file(sid + '.gpx',           gpxStr);
@@ -1582,7 +1626,7 @@ function buildSessieCsvString() {
   var lines = ['sessie_id;teller;datum;start_tijd;eind_tijd;app_type;n_waarnemingen'];
   var datum = sessionId ? sessionId.slice(0,4)+'-'+sessionId.slice(4,6)+'-'+sessionId.slice(6,8) : '';
   var eindT = sessionEndTime || timestamp();
-  lines.push([sessionId, sessionTeller, datum, sessionStartTime||'', eindT, 'fiets', entries.length].join(';'));
+  lines.push([sessionId, sessionTeller, datum, sessionStartTime||'', eindT, 'capaciteit', entries.length].join(';'));
   return lines.join('\n');
 }
 
@@ -1604,7 +1648,7 @@ function buildTelregelsCsvString() {
 /* ── Straten CSV (samenvatting per straat) ────────────── */
 function buildStratenCsvString() {
   var nameMap = {};
-  var notSnapped = { fiets:0, brommer:0, breed:0, wrak:0, eerste:null, laatste:null };
+  var notSnapped = { regulier:0, gehandicapt:0, laadpaal:0, gereserveerd:0, eerste:null, laatste:null };
   entries.forEach(function(e) {
     if (!e.snapped) {
       notSnapped[e.type]++;
@@ -1613,23 +1657,30 @@ function buildStratenCsvString() {
       return;
     }
     var naam = e.osmName || (e.street && e.street !== '—' ? e.street : '') || '(onbekend)';
-    if (!nameMap[naam]) nameMap[naam] = { fiets:0, brommer:0, breed:0, wrak:0, wayIds:{}, eerste:e.ts, laatste:e.ts };
+    if (!nameMap[naam]) nameMap[naam] = { regulier:0, gehandicapt:0, laadpaal:0, gereserveerd:0, wayIds:{}, eerste:e.ts, laatste:e.ts };
     var r = nameMap[naam];
     if (e.osmWayId) r.wayIds[e.osmWayId] = true;
     if (e.ts < r.eerste) r.eerste = e.ts;
     if (e.ts > r.laatste) r.laatste = e.ts;
     r[e.type]++;
   });
-  var lines = ['sessie_id;naam;osm_way_ids;fiets;brommer;breed;wrak;totaal;eerste_waarneming;laatste_waarneming'];
+  var lines = ['sessie_id;osm_way_id;naam;zijde;soort;capaciteit;eerste_waarneming;laatste_waarneming'];
   Object.keys(nameMap).forEach(function(naam) {
     var r = nameMap[naam];
-    var totaal = r.fiets + r.brommer + r.breed + r.wrak;
-    var wayIds = Object.keys(r.wayIds).join('|');
-    lines.push([sessionId, naam, wayIds, r.fiets, r.brommer, r.breed, r.wrak, totaal, r.eerste, r.laatste].join(';'));
+    var wayId = Object.keys(r.wayIds)[0] || '';
+    ['regulier','gehandicapt','laadpaal','gereserveerd'].forEach(function(soort) {
+      if (r[soort] > 0) {
+        lines.push([sessionId, wayId, naam, 'L+R', soort, r[soort], r.eerste, r.laatste].join(';'));
+      }
+    });
   });
-  var ns = notSnapped.fiets + notSnapped.brommer + notSnapped.breed + notSnapped.wrak;
+  var ns = notSnapped.regulier + notSnapped.gehandicapt + notSnapped.laadpaal + notSnapped.gereserveerd;
   if (ns > 0) {
-    lines.push([sessionId, '(niet gesnapped)', '', notSnapped.fiets, notSnapped.brommer, notSnapped.breed, notSnapped.wrak, ns, notSnapped.eerste||'', notSnapped.laatste||''].join(';'));
+    ['regulier','gehandicapt','laadpaal','gereserveerd'].forEach(function(soort) {
+      if (notSnapped[soort] > 0) {
+        lines.push([sessionId, '', '(niet gesnapped)', 'L+R', soort, notSnapped[soort], notSnapped.eerste||'', notSnapped.laatste||''].join(';'));
+      }
+    });
   }
   return lines.join('\n');
 }
@@ -1679,26 +1730,20 @@ var TILT_DEBOUNCE = 300;
 var TILT_DREMPEL  = 15;
 
 function applyModus() {
+  if (terreinModus) return; // terrein-modus heeft eigen UI-logica
   var isKant = (telModus === 'kantelen');
   document.getElementById('pilKnoppen').classList.toggle('actief', !isKant);
   document.getElementById('pilKantelen').classList.toggle('actief',  isKant);
+  document.getElementById('pilTerrein').classList.remove('actief');
   document.getElementById('tiltStrip').style.display   = isKant ? 'flex' : 'none';
   document.getElementById('tikZone').style.display     = isKant ? 'flex' : 'none';
   document.querySelector('.side-labels').style.display = isKant ? 'none' : '';
   document.querySelector('.btn-grid').style.display    = isKant ? 'none' : '';
+  document.getElementById('terreinModule').style.display = 'none';
+  document.getElementById('btnStart').disabled = false;
 }
 
-function kiesKnoppen() {
-  if (sessionActive) return;
-  telModus = 'knoppen';
-  applyModus();
-}
 
-function kiesKantelen() {
-  if (sessionActive) return;
-  telModus = 'kantelen';
-  applyModus();
-}
 
 function getTiltZijde() {
   if (tiltGamma < -TILT_DREMPEL) return 'L';
@@ -1743,6 +1788,203 @@ function onTikzoneTap(e) {
   var tiltType = selBtn ? selBtn.dataset.tilttype : 'fiets';
   addEntry(tiltType, z);
 }
+
+/* ── Terrein-module ─────────────────────────────────────── */
+var terreinModus    = false;
+var terreinMap      = null;
+var terreinMarkers  = [];
+var terreinPolygons = [];
+var gpsCircle       = null;
+var selectedTerrein = null;
+var terreinEntries  = [];
+
+function kiesTerreinModus() {
+  if (sessionActive) return;
+  terreinModus = true;
+  document.getElementById('pilKnoppen').classList.remove('actief');
+  document.getElementById('pilKantelen').classList.remove('actief');
+  document.getElementById('pilTerrein').classList.add('actief');
+  // Verberg straat-interface, toon terrein
+  document.querySelector('.side-labels').style.display = 'none';
+  document.querySelector('.btn-grid').style.display    = 'none';
+  document.getElementById('tiltStrip').style.display   = 'none';
+  document.getElementById('tikZone').style.display     = 'none';
+  document.getElementById('terreinModule').style.display = 'block';
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnStop').disabled  = true;
+  // Geef DOM de kans te renderen voor Leaflet invalidateSize
+  setTimeout(function(){ initTerreinKaart(); }, 80);
+}
+
+function kiesKnoppen() {
+  if (sessionActive) return;
+  terreinModus = false;
+  telModus = 'knoppen';
+  document.getElementById('pilTerrein').classList.remove('actief');
+  document.getElementById('terreinModule').style.display = 'none';
+  document.getElementById('btnStart').disabled = false;
+  applyModus();
+}
+
+function kiesKantelen() {
+  if (sessionActive) return;
+  terreinModus = false;
+  document.getElementById('pilKnoppen').classList.remove('actief');
+  document.getElementById('pilKantelen').classList.add('actief');
+  document.getElementById('pilTerrein').classList.remove('actief');
+  document.getElementById('terreinModule').style.display = 'none';
+  document.getElementById('btnStart').disabled = false;
+  function activeer() { telModus = 'kantelen'; applyModus(); }
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(function(r){ if (r==='granted') activeer(); })
+      .catch(console.error);
+  } else { activeer(); }
+}
+
+function initTerreinKaart() {
+  if (terreinMap) {
+    terreinMap.invalidateSize();
+    if (currentLat) { updateGpsCircle(); zoekTerreinen(); }
+    return;
+  }
+  var lat = currentLat || 52.0, lon = currentLon || 4.5;
+  terreinMap = L.map('terreinKaart').setView([lat, lon], currentLat ? 16 : 12);
+  L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png', {
+    attribution: '© PDOK', maxZoom: 19
+  }).addTo(terreinMap);
+  terreinMap.invalidateSize();
+  if (currentLat) {
+    updateGpsCircle();
+    zoekTerreinen();
+  }
+}
+
+function updateGpsCircle() {
+  if (!terreinMap || !currentLat) return;
+  if (gpsCircle) { gpsCircle.setLatLng([currentLat, currentLon]); }
+  else {
+    gpsCircle = L.circleMarker([currentLat, currentLon], {
+      radius:9, color:'white', weight:2, fillColor:'#2471a3', fillOpacity:1, zIndexOffset:1000
+    }).addTo(terreinMap).bindTooltip('U bent hier');
+  }
+}
+
+function zoekTerreinen() {
+  if (!currentLat) return;
+  var query = '[out:json][timeout:10];(node[amenity=parking](around:400,'+currentLat.toFixed(6)+','+currentLon.toFixed(6)+');way[amenity=parking](around:400,'+currentLat.toFixed(6)+','+currentLon.toFixed(6)+'););out geom tags;';
+  var ENDPOINTS = ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+  var tryEp = function(idx) {
+    if (idx >= ENDPOINTS.length) return;
+    fetch(ENDPOINTS[idx]+'?data='+encodeURIComponent(query))
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        terreinMarkers.forEach(function(m){ terreinMap.removeLayer(m); });
+        terreinPolygons.forEach(function(p){ terreinMap.removeLayer(p); });
+        terreinMarkers=[]; terreinPolygons=[];
+        (data.elements||[]).forEach(function(el) {
+          var naam = (el.tags&&el.tags.name)?el.tags.name:'Parkeerterrein';
+          var lat  = el.lat||(el.center&&el.center.lat);
+          var lon  = el.lon||(el.center&&el.center.lon);
+          if (el.type==='way' && el.geometry && el.geometry.length>1) {
+            var sum={lat:0,lon:0};
+            el.geometry.forEach(function(p){sum.lat+=p.lat;sum.lon+=p.lon;});
+            lat=sum.lat/el.geometry.length; lon=sum.lon/el.geometry.length;
+          }
+          if (!lat||!lon) return;
+          var cap = (el.tags&&el.tags.capacity)?' · '+el.tags.capacity+' plk':'';
+          var tData = {id:String(el.id),type:el.type,naam:naam,lat:lat,lon:lon,cap:cap};
+          if (el.type==='way'&&el.geometry&&el.geometry.length>2) {
+            var poly=L.polygon(el.geometry.map(function(p){return[p.lat,p.lon];}),
+              {color:'#8e44ad',weight:2,fillColor:'#8e44ad',fillOpacity:0.15});
+            poly.terreinData=tData;
+            poly.on('click',function(){selecteerTerrein(this.terreinData);});
+            poly.addTo(terreinMap); terreinPolygons.push(poly);
+          }
+          var mk=L.marker([lat,lon],{icon:L.divIcon({className:'',
+            html:'<div style="background:#8e44ad;color:white;padding:3px 7px;border-radius:3px;font-family:Oswald,sans-serif;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3)">'+naam+cap+'</div>',
+            iconAnchor:[0,14]})});
+          mk.terreinData=tData;
+          mk.on('click',function(){selecteerTerrein(this.terreinData);});
+          mk.addTo(terreinMap); terreinMarkers.push(mk);
+        });
+        if (terreinMarkers.length) {
+          terreinMap.fitBounds(L.featureGroup(terreinMarkers.concat(terreinPolygons)).getBounds().pad(0.3));
+        }
+      }).catch(function(){tryEp(idx+1);});
+  };
+  tryEp(0);
+}
+
+function selecteerTerrein(data) {
+  if (!sessionActive) {
+    var hint = document.getElementById('terreinLog');
+    if (hint) { hint.style.color='#c0392b'; hint.textContent='Start eerst een sessie.'; }
+    return;
+  }
+  selectedTerrein = data;
+  terreinMarkers.forEach(function(m){
+    var sel=(m.terreinData.id===data.id);
+    m.setIcon(L.divIcon({className:'',
+      html:'<div style="background:'+(sel?'#1a1918':'#8e44ad')+';color:white;padding:3px 7px;border-radius:3px;font-family:Oswald,sans-serif;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3)">'+(sel?'✓ ':'')+m.terreinData.naam+m.terreinData.cap+'</div>',
+      iconAnchor:[0,14]}));
+  });
+  terreinPolygons.forEach(function(p){
+    var sel=(p.terreinData.id===data.id);
+    p.setStyle({color:sel?'#1a1918':'#8e44ad',weight:sel?3:2,fillOpacity:sel?0.28:0.15});
+  });
+  document.getElementById('terreinFormNaam').textContent = data.naam+(data.cap||'');
+  document.getElementById('terreinForm').style.display = 'block';
+  ['regulier','gehandicapt','laadpaal','gereserveerd'].forEach(function(s){
+    document.getElementById('inp-'+s).value=0;
+  });
+}
+
+function slaTerreinOp() {
+  if (!selectedTerrein) return;
+  if (navigator.vibrate) navigator.vibrate([30,50,30]);
+  var ts = new Date().toISOString().slice(0,19);
+  var totaal = 0;
+  var regels = [];
+  ['regulier','gehandicapt','laadpaal','gereserveerd'].forEach(function(soort) {
+    var n = parseInt(document.getElementById('inp-'+soort).value)||0;
+    if (n>0) {
+      terreinEntries.push({
+        osmWayId: selectedTerrein.id, osmType: selectedTerrein.type,
+        naam: selectedTerrein.naam, zijde:'nvt', type:soort, n:n, ts:ts
+      });
+      totaal+=n;
+      regels.push(soort+': '+n);
+    }
+  });
+  if (totaal === 0) return;
+
+  // Label op de kaart bij het terrein
+  var lat = selectedTerrein.lat, lon = selectedTerrein.lon;
+  var labelHtml = '<div style="background:#1a1918;color:white;padding:4px 8px;border-radius:3px;'+
+    'font-family:Oswald,sans-serif;font-size:12px;font-weight:700;white-space:nowrap;'+
+    'box-shadow:0 1px 4px rgba(0,0,0,0.4)">'+selectedTerrein.naam+' — '+totaal+' plk</div>';
+  L.marker([lat, lon], { icon:L.divIcon({className:'',html:labelHtml,iconAnchor:[0,14]}) })
+    .addTo(terreinMap);
+
+  // Polygoon donkerder markeren als geteld
+  terreinPolygons.forEach(function(p){
+    if (p.terreinData.id===selectedTerrein.id)
+      p.setStyle({color:'#1a1918',weight:3,fillOpacity:0.22});
+  });
+
+  var logEl = document.getElementById('terreinLog');
+  logEl.style.color='var(--text)';
+  var prevTxt = logEl.textContent==='Nog niets opgeslagen'?'':logEl.textContent+'\n';
+  logEl.textContent = prevTxt + selectedTerrein.naam+': '+totaal+' plk ('+regels.join(', ')+')';
+  document.getElementById('terreinForm').style.display='none';
+  selectedTerrein = null;
+  // Export-knop activeren
+  var expBtn = document.getElementById('btnExportZip');
+  if (expBtn) expBtn.disabled = false;
+}
+
 
 </script>
 </body>
