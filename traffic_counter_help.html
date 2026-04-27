@@ -387,14 +387,14 @@
 <!-- 11. Overzicht -->
 <section id="park-overzicht">
   <h2>11 — Wat doen de parkeertellingen?</h2>
-  <p>De parkeertellingen zijn veldtools voor wandelende parkeerobservaties. Je loopt een straat of route en registreert per parkeervak de toestand — links en rechts van de straat apart. De app snapped je positie op OSM-wegdata, plaatst markers loodrecht op de wegas en exporteert een ZIP met CSV, GPX en kaart-PNG.</p>
-  <p>Er zijn twee aparte apps: <strong>parkeertelling.html</strong> voor autoparkeren en <strong>fietsparkeren.html</strong> voor fietsparkeren. Beide werken identiek qua bediening.</p>
+  <p>De parkeertellingen zijn veldtools, gemaakt om tijdens het lopen parkeerbezetting te tellen. Je loopt een straat of route en registreert per parkeervak de bezetting — links en rechts van de straat apart. De app snapt je positie op OSM-wegdata, plaatst markers loodrecht op de wegas en exporteert de resultaten in een ZIP met CSV, GPX en kaart-PNG.</p>
+  <p>Er zijn twee aparte apps: <strong>parkeertelling.html</strong> voor autoparkeren en <strong>fietsparkeren.html</strong> voor fietsparkeren. Beide zijn identiek qua bediening.</p>
 </section>
 
 <!-- 12. Eerste gebruik -->
 <section id="park-eerstegebruik">
   <h2>12 — Hints bij het eerste gebruik</h2>
-  <p>De parkeertellingen bieden twee invoermethoden. Kies de methode die past bij jouw werkwijze <strong>vóór</strong> je op Start drukt — wisselen tijdens een sessie is ook mogelijk.</p>
+  <p>De parkeertellingen bieden twee invoermethoden. Kies de methode die past bij jouw werkwijze en druk op Start — wisselen van methode tijdens een sessie is mogelijk.</p>
 
   <div class="card" style="border-left:5px solid var(--green);">
     <div class="card-title">Methode A — Knoppen (klassiek)</div>
@@ -402,8 +402,8 @@
     <p><strong>Stap voor stap:</strong></p>
     <ol style="margin:6px 0 0 16px;line-height:2;">
       <li>Open de app en voer je naam in bij <em>Teller</em></li>
-      <li>Controleer of <strong>Knoppen</strong> geselecteerd is (linker pill)</li>
-      <li>Druk op <strong>Start</strong> — wacht op de groene GPS-stip</li>
+      <li>Druk op de knop <strong>Knoppen</strong></li>
+      <li>Druk op <strong>Start</strong> — wacht tot de GPS positie voldoende nauwkeurig is. Dat is als de GPS-stip groen is</li>
       <li>Loop langs de geparkeerde voertuigen en tik per voertuig de juiste knop (links of rechts van de weg)</li>
       <li>Druk op <strong>Stop</strong> en download de ZIP</li>
     </ol>
@@ -412,11 +412,11 @@
 
   <div class="card" style="border-left:5px solid #2471a3;margin-top:16px;">
     <div class="card-title">Methode B — Kantelmodus (handsfree)</div>
-    <p>Je kantelt de telefoon naar links of rechts om de zijde te kiezen, en tikt daarna ergens op het scherm om te registreren. Je hoeft niet naar het scherm te kijken — ideaal voor een hoog tempo.</p>
+    <p>Je kantelt de telefoon naar links of rechts om de zijde te kiezen, en tikt op het scherm om de bezetting te registreren. Je hoeft niet naar het scherm te kijken — ideaal voor een hoog tempo.</p>
     <p><strong>Stap voor stap:</strong></p>
     <ol style="margin:6px 0 0 16px;line-height:2;">
       <li>Open de app en voer je naam in bij <em>Teller</em></li>
-      <li>Tik op <strong>Kantelen</strong> (rechter pill) — op iOS volgt een toestemmingsverzoek voor bewegingssensoren, geef toestemming</li>
+      <li>Druk op de modusknop <strong>Kantelen</strong> — op iOS volgt een toestemmingsverzoek voor bewegingssensoren, geef toestemming</li>
       <li>Activeer het kompas (knop onder de mini-kaart)</li>
       <li>Kies het type voertuig in de typestrip (standaard: het meest voorkomende type)</li>
       <li>Druk op <strong>Start</strong></li>
@@ -447,7 +447,7 @@
     <p>
       <span class="tag" style="background:#27ae60;">Fiets</span> normaal geparkeerd &middot;
       <span class="tag" style="background:#e67e22;">Brommer</span> brommer/scooter &middot;
-      <span class="tag" style="background:#2980b9;">Breed</span> breed voertuig &middot;
+      <span class="tag" style="background:#2980b9;">Breed</span> bredere fiets, zoals bakfiets &middot;
       <span class="tag" style="background:#c0392b;">Wrak</span> fietswrak
     </p>
     <p style="margin-top:6px;">CSV-prefix: <code>fietsparkeren_</code></p>
@@ -459,7 +459,7 @@
   <h2>14 — Sessie starten en stoppen</h2>
   <div class="card mode-both">
     <div class="card-title"><span class="tag green">&#9654; Start</span></div>
-    <p>Activeert de GPS-watch. Telknoppen worden actief zodra de GPS-nauwkeurigheid 25 meter of beter is. Een oranje knipperende dot geeft aan dat de app nog op een goede fix wacht. Knoppen blijven 3 seconden actief bij een korte GPS-uitval (debounce).</p>
+    <p>Activeert de GPS. Telknoppen worden actief zodra de GPS-nauwkeurigheid 25 meter of beter is. Een oranje knipperende dot geeft aan dat de app nog op een goede fix wacht. Knoppen blijven 3 seconden actief bij een korte GPS-uitval.</p>
   </div>
   <div class="card mode-both">
     <div class="card-title"><span class="tag red">&#9632; Stop</span></div>
@@ -471,7 +471,7 @@
 <!-- 14. Tellen -->
 <section id="park-tellen">
   <h2>15 — Tellen: knoppen &amp; kantelmodus</h2>
-  <p>Er zijn twee invoermethoden, te kiezen via de pills boven de Start-knop.</p>
+  <p>Er zijn twee invoermethoden, te kiezen via de knoppen boven de Start-knop.</p>
   <div class="card mode-both">
     <div class="card-title">Knoppen-modus</div>
     <p>Het telscherm heeft twee kolommen gescheiden door een "WEG"-divider. <strong>Links</strong> = linkerkant van de straat in jouw looprichting, <strong>Rechts</strong> = rechterkant.</p>
@@ -482,7 +482,7 @@
   </div>
   <div class="card mode-both">
     <div class="card-title">Knoplayout</div>
-    <p>Het eerste type loopt vol breed (meest gebruikt). De twee middelste types staan half naast elkaar. Het laatste type loopt weer vol breed onderaan.</p>
+    <p>Het eerste type beslaat de volle breedte (meest gebruikt). De twee middelste types staan naast elkaar op halve breedte. Het laatste type beslaat de volle breedte onderaan.</p>
   </div>
   <div class="card mode-both">
     <div class="card-title">Ongedaan maken</div>
@@ -499,12 +499,12 @@
     <tr><td>&#9650; Groen</td><td>Bewegend + kompas actief — meest betrouwbaar</td></tr>
     <tr><td>&#9650; Geelgroen</td><td>Bewegend, alleen GPS</td></tr>
     <tr><td>&#9650; Geel</td><td>Stilstaand, kompas dominant</td></tr>
-    <tr><td>&#9650; Oranje</td><td>Stilstaand, stale GPS-history</td></tr>
-    <tr><td>&#9650; Rood</td><td>Geen bearing beschikbaar — tel nog niet</td></tr>
+    <tr><td>&#9650; Oranje</td><td>Stilstaand, uit GPS-history</td></tr>
+    <tr><td>&#9650; Rood</td><td>Geen richting beschikbaar — tel nog niet</td></tr>
   </table>
   <div class="card mode-both">
     <div class="card-title">Kompasknop</div>
-    <p>Op iOS vraagt de "kompas"-knop toestemming voor DeviceOrientation. Eenmaal actief fust de app GPS-bearing (60%) en kompas (40%) bij beweging, en kompas-dominant (80%) bij stilstand. Kalibreer het kompas met een acht-beweging als de pijl structureel afwijkt.</p>
+    <p>Op iOS vraagt de "kompas"-knop toestemming voor DeviceOrientation. Eenmaal actief middelt de app GPS-bearing (60%) en kompas (40%) bij beweging, en is kompas-dominant (80%) bij stilstand. Kalibreer het kompas met een acht-beweging als de pijl structureel afwijkt.</p>
   </div>
 </section>
 
@@ -513,8 +513,7 @@
   <h2>17 — GPS &amp; OSM wegsnapping</h2>
   <p>De gekleurde stip in de statusbalk toont de GPS-status: grijs = inactief, oranje knipperend = fix onvoldoende (&gt;25m), groen = actief.</p>
   <p>Wegvakken worden opgehaald via Overpass API (straal 300m). Markers komen <strong>4 meter loodrecht op de dichtstbijzijnde wegas</strong>. Een indicator onder de straatnaam toont de snapstatus.</p>
-  <p>De OSM-wegrichting kan 180° verkeerd zijn t.o.v. looprichting. De app corrigeert dit automatisch door beide mogelijke richtingen te vergelijken met GPS+kompas en de best passende te kiezen.</p>
-  <p>Bij onbereikbaarheid van Overpass wordt automatisch een tweede eindpunt geprobeerd. Als beide falen, worden markers op de GPS-positie geplaatst.</p>
+  <p>Bij onbereikbaarheid van Openstreetmap/Overpass worden markers op de GPS-positie geplaatst.</p>
 </section>
 
 <!-- 17. Recovery -->
@@ -522,7 +521,7 @@
   <h2>18 — Crash recovery</h2>
   <div class="card mode-both">
     <div class="card-title">Automatisch opslaan</div>
-    <p>De app slaat de sessie op in localStorage bij elke telling. Bij een crash of per ongeluk gesloten tab gaat niets verloren.</p>
+    <p>De app slaat de sessie op in de localStorage van de telefoon. Bij een crash of per ongeluk gesloten tab gaat niets verloren.</p>
   </div>
   <p>Bij heropenen verschijnt een herstelmelding als er een niet-afgesloten sessie is. Download-knoppen worden direct actief zodat de data exporteerbaar is.</p>
 </section>
@@ -553,11 +552,11 @@
   </div>
   <div class="card mode-both">
     <div class="card-title">Looprichting</div>
-    <p>Houd de telefoon recht vooruit gericht met de bovenkant naar voren. Loop de route in één richting — bij een U-vormige route is een nieuwe sessie voor de terugweg nauwkeuriger.</p>
+    <p>Houd de telefoon recht vooruit gericht met de bovenkant naar voren, zodat het kompas de juiste richting aangeeft. Loop de route in één richting — bij een U-vormige route is een nieuwe sessie voor de terugweg nauwkeuriger.</p>
   </div>
   <div class="card mode-both">
     <div class="card-title">Accu</div>
-    <p>Doorlopend GPS-gebruik vreet accu. Neem een powerbank mee bij sessies langer dan 45 minuten.</p>
+    <p>Doorlopend GPS- en schermgebruik kosten veel energie. Neem een powerbank mee bij langere sessies.</p>
   </div>
 </section>
 
@@ -571,14 +570,14 @@
 <!-- 21. Overzicht -->
 <section id="cap-overzicht">
   <h2>21 — Wat doet de capaciteitstelling?</h2>
-  <p>De capaciteitstelling meet het <strong>aanbod</strong> aan parkeerplaatsen — hoeveel plekken er zijn, per type. Dit is complementair aan de parkeertelling (bezetting). Door capaciteit en bezetting te koppelen via de OSM-wegvak-ID bereken je de bezettingsgraad.</p>
-  <p>De app heeft twee modules, te kiezen via de pills boven de Start-knop.</p>
+  <p>In de capaciteitstelling tellen we het <strong>aantal beschikbare</strong> parkeerplaatsen — per type. Door capaciteit en de getelde parkeerbezetting te koppelen via de OSM-wegvak-ID bereken je de bezettingsgraad.</p>
+  <p>De app heeft twee modules, te kiezen via de knoppen boven de Start-knop.</p>
 </section>
 
 <!-- 22. Straat -->
 <section id="cap-straat">
   <h2>22 — Module 1: Straat doorlopen</h2>
-  <p>Identiek aan de parkeertelling qua bediening: GPS, OSM-snapping, knoppen of kantelmodus, L/R. Het verschil zit in de types:</p>
+  <p>Identiek aan de parkeertelling qua bediening: GPS, OSM-snapping, knoppen of kantelmodus, L/R. Het verschil zit in de types parkeerplaats:</p>
   <div class="card" style="border-left:5px solid #8e44ad;">
     <p>
       <span class="tag" style="background:#2471a3;">Regulier</span> standaard parkeervak &middot;
@@ -592,16 +591,16 @@
 
 <!-- 23. Terrein -->
 <section id="cap-terrein">
-  <h2>23 — Module 2: Terrein op het oog</h2>
+  <h2>23 — Module 2: Groter terrein tellen op het oog</h2>
   <p>Voor grote parkeerterreinen die je niet stap voor stap doorloopt. Je staat op of bij het terrein, telt met het oog, en voert de aantallen handmatig in.</p>
   <div class="card mode-both">
     <div class="card-title">Werkwijze</div>
     <ol style="margin:6px 0 0 16px;line-height:2;">
-      <li>Kies de <strong>Terrein</strong>-pill</li>
+      <li>Klik op de <strong>Terrein</strong>-knop</li>
       <li>Druk op <strong>Start</strong> — de kaart centreert op jouw GPS-positie</li>
       <li>De app zoekt automatisch parkeerterreinen (<code>amenity=parking</code>) binnen 400 m via OpenStreetMap en tekent deze als paarse contouren op de kaart</li>
       <li>Tik een terrein aan op de kaart</li>
-      <li>Vul de aantallen in per type en druk op <strong>Opslaan</strong></li>
+      <li>Vul het aantal parkeerplaatsen per type in en druk op <strong>Opslaan</strong></li>
       <li>Het label verschijnt op de kaart met het totaal aantal plekken</li>
       <li>Herhaal voor meerdere terreinen binnen dezelfde sessie</li>
       <li>Druk op <strong>Stop</strong> en exporteer de ZIP</li>
@@ -671,6 +670,7 @@
     </div>
   </div>
   <p style="margin-top:12px;">External dependencies (CDN, require internet): Google Fonts (Oswald, Share Tech Mono), Leaflet.js, OpenStreetMap tiles &amp; Nominatim, Overpass API.</p>
+  <p style="margin-top:12px;">Many thanks to developers and contributors to Openstreetmap, all built by a community of people like you. If you see errors, report or correct them.</p>
 </section>
 
 <div class="branding">
