@@ -211,7 +211,7 @@
 
 <header>
   <a href="index.html" style="color:#aaa8a2;text-decoration:none;font-size:13px;font-weight:300;margin-right:4px;">&#8592;</a>
-  <h1>Parkeertelling</h1>
+  <h1>Capaciteitstelling</h1>
   <span>rvmk.nl</span>
 </header>
 
@@ -250,10 +250,10 @@
       <div class="coords" id="coordsText"></div>
       <div style="font-size:10px;font-weight:300;margin-top:1px;" id="snapStatus"></div>
       <div style="display:flex;gap:10px;margin-top:6px;">
-        <span class="mini-count" style="color:var(--c-goed)">&#10003; <span id="cntGoed">0</span></span>
-        <span class="mini-count" style="color:var(--c-fout)">&#10005; <span id="cntFout">0</span></span>
-        <span class="mini-count" style="color:var(--c-leeg)">&#9633; <span id="cntLeeg">0</span></span>
-        <span class="mini-count" style="color:var(--c-spec)">&#9675; <span id="cntSpec">0</span></span>
+        <span class="mini-count" style="color:var(--c-goed)">&#10003; <span id="cntRegulier">0</span></span>
+        <span class="mini-count" style="color:var(--c-fout)">&#10005; <span id="cntGehandicapt">0</span></span>
+        <span class="mini-count" style="color:var(--c-leeg)">&#9633; <span id="cntLaadpaal">0</span></span>
+        <span class="mini-count" style="color:var(--c-spec)">&#9675; <span id="cntGereserveerd">0</span></span>
       </div>
     </div>
     <div class="bearing-info">
@@ -267,10 +267,10 @@
   </div>
 
   <div id="tiltStrip">
-    <div class="tilt-type-btn sel" data-tilttype="goed" onclick="setTiltType(this)">&#9989;&thinsp;goed</div>
-    <div class="tilt-type-btn" data-tilttype="leeg" onclick="setTiltType(this)">&#9744;&thinsp;leeg</div>
-    <div class="tilt-type-btn" data-tilttype="fout" onclick="setTiltType(this)">&#10060;&thinsp;fout</div>
-    <div class="tilt-type-btn" data-tilttype="spec" onclick="setTiltType(this)">&#9733;&thinsp;spec</div>
+    <div class="tilt-type-btn sel" data-tilttype="regulier" onclick="setTiltType(this)">&#9989;&thinsp;regulier</div>
+    <div class="tilt-type-btn" data-tilttype="laadpaal" onclick="setTiltType(this)">&#9744;&thinsp;laadpaal</div>
+    <div class="tilt-type-btn" data-tilttype="gehandicapt" onclick="setTiltType(this)">&#10060;&thinsp;gehandicapt</div>
+    <div class="tilt-type-btn" data-tilttype="gereserveerd" onclick="setTiltType(this)">&#9733;&thinsp;gereserveerd</div>
   </div>
 
   <div id="tikZone" ontouchend="onTikzoneTap(event)">
@@ -287,12 +287,12 @@
   <div class="btn-grid">
     <!-- LINKS -->
     <div class="btn-col" id="colLinks">
-      <button class="btn-tel t-goed" disabled onclick="addEntry('goed','L')"><span class="btn-icon">&#10003;</span>Reg.</button>
+      <button class="btn-tel t-goed" disabled onclick="addEntry('regulier','L')"><span class="btn-icon">&#10003;</span>Reg.</button>
       <div class="btn-half-row">
-        <button class="btn-tel t-fout" disabled onclick="addEntry('fout','L')"><span class="btn-icon">&#10005;</span>Hand.</button>
-        <button class="btn-tel t-spec" disabled onclick="addEntry('spec','L')"><span class="btn-icon">&#9675;</span>Spec.</button>
+        <button class="btn-tel t-fout" disabled onclick="addEntry('gehandicapt','L')"><span class="btn-icon">&#10005;</span>Hand.</button>
+        <button class="btn-tel t-spec" disabled onclick="addEntry('gereserveerd','L')"><span class="btn-icon">&#9675;</span>Spec.</button>
       </div>
-      <button class="btn-tel t-leeg" disabled onclick="addEntry('leeg','L')"><span class="btn-icon">&#9633;</span>Laad</button>
+      <button class="btn-tel t-leeg" disabled onclick="addEntry('laadpaal','L')"><span class="btn-icon">&#9633;</span>Laad</button>
     </div>
     <div class="street-divider">
       <div class="divider-line"></div>
@@ -301,12 +301,12 @@
     </div>
     <!-- RECHTS -->
     <div class="btn-col" id="colRechts">
-      <button class="btn-tel t-goed" disabled onclick="addEntry('goed','R')"><span class="btn-icon">&#10003;</span>Reg.</button>
+      <button class="btn-tel t-goed" disabled onclick="addEntry('regulier','R')"><span class="btn-icon">&#10003;</span>Reg.</button>
       <div class="btn-half-row">
-        <button class="btn-tel t-fout" disabled onclick="addEntry('fout','R')"><span class="btn-icon">&#10005;</span>Hand.</button>
-        <button class="btn-tel t-spec" disabled onclick="addEntry('spec','R')"><span class="btn-icon">&#9675;</span>Spec.</button>
+        <button class="btn-tel t-fout" disabled onclick="addEntry('gehandicapt','R')"><span class="btn-icon">&#10005;</span>Hand.</button>
+        <button class="btn-tel t-spec" disabled onclick="addEntry('gereserveerd','R')"><span class="btn-icon">&#9675;</span>Spec.</button>
       </div>
-      <button class="btn-tel t-leeg" disabled onclick="addEntry('leeg','R')"><span class="btn-icon">&#9633;</span>Laad</button>
+      <button class="btn-tel t-leeg" disabled onclick="addEntry('laadpaal','R')"><span class="btn-icon">&#9633;</span>Laad</button>
     </div>
   </div>>
 
@@ -346,10 +346,10 @@
     <div class="map-header">
       <span>Looproute</span>
       <div class="map-legend">
-        <div class="leg"><div class="leg-dot" style="background:var(--c-goed)"></div>goed</div>
-        <div class="leg"><div class="leg-dot" style="background:var(--c-fout)"></div>fout</div>
-        <div class="leg"><div class="leg-dot" style="background:var(--c-leeg)"></div>leeg</div>
-        <div class="leg"><div class="leg-dot" style="background:var(--c-spec)"></div>spec.</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-goed)"></div>regulier</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-fout)"></div>gehandicapt</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-leeg)"></div>laadpaal</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--c-spec)"></div>gereserveerd</div>
       </div>
     </div>
     <div id="map"></div>
@@ -431,7 +431,7 @@ var OVERPASS_ENDPOINTS = [
 ];
 
 var COLORS = { goed:'#27ae60', fout:'#c0392b', leeg:'#2980b9', spec:'#d68910' };
-var TYPE_LABELS = { goed:'Goed geparkeerd', fout:'Fout geparkeerd', leeg:'Leeg parkeervak', spec:'Speciaal (gehandicapt/L&L)' };
+var TYPE_LABELS = { regulier:'Regulier', gehandicapt:'Gehandicapt', laadpaal:'Laadpaal', gereserveerd:'Gereserveerd' };
 
 /* ── Leaflet ──────────────────────────────────────────── */
 var map = L.map('map', { zoomControl: true, attributionControl: false });
@@ -558,7 +558,7 @@ function startSession() {
   routeLine.setLatLngs([]);
   markerLayer.clearLayers();
   if (posMarker){ map.removeLayer(posMarker); posMarker=null; }
-  ['Goed','Fout','Leeg','Spec'].forEach(function(t){
+  ['Regulier','Gehandicapt','Laadpaal','Gereserveerd'].forEach(function(t){
     document.getElementById('cnt'+t).textContent='0';
   });
   document.getElementById('streetName').textContent='—';
@@ -1294,7 +1294,7 @@ function restoreSession() {
       data.savedAt + ' \u2014 download hieronder of begin een nieuwe sessie.';
 
     // Herstel tellers
-    ['Goed','Fout','Leeg','Spec'].forEach(function(t){
+    ['Regulier','Gehandicapt','Laadpaal','Gereserveerd'].forEach(function(t){
       var tl = t.toLowerCase();
       var tot = (counts[tl]||{L:0,R:0});
       document.getElementById('cnt'+t).textContent = tot.L+tot.R;
@@ -1358,25 +1358,22 @@ function buildCsvString() {
   lines.push('');
   lines.push('# Samenvatting');
   lines.push('type;links;rechts;totaal');
-  ['goed','fout','leeg','spec'].forEach(function(t){
+  ['regulier','gehandicapt','laadpaal','gereserveerd'].forEach(function(t){
     lines.push([t,counts[t].L,counts[t].R,counts[t].L+counts[t].R].join(';'));
   });
   var straatMap = {};
   entries.forEach(function(e) {
     var s = e.street || '(onbekend)';
-    if (!straatMap[s]) straatMap[s] = { goed:0, fout:0, leeg:0, spec:0 };
+    if (!straatMap[s]) straatMap[s] = { regulier:0, gehandicapt:0, laadpaal:0, gereserveerd:0 };
     straatMap[s][e.type]++;
   });
   lines.push('');
-  lines.push('# Bezettingsgraad per straat');
-  lines.push('straat;goed;fout;leeg;spec;bezet;vrij;bezettingsgraad_pct');
+  lines.push('# Capaciteit per straat');
+  lines.push('straat;regulier;gehandicapt;laadpaal;gereserveerd;totaal');
   Object.keys(straatMap).forEach(function(s) {
     var r = straatMap[s];
-    var bezet = r.goed + r.fout + r.spec;
-    var vrij  = r.leeg;
-    var totaal = bezet + vrij;
-    var pct = totaal > 0 ? Math.round(bezet / totaal * 1000) / 10 : '';
-    lines.push([s, r.goed, r.fout, r.leeg, r.spec, bezet, vrij, pct].join(';'));
+    var totaal = r.regulier + r.gehandicapt + r.laadpaal + r.gereserveerd;
+    lines.push([s, r.regulier, r.gehandicapt, r.laadpaal, r.gereserveerd, totaal].join(';'));
   });
   if (trackPoints.length) {
     lines.push('');
@@ -1401,7 +1398,7 @@ function buildGpxString() {
   ];
   entries.forEach(function(e) {
     if (!e.lat) return;
-    var name = (e.type==='goed'?'Goed':e.type==='fout'?'Fout':e.type==='leeg'?'Leeg':'Spec.')+' '+e.zijde+' #'+e.nr;
+    var name = (e.type==='regulier'?'Reg.':e.type==='gehandicapt'?'Hand.':e.type==='laadpaal'?'Laadp.':'Res.')+' '+e.zijde+' #'+e.nr;
     var sym = TYPE_SYM[e.type]||'Flag';
     lines.push('  <wpt lat="'+e.lat+'" lon="'+e.lon+'">');
     lines.push('    <n>'+name+'</n>');
@@ -1492,7 +1489,7 @@ function buildMapBlob(cb) {
   ctx.fillText('CAPACITEITSTELLING', HDR*0.35, HDR*0.4);
   ctx.font=Math.round(fs*0.62)+'px sans-serif'; ctx.fillStyle='#aaa8a2';
   var d=new Date(), ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'  '+pad(d.getHours())+':'+pad(d.getMinutes());
-  ctx.fillText(ds+'     goed:'+totGoed+'  fout:'+totFout+'  leeg:'+totLeeg+'  spec:'+totSpec, HDR*0.35, HDR*0.74);
+  ctx.fillText(ds+'     reg:'+totGoed+'  hand:'+totFout+'  laad:'+totLeeg+'  res:'+totSpec, HDR*0.35, HDR*0.74);
   ctx.fillStyle='#fff'; ctx.fillRect(0,H+HDR,W,FTR);
   var ly=H+HDR+FTR*0.5, legR=FTR*0.14, legFs=Math.round(FTR*0.3);
   ctx.font=legFs+'px sans-serif'; ctx.textBaseline='middle';
@@ -1501,7 +1498,7 @@ function buildMapBlob(cb) {
   ctx.strokeStyle='#c8a96e'; ctx.lineWidth=legR*1.2; ctx.lineCap='round'; ctx.stroke();
   ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText('bezochte weg',lx+legR*3.6,ly);
   lx+=ctx.measureText('bezochte weg').width+legR*7;
-  [{c:'#27ae60',l:'Goed ('+totGoed+')'},{c:'#c0392b',l:'Fout ('+totFout+')'},{c:'#2980b9',l:'Leeg ('+totLeeg+')'},{c:'#d68910',l:'Spec. ('+totSpec+')'}]
+  [{c:'#27ae60',l:'Regulier ('+totGoed+')'},{c:'#c0392b',l:'Gehandicapt ('+totFout+')'},{c:'#2980b9',l:'Laadpaal ('+totLeeg+')'},{c:'#d68910',l:'Gereserveerd ('+totSpec+')'}]
   .forEach(function(item){
     ctx.beginPath(); ctx.arc(lx+legR,ly,legR,0,2*Math.PI); ctx.fillStyle=item.c; ctx.fill();
     ctx.fillStyle='#555'; ctx.textAlign='left'; ctx.fillText(item.l,lx+legR*2.4,ly);
