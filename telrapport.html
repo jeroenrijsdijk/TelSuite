@@ -247,6 +247,8 @@ const APP_CONFIG = {
 const map = L.map('map', { zoomControl: true }).setView([52.1, 5.1], 8);
 map.createPane('clusters');
 map.getPane('clusters').style.zIndex = 550;
+map.createPane('capaciteit');
+map.getPane('capaciteit').style.zIndex = 350;
 
 L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png', {
   attribution: '© PDOK / BRT', maxZoom: 19,
@@ -260,7 +262,9 @@ const gpsLayers     = {};
 const dotLayers     = {};   // sid → { type → [marker] }
 const clusterLayers    = {};   // sid → [marker]
 const capLayers      = {};   // sid → [marker] voor capaciteitssessies
+const capTelData    = {};   // sid → [telregels] voor capaciteitssessies
 const telData       = {};   // sid → filtered snapped telregels
+let   capSpotLayers = [];   // tijdelijke spot-markers bij klik capaciteit
 
 const dotVisible    = { fiets:true, wrak:true, brommer:true, breed:true,
                         goed:true, fout:true, leeg:true, spec:true };
@@ -494,19 +498,47 @@ document.getElementById('detail-close').addEventListener('click',()=>
 
 
 /* ── Capaciteitssessies ──────────────────────────────────── */
-function loadCapaciteitZip(sid, sm, capCSV, gpsCSV) {
+function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV) {
+  if (telCSV) capTelData[sid] = parseCSV(telCSV);
   sessions[sid] = { meta:sm, visible:true, appType:'capaciteit' };
   capLayers[sid] = [];
 
   if (!capCSV) { renderSessions(); updateUI(); return; }
 
+  // Lees parkeer-polygonen uit netwerk.csv (highway='parking', WKT=POLYGON)
+  const polyMap = {};
+  if (netCSV) {
+    parseCSV(netCSV).forEach(r => {
+      if (r.highway === 'parking' && r.geometrie_wkt && r.geometrie_wkt.trim().startsWith('POLYGON')) {
+        const inner = r.geometrie_wkt.trim().replace(/^POLYGON\s*\(\(/, '').replace(/\)\)$/, '');
+        const coords = inner.split(',').map(p => {
+          const parts = p.trim().split(' ').map(Number);
+          return [parts[1], parts[0]]; // [lat, lon] voor Leaflet
+        });
+        polyMap[r.osm_way_id] = coords;
+      }
+    });
+  }
+
+  // Auto-detectie column-offset: in oudere exports staat osmType als 3e kolom
+  const SOORTEN = ['regulier','gehandicapt','laadpaal','gereserveerd'];
   const rows = parseCSV(capCSV);
   const groups = {};
   rows.forEach(r => {
+    let naam, soort, cap;
+    if (r.soort && !SOORTEN.includes(r.soort) && SOORTEN.includes(r.capaciteit)) {
+      // Oud formaat: osmType in kolom 'naam', naam in 'zijde', soort in 'capaciteit', n in 'eerste_waarneming'
+      naam = r.zijde || '—';
+      soort = r.capaciteit;
+      cap  = parseInt(r.eerste_waarneming) || 0;
+    } else {
+      naam = r.naam || '—';
+      soort = r.soort;
+      cap  = parseInt(r.capaciteit) || 0;
+    }
     const key = r.osm_way_id || '_onbekend';
-    if (!groups[key]) groups[key] = { naam:r.naam||'—', osmType:r.osm_type||'way', soorten:{}, wayId:key };
-    const n = parseInt(r.capaciteit)||0;
-    groups[key].soorten[r.soort] = (groups[key].soorten[r.soort]||0) + n;
+    if (!groups[key]) groups[key] = { naam, osmType:'way', soorten:{}, wayId:key };
+    if (cap > 0 && soort) groups[key].soorten[soort] = (groups[key].soorten[soort]||0) + cap;
   });
 
   // GPS-centroïd als fallback
@@ -529,17 +561,14 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV) {
   const drawGroups = (geomMap) => {
     Object.values(groups).forEach((g, i) => {
       const total = Object.values(g.soorten).reduce((a,n)=>a+n,0);
-      const geom  = geomMap[g.wayId];
-      const labelHtml = `<div style="background:#8e44ad;color:white;padding:4px 8px;border-radius:3px;
-        font-family:'Courier New',monospace;font-size:12px;font-weight:bold;
-        white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3)">
-        &#9632; ${g.naam} &mdash; ${total} plk</div>`;
+      const geom  = polyMap[g.wayId] || geomMap[g.wayId];
+      const labelHtml = '<div style="font-family:Oswald,sans-serif;background:#8e44ad;color:#fff;border-radius:50%;width:36px;height:36px;line-height:36px;text-align:center;font-size:18px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.4);transform:translate(-50%,-50%);cursor:pointer;">' + total + '</div>';
 
       if (geom && geom.length > 2) {
         // Polygoon tekenen
         const poly = L.polygon(geom, {
-          color:'#8e44ad', weight:2.5, fillColor:'#8e44ad', fillOpacity:0.18
-        }).on('click', ()=>showCapDetail(g, datum, sm.teller||''));
+          color:'#8e44ad', weight:2.5, fillColor:'#8e44ad', fillOpacity:0.18, pane:'capaciteit'
+        }).on('click', ()=>showCapDetail(g, datum, sm.teller||'', sid));
         poly.addTo(map);
         capLayers[sid].push(poly);
 
@@ -548,8 +577,8 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV) {
         const midLat = (bounds.getNorth()+bounds.getSouth())/2;
         const midLon = (bounds.getEast()+bounds.getWest())/2;
         const lbl = L.marker([midLat, midLon], {
-          icon: L.divIcon({ className:'', html:labelHtml, iconAnchor:[0,14] })
-        }).on('click', ()=>showCapDetail(g, datum, sm.teller||''));
+          icon: L.divIcon({ className:'', html:labelHtml, iconSize:[0,0], iconAnchor:[0,0] })
+        }).on('click', ()=>showCapDetail(g, datum, sm.teller||'', sid));
         lbl.addTo(map);
         capLayers[sid].push(lbl);
       } else {
@@ -557,8 +586,8 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV) {
         const lat = centLat ? centLat+(i*0.00005) : 52.0;
         const lon = centLon ? centLon+(i*0.00005) : 4.5;
         const m = L.marker([lat,lon], {
-          icon: L.divIcon({ className:'', html:labelHtml, iconAnchor:[0,14] })
-        }).on('click', ()=>showCapDetail(g, datum, sm.teller||''));
+          icon: L.divIcon({ className:'', html:labelHtml, iconSize:[0,0], iconAnchor:[0,0] })
+        }).on('click', ()=>showCapDetail(g, datum, sm.teller||'', sid));
         m.addTo(map);
         capLayers[sid].push(m);
       }
@@ -571,10 +600,12 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV) {
     document.getElementById('empty-state').style.display='none';
   };
 
-  if (!wayIds.length) { drawGroups({}); return; }
+  // Filteren: alleen IDs ophalen die NIET in polyMap zitten
+  const missingIds = wayIds.filter(id => !polyMap[id]);
+  if (!missingIds.length) { drawGroups({}); return; }
 
-  // Overpass: haal geometrie op voor de way-IDs
-  const query = '[out:json][timeout:10];way(id:'+wayIds.join(',')+');out geom;';
+  // Overpass: haal geometrie op voor ontbrekende way-IDs
+  const query = '[out:json][timeout:10];way(id:'+missingIds.join(',')+');out geom;';
   const tryOverpass = (idx) => {
     if (idx >= ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'].length) {
       drawGroups({}); return;
@@ -596,19 +627,42 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV) {
   tryOverpass(0);
 }
 
-function showCapDetail(g, datum, teller) {
+function showCapDetail(g, datum, teller, sid) {
   document.getElementById('detail-title').textContent = g.naam;
   document.getElementById('detail-sub').textContent = 'capaciteit · '+datum+(teller?' · '+teller:'');
   const soortKleur = { regulier:'#2471a3', gehandicapt:'#27ae60', laadpaal:'#e67e22', gereserveerd:'#8e44ad' };
   const total = Object.values(g.soorten).reduce((a,n)=>a+n,0);
   let html = '<table class="cmp-table"><tr><th>soort</th><th>plekken</th><th>%</th></tr>';
-  Object.entries(g.soorten).forEach(([soort,n]) => {
-    const kleur = soortKleur[soort]||'var(--muted)';
-    html += `<tr><td style="color:${kleur};font-weight:bold">${soort}</td><td style="text-align:right">${n}</td><td style="text-align:right;color:var(--muted)">${Math.round(n/total*100)}%</td></tr>`;
+  Object.entries(g.soorten).forEach(function(entry) {
+    var soort=entry[0], n=entry[1];
+    var kleur = soortKleur[soort]||'var(--muted)';
+    html += '<tr><td style="color:'+kleur+';font-weight:bold">'+soort+'</td><td style="text-align:right">'+n+'</td><td style="text-align:right;color:var(--muted)">'+Math.round(n/total*100)+'%</td></tr>';
   });
-  html += `<tr class="sum-row"><td>totaal</td><td style="text-align:right">${total}</td><td></td></tr></table>`;
+  html += '<tr class="sum-row"><td>totaal</td><td style="text-align:right">'+total+'</td><td></td></tr></table>';
   document.getElementById('detail-body').innerHTML = html;
   document.getElementById('detail-panel').classList.remove('hidden');
+
+  // Ruim vorige spot-markers op
+  capSpotLayers.forEach(function(m){ map.removeLayer(m); });
+  capSpotLayers = [];
+
+  // Teken individuele vakken op de kaart
+  var rows = (sid && capTelData[sid]) ? capTelData[sid] : [];
+  rows = rows.filter(function(r){ return r.osm_way_id === g.wayId || !g.wayId; });
+  rows.forEach(function(r) {
+    var la = parseFloat(r.lat_marker), lo = parseFloat(r.lon_marker);
+    if (isNaN(la)||isNaN(lo)) return;
+    var type = (r.type||'').toLowerCase();
+    var kleur = soortKleur[type] || '#888';
+    var m = L.circleMarker([la,lo], {
+      radius: 8, color: '#fff', weight: 2,
+      fillColor: kleur, fillOpacity: 0.92,
+      pane: 'clusters'
+    }).bindTooltip(type + (r.zijde?' · zijde '+r.zijde:'') + (r.straat?' · '+r.straat:''),
+        {direction:'top', offset:[0,-6]});
+    m.addTo(map);
+    capSpotLayers.push(m);
+  });
 }
 
 // ── DOTS ─────────────────────────────────────────────────────────
@@ -643,7 +697,7 @@ async function loadZip(file) {
 
   // Capaciteitssessie: apart pad
   if (appType === 'capaciteit') {
-    loadCapaciteitZip(sid, sm, capCSV, gpsCSV);
+    loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV);
     return;
   }
 

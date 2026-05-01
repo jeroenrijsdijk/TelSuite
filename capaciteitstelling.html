@@ -102,13 +102,13 @@
   .btn-tel:disabled { opacity: 0.30; cursor: default; }
 
   /* button colors by type */
-  .t-reg  { background: var(--c-goed); color: #fff; }
+  .t-regulier { background: var(--c-goed); color: #fff; }
   .t-reg:active:not(:disabled)  { background: #229954; }
-  .t-hand  { background: var(--c-fout); color: #fff; }
+  .t-gehandicapt { background: var(--c-fout); color: #fff; }
   .t-hand:active:not(:disabled)  { background: #a93226; }
-  .t-laad  { background: var(--c-leeg); color: #fff; }
+  .t-laadpaal { background: var(--c-leeg); color: #fff; }
   .t-laad:active:not(:disabled)  { background: #1f6fa0; }
-  .t-res  { background: var(--c-spec); color: #fff; }
+  .t-gereserveerd { background: var(--c-spec); color: #fff; }
   .t-res:active:not(:disabled)  { background: #b7770d; }
 
   .btn-undo { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: var(--font); font-size: 11px; font-weight: 400; letter-spacing: 0.5px; text-transform: uppercase; padding: 7px; cursor: pointer; margin-bottom: 8px; touch-action: manipulation; }
@@ -287,12 +287,12 @@
   <div class="btn-grid">
     <!-- LINKS -->
     <div class="btn-col" id="colLinks">
-      <button class="btn-tel t-goed" disabled onclick="addEntry('regulier','L')"><span class="btn-icon">&#10003;</span>Reg.</button>
+      <button class="btn-tel t-regulier" disabled onclick="addEntry('regulier','L')"><span class="btn-icon">&#9646;</span>Regulier</button>
       <div class="btn-half-row">
-        <button class="btn-tel t-fout" disabled onclick="addEntry('gehandicapt','L')"><span class="btn-icon">&#10005;</span>Hand.</button>
-        <button class="btn-tel t-spec" disabled onclick="addEntry('gereserveerd','L')"><span class="btn-icon">&#9675;</span>Spec.</button>
+        <button class="btn-tel t-gehandicapt" disabled onclick="addEntry('gehandicapt','L')"><span class="btn-icon">&#9855;</span>Gehandicapt</button>
+        <button class="btn-tel t-gereserveerd" disabled onclick="addEntry('gereserveerd','L')"><span class="btn-icon">&#9632;</span>Gereserveerd</button>
       </div>
-      <button class="btn-tel t-leeg" disabled onclick="addEntry('laadpaal','L')"><span class="btn-icon">&#9633;</span>Laad</button>
+      <button class="btn-tel t-laadpaal" disabled onclick="addEntry('laadpaal','L')"><span class="btn-icon">&#9889;</span>Laadpaal</button>
     </div>
     <div class="street-divider">
       <div class="divider-line"></div>
@@ -301,12 +301,12 @@
     </div>
     <!-- RECHTS -->
     <div class="btn-col" id="colRechts">
-      <button class="btn-tel t-goed" disabled onclick="addEntry('regulier','R')"><span class="btn-icon">&#10003;</span>Reg.</button>
+      <button class="btn-tel t-regulier" disabled onclick="addEntry('regulier','R')"><span class="btn-icon">&#9646;</span>Regulier</button>
       <div class="btn-half-row">
-        <button class="btn-tel t-fout" disabled onclick="addEntry('gehandicapt','R')"><span class="btn-icon">&#10005;</span>Hand.</button>
-        <button class="btn-tel t-spec" disabled onclick="addEntry('gereserveerd','R')"><span class="btn-icon">&#9675;</span>Spec.</button>
+        <button class="btn-tel t-gehandicapt" disabled onclick="addEntry('gehandicapt','R')"><span class="btn-icon">&#9855;</span>Gehandicapt</button>
+        <button class="btn-tel t-gereserveerd" disabled onclick="addEntry('gereserveerd','R')"><span class="btn-icon">&#9632;</span>Gereserveerd</button>
       </div>
-      <button class="btn-tel t-leeg" disabled onclick="addEntry('laadpaal','R')"><span class="btn-icon">&#9633;</span>Laad</button>
+      <button class="btn-tel t-laadpaal" disabled onclick="addEntry('laadpaal','R')"><span class="btn-icon">&#9889;</span>Laadpaal</button>
     </div>
   </div>>
 
@@ -314,26 +314,29 @@
   <!-- ── TERREIN MODULE ── -->
   <div id="terreinModule" style="display:none">
     <div style="margin-bottom:6px;">
-      <div id="terreinKaart" style="width:100%;height:240px;border:1px solid var(--border);border-radius:2px;margin-bottom:6px;"></div>
+      <div style="position:relative;">
+        <div id="terreinKaart" style="width:100%;height:240px;border:1px solid var(--border);border-radius:2px;margin-bottom:6px;"></div>
+        <button id="btnGpsTerug" onclick="tgrNaarGps()" style="display:none;position:absolute;top:6px;right:6px;z-index:1000;font-family:var(--font);font-size:11px;font-weight:600;letter-spacing:0.5px;padding:5px 9px;background:var(--surface);border:1px solid var(--border);border-radius:2px;cursor:pointer;touch-action:manipulation;box-shadow:0 1px 4px rgba(0,0,0,0.15);">&#8982; GPS</button>
+      </div>
       <div style="font-size:10px;color:var(--muted);text-align:center;margin-bottom:8px;letter-spacing:0.5px;">Tik een terrein op de kaart</div>
     </div>
     <div id="terreinForm" style="display:none;background:var(--surface);border:1px solid var(--border);padding:12px;margin-bottom:6px;">
       <div id="terreinFormNaam" style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--text);"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
         <label style="font-size:12px;flex:1;">&#9646; Regulier</label>
-        <input type="number" id="inp-regulier" min="0" value="0" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
+        <input type="number" id="inp-regulier" min="0" value="0" onfocus="this.select()" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
         <label style="font-size:12px;flex:1;">&#9855; Gehandicapt</label>
-        <input type="number" id="inp-gehandicapt" min="0" value="0" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
+        <input type="number" id="inp-gehandicapt" min="0" value="0" onfocus="this.select()" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
         <label style="font-size:12px;flex:1;">&#9889; Laadpaal</label>
-        <input type="number" id="inp-laadpaal" min="0" value="0" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
+        <input type="number" id="inp-laadpaal" min="0" value="0" onfocus="this.select()" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <label style="font-size:12px;flex:1;">&#9632; Gereserveerd</label>
-        <input type="number" id="inp-gereserveerd" min="0" value="0" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
+        <input type="number" id="inp-gereserveerd" min="0" value="0" onfocus="this.select()" style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;font-family:var(--font);font-size:14px;text-align:right;background:var(--bg);color:var(--text);">
       </div>
       <button onclick="slaTerreinOp()" style="width:100%;padding:11px 0;background:var(--text);color:var(--bg);border:none;border-radius:2px;font-family:var(--font);font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;touch-action:manipulation;">Opslaan</button>
     </div>
@@ -430,7 +433,7 @@ var OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter'
 ];
 
-var COLORS = { goed:'#27ae60', fout:'#c0392b', leeg:'#2980b9', spec:'#d68910' };
+var COLORS = { regulier:'#27ae60', gehandicapt:'#c0392b', laadpaal:'#2980b9', gereserveerd:'#d68910' };
 var TYPE_LABELS = { regulier:'Regulier', gehandicapt:'Gehandicapt', laadpaal:'Laadpaal', gereserveerd:'Gereserveerd' };
 
 /* ── Leaflet ──────────────────────────────────────────── */
@@ -526,7 +529,7 @@ function offsetPoint(lat,lon,bearing,meters) {
 function startSession() {
   if (!navigator.geolocation) { setStatus('GPS niet beschikbaar.'); return; }
   sessionActive=true;
-  entries=[]; totalNr=0;
+  entries=[]; totalNr=0; terreinEntries=[];
   counts={regulier:{L:0,R:0},gehandicapt:{L:0,R:0},laadpaal:{L:0,R:0},gereserveerd:{L:0,R:0}};
   trackPoints=[]; currentStreet='—'; currentBearing=null;
   prevLat=null; prevLon=null;
@@ -542,6 +545,7 @@ function startSession() {
   sessionStartTime = timestamp(); sessionEndTime = null;
   gpsLog = []; lastGpsLogLat = null; lastGpsLogLon = null;
   osmNetworkElements = [];
+  if (terreinModus && currentLat !== null) zoekTerreinen();
   var tellerEl = document.getElementById('inputTeller');
   if (tellerEl) tellerEl.disabled = true;
   displayBearing=null; lastMoved=false;
@@ -603,12 +607,13 @@ function stopSession() {
   var tellerEl = document.getElementById('inputTeller');
   if (tellerEl) tellerEl.disabled = false;
 
-  if (entries.length>0) {
+  var totaalEntries = entries.length + (terreinEntries||[]).length;
+  if (totaalEntries>0) {
     document.getElementById('btnDlCsv').disabled=false;
     document.getElementById('btnDlKaart').disabled=false;
     document.getElementById('btnDlGpx').disabled=false;
     document.getElementById('btnDlZip').disabled=false;
-    setStatus('Sessie gestopt \u00b7 '+entries.length+' object'+(entries.length===1?'':'en')+' \u2014 download CSV en kaart hieronder.','off');
+    setStatus('Sessie gestopt \u00b7 '+totaalEntries+' object'+(totaalEntries===1?'':'en')+' \u2014 download CSV en kaart hieronder.','off');
   } else {
     setStatus('Sessie gestopt \u00b7 geen vermeldingen.','off');
   }
@@ -715,7 +720,12 @@ function onPosition(pos) {
   if (terreinModus && terreinMap) {
     updateGpsCircle();
     if (isFirstFix) {
+      handmatigGepand = false;
+      var btn = document.getElementById('btnGpsTerug');
+      if (btn) btn.style.display = 'none';
+      terreinProgrammaticMove = true;
       terreinMap.setView([lat, lon], 16);
+      terreinProgrammaticMove = false;
       zoekTerreinen();
     }
   }
@@ -1387,7 +1397,7 @@ function buildCsvString() {
 function buildGpxString() {
   var d = new Date();
   var creator = 'rvmk-parkeertelling';
-  var TYPE_SYM = { goed:'Parking', fout:'Flag, Red', leeg:'Flag, Blue', spec:'Flag, Orange' };
+  var TYPE_SYM = { regulier:'Parking', gehandicapt:'Flag, Red', laadpaal:'Flag, Blue', gereserveerd:'Flag, Orange' };
   var lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<gpx version="1.1" creator="'+creator+'" xmlns="http://www.topografix.com/GPX/1/1">',
@@ -1483,8 +1493,8 @@ function buildMapBlob(cb) {
   });
   ctx.fillStyle='#1a1918'; ctx.fillRect(0,0,W,HDR);
   var fs=Math.round(HDR*0.42);
-  var totGoed=counts.goed.L+counts.goed.R, totFout=counts.fout.L+counts.fout.R;
-  var totLeeg=counts.leeg.L+counts.leeg.R, totSpec=counts.spec.L+counts.spec.R;
+  var totGoed=counts.regulier.L+counts.regulier.R, totFout=counts.gehandicapt.L+counts.gehandicapt.R;
+  var totLeeg=counts.laadpaal.L+counts.laadpaal.R, totSpec=counts.gereserveerd.L+counts.gereserveerd.R;
   ctx.font='bold '+fs+'px sans-serif'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.textBaseline='middle';
   ctx.fillText('CAPACITEITSTELLING', HDR*0.35, HDR*0.4);
   ctx.font=Math.round(fs*0.62)+'px sans-serif'; ctx.fillStyle='#aaa8a2';
@@ -1573,7 +1583,7 @@ function exportZip() {
     if ((terreinEntries||[]).length) {
       var terreinLines = [];
       terreinEntries.forEach(function(e){
-        terreinLines.push([sessionId||sid, e.osmWayId, e.osmType, e.naam, e.zijde, e.type, e.n, e.ts].join(';'));
+        terreinLines.push([sessionId||sid, e.osmWayId, e.naam, e.zijde, e.type, e.n, e.ts].join(';'));
       });
       stratenStr += '\n' + terreinLines.join('\n');
     }
@@ -1707,12 +1717,24 @@ function buildNetwerkCsvString() {
     if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) return;
     if (seen[el.id]) return;
     seen[el.id] = true;
+    var amenity = (el.tags && el.tags.amenity) ? el.tags.amenity : '';
+    var hw      = (el.tags && el.tags.highway)  ? el.tags.highway  : '';
     var coords = el.geometry.map(function(p) {
       return p.lon.toFixed(6).replace(',','.') + ' ' + p.lat.toFixed(6).replace(',','.');
-    }).join(', ');
-    var wkt = 'LINESTRING (' + coords + ')';
-    var hw = (el.tags && el.tags.highway) ? el.tags.highway : '';
-    lines.push([el.id, hw, wkt].join(';'));
+    });
+    var wkt;
+    if (amenity === 'parking') {
+      // Sluit de ring als dat nodig is
+      var first = el.geometry[0], last = el.geometry[el.geometry.length-1];
+      if (first.lat !== last.lat || first.lon !== last.lon) {
+        coords.push(coords[0]);
+      }
+      wkt = 'POLYGON ((' + coords.join(', ') + '))';
+      lines.push([el.id, 'parking', wkt].join(';'));
+    } else {
+      wkt = 'LINESTRING (' + coords.join(', ') + ')';
+      lines.push([el.id, hw, wkt].join(';'));
+    }
   });
   return lines.join('\n');
 }
@@ -1856,6 +1878,33 @@ function initTerreinKaart() {
     updateGpsCircle();
     zoekTerreinen();
   }
+  // Zoek terreinen bij handmatig verplaatsen van de kaart
+  var moveTimer = null;
+  terreinMap.on('moveend', function() {
+    if (terreinProgrammaticMove) return;
+    handmatigGepand = true;
+    var btn = document.getElementById('btnGpsTerug');
+    if (btn) btn.style.display = '';
+    if (moveTimer) clearTimeout(moveTimer);
+    moveTimer = setTimeout(function() {
+      var c = terreinMap.getCenter();
+      zoekTerreinen(c.lat, c.lng);
+    }, 600);
+  });
+}
+
+var handmatigGepand = false;
+var terreinProgrammaticMove = false;
+
+function tgrNaarGps() {
+  if (!currentLat) return;
+  handmatigGepand = false;
+  var btn = document.getElementById('btnGpsTerug');
+  if (btn) btn.style.display = 'none';
+  terreinProgrammaticMove = true;
+  terreinMap.setView([currentLat, currentLon], 16);
+  terreinProgrammaticMove = false;
+  zoekTerreinen();
 }
 
 function updateGpsCircle() {
@@ -1868,9 +1917,11 @@ function updateGpsCircle() {
   }
 }
 
-function zoekTerreinen() {
-  if (!currentLat) return;
-  var query = '[out:json][timeout:10];(node[amenity=parking](around:400,'+currentLat.toFixed(6)+','+currentLon.toFixed(6)+');way[amenity=parking](around:400,'+currentLat.toFixed(6)+','+currentLon.toFixed(6)+'););out geom tags;';
+function zoekTerreinen(zoekLat, zoekLon) {
+  var lat = (zoekLat !== undefined ? zoekLat : currentLat);
+  var lon = (zoekLon !== undefined ? zoekLon : currentLon);
+  if (!lat) return;
+  var query = '[out:json][timeout:10];(node[amenity=parking](around:400,'+lat.toFixed(6)+','+lon.toFixed(6)+');way[amenity=parking](around:400,'+lat.toFixed(6)+','+lon.toFixed(6)+'););out geom tags;';
   var ENDPOINTS = ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
   var tryEp = function(idx) {
     if (idx >= ENDPOINTS.length) return;
@@ -1898,6 +1949,8 @@ function zoekTerreinen() {
             poly.terreinData=tData;
             poly.on('click',function(){selecteerTerrein(this.terreinData);});
             poly.addTo(terreinMap); terreinPolygons.push(poly);
+            // Sla geometrie op voor export in netwerk.csv
+            osmNetworkElements.push({id:String(el.id),type:'way',geometry:el.geometry,tags:{amenity:'parking',name:naam}});
           }
           var mk=L.marker([lat,lon],{icon:L.divIcon({className:'',
             html:'<div style="background:#8e44ad;color:white;padding:3px 7px;border-radius:3px;font-family:Oswald,sans-serif;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3)">'+naam+cap+'</div>',
@@ -1906,8 +1959,10 @@ function zoekTerreinen() {
           mk.on('click',function(){selecteerTerrein(this.terreinData);});
           mk.addTo(terreinMap); terreinMarkers.push(mk);
         });
-        if (terreinMarkers.length) {
+        if (terreinMarkers.length && !handmatigGepand) {
+          terreinProgrammaticMove = true;
           terreinMap.fitBounds(L.featureGroup(terreinMarkers.concat(terreinPolygons)).getBounds().pad(0.3));
+          terreinProgrammaticMove = false;
         }
       }).catch(function(){tryEp(idx+1);});
   };
@@ -1978,8 +2033,8 @@ function slaTerreinOp() {
   document.getElementById('terreinForm').style.display='none';
   selectedTerrein = null;
   // Export-knop activeren
-  var expBtn = document.getElementById('btnExportZip');
-  if (expBtn) expBtn.disabled = false;
+  document.getElementById('btnDlZip').disabled = false;
+  document.getElementById('btnDlCsv').disabled = false;
 }
 
 
