@@ -1,0 +1,3444 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parkeercapaciteit Werkbank</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.15.0/dist/leaflet-geoman.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #f5f4ef;
+  --panel: #ffffff;
+  --panel-2: #faf9f5;
+  --text: #1a1a1a;
+  --text-soft: #555;
+  --text-faint: #888;
+  --border: #e0ddd6;
+  --border-strong: #c9c4b8;
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --success: #16a34a;
+  --warning: #ea580c;
+  --danger: #dc2626;
+  --purple: #7c3aed;
+  --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+
+  /* Map feature colors */
+  --map-vak-fill: #3b82f6;
+  --map-vak-orphan: #dc2626;
+  --map-vak-border: #ea580c;
+  --map-terrain-public: #16a34a;
+  --map-terrain-customers: #ca8a04;
+  --map-terrain-private: #6b7280;
+  --map-terrain-suspect: #7c3aed;
+  --map-focus: #1a1a1a;
+  --map-npr-betaald: #f59e0b;
+  --map-npr-vergun: #be185d;
+  --map-npr-mixed: #b45309;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ============ HEADER ============ */
+header {
+  flex: 0 0 auto;
+  height: 48px;
+  background: var(--text);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  border-bottom: 1px solid #000;
+}
+
+header .brand {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+header .brand .sub {
+  font-weight: 400;
+  color: #aaa;
+  margin-left: 8px;
+  font-size: 12px;
+}
+
+header .spacer { flex: 1; }
+
+header .osm-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: #ccc;
+}
+
+header .osm-status .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #666;
+}
+header .osm-status.fresh .dot { background: var(--success); }
+header .osm-status.stale .dot { background: var(--warning); }
+
+header button {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+  transition: background 0.1s;
+}
+header button:hover { background: var(--primary-dark); }
+header button:disabled { background: #444; cursor: not-allowed; }
+
+/* ============ MAIN LAYOUT ============ */
+main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+aside.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  width: 290px;
+  flex: 0 0 290px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+aside.sidebar.right {
+  border-right: none;
+  border-left: 1px solid var(--border);
+  width: 340px;
+  flex: 0 0 340px;
+}
+
+.map-wrap {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+  background: #ddd;
+}
+
+/* ============ SIDEBAR SECTIONS ============ */
+.section {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+}
+
+.section h3 {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin: 0 0 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section h3 .badge {
+  background: var(--text);
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
+  letter-spacing: 0.04em;
+}
+
+.section p.hint {
+  margin: 0 0 8px 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* ============ FORM CONTROLS ============ */
+.btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  background: var(--panel);
+  color: var(--text);
+  transition: all 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:hover { background: var(--panel-2); border-color: var(--text-soft); }
+.btn.primary { background: var(--primary); color: #fff; border-color: var(--primary-dark); }
+.btn.primary:hover { background: var(--primary-dark); }
+.btn.danger { color: var(--danger); border-color: var(--danger); }
+.btn.danger:hover { background: var(--danger); color: #fff; }
+.btn.full { width: 100%; justify-content: center; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-row { display: flex; gap: 6px; }
+.btn-row > * { flex: 1; }
+
+.file-input {
+  display: block;
+  width: 100%;
+  font-size: 11px;
+  padding: 6px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 4px;
+  background: var(--panel-2);
+  cursor: pointer;
+}
+
+.field {
+  margin-bottom: 10px;
+}
+.field:last-child { margin-bottom: 0; }
+.field label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-soft);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 0;
+  user-select: none;
+}
+.checkbox-row input { margin: 0; }
+.checkbox-row .swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid rgba(0,0,0,0.2);
+  flex-shrink: 0;
+}
+.checkbox-row .count {
+  margin-left: auto;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* Sliders */
+.slider-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.slider-field input[type="range"] {
+  flex: 1;
+}
+.slider-field .val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  width: 38px;
+  text-align: right;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid #fff;
+}
+
+/* ============ COMPLETION METER ============ */
+.meter {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.meter-headline {
+  font-size: 11px;
+  color: var(--text-soft);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.meter-headline .pct {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+.meter-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.meter-bar > div {
+  height: 100%;
+  background: var(--success);
+  transition: width 0.3s;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  gap: 2px 8px;
+}
+.stat-grid .label { color: var(--text-soft); }
+.stat-grid .val { font-weight: 600; text-align: right; }
+.stat-grid .indent { padding-left: 12px; color: var(--text-faint); font-weight: 400; }
+
+/* ============ TABS ============ */
+.tabs-nav {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.tabs-nav button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-soft);
+  border-bottom: 2px solid transparent;
+  position: relative;
+  transition: all 0.1s;
+}
+.tabs-nav button:hover { color: var(--text); background: rgba(0,0,0,0.02); }
+.tabs-nav button.active {
+  color: var(--text);
+  background: var(--panel);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+.tabs-nav button .count {
+  background: var(--text);
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  margin-left: 4px;
+  font-weight: 600;
+}
+.tabs-nav button.active .count { background: var(--primary); }
+.tabs-nav button[data-severity="warning"] .count { background: var(--warning); }
+.tabs-nav button[data-severity="danger"] .count { background: var(--danger); }
+
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* ============ DIAG TABLE ============ */
+.diag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.diag-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.diag-item:hover { background: var(--panel-2); }
+.diag-item.focused { background: #fef3c7; }
+
+.diag-icon {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 11px;
+  background: var(--text);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  min-width: 30px;
+  text-align: center;
+}
+.diag-icon.warn { background: var(--warning); }
+.diag-icon.danger { background: var(--danger); }
+.diag-icon.suspect { background: var(--purple); }
+
+.diag-body {
+  flex: 1;
+  min-width: 0;
+}
+.diag-title {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+.diag-meta {
+  font-size: 11px;
+  color: var(--text-soft);
+  font-family: 'IBM Plex Mono', monospace;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.diag-meta .tag {
+  background: var(--border);
+  color: var(--text-soft);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.empty-state .big {
+  font-size: 24px;
+  margin-bottom: 8px;
+  opacity: 0.4;
+}
+
+/* ============ MODAL ============ */
+.modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.modal-bg.show { display: flex; }
+.modal {
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal h2 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.modal textarea {
+  flex: 1;
+  min-height: 200px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  resize: vertical;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ============ TOAST ============ */
+#toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  z-index: 10000;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+#toast.show { opacity: 1; }
+#toast.error { background: var(--danger); }
+#toast.success { background: var(--success); }
+
+/* ============ MAP LEGEND ============ */
+.map-legend {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  z-index: 1000;
+  box-shadow: var(--shadow);
+  font-size: 11px;
+  max-width: 220px;
+}
+.map-legend h4 {
+  margin: 0 0 6px 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+.map-legend .legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.map-legend .swatch-line {
+  width: 14px; height: 3px; border-radius: 2px;
+}
+.map-legend .swatch-fill {
+  width: 12px; height: 12px; border-radius: 2px;
+  border: 1px solid rgba(0,0,0,0.2);
+}
+
+/* leaflet draw / geoman tweaks */
+.leaflet-pm-toolbar { font-family: 'IBM Plex Sans', sans-serif !important; }
+
+/* scrollbars */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+/* Welcome overlay */
+.welcome {
+  position: absolute;
+  inset: 0;
+  background: rgba(245, 244, 239, 0.92);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+}
+.welcome.hidden { display: none; }
+.welcome-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 30px;
+  max-width: 540px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+.welcome-card h1 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.welcome-card .lead {
+  color: var(--text-soft);
+  margin: 0 0 20px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.welcome-card ol {
+  margin: 0 0 20px 0;
+  padding-left: 22px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-soft);
+}
+.welcome-card ol strong { color: var(--text); }
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="brand">Parkeercapaciteit Werkbank <span class="sub">v1 · OSM-fusie</span></div>
+  <div class="spacer"></div>
+  <div class="osm-status" id="osmStatusBox">
+    <span class="dot"></span>
+    <span id="osmStatusTxt">OSM nog niet opgehaald</span>
+  </div>
+  <button id="fetchOsmBtn" disabled>Haal OSM op</button>
+  <button id="resetBtn" class="btn danger" style="font-size:11px; padding:5px 10px;">Reset alles</button>
+</header>
+
+<main>
+  <!-- LEFT SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- BESTANDEN -->
+    <section class="section">
+      <h3>Bestanden <span class="badge" id="vakkenCountBadge">0 vakken</span></h3>
+      <div class="field">
+        <label>Vakken-GeoJSON (parkeerplekken)</label>
+        <input type="file" id="vakkenFile" accept=".geojson,.json" class="file-input">
+        <p class="hint" id="vakkenInfo" style="margin-top:6px;"></p>
+      </div>
+    </section>
+
+    <!-- FOCUSGEBIED -->
+    <section class="section">
+      <h3>Focusgebied <span class="badge" id="focusBadge">geen</span></h3>
+      <p class="hint">Bepaalt waarover statistieken worden berekend. Zonder focusgebied wordt de hele bbox gebruikt.</p>
+      <div class="btn-row">
+        <button class="btn" id="drawFocusBtn">Teken</button>
+        <button class="btn" id="pasteFocusBtn">Plak</button>
+        <button class="btn" id="uploadFocusBtn">Upload</button>
+      </div>
+      <input type="file" id="focusFile" accept=".geojson,.json" style="display:none;">
+      <button class="btn full danger" id="clearFocusBtn" style="margin-top:6px; display:none;">Wis focus</button>
+    </section>
+
+    <!-- NPR / RDW PARKEERGEBIEDEN -->
+    <section class="section">
+      <h3>NPR Parkeergebieden <span class="badge" id="nprBadge">—</span></h3>
+      <p class="hint">RDW open data: <span class="mono">BETAALDP</span> (betaald) en <span class="mono">VERGUNP</span> (vergunninghouders). Verrijkt elk vak met regime + areaId.</p>
+      <div class="field" style="margin-bottom:6px;">
+        <label>AreaManagerId (gemeente)</label>
+        <div class="slider-field">
+          <input type="number" id="nprAreaManagerInput" value="612" min="1" max="9999" style="flex:1; padding:5px 8px; border:1px solid var(--border-strong); border-radius:4px; font-family:'IBM Plex Mono',monospace; font-size:12px;">
+          <span class="val mono" style="font-size:10px; color:var(--text-faint);" id="nprDefaultHint">612 = Spijkenisse</span>
+        </div>
+      </div>
+      <button class="btn full primary" id="fetchNprBtn">Haal NPR op</button>
+      <button class="btn full" id="editNprRegimesBtn" style="margin-top:4px;">Bewerk regimes…</button>
+      <p class="hint mono" id="nprStatus" style="margin-top:6px; font-size:10px;">nog niet opgehaald</p>
+    </section>
+
+    <!-- LAGEN / FILTERS -->
+    <section class="section">
+      <h3>Kaartlagen</h3>
+
+      <div class="field">
+        <label>Vakken tonen</label>
+        <label class="checkbox-row"><input type="checkbox" id="showVakLinked" checked><span class="swatch" style="background:var(--map-vak-fill);"></span>Gekoppeld <span class="count" id="cntVakLinked">0</span></label>
+        <label class="checkbox-row"><input type="checkbox" id="showVakOrphan" checked><span class="swatch" style="background:var(--map-vak-orphan);"></span>Orphan (geen terrein) <span class="count" id="cntVakOrphan">0</span></label>
+        <label class="checkbox-row"><input type="checkbox" id="showVakBorder" checked><span class="swatch" style="background:var(--map-vak-border);"></span>Border-flag <span class="count" id="cntVakBorder">0</span></label>
+      </div>
+
+      <div class="field">
+        <label>Terreinen tonen (toegang)</label>
+        <label class="checkbox-row"><input type="checkbox" id="showTerPublic" checked><span class="swatch" style="background:var(--map-terrain-public);opacity:0.6;"></span>Openbaar <span class="count" id="cntTerPublic">0</span></label>
+        <label class="checkbox-row"><input type="checkbox" id="showTerCustomers" checked><span class="swatch" style="background:var(--map-terrain-customers);opacity:0.6;"></span>Customers <span class="count" id="cntTerCustomers">0</span></label>
+        <label class="checkbox-row"><input type="checkbox" id="showTerPrivate" checked><span class="swatch" style="background:var(--map-terrain-private);opacity:0.6;"></span>Privé <span class="count" id="cntTerPrivate">0</span></label>
+        <label class="checkbox-row"><input type="checkbox" id="showTerSuspect" checked><span class="swatch" style="background:var(--map-terrain-suspect);opacity:0.6;"></span>Verdacht <span class="count" id="cntTerSuspect">0</span></label>
+      </div>
+
+      <div class="field">
+        <label>Terreinen tonen (parking-type)</label>
+        <div id="parkingTypeFilters"></div>
+      </div>
+
+      <div class="field">
+        <label>NPR-gebieden tonen</label>
+        <label class="checkbox-row"><input type="checkbox" id="showNprBetaald" checked><span class="swatch" style="background:var(--map-npr-betaald);opacity:0.55;"></span>Betaald (BETAALDP) <span class="count" id="cntNprBetaald">0</span></label>
+        <label class="checkbox-row"><input type="checkbox" id="showNprVergun" checked><span class="swatch" style="background:var(--map-npr-vergun);opacity:0.55;"></span>Vergunning (VERGUNP) <span class="count" id="cntNprVergun">0</span></label>
+        <label class="checkbox-row"><input type="checkbox" id="showNprMixed" checked><span class="swatch" style="background:var(--map-npr-mixed);opacity:0.55;"></span>Gemengd <span class="count" id="cntNprMixed">0</span></label>
+        <label class="checkbox-row"><input type="checkbox" id="showNprUnknown" checked><span class="swatch" style="background:#94a3b8;opacity:0.55;"></span>Regime onbekend <span class="count" id="cntNprUnknown">0</span></label>
+      </div>
+    </section>
+
+    <!-- DREMPELS -->
+    <section class="section">
+      <h3>Drempels</h3>
+      <div class="field">
+        <label>Grote delta — absoluut (≥ vakken)</label>
+        <div class="slider-field">
+          <input type="range" id="deltaAbsSlider" min="1" max="20" value="3">
+          <span class="val mono" id="deltaAbsVal">3</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Grote delta — relatief (≥ %)</label>
+        <div class="slider-field">
+          <input type="range" id="deltaRelSlider" min="1" max="50" value="10">
+          <span class="val mono" id="deltaRelVal">10%</span>
+        </div>
+      </div>
+      <p class="hint">Alleen vlaggen als beide drempels worden gehaald (EN-logica).</p>
+      <div class="field" style="margin-top:12px;">
+        <label>Verdacht-privé drempel (≥ getelde vakken)</label>
+        <div class="slider-field">
+          <input type="range" id="suspectMinSlider" min="5" max="100" value="20">
+          <span class="val mono" id="suspectMinVal">20</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Orphan-cluster radius (m)</label>
+        <div class="slider-field">
+          <input type="range" id="clusterRadiusSlider" min="5" max="80" value="25">
+          <span class="val mono" id="clusterRadiusVal">25m</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- EXPORT -->
+    <section class="section">
+      <h3>Export</h3>
+      <button class="btn full" id="exportTerrainsBtn">Terreinen.geojson</button>
+      <button class="btn full" id="exportVakkenBtn" style="margin-top:4px;">Vakken.geojson</button>
+      <button class="btn full" id="exportDiagBtn" style="margin-top:4px;">Diagnostiek.geojson</button>
+      <button class="btn full" id="exportCsvBtn" style="margin-top:4px;">Terreinen.csv</button>
+    </section>
+
+    <!-- ONDERHOUD -->
+    <section class="section">
+      <h3>Onderhoud <span class="badge mono" id="lsSizeBadge" title="LS = localStorage (instellingen) · DB = IndexedDB (datasets)">— · —</span></h3>
+      <p class="hint">Instellingen in localStorage, datasets (vakken/OSM/NPR) in IndexedDB. Beide worden gewist door de knop hieronder.</p>
+      <button class="btn full danger" id="flushLsBtn">Flush opslag</button>
+    </section>
+
+  </aside>
+
+  <!-- MAP -->
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="map-legend" id="mapLegend">
+      <h4>Legenda</h4>
+      <div class="legend-row"><span class="swatch-fill" style="background:var(--map-vak-fill);opacity:0.5;"></span>Vak (gekoppeld)</div>
+      <div class="legend-row"><span class="swatch-fill" style="background:var(--map-vak-orphan);opacity:0.7;"></span>Vak (orphan)</div>
+      <div class="legend-row"><span class="swatch-fill" style="background:transparent;border-color:var(--map-vak-border);border-width:2px;"></span>Vak (border-flag)</div>
+      <div class="legend-row"><span class="swatch-line" style="background:var(--map-terrain-public);"></span>Terrein openbaar</div>
+      <div class="legend-row"><span class="swatch-line" style="background:var(--map-terrain-customers);"></span>Terrein customers</div>
+      <div class="legend-row"><span class="swatch-line" style="background:var(--map-terrain-private);"></span>Terrein privé</div>
+      <div class="legend-row"><span class="swatch-line" style="background:var(--map-terrain-suspect);"></span>Terrein verdacht</div>
+      <div class="legend-row"><span class="swatch-fill" style="background:var(--map-npr-betaald);opacity:0.4;"></span>NPR betaald</div>
+      <div class="legend-row"><span class="swatch-fill" style="background:var(--map-npr-vergun);opacity:0.4;"></span>NPR vergunning</div>
+    </div>
+    <div class="welcome" id="welcome">
+      <div class="welcome-card">
+        <h1>Parkeercapaciteit Werkbank</h1>
+        <p class="lead">Een tool voor het systematisch verrijken van OSM met gemeentelijke parkeervakkengegevens, en het bouwen van een nauwkeurige capaciteitsdataset.</p>
+        <ol>
+          <li><strong>Laad</strong> je vakken-GeoJSON (met OBJECTID per vak)</li>
+          <li><strong>Bepaal</strong> een focusgebied (tekenen, plakken of uploaden)</li>
+          <li><strong>Haal OSM op</strong> — alle <span class="mono">amenity=parking</span> in de bbox</li>
+          <li><strong>Werk de klusjes weg</strong> via de drie diagnostiek-tabs</li>
+          <li><strong>Bewerk</strong> OSM in iD/JOSM, klik refresh, herhaal</li>
+        </ol>
+        <button class="btn primary" id="welcomeStartBtn">Aan de slag</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <aside class="sidebar right">
+
+    <!-- VOLTOOIINGSMETER -->
+    <section class="section">
+      <h3>Voltooiingsmeter <span class="badge" id="meterScopeBadge">bbox</span></h3>
+      <div class="meter">
+        <div class="meter-headline"><span>vakken gekoppeld</span><span class="pct" id="meterPct">—</span></div>
+        <div class="meter-bar"><div id="meterBar" style="width:0%;"></div></div>
+        <div class="stat-grid" id="meterStats">
+          <div class="label">vakken in scope</div><div class="val">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TABS -->
+    <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+      <nav class="tabs-nav">
+        <button data-tab="orphans" class="active">Orphans <span class="count" id="cntOrphans">0</span></button>
+        <button data-tab="deltas" data-severity="warning">Δ groot <span class="count" id="cntDeltas">0</span></button>
+        <button data-tab="suspects" data-severity="danger">Verdacht <span class="count" id="cntSuspects">0</span></button>
+      </nav>
+      <div class="tab-content">
+        <div class="tab-pane active" id="tab-orphans">
+          <div class="empty-state"><div class="big">·</div>Laad vakken en haal OSM op om te starten.</div>
+        </div>
+        <div class="tab-pane" id="tab-deltas">
+          <div class="empty-state"><div class="big">·</div>Geen data.</div>
+        </div>
+        <div class="tab-pane" id="tab-suspects">
+          <div class="empty-state"><div class="big">·</div>Geen data.</div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</main>
+
+<!-- Modals & overlays -->
+<div class="modal-bg" id="pasteModal">
+  <div class="modal">
+    <h2>Plak focusgebied als GeoJSON</h2>
+    <textarea id="pasteText" placeholder='Plak hier een GeoJSON Feature, FeatureCollection of Polygon...'></textarea>
+    <div class="modal-actions">
+      <button class="btn" id="pasteCancelBtn">Annuleer</button>
+      <button class="btn primary" id="pasteApplyBtn">Toepassen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="nprEditModal">
+  <div class="modal" style="max-width:560px;">
+    <h2>Regimes per NPR-gebied</h2>
+    <p class="hint" style="margin: 0 0 10px 0;">Override automatisch detecteerd regime per gebied. Wijzigingen worden direct opgeslagen.</p>
+    <div id="nprEditList" style="flex:1; overflow-y:auto; min-height:200px; max-height:50vh; border:1px solid var(--border); border-radius:4px;"></div>
+    <div class="modal-actions">
+      <button class="btn" id="nprEditCloseBtn">Sluiten</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.15.0/dist/leaflet-geoman.min.js"></script>
+<script src="https://unpkg.com/@turf/turf@7.1.0/turf.min.js"></script>
+<script src="https://unpkg.com/osmtogeojson@3.0.0-beta.5/osmtogeojson.js"></script>
+
+<script>
+/* =====================================================================
+   PARKEERCAPACITEIT WERKBANK — single-file fieldwork & enrichment tool
+   v1.0 — combineert gemeentelijke parkeervakken (GeoJSON) met OSM
+          parkeer­terreinen (amenity=parking) tot een verrijkte capaci-
+          teits­dataset met diagnostieklagen voor systematische OSM-
+          verrijking.
+   ===================================================================== */
+'use strict';
+
+/* ------------------------------------------------------------------
+   STATE
+   ------------------------------------------------------------------ */
+const STATE = {
+  vakken: null,                  // GeoJSON FeatureCollection of parking spots
+  vakkenStats: null,             // {count, hasObjectId}
+  focus: null,                   // GeoJSON Feature (Polygon/MultiPolygon) or null
+  osm: null,                     // GeoJSON FeatureCollection from Overpass (raw amenity=parking)
+  osmFetchedAt: null,            // ISO timestamp of last fetch
+  osmBbox: null,                 // [w,s,e,n] of last fetch
+  npr: null,                     // GeoJSON FeatureCollection from RDW NPR
+  nprFetchedAt: null,            // ISO timestamp of last NPR fetch
+  nprAreaManagerId: 612,         // Default Spijkenisse
+  nprManual: {},                 // { areaid: 'betaald'|'vergunning'|'mixed'|'other' } — user overrides
+  joinResult: null,              // computed { terrains, vakkenAnnotated, orphans, ... }
+  filters: {
+    showVakLinked: true, showVakOrphan: true, showVakBorder: true,
+    showTerPublic: true, showTerCustomers: true, showTerPrivate: true, showTerSuspect: true,
+    showNprBetaald: true, showNprVergun: true, showNprMixed: true, showNprUnknown: true,
+    parkingTypes: {}             // { surface: true, multi-storey: false, ... }
+  },
+  thresholds: {
+    deltaAbs: 3, deltaRel: 10, suspectMin: 20, clusterRadius: 25
+  },
+  ui: {
+    activeTab: 'orphans',
+    focusedDiagId: null
+  }
+};
+
+const LS_KEY = 'parkeercap_v1';
+const IDB_NAME = 'parkeercap';
+const IDB_VERSION = 1;
+const IDB_STORE = 'datasets';
+
+/* ------------------------------------------------------------------
+   IndexedDB wrapper — minimal key/value store
+   ------------------------------------------------------------------
+   Used for the heavy datasets (vakken / osm / npr). LocalStorage has
+   a 5-10MB hard ceiling per origin, IDB typically has hundreds of MB
+   to multiple GB available. Each dataset lives at its own key.
+   ------------------------------------------------------------------ */
+let _idbHandle = null;
+let _idbAvailable = (typeof indexedDB !== 'undefined');
+
+function openIdb() {
+  if (_idbHandle) return Promise.resolve(_idbHandle);
+  return new Promise((resolve, reject) => {
+    if (!_idbAvailable) return reject(new Error('IndexedDB niet beschikbaar'));
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onerror = () => reject(req.error || new Error('IDB open failed'));
+    req.onsuccess = () => { _idbHandle = req.result; resolve(_idbHandle); };
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+  });
+}
+
+async function idbGet(key) {
+  try {
+    const db = await openIdb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) { console.warn('idbGet', key, 'failed:', e); return null; }
+}
+
+async function idbSet(key, value) {
+  const db = await openIdb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+  });
+}
+
+async function idbDelete(key) {
+  try {
+    const db = await openIdb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('idbDelete', key, 'failed:', e); }
+}
+
+async function idbClear() {
+  try {
+    const db = await openIdb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.warn('idbClear failed:', e); }
+}
+
+/* ------------------------------------------------------------------
+   Persistence — settings (LS, sync) + datasets (IDB, async)
+   ------------------------------------------------------------------ */
+
+// Track which datasets are dirty between saves so we don't pointlessly
+// re-serialize multi-MB FeatureCollections on every settings tweak.
+const _dirty = { vakken: false, osm: false, npr: false };
+function markDirty(name) { _dirty[name] = true; }
+
+function saveSettings() {
+  // Just the small stuff — fast, sync, fits in LS easily.
+  try {
+    const snap = {
+      _v: 2,                      // schema marker (v1 had everything in LS)
+      focus: STATE.focus,
+      osmFetchedAt: STATE.osmFetchedAt,
+      osmBbox: STATE.osmBbox,
+      nprFetchedAt: STATE.nprFetchedAt,
+      nprAreaManagerId: STATE.nprAreaManagerId,
+      nprManual: STATE.nprManual,
+      filters: STATE.filters,
+      thresholds: STATE.thresholds
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(snap));
+  } catch (e) {
+    console.warn('saveSettings failed:', e);
+  }
+  updateStorageBadge();
+}
+
+async function saveDataset(name) {
+  const value = STATE[name];
+  try {
+    if (value == null) {
+      await idbDelete(name);
+    } else {
+      await idbSet(name, value);
+    }
+    _dirty[name] = false;
+    updateStorageBadge();
+  } catch (e) {
+    console.error(`saveDataset ${name} failed:`, e);
+    if (e && e.name === 'QuotaExceededError') {
+      toast(`IndexedDB vol — ${name} niet bewaard`, 'error');
+    } else {
+      toast(`Opslaan ${name} mislukt: ${e.message || e}`, 'error');
+    }
+  }
+}
+
+// Backward-compat shim. Existing call sites use saveState() — we keep
+// it working: always persist settings, and asynchronously persist any
+// dataset that has been marked dirty. Safe to fire-and-forget.
+function saveState() {
+  saveSettings();
+  for (const name of ['vakken', 'osm', 'npr']) {
+    if (_dirty[name]) saveDataset(name);
+  }
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const snap = JSON.parse(raw);
+    if (snap.focus) STATE.focus = snap.focus;
+    if (snap.osmFetchedAt) STATE.osmFetchedAt = snap.osmFetchedAt;
+    if (snap.osmBbox) STATE.osmBbox = snap.osmBbox;
+    if (snap.nprFetchedAt) STATE.nprFetchedAt = snap.nprFetchedAt;
+    if (snap.nprAreaManagerId) STATE.nprAreaManagerId = snap.nprAreaManagerId;
+    if (snap.nprManual) STATE.nprManual = snap.nprManual;
+    if (snap.filters) Object.assign(STATE.filters, snap.filters);
+    if (snap.thresholds) Object.assign(STATE.thresholds, snap.thresholds);
+    // Migration from v1 (everything-in-LS) to v2 (LS + IDB)
+    if (snap._v !== 2 && (snap.vakken || snap.osm || snap.npr)) {
+      console.log('Migrating v1 cache to IDB...');
+      (async () => {
+        if (snap.vakken) { STATE.vakken = snap.vakken; await idbSet('vakken', snap.vakken); }
+        if (snap.osm)    { STATE.osm    = snap.osm;    await idbSet('osm', snap.osm);    }
+        if (snap.npr)    { STATE.npr    = snap.npr;    await idbSet('npr', snap.npr);    }
+        // Re-write LS without the heavy stuff
+        saveSettings();
+        toast('Cache gemigreerd naar IndexedDB', 'success');
+        // Trigger a re-render now that data is back
+        if (typeof recomputeAndRender === 'function') recomputeAndRender();
+      })();
+    }
+    return true;
+  } catch (e) {
+    console.warn('loadSettings failed', e);
+    return false;
+  }
+}
+
+async function loadDatasets() {
+  try {
+    const [vakken, osm, npr] = await Promise.all([
+      idbGet('vakken'), idbGet('osm'), idbGet('npr')
+    ]);
+    if (vakken) STATE.vakken = vakken;
+    if (osm) STATE.osm = osm;
+    if (npr) STATE.npr = npr;
+  } catch (e) {
+    console.warn('loadDatasets failed:', e);
+  }
+}
+
+function resetState() {
+  if (!confirm('Alle data wissen (vakken, focusgebied, OSM-cache, NPR-cache)? Niet ongedaan te maken.')) return;
+  localStorage.removeItem(LS_KEY);
+  idbClear().finally(() => location.reload());
+}
+
+function getLsSize() {
+  try {
+    const item = localStorage.getItem(LS_KEY);
+    if (!item) return { bytes: 0, label: '0 B' };
+    const bytes = item.length;
+    return { bytes, label: humanBytes(bytes) };
+  } catch (e) { return { bytes: 0, label: '?' }; }
+}
+
+function humanBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  if (bytes < 1024*1024*1024) return (bytes/1024/1024).toFixed(1) + ' MB';
+  return (bytes/1024/1024/1024).toFixed(2) + ' GB';
+}
+
+let _storageBadgeTimer = null;
+function updateStorageBadge() {
+  // Debounce — IDB queries shouldn't run on every saveSettings
+  clearTimeout(_storageBadgeTimer);
+  _storageBadgeTimer = setTimeout(_updateStorageBadgeNow, 200);
+}
+
+async function _updateStorageBadgeNow() {
+  const badge = $('lsSizeBadge');
+  if (!badge) return;
+  const ls = getLsSize();
+  let dbLabel = '—';
+  try {
+    if (navigator.storage && navigator.storage.estimate) {
+      const est = await navigator.storage.estimate();
+      // Note: estimate.usage covers all origin storage, not just IDB.
+      // Subtract our LS bytes for a slightly better DB number.
+      const dbBytes = Math.max(0, (est.usage || 0) - ls.bytes);
+      dbLabel = humanBytes(dbBytes);
+      const quota = est.quota ? humanBytes(est.quota) : '?';
+      badge.title = `LS: ${ls.label}  ·  DB+: ${dbLabel}  /  totaal beschikbaar: ${quota}`;
+    } else {
+      badge.title = `LS: ${ls.label}`;
+    }
+  } catch (e) { /* ignore */ }
+  badge.textContent = `LS ${ls.label} · DB ${dbLabel}`;
+}
+
+// Backwards-compat alias for the older single-badge name
+const updateLsBadge = updateStorageBadge;
+
+function flushLocalStorage() {
+  const ls = getLsSize();
+  const msg = `Alle opgeslagen data wissen?\n\n` +
+              `localStorage: ${ls.label} (instellingen, focus, timestamps)\n` +
+              `IndexedDB: vakken, OSM-cache, NPR-cache\n\n` +
+              `Niet ongedaan te maken.`;
+  if (!confirm(msg)) return;
+  try {
+    localStorage.removeItem(LS_KEY);
+    idbClear().finally(() => {
+      toast('Alles geleegd — pagina wordt herladen', 'success');
+      setTimeout(() => location.reload(), 700);
+    });
+  } catch (e) {
+    toast('Wissen mislukt: ' + e.message, 'error');
+  }
+}
+
+/* ------------------------------------------------------------------
+   UI HELPERS
+   ------------------------------------------------------------------ */
+function $(id) { return document.getElementById(id); }
+function el(tag, props={}, ...children) {
+  const e = document.createElement(tag);
+  Object.entries(props).forEach(([k,v]) => {
+    if (k === 'class') e.className = v;
+    else if (k === 'style') {
+      if (typeof v === 'string') e.style.cssText = v;
+      else Object.assign(e.style, v);
+    }
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k === 'dataset') Object.assign(e.dataset, v);
+    else e.setAttribute(k, v);
+  });
+  children.flat().forEach(c => {
+    if (c == null) return;
+    if (typeof c === 'string' || typeof c === 'number') e.appendChild(document.createTextNode(c));
+    else e.appendChild(c);
+  });
+  return e;
+}
+
+let _toastTimer = null;
+function toast(msg, type='') {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = type;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function fmtNum(n) {
+  if (n == null) return '—';
+  return n.toLocaleString('nl-NL');
+}
+function fmtPct(n) {
+  if (n == null || isNaN(n)) return '—';
+  return n.toFixed(1) + '%';
+}
+function fmtTimestamp(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return d.toLocaleTimeString('nl-NL', {hour:'2-digit', minute:'2-digit'});
+  return d.toLocaleDateString('nl-NL', {day:'2-digit', month:'short'}) + ' ' +
+         d.toLocaleTimeString('nl-NL', {hour:'2-digit', minute:'2-digit'});
+}
+
+/* ------------------------------------------------------------------
+   MAP
+   ------------------------------------------------------------------ */
+let map = null;
+const layers = {
+  vakkenLinked: null,
+  vakkenOrphan: null,
+  vakkenBorder: null,
+  terrainPublic: null,
+  terrainCustomers: null,
+  terrainPrivate: null,
+  terrainSuspect: null,
+  nprBetaald: null,
+  nprVergun: null,
+  nprMixed: null,
+  nprUnknown: null,
+  focus: null,
+  highlight: null
+};
+
+function showPasteModal() {
+  $('pasteModal').classList.add('show');
+  $('pasteText').value = '';
+  $('pasteText').focus();
+}
+function closePasteModal() {
+  $('pasteModal').classList.remove('show');
+}
+
+function showNprEditModal() {
+  if (!STATE.npr || !STATE.npr.features.length) {
+    toast('Eerst NPR ophalen', 'error');
+    return;
+  }
+  const list = $('nprEditList');
+  list.innerHTML = '';
+
+  // Sort: areas with manual regime first, then by areaid
+  const sorted = [...STATE.npr.features].sort((a, b) => {
+    const am = STATE.nprManual && STATE.nprManual[a.properties.areaid];
+    const bm = STATE.nprManual && STATE.nprManual[b.properties.areaid];
+    if (am && !bm) return -1;
+    if (!am && bm) return 1;
+    return a.properties.areaid.localeCompare(b.properties.areaid);
+  });
+
+  sorted.forEach(f => {
+    const p = f.properties;
+    const aid = p.areaid;
+    const manual = (STATE.nprManual && STATE.nprManual[aid]) || '';
+    const sourceTag = ({adw6:'RDW', heuristic:'gegokt', manual:'handmatig', unknown:'?'})[p.regime_source] || '';
+    const row = el('div', { style: 'display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border);' });
+
+    const left = el('div', { style: 'flex:1; min-width:0;' });
+    const code = el('div', { style: 'font-family:\'IBM Plex Mono\', monospace; font-size:11px; font-weight:600;' }, aid);
+    const desc = el('div', { style: 'font-size:11px; color:var(--text-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;' }, p.areadesc || '(geen omschrijving)');
+    left.appendChild(code);
+    left.appendChild(desc);
+
+    const sourceBadge = el('span', {
+      class: 'mono',
+      style: 'font-size:9px; color:var(--text-faint); background:var(--panel-2); padding:2px 6px; border-radius:3px; flex-shrink:0;'
+    }, sourceTag);
+
+    const sel = el('select', {
+      style: 'padding:4px 6px; font-size:11px; border:1px solid var(--border-strong); border-radius:3px; background:white; flex-shrink:0;',
+      dataset: { areaid: aid }
+    },
+      el('option', { value: '' }, '(automatisch)'),
+      el('option', { value: 'betaald' }, 'Betaald'),
+      el('option', { value: 'vergunning' }, 'Vergunning'),
+      el('option', { value: 'mixed' }, 'Gemengd'),
+      el('option', { value: 'other' }, 'Overig'),
+      el('option', { value: 'onbekend' }, 'Onbekend')
+    );
+    sel.value = manual;
+    sel.addEventListener('change', e => setNprManual(aid, e.target.value || null));
+
+    const zoom = el('button', {
+      class: 'btn',
+      style: 'padding:4px 8px; font-size:10px; flex-shrink:0;',
+      onclick: () => {
+        try {
+          const bb = turf.bbox(f);
+          map.fitBounds([[bb[1], bb[0]], [bb[3], bb[2]]], { maxZoom: 18, padding: [40, 40] });
+          closeNprEditModal();
+          // Open popup after a moment
+          setTimeout(() => {
+            for (const layerName of ['nprBetaald', 'nprVergun', 'nprMixed', 'nprUnknown']) {
+              const layer = layers[layerName];
+              if (!layer) continue;
+              layer.eachLayer(l => {
+                if (l.feature && l.feature.properties.areaid === aid) {
+                  showNprPopup(l.feature, l);
+                }
+              });
+            }
+          }, 250);
+        } catch (e) { console.warn(e); }
+      }
+    }, '↗');
+
+    row.appendChild(left);
+    row.appendChild(sourceBadge);
+    row.appendChild(sel);
+    row.appendChild(zoom);
+    list.appendChild(row);
+  });
+
+  $('nprEditModal').classList.add('show');
+}
+
+function closeNprEditModal() {
+  $('nprEditModal').classList.remove('show');
+}
+
+/* ------------------------------------------------------------------
+   CRS HANDLING — RD New (EPSG:28992) ↔ WGS84
+   ------------------------------------------------------------------
+   Benaderingsformules van F.H. Schreutelkamp & G.L. Strang van Hees,
+   "Benaderingsformules voor de transformatie tussen RD- en WGS84-
+   kaartcoördinaten" — nauwkeurigheid ~25cm binnen NL. Geen externe
+   bibliotheek nodig.
+   ------------------------------------------------------------------ */
+function rdToWgs84(x, y) {
+  const dX = (x - 155000) * 1e-5;
+  const dY = (y - 463000) * 1e-5;
+
+  const sumN =
+    3235.65389 * dY +
+    -32.58297 * dX * dX +
+    -0.2475 * dY * dY +
+    -0.84978 * dX * dX * dY +
+    -0.0655 * dY * dY * dY +
+    -0.01709 * dX * dX * dY * dY +
+    -0.00738 * dX +
+    0.0053 * dX * dX * dX * dX +
+    -0.00039 * dX * dX * dY * dY * dY +
+    0.00033 * dX * dX * dX * dX * dY +
+    -0.00012 * dX * dY;
+
+  const sumE =
+    5260.52916 * dX +
+    105.94684 * dX * dY +
+    2.45656 * dX * dY * dY +
+    -0.81885 * dX * dX * dX +
+    0.05594 * dX * dY * dY * dY +
+    -0.05607 * dX * dX * dX * dY +
+    0.01199 * dY +
+    -0.00256 * dX * dX * dX * dY * dY +
+    0.00128 * dX * dY * dY * dY * dY +
+    0.00022 * dY * dY +
+    -0.00022 * dX * dX +
+    0.00026 * dX * dX * dX * dX * dX;
+
+  const lat = 52.15517440 + sumN / 3600;
+  const lon = 5.38720621 + sumE / 3600;
+  return [lon, lat];   // GeoJSON order: [lon, lat]
+}
+
+function detectCRS(gj) {
+  // 1) Explicit crs property (deprecated but common in Dutch municipal exports)
+  if (gj.crs && gj.crs.properties && gj.crs.properties.name) {
+    const name = gj.crs.properties.name.toLowerCase();
+    if (name.includes('28992') || name.includes('rd_new') || name.includes('amersfoort')) return 'rd';
+    if (name.includes('4326') || name.includes('wgs')) return 'wgs84';
+  }
+  // 2) Sniff from a leaf coordinate
+  const sample = pluckLeafCoord(gj);
+  if (!sample) return 'unknown';
+  const [x, y] = sample;
+  if (Math.abs(x) <= 180 && Math.abs(y) <= 90) return 'wgs84';
+  // RD New range: x roughly 0-300k, y roughly 300k-650k
+  if (x > -50000 && x < 350000 && y > 280000 && y < 700000) return 'rd';
+  return 'unknown';
+}
+
+function pluckLeafCoord(gj) {
+  let feats;
+  if (gj.type === 'FeatureCollection') feats = gj.features;
+  else if (gj.type === 'Feature') feats = [gj];
+  else return null;
+  for (const f of feats) {
+    if (!f.geometry || !f.geometry.coordinates) continue;
+    let c = f.geometry.coordinates;
+    while (Array.isArray(c) && Array.isArray(c[0])) c = c[0];
+    if (Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
+      return c;
+    }
+  }
+  return null;
+}
+
+function reprojectGeoJSON(gj, transformFn) {
+  function tx(coords) {
+    if (typeof coords[0] === 'number') {
+      const [a, b] = transformFn(coords[0], coords[1]);
+      return coords.length > 2 ? [a, b, ...coords.slice(2)] : [a, b];
+    }
+    return coords.map(tx);
+  }
+  const handle = f => {
+    if (f.geometry && f.geometry.coordinates) {
+      f.geometry.coordinates = tx(f.geometry.coordinates);
+    }
+  };
+  if (gj.type === 'FeatureCollection') gj.features.forEach(handle);
+  else if (gj.type === 'Feature') handle(gj);
+  // Remove crs marker — output is now WGS84
+  delete gj.crs;
+  return gj;
+}
+
+function ensureWgs84(gj, label = 'GeoJSON') {
+  const crs = detectCRS(gj);
+  if (crs === 'rd') {
+    reprojectGeoJSON(gj, rdToWgs84);
+    toast(`${label}: RD-coördinaten omgezet naar WGS84`, 'success');
+    return true;
+  }
+  if (crs === 'unknown') {
+    toast(`${label}: coördinatensysteem onbekend — kaart kan vreemd renderen`, 'error');
+  }
+  return false;
+}
+
+/* ------------------------------------------------------------------
+   Geometry validation — reject features with malformed/null/NaN coords
+   ------------------------------------------------------------------ */
+function isValidGeometry(g) {
+  if (!g || !g.type || !g.coordinates) return false;
+  function checkCoords(c) {
+    if (!Array.isArray(c) || c.length === 0) return false;
+    if (typeof c[0] === 'number') {
+      // It's a position [x, y] (or [x, y, z])
+      return c.length >= 2 && c.every(n => typeof n === 'number' && Number.isFinite(n));
+    }
+    return c.every(checkCoords);
+  }
+  return checkCoords(g.coordinates);
+}
+
+function filterValidFeatures(gj, label = 'features') {
+  if (!gj || !Array.isArray(gj.features)) return 0;
+  const before = gj.features.length;
+  gj.features = gj.features.filter(f => isValidGeometry(f.geometry));
+  const dropped = before - gj.features.length;
+  if (dropped > 0) {
+    console.warn(`${label}: ${dropped}/${before} ongeldige geometrie(ën) overgeslagen`);
+    toast(`${label}: ${dropped} feature(s) zonder geldige geometrie overgeslagen`, 'warn');
+  }
+  return dropped;
+}
+
+function safeCentroid(feature) {
+  // Returns null if anything goes wrong — caller must check
+  try {
+    if (!isValidGeometry(feature.geometry)) return null;
+    return turf.centroid(feature);
+  } catch (e) {
+    return null;
+  }
+}
+
+function safeBbox(feature) {
+  try {
+    if (!isValidGeometry(feature.geometry)) return null;
+    const bb = turf.bbox(feature);
+    if (bb.some(n => !Number.isFinite(n))) return null;
+    return bb;
+  } catch (e) {
+    return null;
+  }
+}
+
+function initMap() {
+  // Default view: Spijkenisse Centrum
+  map = L.map('map', {
+    zoomControl: true,
+    attributionControl: true
+  }).setView([51.846, 4.330], 14);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 20,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Initialize empty geojson layers
+  layers.terrainPublic = L.geoJSON(null, terrainStyle('public')).addTo(map);
+  layers.terrainCustomers = L.geoJSON(null, terrainStyle('customers')).addTo(map);
+  layers.terrainPrivate = L.geoJSON(null, terrainStyle('private')).addTo(map);
+  layers.terrainSuspect = L.geoJSON(null, terrainStyle('suspect')).addTo(map);
+  layers.nprBetaald = L.geoJSON(null, nprStyle('betaald')).addTo(map);
+  layers.nprVergun = L.geoJSON(null, nprStyle('vergunning')).addTo(map);
+  layers.nprMixed = L.geoJSON(null, nprStyle('mixed')).addTo(map);
+  layers.nprUnknown = L.geoJSON(null, nprStyle('onbekend')).addTo(map);
+  layers.vakkenLinked = L.geoJSON(null, vakStyle('linked')).addTo(map);
+  layers.vakkenOrphan = L.geoJSON(null, vakStyle('orphan')).addTo(map);
+  layers.vakkenBorder = L.geoJSON(null, vakStyle('border')).addTo(map);
+  layers.focus = L.geoJSON(null, {
+    style: { color: '#1a1a1a', weight: 2.5, fill: false, dashArray: '6,4' }
+  }).addTo(map);
+  layers.highlight = L.layerGroup().addTo(map);
+
+  // Geoman init for drawing focus polygon
+  map.pm.setLang('nl');
+  map.pm.setGlobalOptions({ snappable: false });
+
+  // When a polygon is drawn, set as focus
+  map.on('pm:create', e => {
+    if (e.shape === 'Polygon' || e.shape === 'Rectangle') {
+      const gj = e.layer.toGeoJSON();
+      // Wrap coords as proper Feature with Polygon geometry
+      STATE.focus = gj;
+      layers.focus.clearLayers();
+      // We'll redraw via renderFocus()
+      e.layer.remove();
+      onFocusChanged();
+    }
+  });
+}
+
+function terrainStyle(category) {
+  const palette = {
+    public:    { color: '#16a34a', fill: '#16a34a', fillOpacity: 0.10 },
+    customers: { color: '#ca8a04', fill: '#ca8a04', fillOpacity: 0.12 },
+    private:   { color: '#6b7280', fill: '#6b7280', fillOpacity: 0.08 },
+    suspect:   { color: '#7c3aed', fill: '#7c3aed', fillOpacity: 0.18 }
+  };
+  const p = palette[category];
+  return {
+    style: f => ({
+      color: p.color,
+      weight: 2,
+      fillColor: p.fill,
+      fillOpacity: p.fillOpacity,
+      dashArray: category === 'private' ? '4,3' : null
+    }),
+    onEachFeature: (feature, layer) => {
+      layer.on('click', () => showTerrainPopup(feature, layer));
+    }
+  };
+}
+
+function vakStyle(category) {
+  const palette = {
+    linked: { color: '#3b82f6', fill: '#3b82f6', fillOpacity: 0.40, weight: 1 },
+    orphan: { color: '#dc2626', fill: '#dc2626', fillOpacity: 0.55, weight: 1.2 },
+    border: { color: '#ea580c', fill: '#ea580c', fillOpacity: 0.50, weight: 2 }
+  };
+  const p = palette[category];
+  return {
+    style: { color: p.color, weight: p.weight, fillColor: p.fill, fillOpacity: p.fillOpacity },
+    onEachFeature: (feature, layer) => {
+      layer.on('click', () => showVakPopup(feature, layer));
+    }
+  };
+}
+
+function showTerrainPopup(f, layer) {
+  const p = f.properties;
+  const accessLabel = ({public:'Openbaar', customers:'Customers', private:'Privé', suspect:'Verdacht'})[p._access_category] || p._access_category;
+  const parkingType = p.parking || '<em>(geen tag)</em>';
+  const html = `
+    <div style="font-family:'IBM Plex Sans',sans-serif; font-size:12px; min-width:220px;">
+      <div style="font-weight:600; margin-bottom:4px;">${p.name || 'Parkeerterrein'}</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#666; margin-bottom:8px;">${p._osm_id}</div>
+      <table style="font-size:11px; width:100%;">
+        <tr><td style="color:#666;">Toegang</td><td><b>${accessLabel}</b> ${p.access ? `(${p.access})`:''}</td></tr>
+        <tr><td style="color:#666;">Parking-type</td><td>${parkingType}</td></tr>
+        <tr><td style="color:#666;">Capaciteit getelde</td><td><b style="color:#16a34a;">${p._capacity_counted}</b></td></tr>
+        <tr><td style="color:#666;">Capaciteit OSM-tag</td><td>${p.capacity != null ? p.capacity : '<em style="color:#888;">niet getagd</em>'}</td></tr>
+        ${p.capacity != null ? `<tr><td style="color:#666;">Δ (telling − tag)</td><td style="font-weight:600; color:${Math.abs(p._delta) >= STATE.thresholds.deltaAbs ? '#dc2626' : '#16a34a'};">${p._delta >= 0 ? '+' : ''}${p._delta}</td></tr>` : ''}
+        <tr><td style="color:#666;">Vakken op rand</td><td>${p._border_count} ${p._border_count > 0 ? '⚠' : ''}</td></tr>
+        <tr><td style="color:#666;">Oppervlakte</td><td>${Math.round(p._area_m2)} m²</td></tr>
+        <tr><td style="color:#666;">Dichtheid</td><td>${(p._capacity_counted * 100 / Math.max(p._area_m2,1)).toFixed(2)} /100m²</td></tr>
+      </table>
+      <div style="margin-top:8px; padding-top:6px; border-top:1px solid #eee;">
+        <a href="https://www.openstreetmap.org/${p._osm_id}" target="_blank" style="font-size:11px; color:#2563eb;">↗ OSM</a>
+        &nbsp; <a href="https://www.openstreetmap.org/edit?${p._osm_id.split('/')[0]}=${p._osm_id.split('/')[1]}" target="_blank" style="font-size:11px; color:#2563eb;">↗ iD editor</a>
+      </div>
+    </div>`;
+  layer.bindPopup(html, { maxWidth: 320 }).openPopup();
+}
+
+function showVakPopup(f, layer) {
+  const p = f.properties;
+  const nprRegime = p._npr_regime;
+  const nprLabel = ({betaald:'Betaald', vergunning:'Vergunning', mixed:'Gemengd'})[nprRegime] || null;
+  const html = `
+    <div style="font-family:'IBM Plex Sans',sans-serif; font-size:12px; min-width:180px;">
+      <div style="font-weight:600;">Parkeervak</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#666; margin-bottom:6px;">OBJECTID: ${p.OBJECTID != null ? p.OBJECTID : '—'}</div>
+      <table style="font-size:11px; width:100%;">
+        <tr><td style="color:#666;">Status</td><td><b>${p._parent_osm_id ? 'Gekoppeld' : 'Orphan'}</b></td></tr>
+        ${p._parent_osm_id ? `<tr><td style="color:#666;">Parent</td><td class="mono" style="font-family:'IBM Plex Mono',monospace;">${p._parent_osm_id}</td></tr>` : ''}
+        ${p._is_border ? `<tr><td colspan="2" style="color:#ea580c;">⚠ ligt op rand van OSM-polygoon</td></tr>` : ''}
+        ${p._cluster_id != null ? `<tr><td style="color:#666;">Orphan cluster</td><td>#${p._cluster_id}</td></tr>` : ''}
+        ${nprRegime ? `<tr><td style="color:#666;">NPR regime</td><td><b>${nprLabel}</b></td></tr>` : ''}
+        ${p._npr_areaid ? `<tr><td style="color:#666;">NPR areaId</td><td class="mono" style="font-family:'IBM Plex Mono',monospace;">${p._npr_areaid}</td></tr>` : ''}
+        ${p._npr_areadesc ? `<tr><td style="color:#666;">NPR omschr.</td><td>${p._npr_areadesc}</td></tr>` : ''}
+        ${p._npr_usageids ? `<tr><td style="color:#666;">UsageIds</td><td class="mono" style="font-family:'IBM Plex Mono',monospace;">${p._npr_usageids.join(', ')}</td></tr>` : ''}
+      </table>
+    </div>`;
+  layer.bindPopup(html, { maxWidth: 280 }).openPopup();
+}
+
+/* ------------------------------------------------------------------
+   FILE LOADING
+   ------------------------------------------------------------------ */
+async function loadVakkenFile(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
+      throw new Error('Geen geldige GeoJSON FeatureCollection');
+    }
+    // Detect & reproject if needed (RD → WGS84 for Dutch municipal data)
+    ensureWgs84(data, 'Vakken');
+    // Filter out features with malformed geometry (null, NaN, empty)
+    filterValidFeatures(data, 'Vakken');
+    if (data.features.length === 0) {
+      throw new Error('Geen vakken met geldige geometrie gevonden');
+    }
+    // Validate features and check OBJECTID
+    let withId = 0;
+    data.features.forEach((f, i) => {
+      if (!f.properties) f.properties = {};
+      if (f.properties.OBJECTID != null || f.properties.objectid != null || f.properties.OBJECTID_1 != null) {
+        f.properties.OBJECTID = f.properties.OBJECTID ?? f.properties.objectid ?? f.properties.OBJECTID_1;
+        withId++;
+      } else {
+        f.properties.OBJECTID = `auto-${i}`;
+      }
+    });
+    STATE.vakken = data;
+    markDirty('vakken');
+    STATE.vakkenStats = { count: data.features.length, hasObjectId: withId === data.features.length };
+    $('vakkenInfo').innerHTML = `<b>${data.features.length}</b> features geladen ` +
+      (withId === data.features.length
+        ? `· OBJECTID aanwezig`
+        : `· <span style="color:#ea580c;">${data.features.length - withId} zonder OBJECTID (auto-ids)</span>`);
+    $('vakkenCountBadge').textContent = `${data.features.length} vakken`;
+    $('fetchOsmBtn').disabled = false;
+    $('welcome').classList.add('hidden');
+    // Fit map to vakken bbox
+    try {
+      const bb = turf.bbox(data);
+      map.fitBounds([[bb[1], bb[0]], [bb[3], bb[2]]], { padding: [40, 40] });
+    } catch(e) { console.warn(e); }
+    saveState();
+    if (STATE.osm) recomputeAndRender();
+    else {
+      renderVakken();
+      updateMeter();
+    }
+    toast(`${data.features.length} parkeervakken geladen`, 'success');
+  } catch (e) {
+    console.error(e);
+    toast('Fout bij laden: ' + e.message, 'error');
+  }
+}
+
+async function loadFocusFile(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    applyFocusGeoJSON(data);
+  } catch (e) {
+    toast('Fout bij laden focus: ' + e.message, 'error');
+  }
+}
+
+function applyFocusGeoJSON(data) {
+  // CRS check first — accept RD focus polygons too
+  ensureWgs84(data, 'Focus');
+  // Accept Feature, FeatureCollection (first poly), or bare Polygon geometry
+  let feat = null;
+  if (data.type === 'FeatureCollection') {
+    feat = data.features.find(f => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
+  } else if (data.type === 'Feature' && data.geometry) {
+    feat = data;
+  } else if (data.type === 'Polygon' || data.type === 'MultiPolygon') {
+    feat = { type: 'Feature', properties: {}, geometry: data };
+  }
+  if (!feat) {
+    toast('Geen polygoon gevonden in input', 'error');
+    return;
+  }
+  STATE.focus = feat;
+  onFocusChanged();
+  toast('Focusgebied ingesteld', 'success');
+}
+
+function applyPastedFocus() {
+  const txt = $('pasteText').value.trim();
+  if (!txt) return closePasteModal();
+  try {
+    const data = JSON.parse(txt);
+    applyFocusGeoJSON(data);
+    closePasteModal();
+  } catch (e) {
+    toast('Geen geldige JSON', 'error');
+  }
+}
+
+function clearFocus() {
+  STATE.focus = null;
+  onFocusChanged();
+}
+
+function onFocusChanged() {
+  renderFocus();
+  $('focusBadge').textContent = STATE.focus ? 'actief' : 'geen';
+  $('clearFocusBtn').style.display = STATE.focus ? 'inline-flex' : 'none';
+  saveState();
+  if (STATE.vakken && STATE.osm) {
+    // Re-run join so _in_focus flags + suspect classification update
+    recomputeAndRender();
+  } else if (STATE.vakken) {
+    // Just update _in_focus on vakken
+    STATE.vakken.features.forEach(v => { v.properties._in_focus = isInFocus(v); });
+    updateMeter();
+  }
+}
+
+function renderFocus() {
+  if (!layers.focus) return;
+  layers.focus.clearLayers();
+  if (STATE.focus) layers.focus.addData(STATE.focus);
+}
+
+/* ------------------------------------------------------------------
+   OVERPASS / OSM
+   ------------------------------------------------------------------ */
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter'
+];
+
+function getQueryBbox() {
+  // Use vakken bbox + 100m margin (~0.001 deg lat ≈ 111m).
+  // If a focus is set, use focus + 100m margin (smaller queries).
+  const src = STATE.focus || STATE.vakken;
+  if (!src) return null;
+  const bb = turf.bbox(src);   // [minLon, minLat, maxLon, maxLat]
+  const padLat = 0.001;
+  const padLon = 0.0015;
+  return [bb[0] - padLon, bb[1] - padLat, bb[2] + padLon, bb[3] + padLat];
+}
+
+async function fetchOSM() {
+  const bbox = getQueryBbox();
+  if (!bbox) {
+    toast('Laad eerst een vakkenbestand', 'error');
+    return;
+  }
+
+  // Validate bbox: must be finite, ordered, and not absurdly large
+  if (!bbox.every(Number.isFinite) || bbox[0] >= bbox[2] || bbox[1] >= bbox[3]) {
+    toast('Ongeldige bbox — controleer vakken/focus', 'error');
+    console.error('Invalid bbox:', bbox);
+    return;
+  }
+  const widthDeg = bbox[2] - bbox[0];
+  const heightDeg = bbox[3] - bbox[1];
+  if (widthDeg > 1 || heightDeg > 1) {
+    if (!confirm(`Bbox is groot (${widthDeg.toFixed(2)}° × ${heightDeg.toFixed(2)}°). Doorgaan?`)) return;
+  }
+
+  // Overpass bbox format: south,west,north,east
+  const s = bbox[1].toFixed(6);
+  const w = bbox[0].toFixed(6);
+  const n = bbox[3].toFixed(6);
+  const e = bbox[2].toFixed(6);
+  const ovpBbox = `${s},${w},${n},${e}`;
+
+  // Strict query: no leading whitespace, no template-literal indents
+  const query =
+`[out:json][timeout:30];
+(
+  way["amenity"="parking"](${ovpBbox});
+  relation["amenity"="parking"](${ovpBbox});
+);
+out geom;`;
+
+  console.log('Overpass query:\n' + query);
+
+  $('fetchOsmBtn').disabled = true;
+  $('fetchOsmBtn').textContent = 'Bezig…';
+  $('osmStatusTxt').textContent = 'Bezig met ophalen…';
+
+  let lastError = null;
+  for (const ep of OVERPASS_ENDPOINTS) {
+    try {
+      const t0 = Date.now();
+      const res = await fetch(ep, {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(query),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      if (!res.ok) {
+        // Try to read the body so we can see Overpass's actual complaint
+        let body = '';
+        try { body = await res.text(); } catch (e) {}
+        const snippet = body.slice(0, 300).replace(/\s+/g, ' ').trim();
+        if (res.status === 429) throw new Error('rate-limited (429) — wacht een minuut');
+        if (res.status === 504) throw new Error('timeout (504) — verklein bbox of probeer opnieuw');
+        if (res.status === 400) {
+          console.error(`Overpass 400 from ${ep}, body:`, body);
+          throw new Error(`HTTP 400 — query geweigerd. ${snippet ? 'Server zegt: ' + snippet : ''}`);
+        }
+        throw new Error(`HTTP ${res.status}` + (snippet ? ' — ' + snippet : ''));
+      }
+      const json = await res.json();
+      if (json.remark) console.warn('Overpass remark:', json.remark);
+      const gj = osmtogeojson(json);
+
+      // Filter: only polygons that are amenity=parking
+      gj.features = gj.features.filter(f =>
+        f.properties && f.properties.amenity === 'parking' &&
+        f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')
+      );
+
+      gj.features.forEach(f => {
+        f.properties._osm_id = f.id || (f.properties.id ? f.properties.id : null);
+        if (!f.properties._osm_id && f.properties['@id']) f.properties._osm_id = f.properties['@id'];
+      });
+
+      STATE.osm = gj;
+      markDirty('osm');
+      STATE.osmFetchedAt = new Date().toISOString();
+      STATE.osmBbox = bbox;
+      const dt = ((Date.now() - t0) / 1000).toFixed(1);
+      toast(`${gj.features.length} parkeerterreinen opgehaald in ${dt}s`, 'success');
+      $('fetchOsmBtn').disabled = false;
+      $('fetchOsmBtn').textContent = 'Ververs OSM';
+      saveState();
+      recomputeAndRender();
+      return;
+    } catch (e) {
+      console.warn(`Overpass ${ep} failed:`, e);
+      lastError = e;
+    }
+  }
+  $('fetchOsmBtn').disabled = false;
+  $('fetchOsmBtn').textContent = 'Haal OSM op';
+  $('osmStatusTxt').textContent = 'Ophalen mislukt';
+  toast('Overpass mislukt: ' + (lastError ? lastError.message : 'onbekend'), 'error');
+}
+
+function updateOsmStatusUI() {
+  const box = $('osmStatusBox');
+  if (!STATE.osmFetchedAt) {
+    box.className = 'osm-status';
+    $('osmStatusTxt').textContent = 'OSM nog niet opgehaald';
+    $('fetchOsmBtn').textContent = 'Haal OSM op';
+    return;
+  }
+  const ageMin = (Date.now() - new Date(STATE.osmFetchedAt).getTime()) / 60000;
+  box.className = 'osm-status ' + (ageMin < 30 ? 'fresh' : 'stale');
+  const n = STATE.osm ? STATE.osm.features.length : 0;
+  $('osmStatusTxt').textContent = `OSM · ${n} terreinen · ${fmtTimestamp(STATE.osmFetchedAt)}`;
+  $('fetchOsmBtn').textContent = 'Ververs OSM';
+}
+
+/* ------------------------------------------------------------------
+   NPR / RDW open data
+   ------------------------------------------------------------------
+   Twee datasets, gejoined op (areamanagerid, areaid):
+     adw6-9hsg  Gebied — heeft areaid + usageid + areadesc
+     nsk3-v9n7  Geometrie Gebied — heeft areaid + areageometryastext (WKT)
+
+   Belangrijk: nsk3-v9n7 gebruikt WKT-tekst (niet JSON-geometry), dus
+   het .geojson endpoint werkt hier NIET. We parsen WKT zelf.
+   ------------------------------------------------------------------ */
+const NPR_BASE = 'https://opendata.rdw.nl/resource';
+const NPR_RELEVANT_USAGES = new Set(['BETAALDP', 'BETAALDPV', 'VERGUNP', 'VERGUNPV']);
+
+/* ------------------------------------------------------------------
+   Minimal WKT parser — handles POLYGON and MULTIPOLYGON only.
+   Returns a GeoJSON geometry object, or null on failure.
+   Examples:
+     POLYGON ((4.33 51.85, 4.34 51.85, 4.34 51.86, 4.33 51.85))
+     MULTIPOLYGON (((4.33 51.85, ...)), ((4.40 51.86, ...)))
+   ------------------------------------------------------------------ */
+function parseWkt(wkt) {
+  if (!wkt || typeof wkt !== 'string') return null;
+  const s = wkt.trim();
+  const upper = s.toUpperCase();
+  try {
+    if (upper.startsWith('POLYGON')) {
+      // POLYGON((x y, x y), (x y, x y))   — outer + holes
+      const inner = s.substring(s.indexOf('(') + 1, s.lastIndexOf(')'));
+      const rings = parseRings(inner);
+      return { type: 'Polygon', coordinates: rings };
+    } else if (upper.startsWith('MULTIPOLYGON')) {
+      // MULTIPOLYGON(((x y, x y)), ((x y, x y)))
+      const inner = s.substring(s.indexOf('(') + 1, s.lastIndexOf(')'));
+      // Split on '),(' that separates polygons (after the closing of one polygon's last ring)
+      // Each polygon is ((ring), (ring))
+      const polys = splitTopLevel(inner);
+      const coords = polys.map(p => {
+        const ringsStr = p.trim();
+        // strip outer ( )
+        const ringsInner = ringsStr.substring(ringsStr.indexOf('(') + 1, ringsStr.lastIndexOf(')'));
+        return parseRings(ringsInner);
+      });
+      return { type: 'MultiPolygon', coordinates: coords };
+    }
+  } catch (e) {
+    console.warn('WKT parse failed:', e.message, '·', wkt.substring(0, 80));
+    return null;
+  }
+  return null;
+}
+
+function parseRings(str) {
+  // str like: "x y, x y, x y"  OR  "(x y, x y), (x y, x y)" for polygon-with-holes
+  // Strip whitespace
+  str = str.trim();
+  // If starts with '(', it's multiple rings
+  if (str.startsWith('(')) {
+    const rings = [];
+    let depth = 0, start = -1;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i];
+      if (ch === '(') { if (depth === 0) start = i + 1; depth++; }
+      else if (ch === ')') { depth--; if (depth === 0) rings.push(str.substring(start, i)); }
+    }
+    return rings.map(parseCoordList);
+  }
+  return [parseCoordList(str)];
+}
+
+function parseCoordList(str) {
+  return str.split(',').map(pair => {
+    const parts = pair.trim().split(/\s+/);
+    return [parseFloat(parts[0]), parseFloat(parts[1])];
+  });
+}
+
+// Split a string at top-level commas (not inside parens) — used for MULTIPOLYGON
+function splitTopLevel(str) {
+  const parts = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    else if (ch === ',' && depth === 0) {
+      parts.push(str.substring(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(str.substring(start));
+  return parts;
+}
+
+function nprStyle(category) {
+  const palette = {
+    betaald:    { color: '#f59e0b', fill: '#f59e0b', fillOpacity: 0.20 },
+    vergunning: { color: '#be185d', fill: '#be185d', fillOpacity: 0.18 },
+    mixed:      { color: '#b45309', fill: '#b45309', fillOpacity: 0.20 },
+    onbekend:   { color: '#94a3b8', fill: '#94a3b8', fillOpacity: 0.18 }
+  };
+  const p = palette[category] || palette.onbekend;
+  return {
+    style: () => ({
+      color: p.color,
+      weight: 1.5,
+      fillColor: p.fill,
+      fillOpacity: p.fillOpacity,
+      dashArray: '4,3'
+    }),
+    onEachFeature: (feature, layer) => {
+      layer.on('click', () => showNprPopup(feature, layer));
+    }
+  };
+}
+
+function showNprPopup(f, layer) {
+  const p = f.properties;
+  const regimeLabel = ({betaald:'Betaald parkeren', vergunning:'Vergunninghouders', mixed:'Gemengd (betaald + vergunning)', onbekend:'Regime onbekend', other:'Overig (bv. blauwe zone)'})[p.regime] || p.regime;
+  const sourceLabel = ({adw6:'uit RDW gebied-tabel', heuristic:'gegokt op basis van code-suffix', manual:'handmatig ingesteld', unknown:'niet vastgesteld'})[p.regime_source] || '';
+  const usageList = (p.usageids || []).join(', ') || '<em>(geen)</em>';
+  const currentManual = (STATE.nprManual && STATE.nprManual[p.areaid]) || '';
+  const html = `
+    <div style="font-family:'IBM Plex Sans',sans-serif; font-size:12px; min-width:260px;">
+      <div style="font-weight:600; margin-bottom:4px;">NPR-gebied</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#666; margin-bottom:8px;">${p.areamanagerid} · ${p.areaid}</div>
+      <table style="font-size:11px; width:100%;">
+        <tr><td style="color:#666;">Regime</td><td><b>${regimeLabel}</b></td></tr>
+        ${sourceLabel ? `<tr><td style="color:#666;">Bron</td><td><em>${sourceLabel}</em></td></tr>` : ''}
+        <tr><td style="color:#666;">UsageIds</td><td class="mono" style="font-family:'IBM Plex Mono',monospace;">${usageList}</td></tr>
+        ${p.areadesc ? `<tr><td style="color:#666;">Omschrijving</td><td>${p.areadesc}</td></tr>` : ''}
+      </table>
+      <div style="margin-top:10px; padding-top:8px; border-top:1px solid #eee;">
+        <label style="font-size:11px; color:#666; display:block; margin-bottom:4px;">Regime handmatig instellen:</label>
+        <select class="npr-manual-select" data-areaid="${p.areaid}" style="width:100%; padding:4px; font-size:11px; border:1px solid #ccc; border-radius:3px;">
+          <option value="" ${currentManual === '' ? 'selected' : ''}>(automatisch)</option>
+          <option value="betaald" ${currentManual === 'betaald' ? 'selected' : ''}>Betaald parkeren</option>
+          <option value="vergunning" ${currentManual === 'vergunning' ? 'selected' : ''}>Vergunninghouders</option>
+          <option value="mixed" ${currentManual === 'mixed' ? 'selected' : ''}>Gemengd</option>
+          <option value="other" ${currentManual === 'other' ? 'selected' : ''}>Overig (bv. blauwe zone)</option>
+          <option value="onbekend" ${currentManual === 'onbekend' ? 'selected' : ''}>Onbekend</option>
+        </select>
+      </div>
+    </div>`;
+  layer.bindPopup(html, { maxWidth: 360 }).openPopup();
+}
+
+function classifyRegime(usages) {
+  const hasBetaald = usages.includes('BETAALDP') || usages.includes('BETAALDPV');
+  const hasVergun = usages.includes('VERGUNP') || usages.includes('VERGUNPV');
+  if (hasBetaald && hasVergun) return 'mixed';
+  if (hasBetaald) return 'betaald';
+  if (hasVergun) return 'vergunning';
+  return 'other';
+}
+
+function applyManualToCachedNpr() {
+  // Re-run regime classification on cached NPR data after a manual
+  // override has changed. Avoids a full re-fetch.
+  if (!STATE.npr || !STATE.npr.features) return;
+  const manual = STATE.nprManual || {};
+  STATE.npr.features.forEach(f => {
+    const aid = f.properties.areaid;
+    const m = manual[aid];
+    if (m) {
+      f.properties.regime = m;
+      f.properties.regime_source = 'manual';
+    } else if (f.properties.regime_source === 'manual') {
+      // Was manual, now removed — fall back to heuristic or unknown
+      const heuristic = guessRegimeFromAreaId(aid);
+      if (heuristic) {
+        f.properties.usageids = [heuristic.synthUsage];
+        f.properties.regime = classifyRegime([heuristic.synthUsage]);
+        f.properties.regime_source = 'heuristic';
+      } else {
+        f.properties.regime = 'onbekend';
+        f.properties.regime_source = 'unknown';
+      }
+    }
+  });
+  markDirty('npr');
+}
+
+function setNprManual(areaid, regime) {
+  if (!STATE.nprManual) STATE.nprManual = {};
+  if (regime === null || regime === undefined || regime === '') {
+    delete STATE.nprManual[areaid];
+  } else {
+    STATE.nprManual[areaid] = regime;
+  }
+  applyManualToCachedNpr();
+  saveState();
+  // Re-run vakken enrichment if we have vakken loaded
+  if (STATE.vakken) recomputeAndRender();
+  else { renderNpr(); }
+  toast(regime ? `${areaid} → ${regime}` : `${areaid} regime gewist`, 'success');
+}
+
+/* ------------------------------------------------------------------
+   Suffix heuristic for areaid codes when adw6 join fails
+   ------------------------------------------------------------------
+   When the gebied-tabel (adw6-9hsg) uses synthetic numeric IDs but the
+   geometrie-tabel (nsk3-v9n7) uses readable codes (e.g. "612_BBG"),
+   we fall back to inspecting the areaid for hints. Best-effort only —
+   marks the regime_source as 'heuristic' so the popup is honest.
+   ------------------------------------------------------------------ */
+function guessRegimeFromAreaId(areaid) {
+  const s = String(areaid).toUpperCase();
+  // Vergunning indicators (usually a clearer signal than betaald)
+  if (/\b(VG|VRG|VERG|VERGUN)\b|_VG$|_VRG$|_VERG$|VERGUN/.test(s)) {
+    return { synthUsage: 'VERGUNP' };
+  }
+  // Garage / parking-facility indicators (treat as betaald, since these
+  // are typically paid garages)
+  if (/\b(GAR|PG|PRKG|GARAGE)\b|_PG$|_GAR$|GARAGE|PARKEERG/.test(s)) {
+    return { synthUsage: 'BETAALDP' };
+  }
+  // Explicit betaald hints
+  if (/\b(BTL|BETAAL)\b|_BTL$|BETAALD/.test(s)) {
+    return { synthUsage: 'BETAALDP' };
+  }
+  // Blauwe-zone (blue zone) — tagged as 'other', shown but not in betaald/vergun buckets
+  if (/\b(BZ|BLAUW)\b|BLAUWEZ|BLAUWZ/.test(s)) {
+    return { synthUsage: 'BLAUWEZ' };
+  }
+  return null;
+}
+
+async function fetchNPR() {
+  const amId = parseInt($('nprAreaManagerInput').value, 10);
+  if (!Number.isFinite(amId) || amId <= 0) {
+    toast('Ongeldige AreaManagerId', 'error');
+    return;
+  }
+  STATE.nprAreaManagerId = amId;
+
+  $('fetchNprBtn').disabled = true;
+  $('fetchNprBtn').textContent = 'Bezig…';
+  $('nprStatus').textContent = `bezig met ophalen (id=${amId})…`;
+
+  // Two .json endpoints — adw6 has usage+desc, nsk3 has WKT geometry
+  const where = encodeURIComponent(`areamanagerid=${amId}`);
+  const urls = {
+    gebied: `${NPR_BASE}/adw6-9hsg.json?$where=${where}&$limit=20000`,
+    geom:   `${NPR_BASE}/nsk3-v9n7.json?$where=${where}&$limit=20000`
+  };
+
+  try {
+    const t0 = Date.now();
+    const [gebiedResp, geomResp] = await Promise.all([
+      fetch(urls.gebied),
+      fetch(urls.geom)
+    ]);
+
+    if (!gebiedResp.ok) throw new Error(`Gebied HTTP ${gebiedResp.status}`);
+    if (!geomResp.ok) throw new Error(`Geometrie HTTP ${geomResp.status}`);
+
+    const gebiedData = await gebiedResp.json();
+    const geomData = await geomResp.json();
+
+    console.log('NPR fetch results:', {
+      gebied: { count: gebiedData.length, sample: gebiedData[0] },
+      geom: { count: geomData.length, sample: geomData[0] }
+    });
+
+    if (gebiedData.length === 0 && geomData.length === 0) {
+      throw new Error(`Geen gebieden gevonden voor AreaManagerId ${amId}. Klopt het nummer?`);
+    }
+
+    // Build attribute map: areaid → { usageids:Set, areadesc }
+    // Some municipalities use synthetic numeric ids in adw6 but humanly-
+    // readable codes (e.g. 612_BBG) in nsk3. When that mismatch happens
+    // we still show all geometries — regime is then derived heuristically.
+    const attrMap = new Map();
+    gebiedData.forEach(r => {
+      const key = String(r.areaid).trim();
+      if (!attrMap.has(key)) attrMap.set(key, { usageids: new Set(), areadesc: '' });
+      if (r.usageid) attrMap.get(key).usageids.add(String(r.usageid).trim());
+      if (r.areadesc && !attrMap.get(key).areadesc) attrMap.get(key).areadesc = r.areadesc;
+    });
+
+    console.log(`NPR attrMap built: ${attrMap.size} unique areaids from ${gebiedData.length} gebied-rows`);
+    console.log('Sample areaids in attrMap:', [...attrMap.keys()].slice(0, 5));
+    console.log('Sample areaids in geometrie:', geomData.slice(0, 5).map(r => String(r.areaid).trim()));
+
+    // Process geometry rows. We render ALL geometries — if the gebied-
+    // table doesn't match (different ID scheme), regime falls back to
+    // heuristic suffix matching, then 'onbekend'.
+    const features = [];
+    let skippedNoWkt = 0, skippedBadWkt = 0, skippedIrrelevant = 0;
+    let matchedAdw = 0, heuristicHits = 0, manualHits = 0, unknown = 0;
+
+    geomData.forEach(rec => {
+      const wkt = rec.areageometryastext;
+      if (!wkt) { skippedNoWkt++; return; }
+
+      const aid = String(rec.areaid).trim();
+      const attrs = attrMap.get(aid);
+      let usageList = [];
+      let areadesc = '';
+      let regimeSource = 'unknown';
+
+      // Highest priority: manual override
+      const manualRegime = STATE.nprManual && STATE.nprManual[aid];
+
+      if (attrs && attrs.usageids.size > 0) {
+        // Direct join worked — adw6 has this areaid.
+        usageList = [...attrs.usageids];
+        areadesc = attrs.areadesc || '';
+        const relevant = usageList.filter(u => NPR_RELEVANT_USAGES.has(u));
+        if (relevant.length === 0 && !manualRegime) { skippedIrrelevant++; return; }
+        matchedAdw++;
+        regimeSource = 'adw6';
+      } else if (!manualRegime) {
+        // No adw6 match and no manual — fall back to suffix heuristic.
+        const heuristic = guessRegimeFromAreaId(aid);
+        if (heuristic) {
+          usageList = [heuristic.synthUsage];
+          regimeSource = 'heuristic';
+          heuristicHits++;
+        } else {
+          usageList = [];
+          regimeSource = 'unknown';
+          unknown++;
+        }
+      }
+
+      const geom = parseWkt(wkt);
+      if (!geom) { skippedBadWkt++; return; }
+
+      // Determine final regime: manual wins if set
+      let regime;
+      if (manualRegime) {
+        regime = manualRegime;
+        regimeSource = 'manual';
+        manualHits++;
+        // If we'd previously counted this as adw6/heuristic/unknown, undo
+        if (attrs && attrs.usageids.size > 0) matchedAdw--;
+        else if (regimeSource === 'heuristic') heuristicHits--;
+        else if (regimeSource === 'unknown') unknown--;
+      } else if (regimeSource === 'adw6' || regimeSource === 'heuristic') {
+        regime = classifyRegime(usageList);
+      } else {
+        regime = 'onbekend';
+      }
+
+      features.push({
+        type: 'Feature',
+        properties: {
+          areamanagerid: amId,
+          areaid: aid,
+          usageids: usageList,
+          regime,
+          regime_source: regimeSource,
+          areadesc
+        },
+        geometry: geom
+      });
+    });
+
+    console.log(`NPR matched: ${matchedAdw} via adw6, ${heuristicHits} via suffix-heuristiek, ${manualHits} handmatig, ${unknown} regime onbekend`);
+
+    STATE.npr = { type: 'FeatureCollection', features };
+    markDirty('npr');
+    filterValidFeatures(STATE.npr, 'NPR');
+    STATE.nprFetchedAt = new Date().toISOString();
+    saveState();
+
+    const dt = ((Date.now() - t0) / 1000).toFixed(1);
+    const cnt = features.reduce((acc, f) => { acc[f.properties.regime] = (acc[f.properties.regime] || 0) + 1; return acc; }, {});
+    const summary = `NPR ${amId}: ${features.length} gebieden (${cnt.betaald||0}B/${cnt.vergunning||0}V/${cnt.mixed||0}M) in ${dt}s`;
+    if (skippedNoWkt || skippedBadWkt || skippedIrrelevant) {
+      console.log(`NPR skipped: ${skippedNoWkt} zonder WKT, ${skippedBadWkt} corrupte WKT, ${skippedIrrelevant} irrelevant usage`);
+    }
+    toast(summary, 'success');
+    if (STATE.vakken) recomputeAndRender();
+    else { renderNpr(); updateNprStatusUI(); }
+
+  } catch (e) {
+    console.error('NPR fetch failed:', e);
+    toast('NPR ophalen mislukt: ' + e.message, 'error');
+  } finally {
+    $('fetchNprBtn').disabled = false;
+    $('fetchNprBtn').textContent = STATE.npr ? 'Ververs NPR' : 'Haal NPR op';
+    updateNprStatusUI();
+  }
+}
+
+function updateNprStatusUI() {
+  const badge = $('nprBadge');
+  const status = $('nprStatus');
+  if (!STATE.npr || !STATE.nprFetchedAt) {
+    badge.textContent = '—';
+    status.textContent = 'nog niet opgehaald';
+    $('fetchNprBtn').textContent = 'Haal NPR op';
+    return;
+  }
+  const n = STATE.npr.features.length;
+  badge.textContent = `${n} gebieden`;
+  status.textContent = `${n} gebieden · ${fmtTimestamp(STATE.nprFetchedAt)} · gemeente ${STATE.nprAreaManagerId}`;
+  $('fetchNprBtn').textContent = 'Ververs NPR';
+}
+
+function renderNpr() {
+  if (!layers.nprBetaald) return;
+  layers.nprBetaald.clearLayers();
+  layers.nprVergun.clearLayers();
+  layers.nprMixed.clearLayers();
+  if (layers.nprUnknown) layers.nprUnknown.clearLayers();
+  if (!STATE.npr) {
+    $('cntNprBetaald').textContent = 0;
+    $('cntNprVergun').textContent = 0;
+    $('cntNprMixed').textContent = 0;
+    if ($('cntNprUnknown')) $('cntNprUnknown').textContent = 0;
+    return;
+  }
+  const buckets = { betaald: [], vergunning: [], mixed: [], onbekend: [], other: [] };
+  STATE.npr.features.forEach(f => {
+    const r = f.properties.regime;
+    if (buckets[r]) buckets[r].push(f);
+    else buckets.onbekend.push(f);   // fallback
+  });
+  if (STATE.filters.showNprBetaald && buckets.betaald.length)
+    layers.nprBetaald.addData(turf.featureCollection(buckets.betaald));
+  if (STATE.filters.showNprVergun && buckets.vergunning.length)
+    layers.nprVergun.addData(turf.featureCollection(buckets.vergunning));
+  if (STATE.filters.showNprMixed && buckets.mixed.length)
+    layers.nprMixed.addData(turf.featureCollection(buckets.mixed));
+  if (layers.nprUnknown && STATE.filters.showNprUnknown !== false && (buckets.onbekend.length || buckets.other.length))
+    layers.nprUnknown.addData(turf.featureCollection([...buckets.onbekend, ...buckets.other]));
+  $('cntNprBetaald').textContent = buckets.betaald.length;
+  $('cntNprVergun').textContent = buckets.vergunning.length;
+  $('cntNprMixed').textContent = buckets.mixed.length;
+  if ($('cntNprUnknown')) $('cntNprUnknown').textContent = buckets.onbekend.length + buckets.other.length;
+}
+
+/* ------------------------------------------------------------------
+   SPATIAL JOIN — heart of the tool
+   ------------------------------------------------------------------ */
+function performJoin() {
+  if (!STATE.vakken || !STATE.osm) return;
+
+  const t0 = performance.now();
+  const vakken = STATE.vakken.features;
+  const terrains = STATE.osm.features;
+
+  // Pre-compute terrain bboxes & areas
+  const tBboxes = terrains.map(t => safeBbox(t) || [0,0,0,0]);
+  const tAreas = terrains.map(t => { try { return turf.area(t); } catch(e) { return 0; } });
+
+  // For each vak, find parent
+  let nLinked = 0, nOrphan = 0, nBorder = 0;
+  vakken.forEach(vak => {
+    const c = safeCentroid(vak);
+    if (!c) {
+      vak.properties._parent_osm_id = null;
+      vak.properties._parent_ambiguous = false;
+      vak.properties._is_border = false;
+      nOrphan++;
+      return;
+    }
+    const [lon, lat] = c.geometry.coordinates;
+
+    let bestIdx = -1;
+    let bestArea = Infinity;
+    let bestAmbig = false;
+
+    for (let i = 0; i < terrains.length; i++) {
+      const bb = tBboxes[i];
+      if (lon < bb[0] || lon > bb[2] || lat < bb[1] || lat > bb[3]) continue;
+      if (turf.booleanPointInPolygon(c, terrains[i])) {
+        if (bestIdx >= 0) bestAmbig = true;
+        if (tAreas[i] < bestArea) { bestIdx = i; bestArea = tAreas[i]; }
+      }
+    }
+
+    if (bestIdx >= 0) {
+      const t = terrains[bestIdx];
+      vak.properties._parent_osm_id = t.properties._osm_id;
+      vak.properties._parent_ambiguous = bestAmbig;
+      // Border check: bbox of vak extends beyond polygon?
+      const vBb = safeBbox(vak);
+      if (!vBb) {
+        vak.properties._is_border = false;
+      } else {
+        const corners = [
+          [vBb[0], vBb[1]], [vBb[2], vBb[1]],
+          [vBb[2], vBb[3]], [vBb[0], vBb[3]]
+        ];
+        let allInside = true;
+        for (const co of corners) {
+          if (!turf.booleanPointInPolygon(turf.point(co), t)) { allInside = false; break; }
+        }
+        vak.properties._is_border = !allInside;
+        if (!allInside) nBorder++;
+      }
+      nLinked++;
+    } else {
+      vak.properties._parent_osm_id = null;
+      vak.properties._parent_ambiguous = false;
+      vak.properties._is_border = false;
+      nOrphan++;
+    }
+    delete vak.properties._cluster_id;
+  });
+
+  // Aggregate per terrain
+  terrains.forEach((t, i) => {
+    const id = t.properties._osm_id;
+    const children = vakken.filter(v => v.properties._parent_osm_id === id);
+    t.properties._capacity_counted = children.length;
+    t.properties._vak_objectids = children.map(v => v.properties.OBJECTID);
+    t.properties._border_count = children.filter(v => v.properties._is_border).length;
+    t.properties._area_m2 = tAreas[i];
+    t.properties._density = children.length * 100 / Math.max(tAreas[i], 1);
+
+    const tagCap = parseInt(t.properties.capacity, 10);
+    if (!isNaN(tagCap)) {
+      t.properties._capacity_osm_tag = tagCap;
+      t.properties._delta = children.length - tagCap;
+    } else {
+      t.properties._capacity_osm_tag = null;
+      t.properties._delta = null;
+    }
+
+    // Access category
+    const access = (t.properties.access || '').toLowerCase();
+    let cat;
+    if (!access || access === 'yes' || access === 'permissive' || access === 'public') cat = 'public';
+    else if (access === 'customers' || access === 'destination') cat = 'customers';
+    else if (access === 'private' || access === 'no') cat = 'private';
+    else cat = 'public';
+
+    // Suspect check happens after focus is known; placeholder
+    t.properties._access_category_raw = cat;
+    t.properties._access_category = cat;
+
+    // capacity_used + source
+    if (children.length > 0) {
+      t.properties._capacity_used = children.length;
+      t.properties._capacity_source = 'counted';
+    } else if (t.properties._capacity_osm_tag != null) {
+      t.properties._capacity_used = t.properties._capacity_osm_tag;
+      t.properties._capacity_source = 'osm_tag';
+    } else {
+      t.properties._capacity_used = null;
+      t.properties._capacity_source = 'none';
+    }
+
+    // In focus?
+    t.properties._in_focus = isInFocus(t);
+  });
+
+  // Re-classify suspect: private + ≥ threshold counted vakken + in focus
+  terrains.forEach(t => {
+    const isSuspect = t.properties._access_category_raw === 'private' &&
+                      t.properties._capacity_counted >= STATE.thresholds.suspectMin &&
+                      t.properties._in_focus;
+    if (isSuspect) t.properties._access_category = 'suspect';
+  });
+
+  // Vakken in focus flag
+  vakken.forEach(v => { v.properties._in_focus = isInFocus(v); });
+
+  // NPR enrichment: each vak gets npr_areaid/regime/areadesc/usageids
+  if (STATE.npr && STATE.npr.features.length) {
+    const nprFeats = STATE.npr.features;
+    const nprBboxes = nprFeats.map(f => safeBbox(f) || [0,0,0,0]);
+    vakken.forEach(v => {
+      const c = safeCentroid(v);
+      if (!c) {
+        v.properties._npr_areaid = null;
+        v.properties._npr_regime = null;
+        v.properties._npr_usageids = null;
+        v.properties._npr_areadesc = null;
+        return;
+      }
+      const [lon, lat] = c.geometry.coordinates;
+      let matched = null;
+      for (let i = 0; i < nprFeats.length; i++) {
+        const bb = nprBboxes[i];
+        if (lon < bb[0] || lon > bb[2] || lat < bb[1] || lat > bb[3]) continue;
+        try {
+          if (turf.booleanPointInPolygon(c, nprFeats[i])) {
+            matched = nprFeats[i];
+            break;
+          }
+        } catch (e) { /* skip bad polygon */ }
+      }
+      if (matched) {
+        const p = matched.properties;
+        v.properties._npr_areaid = p.areaid;
+        v.properties._npr_areamanagerid = p.areamanagerid;
+        v.properties._npr_regime = p.regime;
+        v.properties._npr_usageids = p.usageids;
+        v.properties._npr_areadesc = p.areadesc;
+      } else {
+        v.properties._npr_areaid = null;
+        v.properties._npr_regime = null;
+        v.properties._npr_usageids = null;
+        v.properties._npr_areadesc = null;
+      }
+    });
+  } else {
+    vakken.forEach(v => {
+      v.properties._npr_areaid = null;
+      v.properties._npr_regime = null;
+      v.properties._npr_usageids = null;
+      v.properties._npr_areadesc = null;
+    });
+  }
+
+  // Cluster orphans
+  clusterOrphans();
+
+  STATE.joinResult = {
+    nVakken: vakken.length,
+    nLinked, nOrphan, nBorder
+  };
+
+  console.log(`Join: ${vakken.length} vakken vs ${terrains.length} terreinen in ${(performance.now()-t0).toFixed(0)}ms`);
+}
+
+function isInFocus(feature) {
+  if (!STATE.focus) return true;   // No focus = everything in scope
+  const c = safeCentroid(feature);
+  if (!c) return false;
+  try {
+    return turf.booleanPointInPolygon(c, STATE.focus);
+  } catch (e) {
+    return false;
+  }
+}
+
+function clusterOrphans() {
+  const orphans = STATE.vakken.features.filter(v => !v.properties._parent_osm_id);
+  if (orphans.length === 0) return;
+  // Build a FeatureCollection of centroids
+  const points = turf.featureCollection(orphans.map((v, idx) => {
+    const c = turf.centroid(v);
+    c.properties = { _vakIdx: idx };
+    return c;
+  }));
+  // DBSCAN: maxDistance in meters
+  const radiusKm = STATE.thresholds.clusterRadius / 1000;
+  const clustered = turf.clustersDbscan(points, radiusKm, { units: 'kilometers', minPoints: 2 });
+  // Assign cluster IDs back to vakken; noise points get their own singleton id
+  let nextId = 0;
+  const seenClusters = new Map();   // dbscan cluster id -> our id
+  clustered.features.forEach(p => {
+    const dbId = p.properties.cluster;
+    let myId;
+    if (dbId == null) {
+      // noise: singleton cluster
+      myId = `s${nextId++}`;
+    } else {
+      if (!seenClusters.has(dbId)) seenClusters.set(dbId, `c${nextId++}`);
+      myId = seenClusters.get(dbId);
+    }
+    const idx = p.properties._vakIdx;
+    orphans[idx].properties._cluster_id = myId;
+  });
+}
+
+/* ------------------------------------------------------------------
+   DIAGNOSTICS
+   ------------------------------------------------------------------ */
+function getOrphanClusters(scope = 'focus') {
+  if (!STATE.vakken) return [];
+  const orphans = STATE.vakken.features.filter(v =>
+    !v.properties._parent_osm_id &&
+    (scope === 'all' || v.properties._in_focus)
+  );
+  // Group by cluster id
+  const groups = new Map();
+  orphans.forEach(v => {
+    const cid = v.properties._cluster_id;
+    if (!groups.has(cid)) groups.set(cid, []);
+    groups.get(cid).push(v);
+  });
+  // Convert to list of { id, count, centroid, members, bbox }
+  const list = [];
+  groups.forEach((members, id) => {
+    const fc = turf.featureCollection(members);
+    const c = turf.centroid(fc);
+    const bb = turf.bbox(fc);
+    list.push({
+      id,
+      count: members.length,
+      centroid: c.geometry.coordinates,   // [lon, lat]
+      bbox: bb,
+      members
+    });
+  });
+  // Sort by count desc, then by id
+  list.sort((a, b) => b.count - a.count);
+  return list;
+}
+
+function getBigDeltas(scope = 'focus') {
+  if (!STATE.osm) return [];
+  const a = STATE.thresholds.deltaAbs;
+  const r = STATE.thresholds.deltaRel / 100;
+  return STATE.osm.features.filter(t => {
+    if (scope === 'focus' && !t.properties._in_focus) return false;
+    if (t.properties._delta == null) return false;
+    const absD = Math.abs(t.properties._delta);
+    const tag = t.properties._capacity_osm_tag;
+    const relD = absD / Math.max(tag, 1);
+    return absD >= a && relD >= r;
+  }).sort((x, y) => Math.abs(y.properties._delta) - Math.abs(x.properties._delta));
+}
+
+/* ------------------------------------------------------------------
+   RENDERING
+   ------------------------------------------------------------------ */
+function renderVakken() {
+  if (!STATE.vakken) return;
+  layers.vakkenLinked.clearLayers();
+  layers.vakkenOrphan.clearLayers();
+  layers.vakkenBorder.clearLayers();
+
+  const linked = [];
+  const orphan = [];
+  const border = [];
+  STATE.vakken.features.forEach(v => {
+    if (!v.properties._parent_osm_id) orphan.push(v);
+    else if (v.properties._is_border) border.push(v);
+    else linked.push(v);
+  });
+  if (STATE.filters.showVakLinked && linked.length)
+    layers.vakkenLinked.addData(turf.featureCollection(linked));
+  if (STATE.filters.showVakOrphan && orphan.length)
+    layers.vakkenOrphan.addData(turf.featureCollection(orphan));
+  if (STATE.filters.showVakBorder && border.length)
+    layers.vakkenBorder.addData(turf.featureCollection(border));
+
+  $('cntVakLinked').textContent = fmtNum(linked.length);
+  $('cntVakOrphan').textContent = fmtNum(orphan.length);
+  $('cntVakBorder').textContent = fmtNum(border.length);
+}
+
+function renderTerrains() {
+  if (!STATE.osm) return;
+  layers.terrainPublic.clearLayers();
+  layers.terrainCustomers.clearLayers();
+  layers.terrainPrivate.clearLayers();
+  layers.terrainSuspect.clearLayers();
+
+  const ptFilter = STATE.filters.parkingTypes;
+  const buckets = { public: [], customers: [], private: [], suspect: [] };
+  const counts = { public: 0, customers: 0, private: 0, suspect: 0 };
+
+  STATE.osm.features.forEach(t => {
+    const pt = (t.properties.parking || '_untagged').toLowerCase();
+    if (ptFilter[pt] === false) return;
+    const cat = t.properties._access_category;
+    counts[cat]++;
+    const visKey = 'showTer' + cat[0].toUpperCase() + cat.slice(1);
+    if (!STATE.filters[visKey]) return;
+    buckets[cat].push(t);
+  });
+
+  if (buckets.public.length) layers.terrainPublic.addData(turf.featureCollection(buckets.public));
+  if (buckets.customers.length) layers.terrainCustomers.addData(turf.featureCollection(buckets.customers));
+  if (buckets.private.length) layers.terrainPrivate.addData(turf.featureCollection(buckets.private));
+  if (buckets.suspect.length) layers.terrainSuspect.addData(turf.featureCollection(buckets.suspect));
+
+  $('cntTerPublic').textContent = fmtNum(counts.public);
+  $('cntTerCustomers').textContent = fmtNum(counts.customers);
+  $('cntTerPrivate').textContent = fmtNum(counts.private);
+  $('cntTerSuspect').textContent = fmtNum(counts.suspect);
+}
+
+function updateFilterCounts() {
+  if (!STATE.vakken) return;
+  let linked = 0, orphan = 0, border = 0;
+  STATE.vakken.features.forEach(v => {
+    if (!v.properties._parent_osm_id) orphan++;
+    else if (v.properties._is_border) border++;
+    else linked++;
+  });
+  $('cntVakLinked').textContent = fmtNum(linked);
+  $('cntVakOrphan').textContent = fmtNum(orphan);
+  $('cntVakBorder').textContent = fmtNum(border);
+}
+
+function rebuildParkingTypeFilters() {
+  if (!STATE.osm) return;
+  const types = new Map();
+  STATE.osm.features.forEach(t => {
+    const pt = (t.properties.parking || '').toLowerCase();
+    const key = pt || '_untagged';
+    types.set(key, (types.get(key) || 0) + 1);
+  });
+  const container = $('parkingTypeFilters');
+  container.innerHTML = '';
+  const visibleByDefault = new Set(['surface', '_untagged', 'lane', 'street_side', 'rooftop', 'carports']);
+  const sorted = [...types.entries()].sort((a, b) => b[1] - a[1]);
+  sorted.forEach(([type, count]) => {
+    if (STATE.filters.parkingTypes[type] === undefined) {
+      STATE.filters.parkingTypes[type] = visibleByDefault.has(type);
+    }
+    const label = type === '_untagged' ? '(geen tag)' : type;
+    const isChecked = STATE.filters.parkingTypes[type];
+    const cb = el('input', { type: 'checkbox' });
+    if (isChecked) cb.checked = true;
+    cb.addEventListener('change', e => {
+      STATE.filters.parkingTypes[type] = e.target.checked;
+      saveState();
+      renderTerrains();
+      renderDiagnostics();
+    });
+    const row = el('label', { class: 'checkbox-row' },
+      cb,
+      el('span', { style: 'flex:1;' }, label),
+      el('span', { class: 'count' }, String(count))
+    );
+    container.appendChild(row);
+  });
+}
+
+/* ------------------------------------------------------------------
+   COMPLETION METER
+   ------------------------------------------------------------------ */
+function updateMeter() {
+  const inFocus = STATE.focus != null;
+  $('meterScopeBadge').textContent = inFocus ? 'focus' : 'bbox';
+
+  if (!STATE.vakken) {
+    $('meterPct').textContent = '—';
+    $('meterBar').style.width = '0%';
+    $('meterStats').innerHTML = '<div class="label">vakken in scope</div><div class="val">—</div>';
+    return;
+  }
+
+  const vakken = STATE.vakken.features.filter(v => !inFocus || v.properties._in_focus);
+  const linked = vakken.filter(v => v.properties._parent_osm_id);
+  const orphan = vakken.filter(v => !v.properties._parent_osm_id);
+  const border = linked.filter(v => v.properties._is_border);
+
+  const pct = vakken.length ? (linked.length / vakken.length * 100) : 0;
+  $('meterPct').textContent = fmtPct(pct);
+  $('meterBar').style.width = pct + '%';
+  const bar = $('meterBar');
+  if (pct >= 95) bar.style.background = 'var(--success)';
+  else if (pct >= 80) bar.style.background = '#84cc16';
+  else if (pct >= 60) bar.style.background = 'var(--warning)';
+  else bar.style.background = 'var(--danger)';
+
+  const terCounts = { public:0, customers:0, private:0, suspect:0 };
+  if (STATE.osm) {
+    STATE.osm.features.forEach(t => {
+      if (inFocus && !t.properties._in_focus) return;
+      terCounts[t.properties._access_category]++;
+    });
+  }
+  const totalTer = terCounts.public + terCounts.customers + terCounts.private + terCounts.suspect;
+
+  $('meterStats').innerHTML = `
+    <div class="label">vakken in scope</div><div class="val">${fmtNum(vakken.length)}</div>
+    <div class="label indent">└─ gekoppeld</div><div class="val" style="color:var(--success);">${fmtNum(linked.length)}</div>
+    <div class="label indent">└─ orphan</div><div class="val" style="color:var(--danger);">${fmtNum(orphan.length)}</div>
+    <div class="label indent">└─ border-flag</div><div class="val" style="color:var(--warning);">${fmtNum(border.length)}</div>
+    <div class="label" style="margin-top:6px;">terreinen in scope</div><div class="val" style="margin-top:6px;">${fmtNum(totalTer)}</div>
+    <div class="label indent">└─ openbaar</div><div class="val">${fmtNum(terCounts.public)}</div>
+    <div class="label indent">└─ customers</div><div class="val">${fmtNum(terCounts.customers)}</div>
+    <div class="label indent">└─ privé</div><div class="val">${fmtNum(terCounts.private)}</div>
+    <div class="label indent">└─ verdacht</div><div class="val" style="color:var(--purple);">${fmtNum(terCounts.suspect)}</div>
+  `;
+}
+
+/* ------------------------------------------------------------------
+   DIAGNOSTICS RENDERING
+   ------------------------------------------------------------------ */
+function renderDiagnostics() {
+  const scope = STATE.focus ? 'focus' : 'all';
+  const orphans = getOrphanClusters(scope);
+  const deltas = getBigDeltas(scope);
+  const suspects = getSuspects(scope);
+
+  $('cntOrphans').textContent = orphans.length;
+  $('cntDeltas').textContent = deltas.length;
+  $('cntSuspects').textContent = suspects.length;
+
+  // Orphans
+  const orphPane = $('tab-orphans');
+  if (!STATE.vakken || !STATE.osm) {
+    orphPane.innerHTML = '<div class="empty-state"><div class="big">·</div>Laad vakken en haal OSM op om te starten.</div>';
+  } else if (orphans.length === 0) {
+    orphPane.innerHTML = '<div class="empty-state"><div class="big">✓</div>Geen orphan-vakken in scope. Alle parkeervakken zijn gekoppeld aan een OSM-terrein.</div>';
+  } else {
+    orphPane.innerHTML = '';
+    const list = el('ul', { class: 'diag-list' });
+    orphans.forEach(c => {
+      const cls = c.count >= 10 ? ' danger' : c.count >= 3 ? ' warn' : '';
+      const item = el('li', {
+        class: 'diag-item' + (STATE.ui.focusedDiagId === c.id ? ' focused' : ''),
+        onclick: () => focusOnOrphanCluster(c)
+      },
+        el('div', { class: 'diag-icon' + cls }, String(c.count)),
+        el('div', { class: 'diag-body' },
+          el('div', { class: 'diag-title' }, `Orphan-cluster ${c.id.startsWith('s') ? '(losse vakken)' : '#'+c.id}`),
+          el('div', { class: 'diag-meta' },
+            el('span', { class: 'tag' }, c.count + (c.count === 1 ? ' vak' : ' vakken')),
+            el('span', { class: 'tag' }, `${c.centroid[1].toFixed(4)}, ${c.centroid[0].toFixed(4)}`)
+          )
+        )
+      );
+      list.appendChild(item);
+    });
+    orphPane.appendChild(list);
+  }
+
+  // Deltas
+  const delPane = $('tab-deltas');
+  if (!STATE.osm) {
+    delPane.innerHTML = '<div class="empty-state"><div class="big">·</div>Geen OSM data.</div>';
+  } else if (deltas.length === 0) {
+    delPane.innerHTML = '<div class="empty-state"><div class="big">✓</div>Geen grote delta\'s. OSM-tags komen overeen met getelde vakken (binnen drempels).</div>';
+  } else {
+    delPane.innerHTML = '';
+    const list = el('ul', { class: 'diag-list' });
+    deltas.forEach(t => {
+      const p = t.properties;
+      const sign = p._delta > 0 ? '+' : '';
+      const item = el('li', {
+        class: 'diag-item' + (STATE.ui.focusedDiagId === p._osm_id ? ' focused' : ''),
+        onclick: () => focusOnTerrain(t)
+      },
+        el('div', { class: 'diag-icon warn' }, sign + p._delta),
+        el('div', { class: 'diag-body' },
+          el('div', { class: 'diag-title' }, p.name || 'Parkeerterrein'),
+          el('div', { class: 'diag-meta' },
+            el('span', { class: 'tag' }, `tag: ${p._capacity_osm_tag}`),
+            el('span', { class: 'tag' }, `getelde: ${p._capacity_counted}`),
+            el('span', { class: 'tag' }, p._access_category)
+          )
+        )
+      );
+      list.appendChild(item);
+    });
+    delPane.appendChild(list);
+  }
+
+  // Suspects
+  const susPane = $('tab-suspects');
+  if (!STATE.osm) {
+    susPane.innerHTML = '<div class="empty-state"><div class="big">·</div>Geen OSM data.</div>';
+  } else if (suspects.length === 0) {
+    susPane.innerHTML = '<div class="empty-state"><div class="big">✓</div>Geen verdachte terreinen.</div>';
+  } else {
+    susPane.innerHTML = '';
+    const list = el('ul', { class: 'diag-list' });
+    const kindMeta = {
+      'mistagged-private': { icon: '?P', cls: 'suspect', label: 'Privé met veel vakken — mogelijk fout getagd' },
+      'zero-count':        { icon: '0',  cls: 'warn',    label: 'Terrein zonder gemeentelijke vakken erin' },
+      'overlap':           { icon: '⊃',  cls: 'warn',    label: 'Overlapt met ander terrein' }
+    };
+    suspects.forEach(s => {
+      const m = kindMeta[s.kind];
+      const p = s.terrain.properties;
+      const item = el('li', {
+        class: 'diag-item' + (STATE.ui.focusedDiagId === p._osm_id ? ' focused' : ''),
+        onclick: () => focusOnTerrain(s.terrain)
+      },
+        el('div', { class: 'diag-icon ' + m.cls }, m.icon),
+        el('div', { class: 'diag-body' },
+          el('div', { class: 'diag-title' }, p.name || m.label),
+          el('div', { class: 'diag-meta' },
+            el('span', { class: 'tag' }, `getelde: ${p._capacity_counted}`),
+            p._capacity_osm_tag != null ? el('span', { class: 'tag' }, `tag: ${p._capacity_osm_tag}`) : null,
+            el('span', { class: 'tag' }, p.access || '(geen access-tag)'),
+            el('span', { class: 'tag' }, m.label)
+          )
+        )
+      );
+      list.appendChild(item);
+    });
+    susPane.appendChild(list);
+  }
+}
+
+function focusOnOrphanCluster(cluster) {
+  STATE.ui.focusedDiagId = cluster.id;
+  layers.highlight.clearLayers();
+  cluster.members.forEach(v => {
+    L.geoJSON(v, {
+      style: { color: '#dc2626', weight: 3, fillColor: '#dc2626', fillOpacity: 0.30, dashArray: '4,3' }
+    }).addTo(layers.highlight);
+  });
+  const bb = cluster.bbox;
+  const dx = (bb[2] - bb[0]) || 0.0005;
+  const dy = (bb[3] - bb[1]) || 0.0005;
+  map.fitBounds([
+    [bb[1] - dy * 0.4, bb[0] - dx * 0.4],
+    [bb[3] + dy * 0.4, bb[2] + dx * 0.4]
+  ], { maxZoom: 19, padding: [40, 40] });
+  renderDiagnostics();
+}
+
+function focusOnTerrain(terrain) {
+  STATE.ui.focusedDiagId = terrain.properties._osm_id;
+  layers.highlight.clearLayers();
+  L.geoJSON(terrain, {
+    style: { color: '#dc2626', weight: 3, fillColor: '#dc2626', fillOpacity: 0.15, dashArray: '6,4' }
+  }).addTo(layers.highlight);
+  const bb = turf.bbox(terrain);
+  map.fitBounds([[bb[1], bb[0]], [bb[3], bb[2]]], { maxZoom: 19, padding: [60, 60] });
+  setTimeout(() => {
+    const cat = terrain.properties._access_category;
+    const layerName = 'terrain' + cat[0].toUpperCase() + cat.slice(1);
+    const layer = layers[layerName];
+    if (layer) {
+      layer.eachLayer(l => {
+        if (l.feature && l.feature.properties._osm_id === terrain.properties._osm_id) {
+          showTerrainPopup(l.feature, l);
+        }
+      });
+    }
+  }, 250);
+  renderDiagnostics();
+}
+
+/* ------------------------------------------------------------------
+   ORCHESTRATOR
+   ------------------------------------------------------------------ */
+function recomputeAndRender() {
+  if (STATE.vakken && STATE.osm) {
+    performJoin();
+  } else if (STATE.vakken && STATE.npr) {
+    // No OSM yet, but we can still enrich vakken with NPR info
+    enrichVakkenNprOnly();
+  }
+  rebuildParkingTypeFilters();
+  renderVakken();
+  renderTerrains();
+  renderNpr();
+  renderFocus();
+  updateMeter();
+  renderDiagnostics();
+  updateOsmStatusUI();
+  updateNprStatusUI();
+}
+
+function enrichVakkenNprOnly() {
+  // Used when we have NPR but no OSM yet. Performs only the NPR join.
+  if (!STATE.vakken || !STATE.npr) return;
+  const vakken = STATE.vakken.features;
+  const nprFeats = STATE.npr.features;
+  const nprBboxes = nprFeats.map(f => safeBbox(f) || [0,0,0,0]);
+  vakken.forEach(v => {
+    const c = safeCentroid(v);
+    if (!c) {
+      v.properties._npr_areaid = null;
+      v.properties._npr_regime = null;
+      v.properties._npr_usageids = null;
+      v.properties._npr_areadesc = null;
+      if (v.properties._in_focus === undefined) v.properties._in_focus = false;
+      return;
+    }
+    const [lon, lat] = c.geometry.coordinates;
+    let matched = null;
+    for (let i = 0; i < nprFeats.length; i++) {
+      const bb = nprBboxes[i];
+      if (lon < bb[0] || lon > bb[2] || lat < bb[1] || lat > bb[3]) continue;
+      try {
+        if (turf.booleanPointInPolygon(c, nprFeats[i])) {
+          matched = nprFeats[i];
+          break;
+        }
+      } catch (e) { /* skip bad polygon */ }
+    }
+    if (matched) {
+      const p = matched.properties;
+      v.properties._npr_areaid = p.areaid;
+      v.properties._npr_areamanagerid = p.areamanagerid;
+      v.properties._npr_regime = p.regime;
+      v.properties._npr_usageids = p.usageids;
+      v.properties._npr_areadesc = p.areadesc;
+    } else {
+      v.properties._npr_areaid = null;
+      v.properties._npr_regime = null;
+      v.properties._npr_usageids = null;
+      v.properties._npr_areadesc = null;
+    }
+    if (v.properties._in_focus === undefined) v.properties._in_focus = isInFocus(v);
+  });
+}
+
+function getSuspects(scope = 'focus') {
+  if (!STATE.osm) return [];
+  const items = [];
+  // 1) Suspect-tagged (private + many vakken in focus)
+  STATE.osm.features.forEach(t => {
+    if (scope === 'focus' && !t.properties._in_focus) return;
+    if (t.properties._access_category === 'suspect') {
+      items.push({ kind: 'mistagged-private', terrain: t });
+    }
+  });
+  // 2) Terrains with zero vakken (in focus only — outside is uninteresting)
+  STATE.osm.features.forEach(t => {
+    if (!t.properties._in_focus) return;
+    if (t.properties._capacity_counted === 0) {
+      // Skip multi-storey/underground (different layer)
+      const pt = (t.properties.parking || '').toLowerCase();
+      if (pt === 'multi-storey' || pt === 'underground') return;
+      items.push({ kind: 'zero-count', terrain: t });
+    }
+  });
+  // 3) Ambiguous parents (vak with multiple candidate terrains)
+  // Detect terrains involved in ambiguous matches
+  if (STATE.vakken) {
+    const ambigParents = new Set();
+    STATE.vakken.features.forEach(v => {
+      if (v.properties._parent_ambiguous && v.properties._parent_osm_id) {
+        ambigParents.add(v.properties._parent_osm_id);
+      }
+    });
+    ambigParents.forEach(id => {
+      const t = STATE.osm.features.find(x => x.properties._osm_id === id);
+      if (t && (scope === 'all' || t.properties._in_focus)) {
+        items.push({ kind: 'overlap', terrain: t });
+      }
+    });
+  }
+  return items;
+}
+
+/* ------------------------------------------------------------------
+   EXPORT
+   ------------------------------------------------------------------ */
+function downloadFile(filename, content, mime = 'application/json') {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+function timestampStr() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+}
+
+function exportTerrainsGeoJSON() {
+  if (!STATE.osm) return toast('Geen OSM data', 'error');
+  // Build clean export: preserve OSM tags + add our enriched fields
+  const features = STATE.osm.features.map(t => {
+    const p = t.properties;
+    const exportProps = {
+      // Keep the original OSM tags
+      ...Object.fromEntries(Object.entries(p).filter(([k]) => !k.startsWith('_'))),
+      // Add our enriched fields with clear naming
+      osm_id: p._osm_id,
+      capacity_counted: p._capacity_counted,
+      capacity_osm_tag: p._capacity_osm_tag,
+      capacity_used: p._capacity_used,
+      capacity_source: p._capacity_source,
+      delta: p._delta,
+      access_category: p._access_category,
+      border_count: p._border_count,
+      area_m2: Math.round(p._area_m2),
+      density_per_100m2: +p._density.toFixed(2),
+      in_focus: p._in_focus,
+      vak_objectids: p._vak_objectids
+    };
+    return { ...t, properties: exportProps };
+  });
+  const out = { type: 'FeatureCollection', features };
+  downloadFile(`parkeerterreinen_${timestampStr()}.geojson`, JSON.stringify(out, null, 2));
+  toast(`${features.length} terreinen geëxporteerd`, 'success');
+}
+
+function exportVakkenGeoJSON() {
+  if (!STATE.vakken) return toast('Geen vakken data', 'error');
+  const features = STATE.vakken.features.map(v => {
+    const p = v.properties;
+    const exportProps = {
+      // Keep originals
+      ...Object.fromEntries(Object.entries(p).filter(([k]) => !k.startsWith('_'))),
+      // OSM-join annotations
+      parent_osm_id: p._parent_osm_id || null,
+      parent_ambiguous: !!p._parent_ambiguous,
+      is_border: !!p._is_border,
+      cluster_id: p._cluster_id || null,
+      in_focus: !!p._in_focus,
+      // NPR enrichment
+      npr_areaid: p._npr_areaid || null,
+      npr_areamanagerid: p._npr_areamanagerid || null,
+      npr_regime: p._npr_regime || null,
+      npr_usageids: p._npr_usageids || null,
+      npr_areadesc: p._npr_areadesc || null
+    };
+    return { ...v, properties: exportProps };
+  });
+  const out = { type: 'FeatureCollection', features };
+  downloadFile(`parkeervakken_${timestampStr()}.geojson`, JSON.stringify(out, null, 2));
+  toast(`${features.length} vakken geëxporteerd`, 'success');
+}
+
+function exportDiagnostiekGeoJSON() {
+  if (!STATE.vakken || !STATE.osm) return toast('Geen data', 'error');
+  const scope = STATE.focus ? 'focus' : 'all';
+  const features = [];
+
+  // Orphan clusters as MultiPoints with cluster info
+  const orphans = getOrphanClusters(scope);
+  orphans.forEach(c => {
+    const fc = turf.featureCollection(c.members);
+    const hull = c.members.length >= 3 ? turf.convex(fc) : null;
+    if (hull) {
+      hull.properties = {
+        diag_kind: 'orphan_cluster',
+        cluster_id: c.id,
+        vak_count: c.count,
+        vak_objectids: c.members.map(m => m.properties.OBJECTID)
+      };
+      features.push(hull);
+    } else {
+      // Singletons / pairs as point at centroid
+      features.push({
+        type: 'Feature',
+        properties: {
+          diag_kind: 'orphan_cluster',
+          cluster_id: c.id,
+          vak_count: c.count,
+          vak_objectids: c.members.map(m => m.properties.OBJECTID)
+        },
+        geometry: { type: 'Point', coordinates: c.centroid }
+      });
+    }
+  });
+
+  // Big deltas
+  getBigDeltas(scope).forEach(t => {
+    features.push({
+      ...t,
+      properties: {
+        diag_kind: 'big_delta',
+        osm_id: t.properties._osm_id,
+        name: t.properties.name || null,
+        capacity_counted: t.properties._capacity_counted,
+        capacity_osm_tag: t.properties._capacity_osm_tag,
+        delta: t.properties._delta,
+        access_category: t.properties._access_category
+      }
+    });
+  });
+
+  // Suspects
+  getSuspects(scope).forEach(s => {
+    features.push({
+      ...s.terrain,
+      properties: {
+        diag_kind: 'suspect_' + s.kind,
+        osm_id: s.terrain.properties._osm_id,
+        name: s.terrain.properties.name || null,
+        access: s.terrain.properties.access || null,
+        capacity_counted: s.terrain.properties._capacity_counted,
+        capacity_osm_tag: s.terrain.properties._capacity_osm_tag
+      }
+    });
+  });
+
+  const out = { type: 'FeatureCollection', features };
+  downloadFile(`parkeer_diagnostiek_${timestampStr()}.geojson`, JSON.stringify(out, null, 2));
+  toast(`${features.length} diagnostiek-features geëxporteerd`, 'success');
+}
+
+function exportTerrainsCSV() {
+  if (!STATE.osm) return toast('Geen OSM data', 'error');
+  const rows = [];
+  rows.push([
+    'osm_id', 'name', 'access', 'access_category', 'parking_type',
+    'capacity_osm_tag', 'capacity_counted', 'capacity_used', 'capacity_source',
+    'delta', 'border_count', 'area_m2', 'density_per_100m2',
+    'in_focus', 'lat', 'lon', 'vak_count'
+  ]);
+  STATE.osm.features.forEach(t => {
+    const p = t.properties;
+    const c = turf.centroid(t).geometry.coordinates;
+    rows.push([
+      p._osm_id,
+      csvEscape(p.name || ''),
+      p.access || '',
+      p._access_category,
+      p.parking || '',
+      p._capacity_osm_tag != null ? p._capacity_osm_tag : '',
+      p._capacity_counted,
+      p._capacity_used != null ? p._capacity_used : '',
+      p._capacity_source,
+      p._delta != null ? p._delta : '',
+      p._border_count,
+      Math.round(p._area_m2),
+      p._density.toFixed(2),
+      p._in_focus ? 'true' : 'false',
+      c[1].toFixed(6),
+      c[0].toFixed(6),
+      (p._vak_objectids || []).length
+    ]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  downloadFile(`parkeerterreinen_${timestampStr()}.csv`, csv, 'text/csv');
+  toast('CSV geëxporteerd', 'success');
+}
+
+function csvEscape(s) {
+  if (s == null) return '';
+  s = String(s);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+/* ------------------------------------------------------------------
+   INIT / WIRE-UP
+   ------------------------------------------------------------------ */
+function init() {
+  // ===== STEP 1: critical handlers FIRST (no library deps) =====
+  // This guarantees the user can always escape the welcome screen,
+  // even if a CDN-script failed to load.
+  const welcomeBtn = $('welcomeStartBtn');
+  if (welcomeBtn) {
+    welcomeBtn.addEventListener('click', () => {
+      $('welcome').classList.add('hidden');
+      $('vakkenFile').click();
+    });
+  }
+  $('vakkenFile').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) loadVakkenFile(f);
+    e.target.value = '';
+  });
+  $('resetBtn').addEventListener('click', resetState);
+
+  // ===== STEP 2: verify required libraries =====
+  const missing = [];
+  if (typeof L === 'undefined') missing.push('Leaflet');
+  if (typeof turf === 'undefined') missing.push('Turf.js');
+  if (typeof osmtogeojson === 'undefined') missing.push('osmtogeojson');
+  if (missing.length) {
+    const msg = 'Bibliotheek(en) niet geladen: ' + missing.join(', ') + '.\n\nControleer je internetverbinding en herlaad. Of: download de bestanden lokaal en pas de paden aan.';
+    console.error(msg);
+    const card = document.querySelector('.welcome-card');
+    if (card) {
+      card.innerHTML = `
+        <h1 style="color:#dc2626;">Bibliotheken niet geladen</h1>
+        <p class="lead">De volgende externe bibliotheken konden niet worden geladen: <b>${missing.join(', ')}</b>.</p>
+        <p class="lead">Controleer je internetverbinding en herlaad de pagina. De tool gebruikt CDN's (unpkg.com) voor Leaflet, Turf.js, Geoman en osmtogeojson.</p>
+        <button class="btn primary" onclick="location.reload()">Herlaad</button>
+      `;
+    }
+    return;
+  }
+
+  // ===== STEP 3: initialize map (could fail in exotic environments) =====
+  try {
+    initMap();
+  } catch (e) {
+    console.error('initMap failed:', e);
+    toast('Kaart-initialisatie mislukt: ' + e.message, 'error');
+    return;
+  }
+
+  // ===== STEP 4: restore SETTINGS from LS (sync, fast) =====
+  let settingsLoaded = false;
+  try { settingsLoaded = loadSettings(); } catch (e) { console.warn('loadSettings failed:', e); }
+
+  if (settingsLoaded) {
+    Object.entries(STATE.filters).forEach(([k, v]) => {
+      if (typeof v === 'boolean' && $(k)) $(k).checked = v;
+    });
+    $('deltaAbsSlider').value = STATE.thresholds.deltaAbs;
+    $('deltaAbsVal').textContent = STATE.thresholds.deltaAbs;
+    $('deltaRelSlider').value = STATE.thresholds.deltaRel;
+    $('deltaRelVal').textContent = STATE.thresholds.deltaRel + '%';
+    $('suspectMinSlider').value = STATE.thresholds.suspectMin;
+    $('suspectMinVal').textContent = STATE.thresholds.suspectMin;
+    $('clusterRadiusSlider').value = STATE.thresholds.clusterRadius;
+    $('clusterRadiusVal').textContent = STATE.thresholds.clusterRadius + 'm';
+  }
+
+  renderFocus();
+  if (STATE.focus) {
+    $('focusBadge').textContent = 'actief';
+    $('clearFocusBtn').style.display = 'inline-flex';
+  }
+
+  // ===== STEP 5: wire up all remaining listeners =====
+  wireRemainingListeners();
+
+  // ===== STEP 6: async — load DATASETS from IDB and render =====
+  loadDatasets().then(() => {
+    if (STATE.vakken) {
+      ensureWgs84(STATE.vakken, 'Cache');
+      filterValidFeatures(STATE.vakken, 'Cache vakken');
+      STATE.vakkenStats = { count: STATE.vakken.features.length, hasObjectId: true };
+      $('vakkenInfo').innerHTML = `<b>${STATE.vakken.features.length}</b> features hersteld uit cache`;
+      $('vakkenCountBadge').textContent = `${STATE.vakken.features.length} vakken`;
+      $('fetchOsmBtn').disabled = false;
+      $('welcome').classList.add('hidden');
+      try {
+        const bb = turf.bbox(STATE.vakken);
+        map.fitBounds([[bb[1], bb[0]], [bb[3], bb[2]]], { padding: [40, 40] });
+      } catch(e) {}
+    }
+    if (STATE.focus) ensureWgs84(STATE.focus, 'Cache focus');
+    if (STATE.vakken && STATE.osm) {
+      try { recomputeAndRender(); }
+      catch (e) { console.error(e); toast('Render-fout: ' + e.message, 'error'); }
+    } else if (STATE.vakken && STATE.npr) {
+      try { recomputeAndRender(); } catch (e) { console.error(e); }
+    } else if (STATE.osm) {
+      rebuildParkingTypeFilters();
+      renderTerrains();
+      updateOsmStatusUI();
+    } else if (STATE.vakken) {
+      renderVakken();
+      updateMeter();
+    }
+    if (STATE.npr) renderNpr();
+    updateNprStatusUI();
+    updateStorageBadge();
+  });
+}
+
+function wireRemainingListeners() {
+  $('focusFile').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) loadFocusFile(f);
+    e.target.value = '';
+  });
+  $('uploadFocusBtn').addEventListener('click', () => $('focusFile').click());
+  $('pasteFocusBtn').addEventListener('click', showPasteModal);
+  $('drawFocusBtn').addEventListener('click', () => {
+    if (!map.pm) {
+      toast('Geoman tekentool niet beschikbaar — gebruik plak of upload', 'error');
+      return;
+    }
+    map.pm.enableDraw('Polygon', {
+      snappable: false,
+      finishOn: 'dblclick',
+      templineStyle: { color: '#1a1a1a' },
+      hintlineStyle: { color: '#1a1a1a', dashArray: [5, 5] },
+      pathOptions: { color: '#1a1a1a', weight: 2.5, fillOpacity: 0 }
+    });
+    toast('Klik om polygoon te tekenen, dubbelklik om af te ronden', '');
+  });
+  $('clearFocusBtn').addEventListener('click', clearFocus);
+
+  $('fetchOsmBtn').addEventListener('click', fetchOSM);
+
+  // NPR controls
+  $('fetchNprBtn').addEventListener('click', fetchNPR);
+  $('editNprRegimesBtn').addEventListener('click', showNprEditModal);
+  $('nprEditCloseBtn').addEventListener('click', closeNprEditModal);
+  $('nprAreaManagerInput').addEventListener('change', e => {
+    STATE.nprAreaManagerId = parseInt(e.target.value, 10) || 612;
+    saveSettings();
+  });
+  if (STATE.nprAreaManagerId) $('nprAreaManagerInput').value = STATE.nprAreaManagerId;
+
+  ['showVakLinked','showVakOrphan','showVakBorder',
+   'showTerPublic','showTerCustomers','showTerPrivate','showTerSuspect',
+   'showNprBetaald','showNprVergun','showNprMixed','showNprUnknown'].forEach(k => {
+    $(k).addEventListener('change', e => {
+      STATE.filters[k] = e.target.checked;
+      saveSettings();
+      if (k.startsWith('showVak')) renderVakken();
+      else if (k.startsWith('showNpr')) renderNpr();
+      else renderTerrains();
+    });
+  });
+
+  $('deltaAbsSlider').addEventListener('input', e => {
+    STATE.thresholds.deltaAbs = +e.target.value;
+    $('deltaAbsVal').textContent = e.target.value;
+  });
+  $('deltaAbsSlider').addEventListener('change', () => { saveSettings(); renderDiagnostics(); });
+
+  $('deltaRelSlider').addEventListener('input', e => {
+    STATE.thresholds.deltaRel = +e.target.value;
+    $('deltaRelVal').textContent = e.target.value + '%';
+  });
+  $('deltaRelSlider').addEventListener('change', () => { saveSettings(); renderDiagnostics(); });
+
+  $('suspectMinSlider').addEventListener('input', e => {
+    STATE.thresholds.suspectMin = +e.target.value;
+    $('suspectMinVal').textContent = e.target.value;
+  });
+  $('suspectMinSlider').addEventListener('change', () => {
+    saveSettings();
+    if (STATE.vakken && STATE.osm) recomputeAndRender();
+  });
+
+  $('clusterRadiusSlider').addEventListener('input', e => {
+    STATE.thresholds.clusterRadius = +e.target.value;
+    $('clusterRadiusVal').textContent = e.target.value + 'm';
+  });
+  $('clusterRadiusSlider').addEventListener('change', () => {
+    saveSettings();
+    if (STATE.vakken && STATE.osm) {
+      clusterOrphans();
+      renderDiagnostics();
+    }
+  });
+
+  document.querySelectorAll('.tabs-nav button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tabs-nav button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      $('tab-' + btn.dataset.tab).classList.add('active');
+      STATE.ui.activeTab = btn.dataset.tab;
+    });
+  });
+
+  $('exportTerrainsBtn').addEventListener('click', exportTerrainsGeoJSON);
+  $('exportVakkenBtn').addEventListener('click', exportVakkenGeoJSON);
+  $('exportDiagBtn').addEventListener('click', exportDiagnostiekGeoJSON);
+  $('exportCsvBtn').addEventListener('click', exportTerrainsCSV);
+
+  // Modal buttons
+  $('pasteCancelBtn').addEventListener('click', closePasteModal);
+  $('pasteApplyBtn').addEventListener('click', applyPastedFocus);
+
+  // NPR manual regime override — event delegation since popups
+  // are dynamically created
+  document.addEventListener('change', e => {
+    if (e.target && e.target.classList && e.target.classList.contains('npr-manual-select')) {
+      const aid = e.target.dataset.areaid;
+      const value = e.target.value || null;
+      if (aid) setNprManual(aid, value);
+    }
+  });
+
+  // Flush localStorage + IDB
+  $('flushLsBtn').addEventListener('click', flushLocalStorage);
+  updateStorageBadge();
+
+  map.on('click', () => {
+    layers.highlight.clearLayers();
+    STATE.ui.focusedDiagId = null;
+    renderDiagnostics();
+  });
+
+  setInterval(updateOsmStatusUI, 60000);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>

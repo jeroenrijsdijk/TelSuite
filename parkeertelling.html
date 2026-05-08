@@ -385,6 +385,8 @@ var kaartDownloaded = false;
 
 /* Road snap cache */
 var roadSegs = [];          // [{ax,ay,bx,by,brg,lat1,lon1,lat2,lon2}] in local meters
+var capNetwerk = [];        // [{type:'line'|'poly', coords:[{lat,lon}]}] capaciteitslaag
+var capLayer  = null;       // Leaflet layerGroup voor capaciteitscontouren
 var roadCacheLat = null, roadCacheLon = null;
 var roadSnapStatus = 'none'; // 'none'|'fetching'|'ok'|'error'
 var roadFetchTimer = null;
@@ -408,6 +410,7 @@ map.setView([51.8714, 4.1913], 12);
 var routeLine = L.polyline([], { color: '#2471a3', weight: 3, opacity: 0.75 }).addTo(map);
 var posMarker = null;
 var markerLayer = L.layerGroup().addTo(map);
+capLayer = L.layerGroup().addTo(map);
 
 function makeIcon(type) {
   var c = COLORS[type];
@@ -445,6 +448,51 @@ window.addEventListener('beforeunload', function(e) {
     e.returnValue = '';
   }
 });
+
+// ── Capaciteitslaag laden ─────────────────────────────
+(function loadCapNetwerk() {
+  fetch('/cap_netwerk.csv')
+    .then(function(r){ return r.ok ? r.text() : Promise.reject(r.status); })
+    .then(function(txt) {
+      var lines = txt.trim().split('\n');
+      var header = lines[0].split(';').map(function(h){ return h.trim(); });
+      var wktIdx = header.indexOf('geometrie_wkt');
+      if (wktIdx < 0) return;
+      lines.slice(1).forEach(function(line) {
+        if (!line.trim()) return;
+        var cols = line.split(';');
+        var wkt = cols.slice(wktIdx).join(';').trim(); // WKT kan puntkomma's bevatten
+        var isPoly = wkt.startsWith('POLYGON');
+        var inner = wkt
+          .replace(/^POLYGON\s*\(\(/, '').replace(/^LINESTRING\s*\(/, '')
+          .replace(/\)\)$/, '').replace(/\)$/, '');
+        var coords = inner.split(',').map(function(p) {
+          var parts = p.trim().split(' ').map(Number);
+          return { lon: parts[0], lat: parts[1] };
+        }).filter(function(c){ return !isNaN(c.lat) && !isNaN(c.lon); });
+        if (coords.length >= 2) {
+          capNetwerk.push({ type: isPoly ? 'poly' : 'line', coords: coords });
+          var latLons = coords.map(function(c){ return [c.lat, c.lon]; });
+          if (isPoly) {
+            L.polygon(latLons, {
+              color: '#1a1918', weight: 2,
+              fillColor: '#8e44ad', fillOpacity: 0.08,
+              opacity: 0.85, interactive: false
+            }).addTo(capLayer);
+          } else {
+            L.polyline(latLons, {
+              color: '#1a1918', weight: 4,
+              opacity: 0.55, interactive: false
+            }).addTo(capLayer);
+          }
+        }
+      });
+    })
+    .catch(function(e) {
+      console.warn('[capNetwerk] laden mislukt:', e);
+      setStatus('Capaciteitslaag niet beschikbaar (' + e + ')');
+    });
+})();
 
 document.addEventListener('visibilitychange', function() {
   if (sessionActive && document.visibilityState === 'visible') acquireWakeLock();
@@ -1533,7 +1581,7 @@ function exportZip() {
     zip.file(sid + '.gpx',           gpxStr);
     if (pngBlob) zip.file(sid + '_kaart.png', pngBlob);
     zip.generateAsync({type:'blob'}).then(function(zipBlob) {
-      var zipName = sid + '.zip';
+      var zipName = sid + '_car.zip';
       var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
       if (navigator.canShare && navigator.canShare({files:[zipFile]})) {
         navigator.share({files:[zipFile], title:zipName}).catch(function(){
