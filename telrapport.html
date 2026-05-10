@@ -374,6 +374,7 @@ const capLayers      = {};   // sid → [marker] voor capaciteitssessies
 const capTelData    = {};   // sid → [telregels] voor capaciteitssessies
 const telData       = {};   // sid → filtered snapped telregels
 let   capSpotLayers = [];   // tijdelijke spot-markers bij klik capaciteit
+const globalPolyMap = {};   // wayId → [[lat,lon],...] voor spatial join
 
 
 const dotVisible    = { fiets:true, wrak:true, brommer:true, breed:true,
@@ -385,6 +386,19 @@ let maxFietsTotaal  = 1;
 // ── UTILS ─────────────────────────────────────────────────────────
 const parseCSV = txt =>
   Papa.parse(txt.trim(), { header:true, delimiter:';', skipEmptyLines:true }).data;
+
+function pointInPolygon(lat, lon, poly) {
+  // Ray-casting algoritme
+  var inside = false;
+  for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    var xi = poly[i][1], yi = poly[i][0];
+    var xj = poly[j][1], yj = poly[j][0];
+    var intersect = ((yi > lat) !== (yj > lat))
+      && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
 
 function parseWKT(wkt) {
   return wkt.replace(/^LINESTRING\s*\(/, '').replace(/\)$/, '')
@@ -636,6 +650,7 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV) {
           return [parts[1], parts[0]]; // [lat, lon] voor Leaflet
         });
         polyMap[r.osm_way_id] = coords;
+        globalPolyMap[r.osm_way_id] = coords;
       }
     });
   }
@@ -691,13 +706,43 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV) {
         })
         .on('mouseover', function(e) {
           this.setStyle({weight:4, fillOpacity:0.30});
-          const total = Object.values(g.soorten).reduce((a,n)=>a+n,0);
-          const soortenTip = Object.entries(g.soorten).sort((a,b)=>b[1]-a[1])
-            .map(([s,n]) => s+': '+n).join('<br>');
+          const poly = globalPolyMap[g.wayId] || geom;
+          // Spatial join: tel stippen per sessie die binnen de polygoon vallen
+          const sessieTips = [];
+          Object.entries(sessions).forEach(function(entry) {
+            const tsid = entry[0], sess = entry[1];
+            if (!sess.visible) return;
+            if (sess.appType === 'capaciteit') return;
+            const rows = telData[tsid];
+            if (!rows || !rows.length) return;
+            const sm2 = sess.meta;
+            const d2 = fmtDatum(sm2.datum, sm2.start_tijd);
+            const tel2 = sm2.teller ? ' · ' + sm2.teller : '';
+            const binnen = rows.filter(function(r) {
+              var la = +r.lat_marker, lo = +r.lon_marker;
+              return !isNaN(la) && !isNaN(lo) && pointInPolygon(la, lo, poly);
+            });
+            if (!binnen.length) return;
+            const typeCounts = {};
+            binnen.forEach(function(r) {
+              var t = (r.type||'?').toLowerCase();
+              typeCounts[t] = (typeCounts[t]||0) + 1;
+            });
+            const typeStr = Object.entries(typeCounts).sort((a,b)=>b[1]-a[1])
+              .map(([t,n]) => t+':'+n).join(' · ');
+            sessieTips.push(d2 + tel2 + ' — ' + binnen.length + ' obs (' + typeStr + ')');
+          });
+          const capTotal = Object.values(g.soorten).reduce((a,n)=>a+n,0);
+          const capStr = Object.entries(g.soorten).sort((a,b)=>b[1]-a[1])
+            .map(([s,n]) => s+':'+n).join(' · ');
           const teller = sm.teller ? ' · ' + sm.teller : '';
-          const tip = '<strong>' + g.naam + '</strong><br>'
-            + datum + teller + '<br>'
-            + '— totaal: ' + total + '<br>' + soortenTip;
+          var tip = '<strong>' + g.naam + '</strong><br>'
+            + datum + teller + ' — capaciteit: ' + capTotal
+            + (capStr ? ' (' + capStr + ')' : '');
+          if (sessieTips.length) {
+            tip += '<br><span style="opacity:0.7;font-size:11px;">geteld:</span><br>'
+              + sessieTips.join('<br>');
+          }
           this.bindTooltip(tip, {sticky:true, direction:'top', className:'way-hover-tip'}).openTooltip(e.latlng);
         })
         .on('mouseout', function() {
