@@ -68,6 +68,7 @@
   .session-row { display: flex; align-items: center; padding: 6px 12px; gap: 8px;
     border-bottom: 1px solid rgba(255,255,255,0.03); }
   .session-row:hover { background: rgba(255,255,255,0.04); }
+  .session-row.highlighted { background: rgba(255,255,255,0.10); outline: 1px solid var(--accent); }
   .session-toggle { width: 12px; height: 12px; border-radius: 2px;
     border: 1.5px solid var(--border); flex-shrink: 0; position: relative; cursor: pointer; }
   .session-toggle.on { background: var(--accent); border-color: var(--accent); }
@@ -120,6 +121,65 @@
     line-height: 1.7;
   }
   .way-hover-tip strong { font-size: 13px; font-weight: 600; }
+
+  /* ── Timebar ── */
+  #timebar {
+    display: none;
+    position: relative;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding: 10px 16px 8px;
+    user-select: none;
+  }
+  #timebar-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  #timebar-label {
+    font-family: var(--font); font-size: 11px; font-weight: 600;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted);
+  }
+  #timebar-window {
+    font-family: var(--font); font-size: 13px; font-weight: 700;
+    color: var(--text); letter-spacing: 1px;
+  }
+  #timebar-track {
+    position: relative; height: 28px; margin-bottom: 4px;
+  }
+  #time-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px;
+    background: var(--border); border-radius: 2px;
+    outline: none; cursor: pointer;
+    position: absolute; top: 12px; left: 0;
+    margin: 0;
+  }
+  #time-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--text); cursor: pointer;
+    border: 3px solid var(--bg);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    margin-top: -9px;
+  }
+  #time-slider::-moz-range-thumb {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--text); cursor: pointer;
+    border: 3px solid var(--bg);
+  }
+  #timebar-dots {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 28px;
+    pointer-events: none;
+  }
+  #timebar-hours {
+    display: flex; justify-content: space-between;
+    padding: 0 1px;
+  }
+  #timebar-hours span {
+    font-size: 9px; color: var(--muted); font-family: var(--font);
+    letter-spacing: 0.5px;
+  }
   .cluster-label::before { display: none !important; }
   .cluster-label .cl-total { font-size: 14px; font-weight: bold; color: #ffffff; }
 
@@ -188,6 +248,15 @@
       </div>
     </div>
 
+    <div id="time-toggle-row" class="toggle-section" style="display:none">
+      <div class="toggle-row">
+        <button class="dot-btn" id="time-toggle" style="color:#fff; flex:1"
+          onclick="this.classList.toggle('active'); toggleTimeFilter(this.classList.contains('active'));">
+          <span class="dot" style="background:#fff; border:1px solid #888"></span>tijdfilter
+        </button>
+      </div>
+    </div>
+
     <div id="gap-row" style="display:none">
       <label>gap-drempel</label>
       <input type="range" id="gap-slider" min="2" max="40" value="8" step="1">
@@ -206,6 +275,21 @@
   </div>
 
   <div id="map"></div>
+
+  <div id="timebar">
+    <div id="timebar-header">
+      <span id="timebar-label">Tijdvenster</span>
+      <span id="timebar-window">—</span>
+    </div>
+    <div id="timebar-track">
+      <input type="range" id="time-slider" min="0" max="23" value="10" step="1">
+      <canvas id="timebar-dots"></canvas>
+    </div>
+    <div id="timebar-hours">
+      <span>0</span><span>3</span><span>6</span><span>9</span>
+      <span>12</span><span>15</span><span>18</span><span>21</span><span>23</span>
+    </div>
+  </div>
 </div>
 
 <div id="empty-state">
@@ -374,6 +458,8 @@ const capLayers      = {};   // sid → [marker] voor capaciteitssessies
 const capTelData    = {};   // sid → [telregels] voor capaciteitssessies
 const telData       = {};   // sid → filtered snapped telregels
 let   capSpotLayers = [];   // tijdelijke spot-markers bij klik capaciteit
+let   timeFilterActive = false;
+let   currentTimeHour  = 10;
 const globalPolyMap = {};   // wayId → [[lat,lon],...] voor spatial join
 
 
@@ -549,7 +635,52 @@ function drawClusters(sid) {
       const m = L.marker([centLat, centLon], { icon, pane:'clusters', interactive:true })
         .bindTooltip(typeLine, { permanent:false, direction:'top', offset:[0,-size/2],
           className:'cluster-label' })
-        .on('click', ()=>showClusterDetail(counts, total, sid, appType));
+        .on('click', ()=>showClusterDetail(counts, total, sid, appType))
+        .on('mouseover', function() {
+          // Dim dots én clusters van alle andere sessies
+          Object.keys(dotLayers).forEach(function(osid) {
+            if (osid === sid) return;
+            Object.values(dotLayers[osid]||{}).forEach(function(arr) {
+              arr.forEach(function(dot) {
+                var el = dot.getElement ? dot.getElement() : null;
+                if (el) el.style.opacity = '0.15';
+              });
+            });
+          });
+          Object.keys(clusterLayers).forEach(function(osid) {
+            if (osid === sid) return;
+            (clusterLayers[osid]||[]).forEach(function(marker) {
+              var el = marker.getElement ? marker.getElement() : null;
+              if (el) el.style.opacity = '0.15';
+            });
+          });
+          // Highlight sessie-rij in sidebar
+          document.querySelectorAll('.session-row').forEach(function(row) {
+            var toggle = row.querySelector('.session-toggle');
+            row.classList.toggle('highlighted', toggle && toggle.dataset.sid === sid);
+          });
+        })
+        .on('mouseout', function() {
+          // Restore alle dots én clusters
+          Object.values(dotLayers).forEach(function(types) {
+            Object.values(types||{}).forEach(function(arr) {
+              arr.forEach(function(dot) {
+                var el = dot.getElement ? dot.getElement() : null;
+                if (el) el.style.opacity = '';
+              });
+            });
+          });
+          Object.values(clusterLayers).forEach(function(arr) {
+            (arr||[]).forEach(function(marker) {
+              var el = marker.getElement ? marker.getElement() : null;
+              if (el) el.style.opacity = '';
+            });
+          });
+          // Sidebar highlight weg
+          document.querySelectorAll('.session-row').forEach(function(row) {
+            row.classList.remove('highlighted');
+          });
+        });
       m.addTo(map);
       clusterLayers[sid].push(m);
     });
@@ -1050,6 +1181,140 @@ document.getElementById('gap-slider').addEventListener('input',function(){
   redrawAllClusters();
 });
 
+// ── TIMEBAR ──────────────────────────────────────────────────────────────────
+function sessionHour(sid) {
+  const t = sessions[sid]?.meta?.start_tijd || '';
+  const m = t.match(/(\d{1,2})[:h]/);
+  return m ? parseInt(m[1]) : null;
+}
+
+function sessionInWindow(sid) {
+  if (!timeFilterActive) return true;
+  const h = sessionHour(sid);
+  if (h === null) return true;
+  const lo = (currentTimeHour - 1 + 24) % 24;
+  const hi = (currentTimeHour + 1);
+  // Venster: lo:00 – hi:59 (3 uur breed)
+  if (lo <= hi) return h >= lo && h <= hi;
+  return h >= lo || h <= hi; // over middernacht
+}
+
+function applyTimeFilter() {
+  const h = currentTimeHour;
+  const lo = (h - 1 + 24) % 24;
+  const hi = (h + 1);
+  const hiStr = String(hi % 24).padStart(2,'0');
+  document.getElementById('timebar-window').textContent =
+    String(lo).padStart(2,'0') + ':00 – ' + hiStr + ':59';
+
+  Object.keys(sessions).forEach(function(sid) {
+    const inWin = sessionInWindow(sid);
+    sessions[sid].visible = inWin;
+    // GPS
+    if (gpsLayers[sid]) inWin ? gpsLayers[sid].addTo(map) : map.removeLayer(gpsLayers[sid]);
+    // Cap layers
+    if (capLayers[sid]) capLayers[sid].forEach(function(m){
+      inWin ? m.addTo(map) : map.removeLayer(m);
+    });
+    // Dots
+    const cfg = APP_CONFIG[sessions[sid].appType] || APP_CONFIG.fiets;
+    cfg.types.forEach(function(type){ showHideDots(sid, type, dotVisible[type] && inWin); });
+  });
+
+  // Session-list toggles updaten
+  document.querySelectorAll('.session-toggle').forEach(function(el) {
+    const sid = el.dataset.sid;
+    el.classList.toggle('on', sessions[sid]?.visible || false);
+  });
+
+  redrawAllClusters();
+  recolorAll();
+  updateStats();
+  drawTimeDots();
+}
+
+function drawTimeDots() {
+  const canvas = document.getElementById('timebar-dots');
+  if (!canvas) return;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const bounds = map.getBounds();
+  const typeColor = { auto:'#c07800', fiets:'#2980b9', capaciteit:'#8e44ad' };
+
+  // Highlight venster
+  const lo = (currentTimeHour - 1 + 24) % 24;
+  const hi = currentTimeHour + 1;
+  const xLo = (lo / 23) * W;
+  const xHi = Math.min((hi / 23) * W, W);
+  ctx.fillStyle = 'rgba(0,0,0,0.06)';
+  ctx.fillRect(xLo, 0, xHi - xLo, H);
+
+  Object.keys(sessions).forEach(function(sid) {
+    const s = sessions[sid];
+    const h = sessionHour(sid);
+    if (h === null) return;
+
+    // Bbox-check: heeft de sessie wayData binnen de kaartbbox?
+    const inBbox = Object.keys(wayData).some(function(wid) {
+      const wd = wayData[wid];
+      if (!wd.sessions.some(function(ws){ return ws.sid === sid; })) return false;
+      return wd.geometry && wd.geometry.some(function(pt) {
+        return bounds.contains(L.latLng(pt[0], pt[1]));
+      });
+    }) || (capLayers[sid] && capLayers[sid].length > 0);
+
+    if (!inBbox) return;
+
+    const inWin = sessionInWindow(sid);
+    if (inWin) return; // zichtbare sessies niet als stip tonen
+
+    const x = (h / 23) * W;
+    const color = typeColor[s.appType] || '#888';
+    ctx.beginPath();
+    ctx.arc(x, H/2, 5, 0, 2*Math.PI);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.7;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+}
+
+document.getElementById('time-slider').addEventListener('input', function() {
+  currentTimeHour = parseInt(this.value);
+  applyTimeFilter();
+});
+
+// Timebar toggle: knop in de sidebar
+function toggleTimeFilter(active) {
+  timeFilterActive = active;
+  document.getElementById('timebar').style.display = active ? 'block' : 'none';
+  if (active) {
+    currentTimeHour = parseInt(document.getElementById('time-slider').value);
+    applyTimeFilter();
+  } else {
+    // Alles weer zichtbaar
+    Object.keys(sessions).forEach(function(sid) {
+      sessions[sid].visible = true;
+      if (gpsLayers[sid]) gpsLayers[sid].addTo(map);
+      if (capLayers[sid]) capLayers[sid].forEach(function(m){ m.addTo(map); });
+      const cfg = APP_CONFIG[sessions[sid].appType] || APP_CONFIG.fiets;
+      cfg.types.forEach(function(type){ showHideDots(sid, type, dotVisible[type]); });
+    });
+    document.querySelectorAll('.session-toggle').forEach(function(el) {
+      el.classList.add('on');
+    });
+    redrawAllClusters(); recolorAll(); updateStats();
+  }
+}
+
+map.on('moveend', function() { if (timeFilterActive) drawTimeDots(); });
+
 // ── UI ZICHTBAARHEID ─────────────────────────────────────────────
 function updateUI() {
   const hasFiets=Object.values(sessions).some(s=>s.appType==='fiets');
@@ -1061,6 +1326,7 @@ function updateUI() {
   document.getElementById('toggles-fiets').style.display      = hasFiets?'block':'none';
   document.getElementById('toggles-auto').style.display       = hasAuto ?'block':'none';
   document.getElementById('cluster-toggle-row').style.display = hasAny  ?'block':'none';
+  document.getElementById('time-toggle-row').style.display   = hasAny  ?'block':'none';
   document.getElementById('gap-row').style.display            = hasAny  ?'flex':'none';
   document.getElementById('legend').style.display             = hasAny  ?'block':'none';
   document.getElementById('legend-fiets').style.display       = hasFiets?'block':'none';
