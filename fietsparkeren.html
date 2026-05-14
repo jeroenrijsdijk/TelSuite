@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Fietsparkeren</title>
+<title>Walk and Survey Parked Bikes</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
@@ -219,7 +219,7 @@
 
 <header>
   <a href="index.html" style="color:#aaa8a2;text-decoration:none;font-size:13px;font-weight:300;margin-right:4px;">&#8592;</a>
-  <h1>Fietsparkeren</h1>
+  <h1>Walk and Survey Parked Bikes</h1>
   <span>rvmk.nl</span>
 </header>
 
@@ -393,6 +393,8 @@ var kaartDownloaded = false;
 
 /* Road snap cache */
 var roadSegs = [];          // [{ax,ay,bx,by,brg,lat1,lon1,lat2,lon2}] in local meters
+var planningWegen = [];     // [{id, naam, highway, coords}] van geladen opdracht
+var planningLayer = null;   // Leaflet layerGroup
 var roadCacheLat = null, roadCacheLon = null;
 var roadSnapStatus = 'none'; // 'none'|'fetching'|'ok'|'error'
 var roadFetchTimer = null;
@@ -416,6 +418,37 @@ map.setView([51.8714, 4.1913], 12);
 var routeLine = L.polyline([], { color: '#2471a3', weight: 3, opacity: 0.75 }).addTo(map);
 var posMarker = null;
 var markerLayer = L.layerGroup().addTo(map);
+planningLayer = L.layerGroup().addTo(map);
+
+// ── Planningsopdracht laden ──────────────────────────
+(function loadPlanFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+  var planUrl = params.get('plan');
+  if (!planUrl) return;
+  fetch(planUrl)
+    .then(function(r){ return r.ok ? r.text() : Promise.reject(r.status); })
+    .then(function(txt) {
+      var data = JSON.parse(txt);
+      var tellerEl = document.getElementById('inputTeller');
+      if (tellerEl && data.teller && !tellerEl.value) tellerEl.value = data.teller;
+      (data.wegen || []).forEach(function(w) {
+        if (!w.geometrie_wkt) return;
+        var inner = w.geometrie_wkt.replace(/LINESTRING\s*\(/, '').replace(/\)$/, '');
+        var coords = inner.split(',').map(function(p) {
+          var parts = p.trim().split(' ').map(Number);
+          return [parts[1], parts[0]];
+        }).filter(function(c){ return !isNaN(c[0]) && !isNaN(c[1]); });
+        if (coords.length < 2) return;
+        L.polyline(coords, {
+          color: '#8e44ad', weight: 4, opacity: 0.5,
+          dashArray: '8 4', interactive: false
+        }).addTo(planningLayer).bindTooltip(w.naam || w.highway, {direction:'top', sticky:true});
+        planningWegen.push(w);
+      });
+      setStatus('Opdracht: ' + (data.sessie_naam||'') + ' · ' + planningWegen.length + ' wegen');
+    })
+    .catch(function(e) { setStatus('Opdracht laden mislukt: ' + e); });
+})();
 
 function makeIcon(type) {
   var c = COLORS[type];
@@ -870,11 +903,26 @@ function buildSegments(elements, refLat, refLon) {
         ax:axy.x, ay:axy.y, bx:bxy.x, by:bxy.y, brg:brg,
         lat1:a.lat, lon1:a.lon, lat2:b.lat, lon2:b.lon,
         id: el.id + '_' + i, wayId: el.id,
-        osmName: (el.tags && el.tags.name) ? el.tags.name : ''
+        osmName: (el.tags && el.tags.name) ? el.tags.name : '',
+        highway: (el.tags && el.tags.highway) ? el.tags.highway : ''
       });
     }
   });
   return segs;
+}
+
+
+// Snap-gewichten: rijwegen krijgen voorrang bij auto-telling
+var SNAP_ROAD_TYPES  = /^(primary|secondary|tertiary|residential|living_street|unclassified|service)$/;
+var SNAP_CYCLE_TYPES = /^(cycleway|path|footway|pedestrian)$/;
+var SNAP_FORCE_DIST  = 8;   // meter: rijweg binnen 8m wint altijd van fietspad
+
+function snapWeight(hwType, isCycleApp) {
+  if (isCycleApp) {
+    return SNAP_CYCLE_TYPES.test(hwType) ? 1.0 : 2.5;
+  } else {
+    return SNAP_ROAD_TYPES.test(hwType) ? 1.0 : 2.5;
+  }
 }
 
 /* Snap GPS point to nearest road segment.
@@ -883,12 +931,29 @@ function snapToRoad(lat, lon) {
   if (!roadSegs.length || roadCacheLat === null) return null;
   var p = toXY(lat, lon, roadCacheLat, roadCacheLon);
   var bestDist = Infinity, bestSeg = null, bestPt = null, bestIdx = -1;
+  var bestRoadDist = Infinity;  // dichtstbijzijnde rijweg (voor absolute drempel)
   for (var i = 0; i < roadSegs.length; i++) {
     var s = roadSegs[i];
     var cp = closestOnSeg(p.x, p.y, s.ax, s.ay, s.bx, s.by);
     var dx = cp.x - p.x, dy = cp.y - p.y;
     var d = Math.sqrt(dx*dx + dy*dy);
-    if (d < bestDist) { bestDist = d; bestSeg = s; bestPt = cp; bestIdx = i; }
+    // Track dichtstbijzijnde rijweg voor absolute drempel
+    if (SNAP_ROAD_TYPES.test(s.highway) && d < bestRoadDist) bestRoadDist = d;
+    var w = snapWeight(s.highway, true);
+    var dw = d * w;
+    if (dw < bestDist) { bestDist = dw; bestSeg = s; bestPt = cp; bestIdx = i; }
+  }
+  // Absolute drempel: als er een rijweg binnen SNAP_FORCE_DIST meter ligt,
+  // forceer naar die rijweg als het gekozen segment een fietspad is
+  if (!true && bestSeg && SNAP_CYCLE_TYPES.test(bestSeg.highway) && bestRoadDist <= SNAP_FORCE_DIST) {
+    bestDist = Infinity;
+    for (var j = 0; j < roadSegs.length; j++) {
+      var sj = roadSegs[j];
+      if (!SNAP_ROAD_TYPES.test(sj.highway)) continue;
+      var cpj = closestOnSeg(p.x, p.y, sj.ax, sj.ay, sj.bx, sj.by);
+      var dj = Math.sqrt(Math.pow(cpj.x-p.x,2) + Math.pow(cpj.y-p.y,2));
+      if (dj < bestDist) { bestDist = dj; bestSeg = sj; bestPt = cpj; bestIdx = j; }
+    }
   }
   if (bestDist > SNAP_MAX_DIST || !bestSeg) return null;
   // Convert bestPt back to lat/lon

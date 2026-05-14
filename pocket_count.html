@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pocket Count</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --font: 'Oswald', sans-serif;
+    --c-car:   #c0392b;
+    --c-bike:  #2980b9;
+    --c-ped:   #8e44ad;
+  }
+
+  body {
+    font-family: var(--font);
+    height: 100vh;
+    overflow: hidden;
+    background: #111;
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── Keuze-scherm ── */
+  #choose-screen {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    background: #1a1918;
+    padding: 24px 20px;
+  }
+
+  #choose-screen h1 {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 28px;
+  }
+
+  .type-btns {
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .type-btn {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.1s, filter 0.1s;
+  }
+  .type-btn:active { transform: scale(0.97); filter: brightness(0.85); }
+
+  .type-btn .icon { font-size: 2rem; line-height: 1; flex-shrink: 0; }
+  .type-btn .lbl  {
+    font-family: var(--font);
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #fff;
+  }
+
+  /* ── Tel-scherm ── */
+  #count-screen {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+    cursor: pointer;
+  }
+
+  #count-screen.active { display: flex; }
+
+  #big-count {
+    font-size: 38vw;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -4px;
+    color: #fff;
+    pointer-events: none;
+    text-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+
+  #type-label {
+    font-size: 5vw;
+    font-weight: 600;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.45);
+    margin-top: 8px;
+    pointer-events: none;
+  }
+
+  /* Flash on tap */
+  #count-screen.flash { filter: brightness(1.7); }
+
+  /* Shake on undo */
+  @keyframes shake {
+    0%   { transform: scale(0.96); }
+    50%  { transform: scale(1.02); }
+    100% { transform: scale(1.00); }
+  }
+  #count-screen.shake { animation: shake 0.18s ease; }
+
+  /* ── Undo balk ── */
+  #undo-bar {
+    position: fixed;
+    top: 20px; left: 20px;
+    height: 40px;
+    width: 0;
+    background: rgba(255,255,255,0.15);
+    border-radius: 4px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #undo-fill {
+    height: 100%;
+    width: 0%;
+    background: rgba(255,255,255,0.5);
+  }
+  #undo-lbl {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.7);
+  }
+
+  /* ── Stop-knop ── */
+  #btn-stop {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.45);
+    border: 1.5px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.6);
+    font-family: var(--font);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 10px 22px;
+    border-radius: 30px;
+    cursor: pointer;
+    touch-action: manipulation;
+    z-index: 10;
+    white-space: nowrap;
+  }
+  #btn-stop:active { background: rgba(0,0,0,0.7); }
+
+  /* ── Terug-knop keuze ── */
+  #btn-back {
+    position: fixed;
+    top: 20px; right: 20px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.45);
+    font-family: var(--font);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    touch-action: manipulation;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<!-- Keuze-scherm -->
+<div id="choose-screen">
+  <h1>Wat tel je?</h1>
+  <div class="type-btns">
+    <button class="type-btn" style="background:var(--c-car)"   onclick="startTelling('car',  '&#x1F697;', 'Auto')">
+      <span class="icon">&#x1F697;</span><span class="lbl">Auto</span>
+    </button>
+    <button class="type-btn" style="background:var(--c-bike)"  onclick="startTelling('bike', '&#x1F6B2;', 'Fiets')">
+      <span class="icon">&#x1F6B2;</span><span class="lbl">Fiets</span>
+    </button>
+    <button class="type-btn" style="background:var(--c-ped)"   onclick="startTelling('ped',  '&#x1F6B6;', 'Voetganger')">
+      <span class="icon">&#x1F6B6;</span><span class="lbl">Voetganger</span>
+    </button>
+    <button class="type-btn" style="background:#555"            onclick="chooseOther()">
+      <span class="icon">&#x2753;</span><span class="lbl">Iets Anders</span>
+    </button>
+
+    <!-- Iets Anders invoer -->
+    <div id="other-row" style="display:none; flex-direction:column; gap:8px;">
+      <input id="other-input" type="text" placeholder="Wat tel je?"
+        style="width:100%;padding:14px 16px;font-family:var(--font);font-size:1rem;font-weight:600;
+               border:none;border-radius:6px;background:#333;color:#fff;outline:none;
+               letter-spacing:1px;"
+        oninput="updateOtherBtn()"
+        onkeydown="if(event.key==='Enter') confirmOther()">
+      <button id="other-confirm" onclick="confirmOther()"
+        style="width:100%;padding:14px;background:#555;border:none;border-radius:6px;
+               font-family:var(--font);font-size:0.85rem;font-weight:700;letter-spacing:2px;
+               text-transform:uppercase;color:rgba(255,255,255,0.4);cursor:pointer;"
+        disabled>
+        &#9654; Start
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Tel-scherm -->
+<div id="count-screen">
+  <div id="big-count">0</div>
+  <div id="type-label"></div>
+</div>
+
+<div id="undo-bar"><div id="undo-fill"></div><div id="undo-lbl">Undo</div></div>
+<button id="btn-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
+<button id="btn-back" style="display:none" onclick="backToChoose()">&#8592; Terug</button>
+
+<script>
+var telType     = null;
+var telLabel    = null;
+var telIcon     = null;
+var telCount    = 0;
+var telHistory  = [];   // [{ts, lat, lon}]
+var startTime   = null;
+var holdTimer   = null;
+var holdStart   = null;
+var wakeLock    = null;
+var watching    = null;
+var lastLat     = null, lastLon = null;
+var HOLD_MS     = 600;
+
+function pad(n){ return String(n).padStart(2,'0'); }
+
+function nowIso() {
+  var d = new Date();
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())
+    +'T'+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+}
+
+function fmtDate(d) {
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+
+function fmtTime(d) {
+  return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+}
+
+function genSid() {
+  var d = new Date();
+  var chars = 'abcdefghijklmnopqrstuvwxyz';
+  var rnd = [0,1,2].map(function(){ return chars[Math.floor(Math.random()*26)]; }).join('');
+  return pad(d.getFullYear())+pad(d.getMonth()+1)+pad(d.getDate())
+    +'_'+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds())
+    +'_'+rnd;
+}
+
+// ── GPS ──────────────────────────────────────────────────────────────────────
+function startGps() {
+  if (!navigator.geolocation) return;
+  watching = navigator.geolocation.watchPosition(
+    function(pos){ lastLat = pos.coords.latitude; lastLon = pos.coords.longitude; },
+    function(){},
+    { enableHighAccuracy: true, maximumAge: 3000 }
+  );
+}
+
+function stopGps() {
+  if (watching !== null) { navigator.geolocation.clearWatch(watching); watching = null; }
+}
+
+// ── Wake Lock ─────────────────────────────────────────────────────────────────
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+}
+
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+// ── Scherm-beheer ─────────────────────────────────────────────────────────────
+function chooseOther() {
+  var row = document.getElementById('other-row');
+  row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+  if (row.style.display === 'flex') {
+    setTimeout(function(){ document.getElementById('other-input').focus(); }, 80);
+  }
+}
+
+function updateOtherBtn() {
+  var val = document.getElementById('other-input').value.trim();
+  var btn = document.getElementById('other-confirm');
+  btn.disabled = !val;
+  btn.style.background = val ? '#333' : '#555';
+  btn.style.color = val ? '#fff' : 'rgba(255,255,255,0.4)';
+}
+
+function confirmOther() {
+  var val = document.getElementById('other-input').value.trim();
+  if (!val) return;
+  document.getElementById('other-row').style.display = 'none';
+  document.getElementById('other-input').value = '';
+  updateOtherBtn();
+  startTelling('other', '❓', val);
+}
+
+function startTelling(type, icon, label) {
+  telType    = type;
+  telLabel   = label;
+  telIcon    = icon;
+  telCount   = 0;
+  telHistory = [];
+  startTime  = new Date();
+
+  var color = getComputedStyle(document.documentElement).getPropertyValue('--c-' + type).trim();
+  var screen = document.getElementById('count-screen');
+  screen.style.background = color;
+  screen.classList.add('active');
+  document.getElementById('big-count').textContent = '0';
+  document.getElementById('type-label').textContent = label;
+  document.getElementById('choose-screen').style.display = 'none';
+  document.getElementById('btn-stop').style.display = '';
+  document.getElementById('btn-back').style.display = '';
+
+  // Touch handlers
+  screen.ontouchstart = function(e){ e.preventDefault(); startHold(); };
+  screen.ontouchend   = function(e){ e.preventDefault(); endHold(); };
+  screen.ontouchcancel= function(){ cancelHold(); };
+  screen.onmousedown  = function(){ startHold(); };
+  screen.onmouseup    = function(){ endHold(); };
+
+  acquireWakeLock();
+  startGps();
+}
+
+function backToChoose() {
+  if (telCount > 0 && !confirm('Weet je zeker? De telling (' + telCount + ') gaat verloren.')) return;
+  closeTelScreen();
+  document.getElementById('choose-screen').style.display = '';
+}
+
+function closeTelScreen() {
+  var screen = document.getElementById('count-screen');
+  screen.classList.remove('active');
+  screen.ontouchstart = screen.ontouchend = screen.ontouchcancel = null;
+  screen.onmousedown  = screen.onmouseup  = null;
+  document.getElementById('btn-stop').style.display = 'none';
+  document.getElementById('btn-back').style.display = 'none';
+  releaseWakeLock();
+  stopGps();
+  cancelHold();
+}
+
+// ── Tellen ────────────────────────────────────────────────────────────────────
+function startHold() {
+  holdStart = Date.now();
+  var bar  = document.getElementById('undo-bar');
+  var fill = document.getElementById('undo-fill');
+  bar.style.width = '130px';
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  requestAnimationFrame(function() {
+    fill.style.transition = 'width ' + HOLD_MS + 'ms linear';
+    fill.style.width = '100%';
+  });
+  holdTimer = setTimeout(doUndo, HOLD_MS);
+}
+
+function endHold() {
+  var held = Date.now() - (holdStart || Date.now());
+  cancelHold();
+  if (held < HOLD_MS - 50) doTap();
+}
+
+function cancelHold() {
+  if (holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+  var bar  = document.getElementById('undo-bar');
+  var fill = document.getElementById('undo-fill');
+  bar.style.width = '0';
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+}
+
+function doTap() {
+  telCount++;
+  telHistory.push({ ts: nowIso(), lat: lastLat, lon: lastLon });
+  document.getElementById('big-count').textContent = telCount;
+  if (navigator.vibrate) navigator.vibrate(25);
+  var s = document.getElementById('count-screen');
+  s.classList.add('flash');
+  setTimeout(function(){ s.classList.remove('flash'); }, 80);
+}
+
+function doUndo() {
+  if (telCount <= 0) { cancelHold(); return; }
+  telCount--;
+  telHistory.pop();
+  document.getElementById('big-count').textContent = telCount;
+  if (navigator.vibrate) navigator.vibrate([30,40,30]);
+  var s = document.getElementById('count-screen');
+  s.classList.add('shake');
+  setTimeout(function(){ s.classList.remove('shake'); }, 200);
+  cancelHold();
+}
+
+// ── Export ZIP ────────────────────────────────────────────────────────────────
+function stopTelling() {
+  var endTime = new Date();
+  var sid     = genSid() + '_pkt';
+  var datum   = fmtDate(startTime);
+  var start   = fmtTime(startTime);
+  var eind    = fmtTime(endTime);
+
+  // sessie.csv
+  var csvType = (telType === 'other') ? telLabel : telType;
+  var sessieCsv = 'sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen\n'
+    + [sid, datum, start, eind, 'pocket', csvType, telCount].join(';');
+
+  // telregels.csv
+  var telregelsCsv = 'sessie_id;nr;tijdstip;type;lat;lon\n';
+  telHistory.forEach(function(h, i) {
+    telregelsCsv += [sid, i+1, h.ts, csvType,
+      h.lat !== null ? h.lat.toFixed(6) : '',
+      h.lon !== null ? h.lon.toFixed(6) : ''
+    ].join(';') + '\n';
+  });
+
+  var zip = new JSZip();
+  zip.file(sid + '_sessie.csv',    sessieCsv);
+  zip.file(sid + '_telregels.csv', telregelsCsv);
+
+  zip.generateAsync({ type: 'blob' }).then(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a   = document.createElement('a');
+    a.href  = url;
+    a.download = sid + '.zip';
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  });
+
+  closeTelScreen();
+  document.getElementById('choose-screen').style.display = '';
+}
+</script>
+</body>
+</html>

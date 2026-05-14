@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZIP Format Reference — TrafficCounterSuite</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #f0f0ec;
+    --surface: #ffffff;
+    --border:  #b0b0a8;
+    --text:    #1a1918;
+    --dim:     #555550;
+    --muted:   #999990;
+    --font:    'Oswald', sans-serif;
+    --mono:    'Share Tech Mono', monospace;
+
+    --c-auto:       #c07800;
+    --c-fiets:      #2980b9;
+    --c-cap:        #8e44ad;
+    --c-transect:   #5500cc;
+    --c-pocket:     #d4007a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.6;
+    padding: 0 0 80px;
+  }
+
+  /* ── Header ── */
+  #header {
+    background: var(--text);
+    color: var(--bg);
+    padding: 28px 40px 24px;
+    border-bottom: 4px solid var(--text);
+  }
+  #header .back {
+    font-size: 0.62rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(240,240,236,0.45);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(240,240,236,0.2);
+    padding-bottom: 1px;
+    transition: color 0.15s;
+  }
+  #header .back:hover { color: rgba(240,240,236,0.8); }
+  #header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+  #header .sub {
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(240,240,236,0.45);
+    margin-top: 6px;
+  }
+
+  /* ── Intro ── */
+  .intro {
+    max-width: 860px;
+    margin: 32px 40px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--dim);
+    line-height: 1.7;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .intro code {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  /* ── Sections ── */
+  .section {
+    max-width: 860px;
+    margin: 36px 40px 0;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-radius: 4px 4px 0 0;
+    border: 2px solid var(--border);
+    border-bottom: none;
+  }
+
+  .app-tag {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 2px;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .section-header h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    flex: 1;
+  }
+
+  .section-header .filename-hint {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .section-body {
+    border: 2px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    overflow: hidden;
+  }
+
+  /* ── File list ── */
+  .file-list {
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .file-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .file-name {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--text);
+    flex-shrink: 0;
+    min-width: 220px;
+  }
+  .file-req {
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .file-req.required { background: #1a1918; color: #f0f0ec; }
+  .file-req.optional { background: var(--border); color: var(--dim); }
+  .file-desc {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--dim);
+  }
+
+  /* ── CSV blocks ── */
+  .csv-block {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .csv-block:last-child { border-bottom: none; }
+
+  .csv-title {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .csv-sample {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    background: #1a1918;
+    color: #a8d8a8;
+    padding: 10px 14px;
+    border-radius: 3px;
+    overflow-x: auto;
+    line-height: 1.6;
+    white-space: pre;
+  }
+
+  .csv-notes {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .csv-note {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--dim);
+    padding-left: 12px;
+    position: relative;
+  }
+  .csv-note::before {
+    content: '—';
+    position: absolute;
+    left: 0;
+    color: var(--muted);
+  }
+  .csv-note code {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: rgba(0,0,0,0.06);
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+
+  /* ── Summary table ── */
+  .summary-section {
+    max-width: 860px;
+    margin: 36px 40px 0;
+  }
+  .summary-section h2 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  th {
+    background: var(--text);
+    color: var(--bg);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    text-align: left;
+    white-space: nowrap;
+  }
+  td {
+    padding: 9px 14px;
+    border-top: 1px solid var(--border);
+    vertical-align: middle;
+    font-weight: 500;
+    color: var(--dim);
+  }
+  td:first-child {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text);
+  }
+  tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+  .check { color: var(--text); font-weight: 700; }
+  .opt   { color: var(--muted); }
+  .na    { color: var(--border); }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <a class="back" href="index.html">&#8592; Menu</a>
+  <h1>ZIP Format<br>Reference</h1>
+  <div class="sub">TrafficCounterSuite &mdash; telrapport.html input specification</div>
+</div>
+
+<div class="intro">
+  Telrapport.html accepts ZIP archives from any of the five survey apps. The app type is detected from the <code>app_type</code> field in <code>_sessie.csv</code>. Each type follows a different loading path and requires a different set of files. All CSV files use semicolon delimiters and UTF-8 encoding. File names must start with the session ID and end with the suffix shown below.
+</div>
+
+<!-- ── AUTO ── -->
+<div class="section">
+  <div class="section-header" style="border-color:#c07800">
+    <span class="app-tag" style="background:var(--c-auto)">auto</span>
+    <h2>Walk and Survey Parked Cars</h2>
+    <span class="filename-hint">*_car.zip</span>
+  </div>
+  <div class="section-body" style="border-color:#c07800">
+    <div class="file-list">
+      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata</span></div>
+      <div class="file-row"><span class="file-name">_straten.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Bezetting per straat — warmtekaart</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">OSM-wegvakgeometrie als WKT</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Individuele observaties voor hover-detail</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor (blauw stippelpad)</span></div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_sessie.csv</div>
+      <div class="csv-sample">sessie_id;teller;datum;start_tijd;eind_tijd;app_type;n_waarnemingen
+20260514_100500_qah;T01;2026-05-14;10:05;11:47;auto;284</div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_straten.csv</div>
+      <div class="csv-sample">sessie_id;naam;osm_way_ids;goed;fout;leeg;spec;bezet;vrij;bezettingsgraad_pct;eerste_waarneming;laatste_waarneming
+20260514_100500_qah;Voorstraat;12345|67890;14;2;8;1;17;8;68.0;10:07:22;11:32:14</div>
+      <div class="csv-notes">
+        <div class="csv-note"><code>osm_way_ids</code>: pipe-separated lijst van way-IDs die tot deze straatnaam behoren</div>
+        <div class="csv-note"><code>bezettingsgraad_pct</code>: decimaal getal, punt als scheidingsteken — basis voor de warmtekaart</div>
+      </div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_netwerk.csv</div>
+      <div class="csv-sample">osm_way_id;highway;geometrie_wkt
+12345;residential;LINESTRING (4.332000 51.852000, 4.333000 51.853000)</div>
+      <div class="csv-notes">
+        <div class="csv-note">WKT-coördinaten als <code>lon lat</code> (niet lat lon)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FIETS ── -->
+<div class="section">
+  <div class="section-header" style="border-color:#2980b9">
+    <span class="app-tag" style="background:var(--c-fiets)">fiets</span>
+    <h2>Walk and Survey Parked Bikes</h2>
+    <span class="filename-hint">*_fts.zip</span>
+  </div>
+  <div class="section-body" style="border-color:#2980b9">
+    <div class="file-list">
+      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata</span></div>
+      <div class="file-row"><span class="file-name">_straten.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Bezetting per straat — warmtekaart op √(totaal)</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">OSM-wegvakgeometrie als WKT</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Individuele observaties</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor</span></div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_straten.csv — afwijkende kolommen t.o.v. auto</div>
+      <div class="csv-sample">sessie_id;naam;osm_way_ids;fiets;brommer;breed;wrak;bezet;vrij;bezettingsgraad_pct;eerste_waarneming;laatste_waarneming</div>
+      <div class="csv-notes">
+        <div class="csv-note">Warmtekaart kleurt op √(fiets + brommer + breed + wrak)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CAPACITEIT ── -->
+<div class="section">
+  <div class="section-header" style="border-color:#8e44ad">
+    <span class="app-tag" style="background:var(--c-cap)">capaciteit</span>
+    <h2>Mapping Capacity Only</h2>
+    <span class="filename-hint">*_cap.zip</span>
+  </div>
+  <div class="section-body" style="border-color:#8e44ad">
+    <div class="file-list">
+      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata</span></div>
+      <div class="file-row"><span class="file-name">_capaciteit.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Capaciteitsaantallen per soort per way</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Aanbevolen</span><span class="file-desc">POLYGON WKT voor parkeervlakken — anders Overpass-call</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Individuele stippen bij klik op terrein</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor</span></div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_capaciteit.csv</div>
+      <div class="csv-sample">sessie_id;osm_way_id;naam;zijde;soort;capaciteit;eerste_waarneming;laatste_waarneming
+20260429_094659_mat;142108527;Damstraat;nvt;regulier;50;2026-04-29T07:46:42;2026-04-29T07:46:42
+20260429_094659_mat;142108527;Damstraat;nvt;gehandicapt;2;2026-04-29T07:46:42;2026-04-29T07:46:42</div>
+      <div class="csv-notes">
+        <div class="csv-note"><code>soort</code>: <code>regulier</code> / <code>gehandicapt</code> / <code>laadpaal</code> / <code>gereserveerd</code></div>
+        <div class="csv-note">Meerdere rijen per <code>osm_way_id</code> — één per soort</div>
+      </div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_netwerk.csv — capaciteit variant</div>
+      <div class="csv-sample">osm_way_id;highway;geometrie_wkt
+142108527;parking;POLYGON ((4.332000 51.852000, 4.333000 51.852000, 4.333000 51.853000, 4.332000 51.852000))
+987654321;residential;LINESTRING (4.335000 51.854000, 4.336000 51.855000)</div>
+      <div class="csv-notes">
+        <div class="csv-note"><code>highway=parking</code> + POLYGON → vlak direct getekend, geen Overpass nodig</div>
+        <div class="csv-note"><code>highway=residential</code> (etc.) + LINESTRING → wegvak-geometrie voor straat-modus</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TRANSECT ── -->
+<div class="section">
+  <div class="section-header" style="border-color:#5500cc">
+    <span class="app-tag" style="background:var(--c-transect)">transect</span>
+    <h2>Move and Count</h2>
+    <span class="filename-hint">*_trn.zip</span>
+  </div>
+  <div class="section-body" style="border-color:#5500cc">
+    <div class="file-list">
+      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Observaties per voertuig per richting</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor (blauw stippelpad)</span></div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_sessie.csv</div>
+      <div class="csv-sample">sessie_id;teller;datum;start_tijd;eind_tijd;app_type;n_waarnemingen
+20260514_113917_ard_trn;T01;2026-05-14;2026-05-14 11:38;2026-05-14 11:39;transect;11</div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_telregels.csv</div>
+      <div class="csv-sample">sessie_id;nr;tijdstip;type;richting;lat;lon;nauwkeurigheid
+20260514_113917_ard_trn;1;11:38:04;car;Noord;51.852540;4.332551;6.2</div>
+      <div class="csv-notes">
+        <div class="csv-note"><code>type</code>: <code>car</code> / <code>truck</code> / <code>moto</code> / <code>bike</code> / <code>ped</code></div>
+        <div class="csv-note"><code>richting</code>: vrije tekst — label zoals ingesteld door de teller (bijv. "Noord", "Centrum")</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── POCKET ── -->
+<div class="section">
+  <div class="section-header" style="border-color:#d4007a">
+    <span class="app-tag" style="background:var(--c-pocket)">pocket</span>
+    <h2>Move and Count Simple</h2>
+    <span class="filename-hint">*_pkt.zip</span>
+  </div>
+  <div class="section-body" style="border-color:#d4007a">
+    <div class="file-list">
+      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata incl. type en icoon</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Stippen op de kaart — alleen aanwezig als GPS-fix beschikbaar was</span></div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_sessie.csv</div>
+      <div class="csv-sample">sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen
+20260514_131611_lok_pkt;2026-05-14;13:15:44;13:16:11;pocket;fiets;42</div>
+      <div class="csv-notes">
+        <div class="csv-note"><code>type</code>: <code>car</code> / <code>bike</code> / <code>ped</code> / of vrije tekst bij "Iets Anders"</div>
+      </div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_telregels.csv</div>
+      <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon
+20260514_131611_lok_pkt;1;13:15:52;fiets;51.852540;4.332551</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Overzicht ── -->
+<div class="summary-section">
+  <h2>Overzicht — verplichte en optionele bestanden</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>app_type</th>
+        <th>_sessie</th>
+        <th>_straten</th>
+        <th>_netwerk</th>
+        <th>_capaciteit</th>
+        <th>_telregels</th>
+        <th>_gps</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>auto</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="na">&mdash;</td>
+        <td class="opt">optioneel</td>
+        <td class="opt">optioneel</td>
+      </tr>
+      <tr>
+        <td>fiets</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="na">&mdash;</td>
+        <td class="opt">optioneel</td>
+        <td class="opt">optioneel</td>
+      </tr>
+      <tr>
+        <td>capaciteit</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="na">&mdash;</td>
+        <td class="opt">aanbevolen</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="opt">optioneel</td>
+        <td class="opt">optioneel</td>
+      </tr>
+      <tr>
+        <td>transect</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="na">&mdash;</td>
+        <td class="na">&mdash;</td>
+        <td class="na">&mdash;</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="opt">optioneel</td>
+      </tr>
+      <tr>
+        <td>pocket</td>
+        <td class="check">&#10003; vereist</td>
+        <td class="na">&mdash;</td>
+        <td class="na">&mdash;</td>
+        <td class="na">&mdash;</td>
+        <td class="opt">optioneel</td>
+        <td class="na">&mdash;</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

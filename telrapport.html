@@ -335,6 +335,15 @@ const APP_CONFIG = {
                     bezet:'bezet', vrij:'vrij', bezettingsgraad_pct:'%' },
     detailClasses: { goed:'c-fiets', fout:'c-wrak', leeg:'c-muted', spec:'c-breed',
                      bezet:'c-tot', vrij:'c-muted', bezettingsgraad_pct:'c-tot' },
+  },
+  transect: {
+    types:  ['car','truck','moto','bike','ped'],
+    colors: { car:'#cc0000', truck:'#e07800', moto:'#e6b800', bike:'#7700cc', ped:'#d4007a' },
+    labels: { car:'auto', truck:'vracht', moto:'motor', bike:'fiets', ped:'voetg.' },
+    heatVal: function(s) { return Math.sqrt((s.totaal_a||0)+(s.totaal_b||0)) / Math.sqrt(50); },
+    detailCols: ['car','truck','moto','bike','ped'],
+    detailLabels: { car:'auto', truck:'vracht', moto:'motor', bike:'fiets', ped:'voetg.' },
+    detailClasses: { car:'c-fiets', truck:'c-wrak', moto:'c-breed', bike:'c-brom', ped:'c-tot' },
   }
 };
 
@@ -460,6 +469,7 @@ const telData       = {};   // sid → filtered snapped telregels
 let   capSpotLayers = [];   // tijdelijke spot-markers bij klik capaciteit
 let   timeFilterActive = false;
 let   currentTimeHour  = 10;
+const TYPES_TRANSECT = ['car','truck','moto','bike','ped'];
 const globalPolyMap = {};   // wayId → [[lat,lon],...] voor spatial join
 
 
@@ -472,6 +482,79 @@ let maxFietsTotaal  = 1;
 // ── UTILS ─────────────────────────────────────────────────────────
 const parseCSV = txt =>
   Papa.parse(txt.trim(), { header:true, delimiter:';', skipEmptyLines:true }).data;
+
+function loadTransectZip(sid, sm, telCSV, gpsCSV) {
+  sessions[sid] = { meta:sm, visible:true, appType:'transect' };
+  clusterLayers[sid] = [];
+  dotLayers[sid] = {};
+
+  const datum = fmtDatum(sm.datum, sm.start_tijd);
+
+  // GPS-spoor
+  if (gpsCSV) {
+    const coords = parseCSV(gpsCSV).map(r=>[+r.lat,+r.lon]).filter(c=>!isNaN(c[0]));
+    if (coords.length)
+      gpsLayers[sid] = L.polyline(coords, {color:'#4a9eff',weight:1.5,opacity:0.35,dashArray:'4 4'}).addTo(map);
+  }
+
+  // Observaties als stippen
+  if (telCSV) {
+    parseCSV(telCSV).forEach(function(r) {
+      const la = parseFloat(r.lat), lo = parseFloat(r.lon);
+      if (isNaN(la)||isNaN(lo)) return;
+      const type   = r.type || 'car';
+      const richting = r.richting || 'A';
+      const kleur  = APP_CONFIG.transect.colors[type] || '#888';
+      const m = L.circleMarker([la,lo], {
+        radius:5, color:'#fff', weight:1.5,
+        fillColor:kleur, fillOpacity:0.8, pane:'clusters'
+      }).bindTooltip((APP_CONFIG.transect.labels[type]||type)+' → '+richting+' · '+datum, {direction:'top'});
+      m.addTo(map);
+      if (!dotLayers[sid][type]) dotLayers[sid][type] = [];
+      dotLayers[sid][type].push(m);
+    });
+  }
+
+  renderSessions(); updateUI(); updateStats();
+
+  // Zoom naar GPS-spoor
+  if (gpsLayers[sid]) {
+    try { map.fitBounds(gpsLayers[sid].getBounds().pad(0.15)); } catch(e) {}
+  }
+}
+
+function loadPocketZip(sid, sm, telCSV) {
+  sessions[sid] = { meta:sm, visible:true, appType:'pocket' };
+  clusterLayers[sid] = [];
+  dotLayers[sid] = {};
+
+  const type    = sm.type   || 'other';
+  const label   = type;
+  const datum   = fmtDatum(sm.datum, sm.start_tijd);
+  const kleur   = { car:'#c0392b', bike:'#2980b9', ped:'#8e44ad', other:'#555' }[type] || '#555';
+
+  if (telCSV) {
+    parseCSV(telCSV).forEach(function(r) {
+      const la = parseFloat(r.lat), lo = parseFloat(r.lon);
+      if (isNaN(la)||isNaN(lo)) return;
+      const m = L.circleMarker([la,lo], {
+        radius:5, color:'#fff', weight:1.5,
+        fillColor: kleur, fillOpacity:0.85, pane:'clusters'
+      }).bindTooltip(label + ' · ' + datum, {direction:'top'});
+      m.addTo(map);
+      if (!dotLayers[sid][type]) dotLayers[sid][type] = [];
+      dotLayers[sid][type].push(m);
+    });
+  }
+
+  renderSessions(); updateUI(); updateStats();
+
+  // Zoom naar stippen
+  const alle = (dotLayers[sid][type]||[]);
+  if (alle.length) {
+    try { map.fitBounds(L.featureGroup(alle).getBounds().pad(0.2)); } catch(e) {}
+  }
+}
 
 function pointInPolygon(lat, lon, poly) {
   // Ray-casting algoritme
@@ -742,6 +825,27 @@ function showWegvakDetail(wid) {
 }
 
 function showClusterDetail(counts, total, sid, appType) {
+  if (appType === 'transect') {
+    const sm = (sessions[sid] && sessions[sid].meta) ? sessions[sid].meta : {};
+    const dirA = sm.dir_a || 'A', dirB = sm.dir_b || 'B';
+    document.getElementById('detail-title').textContent = 'Transect';
+    document.getElementById('detail-sub').textContent = fmtDatum(sm.datum, sm.start_tijd)+(sm.teller?' · '+sm.teller:'');
+    var html2 = '<table class="cmp-table"><tr><th>type</th><th>'+dirA+'</th><th>'+dirB+'</th><th>tot</th></tr>';
+    var totA=0, totB=0;
+    TYPES_TRANSECT.forEach(function(t) {
+      var a=counts[t+'_a']||0, b=counts[t+'_b']||0;
+      totA+=a; totB+=b;
+      if (a+b===0) return;
+      html2 += '<tr><td>'+(APP_CONFIG.transect.labels[t]||t)+'</td>'
+             + '<td style="text-align:right">'+a+'</td>'
+             + '<td style="text-align:right">'+b+'</td>'
+             + '<td style="text-align:right;font-weight:bold">'+(a+b)+'</td></tr>';
+    });
+    html2 += '<tr class="sum-row"><td>totaal</td><td style="text-align:right">'+totA+'</td><td style="text-align:right">'+totB+'</td><td style="text-align:right">'+(totA+totB)+'</td></tr></table>';
+    document.getElementById('detail-body').innerHTML = html2;
+    document.getElementById('detail-panel').classList.remove('hidden');
+    return;
+  }
   const datum=fmtDatum(sessions[sid]?.meta?.datum, sessions[sid]?.meta?.start_tijd);
   const cfg=APP_CONFIG[appType]||APP_CONFIG.fiets;
   document.getElementById('detail-title').textContent=`Parkeerlocatie · ${total} stuks`;
@@ -1005,12 +1109,26 @@ async function loadZip(file) {
   if (sessions[sid]) return;
 
   const appType = (sm.app_type||'').trim() === 'auto' ? 'auto'
+                : (sm.app_type||'').trim() === 'transect' ? 'transect'
+                : (sm.app_type||'').trim() === 'pocket' ? 'pocket'
                 : (sm.app_type||'').trim() === 'capaciteit' ? 'capaciteit'
                 : 'fiets';
 
   // Capaciteitssessie: apart pad
   if (appType === 'capaciteit') {
     loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV);
+    return;
+  }
+
+  // Transect-sessie: apart pad
+  if (appType === 'transect') {
+    loadTransectZip(sid, sm, telCSV, gpsCSV);
+    return;
+  }
+
+  // Pocket-sessie: apart pad
+  if (appType === 'pocket') {
+    loadPocketZip(sid, sm, telCSV);
     return;
   }
 
@@ -1092,6 +1210,32 @@ async function loadZip(file) {
   }
 
   // Stipjes + telregels voor clustering
+  // Transect: observaties als losse stippen op de kaart
+  if (appType === 'transect' && telCSV) {
+    const allRows = parseCSV(telCSV);
+    const datum = fmtDatum(sm.datum, sm.start_tijd);
+    const dirA = sm.dir_a || 'A', dirB = sm.dir_b || 'B';
+    allRows.forEach(function(r) {
+      const la = parseFloat(r.lat), lo = parseFloat(r.lon);
+      if (isNaN(la)||isNaN(lo)) return;
+      const type = r.type||'car';
+      const richting = r.richting||'A';
+      const kleur = APP_CONFIG.transect.colors[type]||'#888';
+      const m = L.circleMarker([la,lo], {
+        radius:5, color:'#fff', weight:1.5,
+        fillColor: kleur, fillOpacity:0.8, pane:'clusters'
+      }).bindTooltip(
+        (APP_CONFIG.transect.labels[type]||type)+' '+richting+' · '+datum,
+        {direction:'top'});
+      m.addTo(map);
+      if (!dotLayers[sid]) dotLayers[sid]={};
+      if (!dotLayers[sid][type]) dotLayers[sid][type]=[];
+      dotLayers[sid][type].push(m);
+    });
+    renderSessions(); updateUI(); updateStats();
+    return;
+  }
+
   if (telCSV) {
     const allRows=parseCSV(telCSV);
     const datum=fmtDatum(sm.datum, sm.start_tijd);

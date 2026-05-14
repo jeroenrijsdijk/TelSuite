@@ -181,7 +181,7 @@
   .ped   { --accent: var(--ped-col); }
 
   .btn-dir {
-    width: 58px; min-width: 58px; height: 100%;
+    width: 76px; min-width: 76px; height: 100%;
     border: none; background: var(--accent); color: #fff;
     font-family: 'Oswald', sans-serif; font-weight: 700;
     cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
@@ -190,11 +190,11 @@
     gap: 0; padding: 0; flex-shrink: 0;
   }
   .btn-dir .dir-sym  { font-size: 0.65rem; font-family: 'Share Tech Mono', monospace; letter-spacing: -1px; opacity: 0.85; line-height: 1.3; }
-  .btn-dir .dir-plus { font-size: 1.15rem; line-height: 1; }
+  .btn-dir .dir-plus { font-size: 1.4rem; line-height: 1; }
   .btn-dir:active { transform: scale(0.92); filter: brightness(0.85); }
 
   .btn-min {
-    width: 26px; min-width: 26px; height: 100%;
+    width: 30px; min-width: 30px; height: 100%;
     border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border);
     background: #eaeae6; color: var(--dim);
     font-size: 1rem; font-weight: 700;
@@ -219,10 +219,10 @@
     padding: 0 4px; background: #f7f7f3;
     border-top: 4px solid var(--accent);
     border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-    min-width: 44px; max-width: 50px; flex-shrink: 0;
+    min-width: 32px; max-width: 38px; flex-shrink: 0;
   }
   .card-center .lbl {
-    font-size: 1.6rem; line-height: 1; text-align: center;
+    font-size: 1.2rem; line-height: 1; text-align: center;
   }
 
   /* ── Map ── */
@@ -303,7 +303,6 @@
   <div class="header-links">
     <a class="header-link" href="index.html">&#8592; Menu</a>
     <div id="session-time">00:00:00</div>
-    <a class="header-link" href="traffic_counter.html">Static</a>
   </div>
 </header>
 
@@ -352,6 +351,7 @@
 <footer>
   <button class="btn-action undo" id="btn-undo-last" onclick="undoLast()" disabled>Undo Last</button>
   <button class="btn-action" onclick="exportCSV()">Export CSV</button>
+  <button class="btn-action" onclick="exportZip()">Export ZIP</button>
   <button class="btn-action danger" onclick="resetAll()">Reset</button>
 </footer>
 
@@ -371,7 +371,8 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
   const SEP = ';';
 
@@ -753,9 +754,59 @@
   function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
 
   // ── Counting ──
+  var LS_KEY = 'transect_draft';
+
+  function saveDraft() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        counts:    counts,
+        history:   history,
+        routeLog:  routeLog,
+        startTime: startTime ? startTime.toISOString() : null,
+        dirA:  document.getElementById('lbl-a').value,
+        dirB:  document.getElementById('lbl-b').value,
+        notes: document.getElementById('notes').value,
+      }));
+    } catch(e) {}
+  }
+
+  function clearDraft() {
+    try { localStorage.removeItem(LS_KEY); } catch(e) {}
+  }
+
+  function restoreDraft() {
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      if (!d || !d.history || !d.history.length) return;
+      if (!confirm('Niet-opgeslagen telling gevonden (' + d.history.length + ' observaties). Herstellen?')) {
+        clearDraft(); return;
+      }
+      counts    = d.counts;
+      history   = d.history;
+      routeLog  = d.routeLog || [];
+      startTime = d.startTime ? new Date(d.startTime) : new Date();
+      if (d.dirA) document.getElementById('lbl-a').value = d.dirA;
+      if (d.dirB) document.getElementById('lbl-b').value = d.dirB;
+      if (d.notes) document.getElementById('notes').value = d.notes;
+      state = 'running';
+      document.getElementById('btn-start').disabled = true;
+      document.getElementById('btn-end').disabled   = false;
+      document.getElementById('btn-undo-last').disabled = !history.length;
+      buildCards();
+      updateGrandTotal();
+      updateDirLabels();
+      updateSessionDisplay();
+      startTimer();
+      setStatus('Telling hersteld uit opslag.');
+    } catch(e) {}
+  }
+
   function adjust(type, dir, delta) {
     if (state !== 'running') return;
     counts[type][dir] = Math.max(0, counts[type][dir] + delta);
+    saveDraft();
     const el = document.getElementById('cnt-' + type + '-' + dir);
     el.textContent = counts[type][dir];
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
@@ -829,6 +880,7 @@
     clearInterval(routeInterval);
     stopGPS();
     releaseWakeLock();
+    clearDraft();
     state = 'idle'; startTime = null; endTime = null;
     history = []; routeLog = []; routeCoords = []; currentPos = null;
 
@@ -1039,6 +1091,87 @@
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
     a.download = 'transect_' + exportTs.replace(/[: ]/g, '-') + '.csv';
     a.click();
+    clearDraft();
+  }
+
+  function generateSessionId() {
+    var now = new Date();
+    var pad = function(n,l){ return String(n).padStart(l,'0'); };
+    var chars = 'abcdefghijklmnopqrstuvwxyz';
+    var rnd = Array.from({length:3},()=>chars[Math.floor(Math.random()*26)]).join('');
+    return pad(now.getFullYear(),4)+pad(now.getMonth()+1,2)+pad(now.getDate(),2)
+      +'_'+pad(now.getHours(),2)+pad(now.getMinutes(),2)+pad(now.getSeconds(),2)
+      +'_'+rnd;
+  }
+
+  function exportZip() {
+    if (!history.length) return;
+    const dirA   = document.getElementById('lbl-a').value || 'A';
+    const dirB   = document.getElementById('lbl-b').value || 'B';
+    const t0     = startTime;
+    const t1     = endTime || new Date();
+    const datum  = t0 ? t0.toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+    const startStr = t0 ? fmtLocalDateTime(t0).slice(0,16) : '';
+    const eindStr  = t1 ? fmtLocalDateTime(t1).slice(0,16) : '';
+    const sid    = generateSessionId() + '_trn';
+    const n      = history.length;
+
+    // sessie.csv
+    var sessieCsv = 'sessie_id;teller;datum;start_tijd;eind_tijd;app_type;n_waarnemingen\n';
+    sessieCsv += [sid, document.getElementById('notes').value||'', datum, startStr, eindStr, 'transect', n].join(';');
+
+    // telregels.csv — per observatie: type, richting, lat, lon
+    var telregelsCsv = 'sessie_id;nr;tijdstip;type;richting;lat;lon;nauwkeurigheid\n';
+    history.forEach(function(h, i) {
+      var richting = h.dir === 'a' ? dirA : dirB;
+      telregelsCsv += [sid, i+1, h.ts, h.type, richting,
+        h.lat !== null ? h.lat.toFixed(6) : '',
+        h.lon !== null ? h.lon.toFixed(6) : '',
+        h.acc !== null ? h.acc : ''].join(';') + '\n';
+    });
+
+    // samenvatting.csv — per type + richting
+    var samenvattingCsv = 'sessie_id;type;richting_a;richting_b;totaal\n';
+    var totA = 0, totB = 0;
+    TYPES.forEach(function(t) {
+      var a = counts[t.id].a, b = counts[t.id].b;
+      totA += a; totB += b;
+      samenvattingCsv += [sid, t.id, a, b, a+b].join(';') + '\n';
+    });
+    samenvattingCsv += [sid, 'TOTAAL', totA, totB, totA+totB].join(';') + '\n';
+
+    // gps.csv
+    var gpsCsv = 'sessie_id;tijdstip;lat;lon;nauwkeurigheid\n';
+    routeLog.forEach(function(p) {
+      gpsCsv += [sid, p.ts, p.lat.toFixed(6), p.lon.toFixed(6), p.acc].join(';') + '\n';
+    });
+
+    // GPX
+    var gpxLines = ['<?xml version="1.0" encoding="UTF-8"?>',
+      '<gpx version="1.1" creator="TrafficCounterSuite">',
+      '  <trk><name>Transect ' + datum + '</name><trkseg>'];
+    routeLog.forEach(function(p) {
+      gpxLines.push('    <trkpt lat="' + p.lat.toFixed(6) + '" lon="' + p.lon.toFixed(6) + '">');
+      gpxLines.push('      <time>' + p.ts + '</time></trkpt>');
+    });
+    gpxLines.push('  </trkseg></trk></gpx>');
+
+    var zip = new JSZip();
+    zip.file(sid + '_sessie.csv',      sessieCsv);
+    zip.file(sid + '_telregels.csv',   telregelsCsv);
+    zip.file(sid + '_samenvatting.csv',samenvattingCsv);
+    zip.file(sid + '_gps.csv',         gpsCsv);
+    zip.file(sid + '.gpx',             gpxLines.join('\n'));
+
+    zip.generateAsync({type:'blob'}).then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a   = document.createElement('a');
+      a.href  = url;
+      clearDraft();
+      a.download = sid + '.zip';
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    });
   }
 
   // ── Keyboard shortcuts ──
@@ -1071,6 +1204,9 @@
   }
 
   buildCards();
+
+
+  restoreDraft();
 </script>
 </body>
 </html>
