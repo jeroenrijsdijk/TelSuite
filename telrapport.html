@@ -1273,7 +1273,7 @@ function renderSessions() {
   Object.keys(sessions).sort().reverse().forEach(sid=>{
     const s=sessions[sid];
     const datum=fmtDatum(s.meta.datum, s.meta.start_tijd);
-    const typeLabel=s.appType==='auto'?'🚗':s.appType==='capaciteit'?'🅿':'🚲';
+    const typeLabel=s.appType==='auto'?'🚗':s.appType==='capaciteit'?'🅿':s.appType==='transect'?'🚶':s.appType==='pocket'?'📷':'🚲';
     const row=document.createElement('div');
     row.className='session-row';
     row.innerHTML=`
@@ -1298,6 +1298,12 @@ document.getElementById('sessions-list').addEventListener('click',e=>{
   if (capLayers[sid]) capLayers[sid].forEach(m=>sessions[sid].visible?m.addTo(map):map.removeLayer(m));
   const cfg=APP_CONFIG[sessions[sid].appType]||APP_CONFIG.fiets;
   cfg.types.forEach(type=>showHideDots(sid,type,dotVisible[type]));
+  // Transect/pocket: dots zitten in dotLayers maar niet in APP_CONFIG types
+  if (sessions[sid].appType==='transect'||sessions[sid].appType==='pocket') {
+    Object.keys(dotLayers[sid]||{}).forEach(function(type) {
+      showHideDots(sid, type, sessions[sid].visible);
+    });
+  }
   drawClusters(sid);
   recolorAll();
   updateStats();
@@ -1461,10 +1467,12 @@ map.on('moveend', function() { if (timeFilterActive) drawTimeDots(); });
 
 // ── UI ZICHTBAARHEID ─────────────────────────────────────────────
 function updateUI() {
-  const hasFiets=Object.values(sessions).some(s=>s.appType==='fiets');
-  const hasAuto =Object.values(sessions).some(s=>s.appType==='auto');
-  const hasCap  =Object.values(sessions).some(s=>s.appType==='capaciteit');
-  const hasAny  =hasFiets||hasAuto||hasCap;
+  const hasFiets    =Object.values(sessions).some(s=>s.appType==='fiets');
+  const hasAuto     =Object.values(sessions).some(s=>s.appType==='auto');
+  const hasCap      =Object.values(sessions).some(s=>s.appType==='capaciteit');
+  const hasTransect =Object.values(sessions).some(s=>s.appType==='transect');
+  const hasPocket   =Object.values(sessions).some(s=>s.appType==='pocket');
+  const hasAny  =hasFiets||hasAuto||hasCap||hasTransect||hasPocket;
 
   document.getElementById('statsbar').style.display           = hasAny  ?'flex':'none';
   document.getElementById('toggles-fiets').style.display      = hasFiets?'block':'none';
