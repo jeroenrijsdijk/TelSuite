@@ -485,6 +485,7 @@ const parseCSV = txt =>
 
 function loadTransectZip(sid, sm, telCSV, gpsCSV) {
   sessions[sid] = { meta:sm, visible:true, appType:'transect' };
+  getSessionColor(sid);
   clusterLayers[sid] = [];
   dotLayers[sid] = {};
 
@@ -497,14 +498,21 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
       gpsLayers[sid] = L.polyline(coords, {color:'#4a9eff',weight:1.5,opacity:0.35,dashArray:'4 4'}).addTo(map);
   }
 
-  // Observaties als stippen
+  // Observaties: wayData vullen als osm_way_id beschikbaar, anders losse stippen
   if (telCSV) {
-    parseCSV(telCSV).forEach(function(r) {
+    var rows = parseCSV(telCSV);
+    var hasSnap = rows.some(function(r){ return r.osm_way_id && r.osm_way_id.trim(); });
+
+    rows.forEach(function(r) {
       const la = parseFloat(r.lat), lo = parseFloat(r.lon);
       if (isNaN(la)||isNaN(lo)) return;
-      const type   = r.type || 'car';
-      const richting = r.richting || 'A';
-      const kleur  = APP_CONFIG.transect.colors[type] || '#888';
+      const type    = r.type || 'car';
+      const richting= r.richting || 'A';
+      const kleur   = APP_CONFIG.transect.colors[type] || '#888';
+      const wid     = r.osm_way_id ? r.osm_way_id.trim() : null;
+      const naam    = r.straat || r.osmName || '';
+
+      // Stip op de kaart
       const m = L.circleMarker([la,lo], {
         radius:5, color:'#fff', weight:1.5,
         fillColor:kleur, fillOpacity:0.8, pane:'clusters'
@@ -512,7 +520,49 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
       m.addTo(map);
       if (!dotLayers[sid][type]) dotLayers[sid][type] = [];
       dotLayers[sid][type].push(m);
+
+      // wayData vullen voor clustering
+      if (wid) {
+        if (!wayData[wid]) wayData[wid] = { geometry:[[la,lo],[la,lo]], highway:'', sessions:[], osmName:naam };
+        let ws = wayData[wid].sessions.find(function(s){ return s.sid===sid; });
+        if (!ws) {
+          ws = { sid:sid, appType:'transect', naam:naam };
+          TYPES_TRANSECT.forEach(function(t){ ws[t]=0; ws[t+'_a']=0; ws[t+'_b']=0; });
+          ws.totaal_a=0; ws.totaal_b=0;
+          wayData[wid].sessions.push(ws);
+        }
+        ws[type] = (ws[type]||0)+1;
+        if (richting !== 'B') { ws[type+'_a']=(ws[type+'_a']||0)+1; ws.totaal_a++; }
+        else                  { ws[type+'_b']=(ws[type+'_b']||0)+1; ws.totaal_b++; }
+      }
     });
+
+    // Wegvak-geometrie ophalen via netCSV als die er is
+    if (hasSnap) {
+      var wayIds = Object.keys(wayData).filter(function(wid){
+        return wayData[wid].sessions.some(function(s){ return s.sid===sid; });
+      });
+      // Probeer geometrie te laden van bestaand netwerk
+      var missingGeom = wayIds.filter(function(wid){
+        var g = wayData[wid].geometry;
+        return !g || (g.length===2 && g[0][0]===g[1][0] && g[0][1]===g[1][1]);
+      });
+      if (missingGeom.length) {
+        var query='[out:json][timeout:10];way(id:'+missingGeom.join(',')+');out geom;';
+        fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(query))
+          .then(function(r){return r.json();})
+          .then(function(data){
+            (data.elements||[]).forEach(function(el){
+              var wid=String(el.id);
+              if (wayData[wid]&&el.geometry) {
+                wayData[wid].geometry = el.geometry.map(function(p){return[p.lat,p.lon];});
+                wayLayers[wid] = L.polyline(wayData[wid].geometry, {color:'#5500cc',weight:3,opacity:0.6}).addTo(map);
+              }
+            });
+            drawClusters(sid);
+          }).catch(function(){});
+      }
+    }
   }
 
   renderSessions(); updateUI(); updateStats();
@@ -525,6 +575,7 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
 
 function loadPocketZip(sid, sm, telCSV) {
   sessions[sid] = { meta:sm, visible:true, appType:'pocket' };
+  getSessionColor(sid);
   clusterLayers[sid] = [];
   dotLayers[sid] = {};
 
@@ -534,7 +585,8 @@ function loadPocketZip(sid, sm, telCSV) {
   const kleur   = { car:'#c0392b', bike:'#2980b9', ped:'#8e44ad', other:'#555' }[type] || '#555';
 
   if (telCSV) {
-    parseCSV(telCSV).forEach(function(r) {
+    var prows = parseCSV(telCSV);
+    prows.forEach(function(r) {
       const la = parseFloat(r.lat), lo = parseFloat(r.lon);
       if (isNaN(la)||isNaN(lo)) return;
       const m = L.circleMarker([la,lo], {
@@ -544,6 +596,21 @@ function loadPocketZip(sid, sm, telCSV) {
       m.addTo(map);
       if (!dotLayers[sid][type]) dotLayers[sid][type] = [];
       dotLayers[sid][type].push(m);
+
+      // wayData vullen als snap beschikbaar
+      var wid = r.osm_way_id ? r.osm_way_id.trim() : null;
+      var naam = r.straat || '';
+      if (wid) {
+        if (!wayData[wid]) wayData[wid] = { geometry:[[la,lo],[la,lo]], highway:'', sessions:[], osmName:naam };
+        var ws = wayData[wid].sessions.find(function(s){ return s.sid===sid; });
+        if (!ws) {
+          ws = { sid:sid, appType:'pocket', naam:naam };
+          ws[type]=0; ws.totaal=0;
+          wayData[wid].sessions.push(ws);
+        }
+        ws[type] = (ws[type]||0)+1;
+        ws.totaal = (ws.totaal||0)+1;
+      }
     });
   }
 
@@ -655,6 +722,36 @@ function projectOnPolyline(lat, lon, geometry) {
 }
 
 // ── GAP CLUSTERING ────────────────────────────────────────────────
+// Haversine in meters tussen twee lat/lon punten
+function haversinePt(la1, lo1, la2, lo2) {
+  var R = 6371000;
+  var dLa = (la2-la1)*Math.PI/180, dLo = (lo2-lo1)*Math.PI/180;
+  var a = Math.sin(dLa/2)*Math.sin(dLa/2)
+        + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)
+        * Math.sin(dLo/2)*Math.sin(dLo/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// Greedy afstandsclustering voor losse punten (geen OSM-lijn nodig)
+function pointCluster(points, radius) {
+  var used = new Array(points.length).fill(false);
+  var clusters = [];
+  for (var i = 0; i < points.length; i++) {
+    if (used[i]) continue;
+    var group = [points[i]];
+    used[i] = true;
+    for (var j = i+1; j < points.length; j++) {
+      if (used[j]) continue;
+      if (haversinePt(points[i].lat, points[i].lon, points[j].lat, points[j].lon) <= radius) {
+        group.push(points[j]);
+        used[j] = true;
+      }
+    }
+    clusters.push(group);
+  }
+  return clusters;
+}
+
 function gapCluster(items, threshold) {
   if (!items.length) return [];
   items.sort((a,b)=>a.pos-b.pos);
@@ -668,12 +765,185 @@ function gapCluster(items, threshold) {
 }
 
 // ── DRAW CLUSTERS ─────────────────────────────────────────────────
+function makePtClusterMarker(group, sid, appType, sessionColor) {
+  var centLat = group.reduce(function(a,p){return a+p.lat;},0)/group.length;
+  var centLon = group.reduce(function(a,p){return a+p.lon;},0)/group.length;
+  var counts = {}; var sessionCounts = {};
+  group.forEach(function(p) {
+    counts[p.type] = (counts[p.type]||0)+1;
+    var sk = p.sid||sid;
+    if (!sessionCounts[sk]) sessionCounts[sk] = {};
+    sessionCounts[sk][p.type] = (sessionCounts[sk][p.type]||0)+1;
+  });
+  var total = group.length;
+  var dominant = Object.entries(counts).sort(function(a,b){return b[1]-a[1];})[0][0];
+  var nSessions = Object.keys(sessionCounts).length;
+  var size = Math.round((6 + Math.sqrt(total)*3.2)*2);
+  var fontSize = total < 10 ? 13 : total < 100 ? 11 : 9;
+
+  var bgStyle;
+  if (nSessions >= 2) {
+    // Twee-sessie: diagonaal verdeeld
+    var sids = Object.keys(sessionCounts);
+    var c1 = SESSION_COLORS[sids[0]] || '#555';
+    var c2 = SESSION_COLORS[sids[1]] || '#888';
+    bgStyle = 'background:linear-gradient(135deg,'+c1+' 50%,'+c2+' 50%)';
+  } else {
+    var clr = sessionColor || APP_CONFIG.transect.colors[dominant] || '#555';
+    bgStyle = 'background:'+clr;
+  }
+
+  var tipLines = [];
+  Object.keys(sessionCounts).forEach(function(sk) {
+    var sm = sessions[sk] && sessions[sk].meta;
+    var datum = sm ? fmtDatum(sm.datum, sm.start_tijd) : sk;
+    var breakdown = Object.entries(sessionCounts[sk])
+      .sort(function(a,b){return b[1]-a[1];})
+      .map(function(e){return e[0]+':'+e[1];}).join(' · ');
+    tipLines.push(datum + ' — ' + breakdown);
+  });
+
+  var icon = L.divIcon({
+    className: '',
+    html: '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;'+bgStyle+';'
+        + 'border:2px solid rgba(255,255,255,0.85);opacity:0.92;'
+        + 'display:flex;align-items:center;justify-content:center;'
+        + 'font-family:Oswald,sans-serif;font-size:'+fontSize+'px;font-weight:700;'
+        + 'color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.5);'
+        + 'transform:translate(-50%,-50%);box-sizing:border-box;'
+        + 'box-shadow:0 2px 8px rgba(0,0,0,0.3);">'
+        + total + '</div>',
+    iconSize: [0,0], iconAnchor: [0,0]
+  });
+
+  var m = L.marker([centLat, centLon], { icon: icon, pane:'clusters', interactive:true })
+    .bindTooltip(tipLines.join('<br>'), { permanent:false, direction:'top',
+      offset:[0,-size/2], className:'cluster-label' })
+    .on('click', function() { showPtClusterDetail(counts, sessionCounts, total, appType); })
+    .on('mouseover', function() {
+      if (nSessions < 2) {
+        // Dim andere sessies
+        Object.keys(dotLayers).forEach(function(osid) {
+          if (Object.keys(sessionCounts).indexOf(osid)>=0) return;
+          Object.values(dotLayers[osid]||{}).forEach(function(arr) {
+            arr.forEach(function(dot){ var el=dot.getElement&&dot.getElement(); if(el) el.style.opacity='0.12'; });
+          });
+        });
+        Object.keys(clusterLayers).forEach(function(osid) {
+          if (Object.keys(sessionCounts).indexOf(osid)>=0) return;
+          (clusterLayers[osid]||[]).forEach(function(mk){ var el=mk.getElement&&mk.getElement(); if(el) el.style.opacity='0.12'; });
+        });
+      }
+    })
+    .on('mouseout', function() {
+      Object.values(dotLayers).forEach(function(types) {
+        Object.values(types||{}).forEach(function(arr) {
+          arr.forEach(function(dot){ var el=dot.getElement&&dot.getElement(); if(el) el.style.opacity=''; });
+        });
+      });
+      Object.values(clusterLayers).forEach(function(arr) {
+        (arr||[]).forEach(function(mk){ var el=mk.getElement&&mk.getElement(); if(el) el.style.opacity=''; });
+      });
+    });
+  return m;
+}
+
+// Kleurenmap per sessie (wordt gevuld bij laden)
+var SESSION_COLORS = {};
+var SESSION_COLOR_PALETTE = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#34495e'];
+var SESSION_COLOR_IDX = 0;
+
+function getSessionColor(sid) {
+  if (!SESSION_COLORS[sid]) {
+    SESSION_COLORS[sid] = SESSION_COLOR_PALETTE[SESSION_COLOR_IDX % SESSION_COLOR_PALETTE.length];
+    SESSION_COLOR_IDX++;
+  }
+  return SESSION_COLORS[sid];
+}
+
+function showPtClusterDetail(counts, sessionCounts, total, appType) {
+  document.getElementById('detail-title').textContent = appType === 'pocket' ? 'Pocket telling' : 'Transect telling';
+  var html2 = '';
+  // Per sessie
+  Object.keys(sessionCounts).forEach(function(sk) {
+    var sm = sessions[sk] && sessions[sk].meta;
+    var datum = sm ? fmtDatum(sm.datum, sm.start_tijd) : sk;
+    var teller = (sm && sm.teller) ? ' · ' + sm.teller : '';
+    var subTotal = Object.values(sessionCounts[sk]).reduce(function(a,b){return a+b;},0);
+    html2 += '<div style="font-size:11px;color:var(--muted);margin:6px 0 2px;letter-spacing:1px;text-transform:uppercase;">'+datum+teller+'</div>';
+    html2 += '<table class="cmp-table"><tr><th>type</th><th>aantal</th><th>%</th></tr>';
+    Object.entries(sessionCounts[sk]).sort(function(a,b){return b[1]-a[1];}).forEach(function(e) {
+      html2 += '<tr><td>'+e[0]+'</td><td style="text-align:right">'+e[1]+'</td>'
+             + '<td style="text-align:right;color:var(--muted)">'+Math.round(e[1]/subTotal*100)+'%</td></tr>';
+    });
+    html2 += '<tr class="sum-row"><td>subtotaal</td><td style="text-align:right">'+subTotal+'</td><td></td></tr></table>';
+  });
+  // Gecombineerd totaal als >1 sessie
+  if (Object.keys(sessionCounts).length > 1) {
+    html2 += '<div style="font-size:11px;color:var(--muted);margin:8px 0 2px;letter-spacing:1px;text-transform:uppercase;">Gecombineerd</div>';
+    html2 += '<table class="cmp-table"><tr><th>type</th><th>totaal</th></tr>';
+    Object.entries(counts).sort(function(a,b){return b[1]-a[1];}).forEach(function(e) {
+      html2 += '<tr><td>'+e[0]+'</td><td style="text-align:right">'+e[1]+'</td></tr>';
+    });
+    html2 += '<tr class="sum-row"><td>totaal</td><td style="text-align:right">'+total+'</td></tr></table>';
+  }
+  document.getElementById('detail-sub').textContent = total + ' observaties';
+  document.getElementById('detail-body').innerHTML = html2;
+  document.getElementById('detail-panel').classList.remove('hidden');
+}
+
+var combinedClusterLayer = [];
+
+function drawCombinedPtClusters() {
+  combinedClusterLayer.forEach(function(m){ map.removeLayer(m); });
+  combinedClusterLayer = [];
+  if (!clustersVisible) return;
+
+  var points = [];
+  Object.keys(sessions).forEach(function(sid) {
+    var s = sessions[sid];
+    if (!s.visible) return;
+    if (s.appType !== 'transect' && s.appType !== 'pocket') return;
+    var clr = getSessionColor(sid);
+    Object.values(dotLayers[sid]||{}).forEach(function(arr) {
+      arr.forEach(function(dot) {
+        if (!dot.getLatLng) return;
+        var ll = dot.getLatLng();
+        // haal type uit tooltip
+        var tip = dot.getTooltip ? dot.getTooltip() : null;
+        var type = tip ? (tip.getContent().split(' ')[0]||'?') : '?';
+        points.push({ lat:ll.lat, lon:ll.lng, sid:sid, type:type, color:clr });
+      });
+    });
+  });
+
+  if (!points.length) return;
+
+  var clusters = pointCluster(points, gapThreshold);
+  clusters.forEach(function(group) {
+    var nSessions = new Set(group.map(function(p){return p.sid;})).size;
+    var firstSid = group[0].sid;
+    var clr = nSessions === 1 ? getSessionColor(firstSid) : null;
+    var m = makePtClusterMarker(group, firstSid, sessions[firstSid].appType, clr);
+    m.addTo(map);
+    combinedClusterLayer.push(m);
+  });
+}
+
 function drawClusters(sid) {
   (clusterLayers[sid]||[]).forEach(m=>map.removeLayer(m));
   clusterLayers[sid]=[];
   if (!clustersVisible || !sessions[sid]?.visible) return;
-  const rows = telData[sid]; if (!rows || !rows.length) return;
   const appType = sessions[sid].appType;
+
+  // Transect/pocket: gebruik punt-clustering
+  if (appType === 'transect' || appType === 'pocket') {
+    // Gecombineerde clustering herrekenen
+    drawCombinedPtClusters();
+    return;
+  }
+
+  const rows = telData[sid]; if (!rows || !rows.length) return;
   const cfg = APP_CONFIG[appType] || APP_CONFIG.fiets;
 
   const groups = {};
@@ -772,6 +1042,8 @@ function drawClusters(sid) {
 }
 
 function redrawAllClusters() {
+  combinedClusterLayer.forEach(function(m){ map.removeLayer(m); });
+  combinedClusterLayer = [];
   Object.keys(sessions).forEach(sid=>drawClusters(sid));
 }
 

@@ -286,7 +286,7 @@ function genSid() {
 function startGps() {
   if (!navigator.geolocation) return;
   watching = navigator.geolocation.watchPosition(
-    function(pos){ lastLat = pos.coords.latitude; lastLon = pos.coords.longitude; },
+    function(pos){ lastLat = pos.coords.latitude; lastLon = pos.coords.longitude; snapCheckRefresh(lastLat, lastLon); },
     function(){},
     { enableHighAccuracy: true, maximumAge: 3000 }
   );
@@ -411,7 +411,10 @@ function cancelHold() {
 
 function doTap() {
   telCount++;
-  telHistory.push({ ts: nowIso(), lat: lastLat, lon: lastLon });
+  var _snap = (lastLat!==null) ? snapNearestWay(lastLat, lastLon) : null;
+  telHistory.push({ ts: nowIso(), lat: lastLat, lon: lastLon,
+    wayId:   _snap ? _snap.wayId   : '',
+    osmName: _snap ? _snap.osmName : '' });
   document.getElementById('big-count').textContent = telCount;
   if (navigator.vibrate) navigator.vibrate(25);
   var s = document.getElementById('count-screen');
@@ -445,11 +448,13 @@ function stopTelling() {
     + [sid, datum, start, eind, 'pocket', csvType, telCount].join(';');
 
   // telregels.csv
-  var telregelsCsv = 'sessie_id;nr;tijdstip;type;lat;lon\n';
+  var telregelsCsv = 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;straat\n';
   telHistory.forEach(function(h, i) {
     telregelsCsv += [sid, i+1, h.ts, csvType,
       h.lat !== null ? h.lat.toFixed(6) : '',
-      h.lon !== null ? h.lon.toFixed(6) : ''
+      h.lon !== null ? h.lon.toFixed(6) : '',
+      h.wayId  || '',
+      h.osmName|| ''
     ].join(';') + '\n';
   });
 
@@ -469,6 +474,99 @@ function stopTelling() {
   closeTelScreen();
   document.getElementById('choose-screen').style.display = '';
 }
+
+// ── OSM SNAP MODULE (transect/pocket variant) ─────────────────────────────────
+// Vereenvoudigd t.o.v. parkeertelling: geen L/R weging, geen minimap,
+// geen kompas-fusie. Graceful degradeert als Overpass niet bereikbaar is.
+
+var SNAP_ROAD_FETCH_RADIUS = 250;
+var SNAP_MAX_M             = 50;
+var SNAP_OVERPASS          = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+
+var snapSegs     = [];
+var snapCacheLat = null, snapCacheLon = null;
+var snapReady    = false;
+
+function snapToXY(lat, lon, refLat, refLon) {
+  var cos = Math.cos(refLat * Math.PI / 180);
+  return { x:(lon-refLon)*111320*cos, y:(lat-refLat)*111320 };
+}
+
+function snapClosest(px,py,ax,ay,bx,by) {
+  var dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy;
+  if (l2===0) return {x:ax,y:ay};
+  var t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
+  return {x:ax+t*dx, y:ay+t*dy};
+}
+
+function snapBuildSegs(elements, refLat, refLon) {
+  var segs=[];
+  elements.forEach(function(el) {
+    if (el.type!=='way'||!el.geometry||el.geometry.length<2) return;
+    for (var i=0;i<el.geometry.length-1;i++) {
+      var a=el.geometry[i], b=el.geometry[i+1];
+      if (!a||!b) continue;
+      var axy=snapToXY(a.lat,a.lon,refLat,refLon);
+      var bxy=snapToXY(b.lat,b.lon,refLat,refLon);
+      segs.push({
+        ax:axy.x,ay:axy.y,bx:bxy.x,by:bxy.y,
+        wayId:String(el.id),
+        osmName:(el.tags&&el.tags.name)||'',
+        highway:(el.tags&&el.tags.highway)||''
+      });
+    }
+  });
+  return segs;
+}
+
+function snapNearestWay(lat, lon) {
+  if (!snapSegs.length || snapCacheLat===null) return null;
+  var p = snapToXY(lat, lon, snapCacheLat, snapCacheLon);
+  var bestD=Infinity, bestSeg=null, bestPt=null;
+  for (var i=0;i<snapSegs.length;i++) {
+    var s=snapSegs[i];
+    var cp=snapClosest(p.x,p.y,s.ax,s.ay,s.bx,s.by);
+    var d=Math.sqrt((cp.x-p.x)*(cp.x-p.x)+(cp.y-p.y)*(cp.y-p.y));
+    if (d<bestD) { bestD=d; bestSeg=s; bestPt=cp; }
+  }
+  if (bestD>SNAP_MAX_M||!bestSeg) return null;
+  var cos=Math.cos(snapCacheLat*Math.PI/180);
+  return {
+    lat: snapCacheLat+bestPt.y/111320,
+    lon: snapCacheLon+bestPt.x/(111320*cos),
+    wayId: bestSeg.wayId,
+    osmName: bestSeg.osmName
+  };
+}
+
+function snapFetchNetwork(lat, lon, attempt) {
+  if (attempt===undefined) attempt=0;
+  if (attempt>=SNAP_OVERPASS.length*2) return;
+  var epIdx=attempt%SNAP_OVERPASS.length;
+  var query='[out:json][timeout:8];way["highway"~"residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path"]["area"!="yes"](around:'+SNAP_ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out tags geom;';
+  fetch(SNAP_OVERPASS[epIdx]+'?data='+encodeURIComponent(query))
+    .then(function(r){ return r.ok?r.json():Promise.reject(r.status); })
+    .then(function(data) {
+      if (!data.elements||!data.elements.length) throw new Error('geen wegen');
+      snapCacheLat=lat; snapCacheLon=lon;
+      snapSegs=snapBuildSegs(data.elements,lat,lon);
+      snapReady=true;
+    })
+    .catch(function(){ snapFetchNetwork(lat,lon,attempt+1); });
+}
+
+var _snapRefreshTimer = null;
+function snapCheckRefresh(lat, lon) {
+  if (snapCacheLat===null) { snapFetchNetwork(lat,lon); return; }
+  var cos=Math.cos(snapCacheLat*Math.PI/180);
+  var dx=(lon-snapCacheLon)*111320*cos, dy=(lat-snapCacheLat)*111320;
+  if (Math.sqrt(dx*dx+dy*dy) > SNAP_ROAD_FETCH_RADIUS*0.6) {
+    if (_snapRefreshTimer) clearTimeout(_snapRefreshTimer);
+    _snapRefreshTimer = setTimeout(function(){ snapFetchNetwork(lat,lon); }, 600);
+  }
+}
+// ── EINDE SNAP MODULE ─────────────────────────────────────────────────────────
+
 </script>
 </body>
 </html>
