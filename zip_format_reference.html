@@ -435,7 +435,10 @@
   <div class="section-body" style="border-color:#d4007a">
     <div class="file-list">
       <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata incl. type en icoon</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Stippen op de kaart — alleen aanwezig als GPS-fix beschikbaar was</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Per tik: timestamp, type, lat/lon, osm_way_id, straat</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor met osm_way_id en straat per punt (v2.2+)</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Geometrie van alle wegvakken die de snap-engine heeft gezien (v2.1+)</span></div>
+      <div class="file-row"><span class="file-name">_bezocht.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Per bezoek aan een wegvak: duur, GPS-punten, aantal tellingen (v2.2+)</span></div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_sessie.csv</div>
@@ -447,8 +450,26 @@
     </div>
     <div class="csv-block">
       <div class="csv-title">_telregels.csv</div>
-      <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon
-20260514_131611_lok_pkt;1;13:15:52;fiets;51.852540;4.332551</div>
+      <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;straat
+20260514_131611_lok_pkt;1;2026-05-14T13:15:52;fiets;51.852540;4.332551;123456;Korenmarkt</div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_gps.csv (v2.2+)</div>
+      <div class="csv-sample">sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;straat
+20260514_131611_lok_pkt;2026-05-14T13:15:50;51.852540;4.332551;5;123456;Korenmarkt</div>
+      <div class="csv-notes">
+        <div class="csv-note">Routepunt bij ≥5m verplaatsing. <code>osm_way_id</code> en <code>straat</code> zijn nieuw in v2.2 — sneller verwerken in telrapport, en input voor het afleiden van <code>_bezocht.csv</code>.</div>
+      </div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_bezocht.csv (v2.2+)</div>
+      <div class="csv-sample">sessie_id;datum;osm_way_id;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen
+20260514_131611_lok_pkt;2026-05-14;123456;Korenmarkt;13:15:50;13:16:05;15;14;3</div>
+      <div class="csv-notes">
+        <div class="csv-note">Eén regel per <strong>bezoek</strong> (aaneengesloten verblijf op één wegvak). Visits korter dan 5s of met minder dan 3 GPS-punten worden uitgefilterd. Een gat van &gt;30s breekt een visit. Datum staat in elke regel — self-contained voor dagdeel-classificatie in telplanning.</div>
+        <div class="csv-note">Flux-berekening: <code>n_tellingen × 60 / duur_sec = passages/min</code></div>
+        <div class="csv-note">Voor oude pocket-ZIPs zonder dit bestand: gebruik <code>build_bezocht.py</code> om het retroactief te genereren.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -466,6 +487,7 @@
         <th>_capaciteit</th>
         <th>_telregels</th>
         <th>_gps</th>
+        <th>_bezocht</th>
       </tr>
     </thead>
     <tbody>
@@ -477,6 +499,7 @@
         <td class="na">&mdash;</td>
         <td class="opt">optioneel</td>
         <td class="opt">optioneel</td>
+        <td class="na">&mdash;</td>
       </tr>
       <tr>
         <td>fiets</td>
@@ -486,6 +509,7 @@
         <td class="na">&mdash;</td>
         <td class="opt">optioneel</td>
         <td class="opt">optioneel</td>
+        <td class="na">&mdash;</td>
       </tr>
       <tr>
         <td>capaciteit</td>
@@ -495,6 +519,7 @@
         <td class="check">&#10003; vereist</td>
         <td class="opt">optioneel</td>
         <td class="opt">optioneel</td>
+        <td class="na">&mdash;</td>
       </tr>
       <tr>
         <td>transect</td>
@@ -504,15 +529,17 @@
         <td class="na">&mdash;</td>
         <td class="check">&#10003; vereist</td>
         <td class="opt">optioneel</td>
+        <td class="na">&mdash;</td>
       </tr>
       <tr>
         <td>pocket</td>
         <td class="check">&#10003; vereist</td>
         <td class="na">&mdash;</td>
-        <td class="na">&mdash;</td>
+        <td class="opt">aanbevolen</td>
         <td class="na">&mdash;</td>
         <td class="opt">optioneel</td>
-        <td class="na">&mdash;</td>
+        <td class="opt">aanbevolen</td>
+        <td class="opt">aanbevolen</td>
       </tr>
     </tbody>
   </table>

@@ -36,15 +36,40 @@
   #dropzone .dz-icon { font-size: 22px; margin-bottom: 4px; }
   #dropzone .dz-text { font-size: 11px; }
 
-  #statsbar { margin: 0 12px 6px; display: flex; gap: 8px; flex-shrink: 0; }
+  #statsbar { margin: 0 12px 10px; display: flex; gap: 8px; flex-shrink: 0; }
   .stat-pill { flex: 1; background: var(--bg); border-radius: 4px; padding: 6px 8px; text-align: center; }
   .stat-pill .n { font-size: 16px; font-weight: bold; color: var(--accent); }
   .stat-pill .l { font-size: 10px; color: var(--muted); }
 
-  .toggle-section { margin: 0 12px 4px; flex-shrink: 0; }
-  .toggle-label { font-size: 10px; color: var(--muted); text-transform: uppercase;
-    letter-spacing: 0.06em; padding: 4px 0 3px; }
-  .toggle-row { display: flex; gap: 5px; align-items: center; margin-bottom: 4px; }
+  /* ── Collapsible control-groups ───────────────────────────────── */
+  .ctrl-group { border-top: 1px solid var(--border); flex-shrink: 0; }
+  .ctrl-group summary {
+    list-style: none; cursor: pointer; user-select: none;
+    padding: 9px 16px 8px; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted);
+    display: flex; align-items: center; gap: 7px;
+    transition: color 0.15s;
+  }
+  .ctrl-group summary::-webkit-details-marker { display: none; }
+  .ctrl-group summary::before {
+    content: '▸'; font-size: 9px; display: inline-block;
+    transition: transform 0.15s; color: var(--muted);
+  }
+  .ctrl-group[open] summary::before { transform: rotate(90deg); }
+  .ctrl-group summary:hover { color: var(--text); }
+  .ctrl-group summary:hover::before { color: var(--text); }
+  .ctrl-group summary .grp-hint {
+    margin-left: auto; font-size: 9px; opacity: 0.6;
+    text-transform: none; letter-spacing: 0;
+  }
+  .ctrl-body { padding: 0 12px 10px; }
+  .ctrl-body .toggle-label {
+    font-size: 9px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 0 4px; opacity: 0.7;
+  }
+  .toggle-row { display: flex; gap: 5px; align-items: center; margin-bottom: 5px; flex-wrap: wrap; }
+  .toggle-row:last-child { margin-bottom: 0; }
   .dot-btn { display: flex; align-items: center; gap: 4px; padding: 3px 7px;
     border-radius: 3px; border: 1px solid var(--border); background: var(--bg);
     cursor: pointer; font-size: 11px; font-family: inherit; transition: all 0.15s;
@@ -53,32 +78,58 @@
   .dot-btn.active { border-color: currentColor; }
   .dot-btn.active .dot { opacity: 1; }
 
-  #gap-row { margin: 0 12px 8px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  #gap-row label { font-size: 10px; color: var(--muted); white-space: nowrap; }
-  #gap-slider { flex: 1; accent-color: var(--accent); }
-  #gap-val { font-size: 11px; color: var(--text); min-width: 26px; text-align: right; }
+  .slider-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .slider-row label { font-size: 10px; color: var(--muted); white-space: nowrap;
+    text-transform: uppercase; letter-spacing: 0.06em; min-width: 32px; }
+  .slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .slider-row .slider-val { font-size: 11px; color: var(--text); min-width: 32px; text-align: right; }
 
-  .section-title { padding: 4px 16px; font-size: 10px; color: var(--muted);
+  .section-title { padding: 8px 16px 6px; font-size: 10px; color: var(--muted);
     text-transform: uppercase; letter-spacing: 0.08em;
-    border-top: 1px solid var(--border); flex-shrink: 0; }
+    border-top: 1px solid var(--border); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between; }
+  .section-title .count { font-size: 10px; opacity: 0.7; }
 
-  #sessions-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  /* ── Sessions list — rich rows with color stripe ──────────────── */
+  #sessions-list { flex: 1; overflow-y: auto; min-height: 60px; }
   #sessions-list::-webkit-scrollbar { width: 4px; }
   #sessions-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-  .session-row { display: flex; align-items: center; padding: 6px 12px; gap: 8px;
-    border-bottom: 1px solid rgba(255,255,255,0.03); }
-  .session-row:hover { background: rgba(255,255,255,0.04); }
-  .session-row.highlighted { background: rgba(255,255,255,0.10); outline: 1px solid var(--accent); }
-  .session-toggle { width: 12px; height: 12px; border-radius: 2px;
-    border: 1.5px solid var(--border); flex-shrink: 0; position: relative; cursor: pointer; }
-  .session-toggle.on { background: var(--accent); border-color: var(--accent); }
-  .session-toggle.on::after { content: '✓'; position: absolute; top: -3px; left: 1px;
-    font-size: 10px; color: white; }
-  .session-info { flex: 1; min-width: 0; }
-  .session-datum { font-size: 12px; }
-  .session-id { font-size: 10px; color: var(--muted); white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; }
-  .session-n { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+  .session-row { display: flex; cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    transition: background 0.12s, opacity 0.12s; }
+  .session-row:hover { background: rgba(255,255,255,0.05); }
+  .session-row.highlighted { background: rgba(255,255,255,0.10);
+    outline: 1px solid var(--accent); outline-offset: -1px; }
+  .session-row.off { opacity: 0.40; }
+  .session-color { width: 5px; flex-shrink: 0;
+    background: var(--sc, #888); transition: opacity 0.15s; }
+  .session-row.off .session-color { opacity: 0.5; }
+  .session-content { flex: 1; min-width: 0;
+    padding: 7px 12px 7px 10px;
+    display: flex; align-items: center; gap: 8px; }
+  .session-meta { flex: 1; min-width: 0; }
+  .session-line1 { font-size: 12px; line-height: 1.3; display: flex; align-items: baseline; gap: 6px; }
+  .session-line1 .stype { font-size: 11px; opacity: 0.9; }
+  .session-line1 .stell { color: var(--muted); font-size: 10px; }
+  .session-id { font-size: 9px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-top: 1px; font-family: 'Courier New', monospace; }
+  .session-n { font-size: 11px; color: var(--text); flex-shrink: 0;
+    font-weight: 600; opacity: 0.7; }
+
+  #reset-footer {
+    padding: 8px 16px 10px; border-top: 1px solid var(--border);
+    flex-shrink: 0; text-align: center; background: var(--panel);
+  }
+  #reset-footer button {
+    background: none; border: none;
+    font-family: inherit; font-size: 10px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); cursor: pointer;
+    padding: 4px 12px; border-radius: 3px;
+    transition: color 0.12s, background 0.12s;
+  }
+  #reset-footer button:hover { color: #c0392b; background: rgba(192,57,43,0.08); }
 
   #detail-panel { border-top: 1px solid var(--border); background: var(--bg);
     padding: 12px; max-height: 340px; overflow-y: auto; flex-shrink: 0; }
@@ -193,18 +244,13 @@
   .legend-bar.fiets-bar { background: linear-gradient(to right, #22c55e, #eab308, #ef4444); }
   .legend-bar.auto-bar  { background: linear-gradient(to right, #22c55e, #eab308, #ef4444); }
   .legend-labels { display: flex; justify-content: space-between; }
-
-  #empty-state { position: absolute; top: 50%; left: calc(50% + var(--panel-w)/2);
-    transform: translate(-50%,-50%); text-align: center; color: var(--muted);
-    font-size: 13px; pointer-events: none; z-index: 500; }
-  #empty-state .big { font-size: 36px; margin-bottom: 8px; }
 </style>
 </head>
 <body>
 <div id="layout">
   <div id="sidebar">
     <div id="sidebar-header">
-      <strong>Telrapport</strong>parkeertellingen
+      <strong>Telrapport</strong>veldtellingen
     </div>
 
     <div id="dropzone">
@@ -220,50 +266,80 @@
       <div class="stat-pill" id="pill-bezet" style="display:none"><div class="n" id="s-bezet">0</div><div class="l">plaatsen bezet</div></div>
     </div>
 
-    <div id="toggles-fiets" class="toggle-section" style="display:none">
-      <div class="toggle-label">fiets – type</div>
-      <div class="toggle-row">
-        <button class="dot-btn active" data-apptype="fiets" data-type="fiets"   style="color:#22c55e"><span class="dot" style="background:#22c55e"></span>fiets</button>
-        <button class="dot-btn active" data-apptype="fiets" data-type="wrak"    style="color:#eab308"><span class="dot" style="background:#eab308"></span>wrak</button>
-        <button class="dot-btn active" data-apptype="fiets" data-type="brommer" style="color:#60a5fa"><span class="dot" style="background:#60a5fa"></span>brom</button>
-        <button class="dot-btn active" data-apptype="fiets" data-type="breed"   style="color:#c084fc"><span class="dot" style="background:#c084fc"></span>breed</button>
+    <!-- ── TONEN ── datafilters per app-type ─────────────────── -->
+    <details class="ctrl-group" id="grp-tonen" open style="display:none">
+      <summary>Tonen</summary>
+      <div class="ctrl-body">
+        <div id="toggles-fiets" style="display:none">
+          <div class="toggle-label">fiets · type</div>
+          <div class="toggle-row">
+            <button class="dot-btn active" data-apptype="fiets" data-type="fiets"   style="color:#22c55e"><span class="dot" style="background:#22c55e"></span>fiets</button>
+            <button class="dot-btn active" data-apptype="fiets" data-type="wrak"    style="color:#eab308"><span class="dot" style="background:#eab308"></span>wrak</button>
+            <button class="dot-btn active" data-apptype="fiets" data-type="brommer" style="color:#60a5fa"><span class="dot" style="background:#60a5fa"></span>brom</button>
+            <button class="dot-btn active" data-apptype="fiets" data-type="breed"   style="color:#c084fc"><span class="dot" style="background:#c084fc"></span>breed</button>
+          </div>
+        </div>
+        <div id="toggles-auto" style="display:none;margin-top:8px">
+          <div class="toggle-label">auto · bezetting</div>
+          <div class="toggle-row">
+            <button class="dot-btn active" data-apptype="auto" data-type="goed" style="color:#22c55e"><span class="dot" style="background:#22c55e"></span>goed</button>
+            <button class="dot-btn active" data-apptype="auto" data-type="fout" style="color:#eab308"><span class="dot" style="background:#eab308"></span>fout</button>
+            <button class="dot-btn active" data-apptype="auto" data-type="leeg" style="color:#94a3b8"><span class="dot" style="background:#94a3b8"></span>leeg</button>
+            <button class="dot-btn active" data-apptype="auto" data-type="spec" style="color:#c084fc"><span class="dot" style="background:#c084fc"></span>spec</button>
+          </div>
+        </div>
       </div>
-    </div>
+    </details>
 
-    <div id="toggles-auto" class="toggle-section" style="display:none">
-      <div class="toggle-label">auto – bezetting</div>
-      <div class="toggle-row">
-        <button class="dot-btn active" data-apptype="auto" data-type="goed" style="color:#22c55e"><span class="dot" style="background:#22c55e"></span>goed</button>
-        <button class="dot-btn active" data-apptype="auto" data-type="fout" style="color:#eab308"><span class="dot" style="background:#eab308"></span>fout</button>
-        <button class="dot-btn active" data-apptype="auto" data-type="leeg" style="color:#94a3b8"><span class="dot" style="background:#94a3b8"></span>leeg</button>
-        <button class="dot-btn active" data-apptype="auto" data-type="spec" style="color:#c084fc"><span class="dot" style="background:#c084fc"></span>spec</button>
+    <!-- ── WEERGAVE ── visualisatie-modus ─────────────────── -->
+    <details class="ctrl-group" id="grp-weergave" open style="display:none">
+      <summary>Weergave</summary>
+      <div class="ctrl-body">
+        <div class="toggle-row">
+          <button class="dot-btn active" id="cluster-toggle" style="color:#fff;flex:1">
+            <span class="dot" style="background:#fff;border:1px solid #888"></span>locaties
+          </button>
+          <button class="dot-btn" id="time-toggle" style="color:#fff;flex:1"
+            onclick="this.classList.toggle('active'); toggleTimeFilter(this.classList.contains('active'));">
+            <span class="dot" style="background:#fff;border:1px solid #888"></span>tijdfilter
+          </button>
+        </div>
+        <div class="slider-row" style="margin-top:6px">
+          <label>gap</label>
+          <input type="range" id="gap-slider" min="2" max="40" value="8" step="1">
+          <span class="slider-val" id="gap-val">8 m</span>
+        </div>
       </div>
-    </div>
+    </details>
 
-    <div id="cluster-toggle-row" class="toggle-section" style="display:none">
-      <div class="toggle-row">
-        <button class="dot-btn active" id="cluster-toggle" style="color:#fff; flex:1">
-          <span class="dot" style="background:#fff; border:1px solid #888"></span>locaties
-        </button>
+    <!-- ── KAART ── basemap & vaste overlays ─────────────────── -->
+    <details class="ctrl-group" id="grp-kaart" open>
+      <summary>Kaart</summary>
+      <div class="ctrl-body">
+        <div class="toggle-row">
+          <button class="dot-btn active" id="capnetwerk-toggle" style="color:#fff;flex:1"
+            onclick="toggleCapNetwerk(this)">
+            <span class="dot" style="background:#1a1918;border:1px solid #888"></span>capaciteitscontouren
+          </button>
+        </div>
+        <div class="toggle-row" style="margin-top:6px">
+          <button class="dot-btn basemap-pill active" data-bm="osm"       onclick="setBasemap('osm')"       style="color:#fff">OSM</button>
+          <button class="dot-btn basemap-pill"        data-bm="positron"  onclick="setBasemap('positron')"  style="color:#fff">Positron</button>
+          <button class="dot-btn basemap-pill"        data-bm="topo"      onclick="setBasemap('topo')"      style="color:#fff">Topo</button>
+          <button class="dot-btn basemap-pill"        data-bm="luchtfoto" onclick="setBasemap('luchtfoto')" style="color:#fff">Lucht</button>
+        </div>
+        <div class="slider-row" style="margin-top:6px">
+          <label>basis</label>
+          <input type="range" id="basemap-opacity" min="0" max="100" value="100" step="5"
+            oninput="setBasemapOpacity(this.value)">
+          <span class="slider-val" id="basemap-pct">100%</span>
+        </div>
       </div>
-    </div>
+    </details>
 
-    <div id="time-toggle-row" class="toggle-section" style="display:none">
-      <div class="toggle-row">
-        <button class="dot-btn" id="time-toggle" style="color:#fff; flex:1"
-          onclick="this.classList.toggle('active'); toggleTimeFilter(this.classList.contains('active'));">
-          <span class="dot" style="background:#fff; border:1px solid #888"></span>tijdfilter
-        </button>
-      </div>
+    <div id="section-title" class="section-title" style="display:none">
+      <span>Sessies</span><span class="count" id="sessies-count"></span>
     </div>
-
-    <div id="gap-row" style="display:none">
-      <label>gap-drempel</label>
-      <input type="range" id="gap-slider" min="2" max="40" value="8" step="1">
-      <span id="gap-val">8 m</span>
-    </div>
-
-    <div id="section-title" class="section-title" style="display:none">Sessies</div>
     <div id="sessions-list"></div>
 
     <div id="detail-panel" class="hidden">
@@ -271,6 +347,10 @@
       <div id="detail-title"></div>
       <div id="detail-sub"></div>
       <div id="detail-body"></div>
+    </div>
+
+    <div id="reset-footer">
+      <button onclick="resetAll()">✕ alles wissen</button>
     </div>
   </div>
 
@@ -290,11 +370,6 @@
       <span>12</span><span>15</span><span>18</span><span>21</span><span>23</span>
     </div>
   </div>
-</div>
-
-<div id="empty-state">
-  <div class="big">🗺️</div>
-  Sleep een tellings-ZIP om te beginnen
 </div>
 
 <div id="legend" style="display:none">
@@ -336,6 +411,15 @@ const APP_CONFIG = {
     detailClasses: { goed:'c-fiets', fout:'c-wrak', leeg:'c-muted', spec:'c-breed',
                      bezet:'c-tot', vrij:'c-muted', bezettingsgraad_pct:'c-tot' },
   },
+  pocket: {
+    types:  ['car','bike','ped','other'],
+    colors: { car:'#c0392b', bike:'#2980b9', ped:'#8e44ad', other:'#555555' },
+    labels: { car:'auto', bike:'fiets', ped:'voetg.', other:'anders' },
+    heatVal: function(s) { return Math.sqrt((s.totaal||0)) / Math.sqrt(30); },
+    detailCols: ['car','bike','ped','other'],
+    detailLabels: { car:'auto', bike:'fiets', ped:'voetganger', other:'anders' },
+    detailClasses: { car:'c-fiets', bike:'c-brom', ped:'c-tot', other:'c-muted' },
+  },
   transect: {
     types:  ['car','truck','moto','bike','ped'],
     colors: { car:'#cc0000', truck:'#e07800', moto:'#e6b800', bike:'#7700cc', ped:'#d4007a' },
@@ -351,11 +435,14 @@ const APP_CONFIG = {
 const map = L.map('map', { zoomControl: true }).setView([52.1, 5.1], 8);
 map.createPane('clusters');
 map.getPane('clusters').style.zIndex = 550;
+map.createPane('cluster-badges');
+map.getPane('cluster-badges').style.zIndex = 620;  // boven de dots zodat totalen leesbaar zijn
 map.createPane('capaciteit');
 map.getPane('capaciteit').style.zIndex = 350;
 map.getPane('capaciteit').style.pointerEvents = 'auto';
 map.createPane('capnetwerk');
 map.getPane('capnetwerk').style.zIndex = 210; // net boven tiles (200), onder alles
+const capNetwerkLayers = [];  // voor toggle
 
 // ── Capaciteitsreferentielaag ─────────────────────────────────────────────
 (function loadCapNetwerk() {
@@ -382,20 +469,22 @@ map.getPane('capnetwerk').style.zIndex = 210; // net boven tiles (200), onder al
         var wid = (cols[0]||'').trim();
         window._capNetwerkCoords = window._capNetwerkCoords || [];
         window._capNetwerkCoords.push({ wayId: wid, coords: coords });
+        var capEl;
         if (isPoly) {
-          L.polygon(coords, {
+          capEl = L.polygon(coords, {
             pane: 'capnetwerk',
             color: '#1a1918', weight: 1.5, opacity: 0.7,
             fillColor: '#8e44ad', fillOpacity: 0.08,
             interactive: false
           }).addTo(map);
         } else {
-          L.polyline(coords, {
+          capEl = L.polyline(coords, {
             pane: 'capnetwerk',
             color: '#1a1918', weight: 4, opacity: 0.45,
             interactive: false
           }).addTo(map);
         }
+        capNetwerkLayers.push(capEl);
       });
       window._capNetwerkReady = true;
     })
@@ -444,7 +533,11 @@ map.getPane('capnetwerk').style.zIndex = 210; // net boven tiles (200), onder al
               iconSize: [0,0], iconAnchor: [0,0]
             }),
             interactive: false
-          }).addTo(map);
+          });
+          // Respecteer huidige toggle-state (kan al UIT staan tegen de tijd dat labels arriveren)
+          var capBtn = document.getElementById('capnetwerk-toggle');
+          if (!capBtn || capBtn.classList.contains('active')) lbl.addTo(map);
+          capNetwerkLayers.push(lbl);
         });
       }
       drawCapLabels(0);
@@ -452,9 +545,51 @@ map.getPane('capnetwerk').style.zIndex = 210; // net boven tiles (200), onder al
     .catch(function() {});
 })();
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors', maxZoom: 21,
-}).addTo(map);
+// ── BASEMAPS ──────────────────────────────────────────────────────
+const BASEMAPS = {
+  osm: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap',
+    maxZoom: 19, subdomains: 'abc'
+  },
+  positron: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+    attribution: '© CARTO · © OpenStreetMap',
+    maxZoom: 20, subdomains: 'abcd'
+  },
+  topo: {
+    url: 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png',
+    attribution: '© Kadaster · BRT-A grijs',
+    maxZoom: 19, subdomains: 'abc'
+  },
+  luchtfoto: {
+    url: 'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_ortho25/EPSG:3857/{z}/{x}/{y}.jpeg',
+    attribution: '© Kadaster · Luchtfoto 25cm',
+    maxZoom: 19, subdomains: 'abc'
+  }
+};
+let tileLayer = null;
+let currentBasemap = '';
+
+function setBasemap(key) {
+  if (!BASEMAPS[key] || key === currentBasemap) return;
+  // Huidige opacity-waarde behouden bij wisselen
+  const slider = document.getElementById('basemap-opacity');
+  const opacity = slider ? (parseInt(slider.value, 10) || 100) / 100 : 1;
+  if (tileLayer) map.removeLayer(tileLayer);
+  const cfg = BASEMAPS[key];
+  tileLayer = L.tileLayer(cfg.url, {
+    attribution: cfg.attribution,
+    maxZoom:     cfg.maxZoom,
+    subdomains:  cfg.subdomains,
+    opacity:     opacity
+  }).addTo(map);
+  currentBasemap = key;
+  document.querySelectorAll('.basemap-pill').forEach(function(p) {
+    p.classList.toggle('active', p.dataset.bm === key);
+  });
+}
+setBasemap('osm');
 
 // ── STATE ─────────────────────────────────────────────────────────
 const sessions      = {};
@@ -573,54 +708,161 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
   }
 }
 
-function loadPocketZip(sid, sm, telCSV) {
+function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV) {
   sessions[sid] = { meta:sm, visible:true, appType:'pocket' };
   getSessionColor(sid);
   clusterLayers[sid] = [];
-  dotLayers[sid] = {};
+  dotLayers[sid]     = {};
 
-  const type    = sm.type   || 'other';
-  const label   = type;
-  const datum   = fmtDatum(sm.datum, sm.start_tijd);
-  const kleur   = { car:'#c0392b', bike:'#2980b9', ped:'#8e44ad', other:'#555' }[type] || '#555';
+  // GPS-spoor (zelfde dashed-stijl als transect, in sessiekleur)
+  if (gpsCSV) {
+    const gcoords = parseCSV(gpsCSV).map(function(r){ return [+r.lat, +r.lon]; })
+                     .filter(function(c){ return !isNaN(c[0]); });
+    if (gcoords.length)
+      gpsLayers[sid] = L.polyline(gcoords, {
+        color: getSessionColor(sid), weight: 1.5, opacity: 0.45, dashArray: '4 4'
+      }).addTo(map);
+  }
 
-  if (telCSV) {
-    var prows = parseCSV(telCSV);
-    prows.forEach(function(r) {
-      const la = parseFloat(r.lat), lo = parseFloat(r.lon);
-      if (isNaN(la)||isNaN(lo)) return;
-      const m = L.circleMarker([la,lo], {
-        radius:5, color:'#fff', weight:1.5,
-        fillColor: kleur, fillOpacity:0.85, pane:'clusters'
-      }).bindTooltip(label + ' · ' + datum, {direction:'top'});
-      m.addTo(map);
-      if (!dotLayers[sid][type]) dotLayers[sid][type] = [];
-      dotLayers[sid][type].push(m);
-
-      // wayData vullen als snap beschikbaar
-      var wid = r.osm_way_id ? r.osm_way_id.trim() : null;
-      var naam = r.straat || '';
-      if (wid) {
-        if (!wayData[wid]) wayData[wid] = { geometry:[[la,lo],[la,lo]], highway:'', sessions:[], osmName:naam };
-        var ws = wayData[wid].sessions.find(function(s){ return s.sid===sid; });
-        if (!ws) {
-          ws = { sid:sid, appType:'pocket', naam:naam };
-          ws[type]=0; ws.totaal=0;
-          wayData[wid].sessions.push(ws);
-        }
-        ws[type] = (ws[type]||0)+1;
-        ws.totaal = (ws.totaal||0)+1;
+  // _netwerk.csv (pocket v2.1+) levert geometrie van alle bezochte wegvakken.
+  // We zetten dat in wayData zodat zowel telregels als zero-visit detectie
+  // direct geometrie hebben — geen Overpass-fetch nodig.
+  const netWayIds = [];
+  if (netCSV) {
+    parseCSV(netCSV).forEach(function(r) {
+      const wid = (r.osm_way_id || '').trim(); if (!wid) return;
+      const geom = parseWKT(r.geometrie_wkt);
+      if (!geom || geom.length < 2) return;
+      if (!wayData[wid]) wayData[wid] = { geometry: geom, highway: r.highway || '', sessions: [], osmName: '' };
+      else if (wayData[wid].geometry.length < 2 ||
+               (wayData[wid].geometry.length === 2 &&
+                wayData[wid].geometry[0][0] === wayData[wid].geometry[1][0] &&
+                wayData[wid].geometry[0][1] === wayData[wid].geometry[1][1])) {
+        wayData[wid].geometry = geom;
+        wayData[wid].highway  = wayData[wid].highway || r.highway || '';
       }
+      netWayIds.push(wid);
     });
   }
 
-  renderSessions(); updateUI(); updateStats();
-
-  // Zoom naar stippen
-  const alle = (dotLayers[sid][type]||[]);
-  if (alle.length) {
-    try { map.fitBounds(L.featureGroup(alle).getBounds().pad(0.2)); } catch(e) {}
+  // Geen telregels — wél eventueel zero-visited wegvakken tonen
+  if (!telCSV) {
+    if (gpsCSV && netWayIds.length) {
+      detectZeroVisited(gpsCSV, netWayIds, new Set())
+        .forEach(function(wid){ addPocketZero(sid, sm, wid); });
+      recolorAll();
+      drawClusters(sid);
+      const visGeom = netWayIds.map(function(w){ return wayData[w].geometry; }).filter(Boolean);
+      if (visGeom.length) try { map.fitBounds(L.featureGroup(visGeom.map(function(g){ return L.polyline(g); })).getBounds().pad(0.2)); } catch(e) {}
+    }
+    renderSessions(); updateUI(); updateStats();
+    return;
   }
+
+  const ptype = sm.type || 'other';
+  const datum = fmtDatum(sm.datum, sm.start_tijd);
+  const rows  = parseCSV(telCSV);
+  const hasSnap = rows.some(function(r){ return r.osm_way_id && r.osm_way_id.trim(); });
+
+  // telData vullen zodat drawClusters werkt
+  telData[sid] = rows.filter(function(r){ return r.osm_way_id && r.osm_way_id.trim(); })
+    .map(function(r){ return { type:ptype, lat_marker:r.lat, lon_marker:r.lon,
+      straat:r.straat||'', osm_way_id:r.osm_way_id, snapped:'1' }; });
+
+  rows.forEach(function(r) {
+    const la = parseFloat(r.lat), lo = parseFloat(r.lon);
+    if (isNaN(la)||isNaN(lo)) return;
+    const kleur = APP_CONFIG.pocket.colors[ptype] || '#555';
+    const m = L.circleMarker([la,lo], {
+      radius:5, color:'#fff', weight:1.5,
+      fillColor:kleur, fillOpacity:0.85, pane:'clusters'
+    }).bindTooltip((APP_CONFIG.pocket.labels[ptype]||ptype)+' · '+datum, {direction:'top'});
+    m.addTo(map);
+    if (!dotLayers[sid][ptype]) dotLayers[sid][ptype] = [];
+    dotLayers[sid][ptype].push(m);
+
+    // wayData vullen voor getelde wegvakken
+    const wid = r.osm_way_id ? r.osm_way_id.trim() : null;
+    const naam = r.straat || '';
+    if (wid) {
+      if (!wayData[wid]) wayData[wid] = { geometry:[[la,lo],[la,lo]], highway:'', sessions:[], osmName:naam };
+      if (!wayData[wid].osmName && naam) wayData[wid].osmName = naam;
+      let ws = wayData[wid].sessions.find(function(s){ return s.sid===sid; });
+      if (!ws) {
+        ws = { sid:sid, appType:'pocket', naam:naam, totaal:0 };
+        ws[ptype] = 0;
+        wayData[wid].sessions.push(ws);
+      }
+      ws[ptype] = (ws[ptype]||0)+1;
+      ws.totaal  = (ws.totaal ||0)+1;
+    }
+  });
+
+  // Zero-visited detectie (alleen zinvol als we netwerk + GPS hebben)
+  if (gpsCSV && netWayIds.length) {
+    const counted = new Set(rows.map(function(r){ return (r.osm_way_id||'').trim(); }).filter(Boolean));
+    detectZeroVisited(gpsCSV, netWayIds, counted)
+      .forEach(function(wid){ addPocketZero(sid, sm, wid); });
+  }
+
+  // Wegvak-geometrie ophalen voor getelde ways die nog geen geometrie hebben
+  // (alleen nodig als netCSV ontbreekt — backwards compat met oude pocket-ZIPs)
+  if (hasSnap) {
+    const wayIds = Object.keys(wayData).filter(function(wid){
+      return wayData[wid].sessions.some(function(s){ return s.sid===sid; });
+    });
+    const missing = wayIds.filter(function(wid){
+      const g=wayData[wid].geometry;
+      return !g||(g.length===2&&g[0][0]===g[1][0]&&g[0][1]===g[1][1]);
+    });
+    if (missing.length) {
+      const q='[out:json][timeout:10];way(id:'+missing.join(',')+');out geom;';
+      fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q))
+        .then(function(r){return r.json();})
+        .then(function(data){
+          (data.elements||[]).forEach(function(el){
+            const wid=String(el.id);
+            if (wayData[wid]&&el.geometry) {
+              wayData[wid].geometry=el.geometry.map(function(p){return[p.lat,p.lon];});
+              if (!wayLayers[wid])
+                wayLayers[wid]=L.polyline(wayData[wid].geometry,
+                  {color:'#3a3d42',weight:2,opacity:0.5}).addTo(map);
+            }
+          });
+          recolorAll(); renderSessions(); drawClusters(sid);
+        }).catch(function(){});
+    }
+  }
+
+  // Polylines aanmaken voor wegvakken met geometrie maar zonder eigen layer
+  Object.keys(wayData).forEach(function(wid){
+    if (!wayLayers[wid] && wayData[wid].geometry && wayData[wid].geometry.length >= 2 &&
+        wayData[wid].sessions.some(function(s){ return s.sid === sid; })) {
+      const g = wayData[wid].geometry;
+      if (!(g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) {
+        wayLayers[wid] = L.polyline(g, {color:'#3a3d42', weight:2, opacity:0.5}).addTo(map);
+      }
+    }
+  });
+
+  recolorAll();
+  renderSessions(); updateUI(); updateStats();
+  drawClusters(sid);
+
+  const alle = dotLayers[sid][ptype]||[];
+  if (alle.length) { try{ map.fitBounds(L.featureGroup(alle).getBounds().pad(0.2)); }catch(e){} }
+}
+
+// Voegt een zero-visited sessie-entry toe aan een wegvak.
+function addPocketZero(sid, sm, wid) {
+  const wd = wayData[wid]; if (!wd) return;
+  const ptype = sm.type || 'other';
+  let ws = wd.sessions.find(function(s){ return s.sid === sid; });
+  if (ws) return;  // al een normale of zero-entry voor deze sessie
+  ws = { sid: sid, appType: 'pocket', naam: wd.osmName || '',
+         totaal: 0, zeroVisited: true };
+  ws[ptype] = 0;
+  wd.sessions.push(ws);
 }
 
 function pointInPolygon(lat, lon, poly) {
@@ -664,7 +906,8 @@ function heatColor(t) {
 
 function wayHeat(wid) {
   const wd = wayData[wid]; if (!wd || !wd.sessions.length) return null;
-  const visSessions = wd.sessions.filter(s => sessions[s.sid]?.visible);
+  // Zero-visited sessies tellen niet mee voor heat — die krijgen een eigen render
+  const visSessions = wd.sessions.filter(s => sessions[s.sid]?.visible && !s.zeroVisited);
   if (!visSessions.length) return null;
   // Determine dominant appType for this way
   const appType = visSessions[0].appType;
@@ -697,8 +940,24 @@ function recolorAll() {
 function recolorOne(wid) {
   const line = wayLayers[wid]; if (!line) return;
   const heat = wayHeat(wid);
-  if (!heat) { line.setStyle({ color:'#3a3d42', opacity:0.5, weight:2 }); return; }
-  line.setStyle({ color: heatColor(heat.t), opacity:0.9, weight:4 });
+  if (heat) {
+    line.setStyle({ color: heatColor(heat.t), opacity:0.9, weight:4, dashArray: null });
+    return;
+  }
+  // Geen heat — check voor zichtbare zero-visited sessies
+  const wd = wayData[wid];
+  const zeroSess = wd && wd.sessions.find(function(s){
+    return s.zeroVisited && sessions[s.sid] && sessions[s.sid].visible;
+  });
+  if (zeroSess) {
+    line.setStyle({
+      color:    getSessionColor(zeroSess.sid),
+      opacity:  0.6, weight: 2,
+      dashArray: '6 4'
+    });
+    return;
+  }
+  line.setStyle({ color:'#3a3d42', opacity:0.5, weight:2, dashArray: null });
 }
 
 // ── PROJECTION ────────────────────────────────────────────────────
@@ -719,6 +978,62 @@ function projectOnPolyline(lat, lon, geometry) {
     cumLen+=segLen;
   }
   return bestPos;
+}
+
+// ── POCKET ZERO-VISIT DETECTIE ────────────────────────────────────
+// Een wegvak dat de pocket-route doorkruiste maar waar 0 tellingen
+// plaatsvonden moet zichtbaar zijn op de kaart. We leiden dat af uit
+// _gps.csv + _netwerk.csv (allebei sinds pocket v2.1 standaard exports).
+const POCKET_SNAP_M   = 15;  // max snap-afstand GPS-punt → wegvak
+const POCKET_MIN_HITS = 3;   // minimum hits om "bezocht" te zijn
+
+// Minimum afstand van punt p tot een polyline-geometrie, in meters.
+// Eenvoudige Cartesische projectie — accuraat genoeg op stadsniveau.
+function nearestWayDist(plat, plon, geometry) {
+  if (!geometry || geometry.length < 2) return Infinity;
+  const LAT_M = 111320;
+  const LON_M = 111320 * Math.cos(geometry[0][0] * Math.PI / 180);
+  const px = plon * LON_M, py = plat * LAT_M;
+  let best = Infinity;
+  for (let i = 0; i < geometry.length - 1; i++) {
+    const ax = geometry[i][1]   * LON_M, ay = geometry[i][0]   * LAT_M;
+    const bx = geometry[i+1][1] * LON_M, by = geometry[i+1][0] * LAT_M;
+    const dx = bx - ax, dy = by - ay, len2 = dx*dx + dy*dy;
+    let d;
+    if (len2 === 0) {
+      d = Math.hypot(px - ax, py - ay);
+    } else {
+      const t = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / len2));
+      d = Math.hypot(px - (ax + t*dx), py - (ay + t*dy));
+    }
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+// Bepaalt welke wegvakken bezocht zijn maar geen telregels hebben.
+// gpsCSV: ruwe CSV-string ; netWayIds: lijst wegId's (geometrie zit in wayData);
+// countedSet: Set van wegId's die wél telregels hebben in deze sessie.
+function detectZeroVisited(gpsCSV, netWayIds, countedSet) {
+  const points = parseCSV(gpsCSV)
+    .map(function(r){ return [+r.lat, +r.lon]; })
+    .filter(function(c){ return !isNaN(c[0]) && !isNaN(c[1]); });
+  if (!points.length || !netWayIds.length) return [];
+
+  const hits = {};
+  points.forEach(function(p) {
+    let best = { wid: null, d: POCKET_SNAP_M };
+    netWayIds.forEach(function(wid) {
+      const geom = wayData[wid] && wayData[wid].geometry;
+      const d = nearestWayDist(p[0], p[1], geom);
+      if (d < best.d) best = { wid: wid, d: d };
+    });
+    if (best.wid) hits[best.wid] = (hits[best.wid] || 0) + 1;
+  });
+
+  return Object.keys(hits).filter(function(wid) {
+    return hits[wid] >= POCKET_MIN_HITS && !countedSet.has(wid);
+  });
 }
 
 // ── GAP CLUSTERING ────────────────────────────────────────────────
@@ -816,7 +1131,7 @@ function makePtClusterMarker(group, sid, appType, sessionColor) {
     iconSize: [0,0], iconAnchor: [0,0]
   });
 
-  var m = L.marker([centLat, centLon], { icon: icon, pane:'clusters', interactive:true })
+  var m = L.marker([centLat, centLon], { icon: icon, pane:'cluster-badges', interactive:true })
     .bindTooltip(tipLines.join('<br>'), { permanent:false, direction:'top',
       offset:[0,-size/2], className:'cluster-label' })
     .on('click', function() { showPtClusterDetail(counts, sessionCounts, total, appType); })
@@ -892,43 +1207,7 @@ function showPtClusterDetail(counts, sessionCounts, total, appType) {
   document.getElementById('detail-panel').classList.remove('hidden');
 }
 
-var combinedClusterLayer = [];
-
-function drawCombinedPtClusters() {
-  combinedClusterLayer.forEach(function(m){ map.removeLayer(m); });
-  combinedClusterLayer = [];
-  if (!clustersVisible) return;
-
-  var points = [];
-  Object.keys(sessions).forEach(function(sid) {
-    var s = sessions[sid];
-    if (!s.visible) return;
-    if (s.appType !== 'transect' && s.appType !== 'pocket') return;
-    var clr = getSessionColor(sid);
-    Object.values(dotLayers[sid]||{}).forEach(function(arr) {
-      arr.forEach(function(dot) {
-        if (!dot.getLatLng) return;
-        var ll = dot.getLatLng();
-        // haal type uit tooltip
-        var tip = dot.getTooltip ? dot.getTooltip() : null;
-        var type = tip ? (tip.getContent().split(' ')[0]||'?') : '?';
-        points.push({ lat:ll.lat, lon:ll.lng, sid:sid, type:type, color:clr });
-      });
-    });
-  });
-
-  if (!points.length) return;
-
-  var clusters = pointCluster(points, gapThreshold);
-  clusters.forEach(function(group) {
-    var nSessions = new Set(group.map(function(p){return p.sid;})).size;
-    var firstSid = group[0].sid;
-    var clr = nSessions === 1 ? getSessionColor(firstSid) : null;
-    var m = makePtClusterMarker(group, firstSid, sessions[firstSid].appType, clr);
-    m.addTo(map);
-    combinedClusterLayer.push(m);
-  });
-}
+var combinedClusterLayer = [];  // leeg gehouden voor reset-compatibiliteit
 
 function drawClusters(sid) {
   (clusterLayers[sid]||[]).forEach(m=>map.removeLayer(m));
@@ -936,11 +1215,54 @@ function drawClusters(sid) {
   if (!clustersVisible || !sessions[sid]?.visible) return;
   const appType = sessions[sid].appType;
 
-  // Transect/pocket: gebruik punt-clustering
+  // Transect/pocket zonder wayData: gap-clustering op losse stippen
   if (appType === 'transect' || appType === 'pocket') {
-    // Gecombineerde clustering herrekenen
-    drawCombinedPtClusters();
-    return;
+    const hasWayData = Object.keys(wayData).some(function(wid) {
+      return wayData[wid].sessions.some(function(s){ return s.sid===sid; });
+    });
+    if (!hasWayData) {
+      // Cluster stippen uit dotLayers via gap-drempel
+      var points = [];
+      Object.values(dotLayers[sid]||{}).forEach(function(arr) {
+        arr.forEach(function(dot) {
+          if (!dot.getLatLng) return;
+          var ll = dot.getLatLng();
+          var tip = dot.getTooltip ? dot.getTooltip() : null;
+          var type = tip ? (tip.getContent().split(' ')[0]||'?') : '?';
+          points.push({ lat:ll.lat, lon:ll.lng, sid:sid, type:type });
+        });
+      });
+      if (!points.length) return;
+      var cfg2 = APP_CONFIG[appType] || APP_CONFIG.fiets;
+      pointCluster(points, gapThreshold).forEach(function(group) {
+        var counts = {}, total = group.length;
+        group.forEach(function(p){ counts[p.type]=(counts[p.type]||0)+1; });
+        var dominant = Object.entries(counts).sort(function(a,b){return b[1]-a[1];})[0][0];
+        var fillColor = (cfg2.colors && cfg2.colors[dominant]) || getSessionColor(sid);
+        var size = Math.round((6 + Math.sqrt(total)*3.2)*2);
+        var fontSize = total < 10 ? 13 : total < 100 ? 11 : 9;
+        var icon = L.divIcon({
+          className:'',
+          html:'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+fillColor+';'
+              +'border:1.5px solid #000;opacity:0.85;display:flex;align-items:center;justify-content:center;'
+              +'font-family:Oswald,sans-serif;font-size:'+fontSize+'px;font-weight:700;color:#fff;'
+              +'text-shadow:0 1px 2px rgba(0,0,0,0.5);transform:translate(-50%,-50%);box-sizing:border-box;'
+              +'box-shadow:0 2px 8px rgba(0,0,0,0.3);">'+total+'</div>',
+          iconSize:[0,0], iconAnchor:[0,0]
+        });
+        var typeLine = Object.entries(counts).sort(function(a,b){return b[1]-a[1];})
+          .map(function(e){return e[0]+':'+e[1];}).join(' · ');
+        var m = L.marker([group[0].lat, group[0].lon], {icon:icon, pane:'cluster-badges'})
+          .bindTooltip(typeLine, {direction:'top', className:'cluster-label'})
+          .on('click', function(){
+            showPtClusterDetail(counts, {[sid]:counts}, total, appType);
+          });
+        m.addTo(map);
+        clusterLayers[sid].push(m);
+      });
+      return;
+    }
+    // Met wayData: normaal pad hieronder
   }
 
   const rows = telData[sid]; if (!rows || !rows.length) return;
@@ -985,7 +1307,7 @@ function drawClusters(sid) {
             + total + '</div>',
         iconSize: [0,0], iconAnchor: [0,0]
       });
-      const m = L.marker([centLat, centLon], { icon, pane:'clusters', interactive:true })
+      const m = L.marker([centLat, centLon], { icon, pane:'cluster-badges', interactive:true })
         .bindTooltip(typeLine, { permanent:false, direction:'top', offset:[0,-size/2],
           className:'cluster-label' })
         .on('click', ()=>showClusterDetail(counts, total, sid, appType))
@@ -1009,8 +1331,7 @@ function drawClusters(sid) {
           });
           // Highlight sessie-rij in sidebar
           document.querySelectorAll('.session-row').forEach(function(row) {
-            var toggle = row.querySelector('.session-toggle');
-            row.classList.toggle('highlighted', toggle && toggle.dataset.sid === sid);
+            row.classList.toggle('highlighted', row.dataset.sid === sid);
           });
         })
         .on('mouseout', function() {
@@ -1038,12 +1359,41 @@ function drawClusters(sid) {
       clusterLayers[sid].push(m);
     });
   });
+
+  // Zero-visited wegvakken voor pocket: kleine "0"-badge op het centroïd,
+  // in sessiekleur, gestreepte rand — visueel verschillend van getelde clusters.
+  if (appType === 'pocket') {
+    Object.keys(wayData).forEach(function(wid) {
+      const wd = wayData[wid];
+      const zeroSess = wd.sessions.find(function(s){ return s.sid === sid && s.zeroVisited; });
+      if (!zeroSess || !wd.geometry || wd.geometry.length < 2) return;
+      let cLat = 0, cLon = 0;
+      wd.geometry.forEach(function(p){ cLat += p[0]; cLon += p[1]; });
+      cLat /= wd.geometry.length;
+      cLon /= wd.geometry.length;
+      const color = getSessionColor(sid);
+      const icon = L.divIcon({
+        className: '',
+        html: '<div style="width:22px;height:22px;border-radius:50%;'
+            + 'background:rgba(20,22,25,0.7);border:1.5px dashed '+color+';'
+            + 'display:flex;align-items:center;justify-content:center;'
+            + 'font-family:Oswald,sans-serif;font-size:11px;font-weight:700;'
+            + 'color:'+color+';opacity:0.9;'
+            + 'transform:translate(-50%,-50%);box-sizing:border-box;">0</div>',
+        iconSize: [0,0], iconAnchor: [0,0]
+      });
+      const zm = L.marker([cLat, cLon], { icon: icon, pane: 'cluster-badges' })
+        .bindTooltip(cleanNaam(wd.osmName || '') + ' · bezocht, geen waarnemingen',
+                     { direction:'top', className:'cluster-label' });
+      zm.addTo(map);
+      clusterLayers[sid].push(zm);
+    });
+  }
+
   updateStats();
 }
 
 function redrawAllClusters() {
-  combinedClusterLayer.forEach(function(m){ map.removeLayer(m); });
-  combinedClusterLayer = [];
   Object.keys(sessions).forEach(sid=>drawClusters(sid));
 }
 
@@ -1286,7 +1636,7 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV) {
       map.fitBounds(L.featureGroup(capLayers[sid]).getBounds().pad(0.4));
     }
     renderSessions(); updateUI(); updateStats();
-    document.getElementById('empty-state').style.display='none';
+
   };
 
   // Filteren: alleen IDs ophalen die NIET in polyMap zitten
@@ -1400,7 +1750,7 @@ async function loadZip(file) {
 
   // Pocket-sessie: apart pad
   if (appType === 'pocket') {
-    loadPocketZip(sid, sm, telCSV);
+    loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV);
     return;
   }
 
@@ -1535,50 +1885,156 @@ async function loadZip(file) {
   updateUI();
   updateStats();
   map.fitBounds(Object.values(wayData).flatMap(w=>w.geometry),{padding:[30,30]});
-  document.getElementById('empty-state').style.display='none';
+
 }
 
 // ── SESSIONS UI ───────────────────────────────────────────────────
 function renderSessions() {
-  const list=document.getElementById('sessions-list');
-  list.innerHTML='';
-  Object.keys(sessions).sort().reverse().forEach(sid=>{
-    const s=sessions[sid];
-    const datum=fmtDatum(s.meta.datum, s.meta.start_tijd);
-    const typeLabel=s.appType==='auto'?'🚗':s.appType==='capaciteit'?'🅿':s.appType==='transect'?'🚶':s.appType==='pocket'?'📷':'🚲';
-    const row=document.createElement('div');
-    row.className='session-row';
-    row.innerHTML=`
-      <div class="session-toggle ${s.visible?'on':''}" data-sid="${sid}"></div>
-      <div class="session-info">
-        <div class="session-datum">${datum} <span style="color:var(--muted);font-size:10px">${typeLabel} ${s.meta.teller||''}</span></div>
-        <div class="session-id">${sid}</div>
-      </div>
-      <div class="session-n">${s.meta.n_waarnemingen||''}</div>`;
+  const list = document.getElementById('sessions-list');
+  list.innerHTML = '';
+  const sids = Object.keys(sessions).sort().reverse();
+  sids.forEach(sid => {
+    const s = sessions[sid];
+    const datum = fmtDatum(s.meta.datum, s.meta.start_tijd);
+    const typeIcon = s.appType==='auto'?'🚗'
+                   : s.appType==='capaciteit'?'🅿'
+                   : s.appType==='transect'?'🚶'
+                   : s.appType==='pocket'?'📷'
+                   : '🚲';
+    const color = SESSION_COLORS[sid] || '#888';
+    const teller = s.meta.teller ? s.meta.teller : '';
+    const n = s.meta.n_waarnemingen || '';
+    const row = document.createElement('div');
+    row.className = 'session-row' + (s.visible ? '' : ' off');
+    row.dataset.sid = sid;
+    row.title = 'klik: aan/uit  ·  shift-klik: alles aan/uit  ·  rechtsklik: solo';
+    row.style.setProperty('--sc', color);
+    row.innerHTML =
+      '<div class="session-color"></div>' +
+      '<div class="session-content">' +
+        '<div class="session-meta">' +
+          '<div class="session-line1">' +
+            '<span class="stype">' + typeIcon + '</span>' +
+            '<span>' + datum + '</span>' +
+            (teller ? '<span class="stell">' + teller + '</span>' : '') +
+          '</div>' +
+          '<div class="session-id">' + sid + '</div>' +
+        '</div>' +
+        (n ? '<div class="session-n">' + n + '</div>' : '') +
+      '</div>';
     list.appendChild(row);
   });
-  const has=Object.keys(sessions).length>0;
-  document.getElementById('section-title').style.display=has?'block':'none';
+  const has = sids.length > 0;
+  document.getElementById('section-title').style.display = has ? 'flex' : 'none';
+  document.getElementById('sessies-count').textContent = has ? sids.length : '';
 }
 
-document.getElementById('sessions-list').addEventListener('click',e=>{
-  const t=e.target.closest('.session-toggle'); if (!t) return;
-  const sid=t.dataset.sid;
-  sessions[sid].visible=!sessions[sid].visible;
-  t.classList.toggle('on',sessions[sid].visible);
-  if (gpsLayers[sid]) sessions[sid].visible?gpsLayers[sid].addTo(map):map.removeLayer(gpsLayers[sid]);
-  if (capLayers[sid]) capLayers[sid].forEach(m=>sessions[sid].visible?m.addTo(map):map.removeLayer(m));
-  const cfg=APP_CONFIG[sessions[sid].appType]||APP_CONFIG.fiets;
-  cfg.types.forEach(type=>showHideDots(sid,type,dotVisible[type]));
-  // Transect/pocket: dots zitten in dotLayers maar niet in APP_CONFIG types
-  if (sessions[sid].appType==='transect'||sessions[sid].appType==='pocket') {
-    Object.keys(dotLayers[sid]||{}).forEach(function(type) {
-      showHideDots(sid, type, sessions[sid].visible);
+// Past de visibility van één sessie toe op alle bijbehorende kaartlagen.
+// Wordt aangeroepen door click (toggle één), shift-click (toggle all),
+// en contextmenu (solo). Houdt de DOM-row in sync met de data.
+function applySessionVisibility(sid) {
+  const s = sessions[sid]; if (!s) return;
+  const row = document.querySelector('.session-row[data-sid="'+sid+'"]');
+  if (row) row.classList.toggle('off', !s.visible);
+  if (gpsLayers[sid]) s.visible ? gpsLayers[sid].addTo(map) : map.removeLayer(gpsLayers[sid]);
+  if (capLayers[sid]) capLayers[sid].forEach(m => s.visible ? m.addTo(map) : map.removeLayer(m));
+  const cfg = APP_CONFIG[s.appType] || APP_CONFIG.fiets;
+  cfg.types.forEach(type => showHideDots(sid, type, dotVisible[type]));
+  if (s.appType === 'transect' || s.appType === 'pocket') {
+    Object.keys(dotLayers[sid] || {}).forEach(function(type) {
+      showHideDots(sid, type, s.visible);
     });
   }
   drawClusters(sid);
+}
+
+document.getElementById('sessions-list').addEventListener('click', e => {
+  const row = e.target.closest('.session-row'); if (!row) return;
+  const sid = row.dataset.sid; if (!sessions[sid]) return;
+
+  // Shift-klik: als alles aan staat → alles uit behalve deze; anders → alles aan
+  if (e.shiftKey) {
+    const allOn = Object.values(sessions).every(s => s.visible);
+    if (allOn) {
+      Object.keys(sessions).forEach(function(k) {
+        sessions[k].visible = (k === sid);
+        applySessionVisibility(k);
+      });
+    } else {
+      Object.keys(sessions).forEach(function(k) {
+        sessions[k].visible = true;
+        applySessionVisibility(k);
+      });
+    }
+  } else {
+    // Normale klik: toggle deze ene
+    sessions[sid].visible = !sessions[sid].visible;
+    applySessionVisibility(sid);
+  }
   recolorAll();
   updateStats();
+  // Clear eventuele hangende hover-emphasis na actie
+  setSessionEmphasis(null);
+});
+
+// Rechtermuisknop / contextmenu: solo-modus (alleen deze sessie zichtbaar).
+// Nogmaals rechtsklikken op dezelfde solo-sessie → alles weer aan.
+document.getElementById('sessions-list').addEventListener('contextmenu', e => {
+  const row = e.target.closest('.session-row'); if (!row) return;
+  e.preventDefault();
+  const sid = row.dataset.sid; if (!sessions[sid]) return;
+  const others = Object.keys(sessions).filter(k => k !== sid);
+  const isSolo = sessions[sid].visible && others.every(k => !sessions[k].visible);
+  Object.keys(sessions).forEach(function(k) {
+    sessions[k].visible = isSolo ? true : (k === sid);
+    applySessionVisibility(k);
+  });
+  recolorAll();
+  updateStats();
+  setSessionEmphasis(null);
+});
+
+// Hover: dim alle andere sessies (vergelijkbaar met cluster-hover).
+// Gebruikt CSS opacity op de Leaflet-element-divs, geen layer-mutaties.
+function setSessionEmphasis(focusSid) {
+  Object.keys(sessions).forEach(function(sid) {
+    const dim = (focusSid && sid !== focusSid);
+    const op = dim ? '0.15' : '';
+    // Dots
+    Object.values(dotLayers[sid] || {}).forEach(function(arr) {
+      arr.forEach(function(dot) {
+        const el = dot.getElement && dot.getElement();
+        if (el) el.style.opacity = op;
+      });
+    });
+    // Clusters
+    (clusterLayers[sid] || []).forEach(function(m) {
+      const el = m.getElement && m.getElement();
+      if (el) el.style.opacity = op;
+    });
+    // GPS-spoor
+    if (gpsLayers[sid]) {
+      const el = gpsLayers[sid].getElement && gpsLayers[sid].getElement();
+      if (el) el.style.opacity = op;
+    }
+    // Capaciteits-polygonen
+    (capLayers[sid] || []).forEach(function(m) {
+      const el = m.getElement && m.getElement();
+      if (el) el.style.opacity = op;
+    });
+  });
+  // Highlight de gefocuste rij
+  document.querySelectorAll('.session-row').forEach(function(r) {
+    r.classList.toggle('highlighted', r.dataset.sid === focusSid);
+  });
+}
+
+document.getElementById('sessions-list').addEventListener('mouseover', e => {
+  const row = e.target.closest('.session-row'); if (!row) return;
+  setSessionEmphasis(row.dataset.sid);
+});
+document.getElementById('sessions-list').addEventListener('mouseleave', () => {
+  setSessionEmphasis(null);
 });
 
 // ── TOGGLES ───────────────────────────────────────────────────────
@@ -1596,6 +2052,72 @@ document.getElementById('cluster-toggle').addEventListener('click',function(){
   this.classList.toggle('active',clustersVisible);
   redrawAllClusters();
 });
+
+function toggleCapNetwerk(btn) {
+  const on = btn.classList.toggle('active');
+  capNetwerkLayers.forEach(function(l) { on ? l.addTo(map) : map.removeLayer(l); });
+}
+
+function setBasemapOpacity(val) {
+  tileLayer.setOpacity(val / 100);
+  document.getElementById('basemap-pct').textContent = val + '%';
+}
+
+function resetAll() {
+  if (!confirm('Alle geladen sessies verwijderen?')) return;
+  // Verwijder alle kaartlagen
+  Object.keys(wayLayers).forEach(function(wid){ map.removeLayer(wayLayers[wid]); });
+  Object.keys(gpsLayers).forEach(function(sid){ map.removeLayer(gpsLayers[sid]); });
+  Object.keys(clusterLayers).forEach(function(sid){
+    (clusterLayers[sid]||[]).forEach(function(m){ map.removeLayer(m); });
+  });
+  Object.keys(capLayers).forEach(function(sid){
+    (capLayers[sid]||[]).forEach(function(m){ map.removeLayer(m); });
+  });
+  Object.values(dotLayers).forEach(function(types){
+    Object.values(types||{}).forEach(function(arr){
+      arr.forEach(function(m){ map.removeLayer(m); });
+    });
+  });
+  combinedClusterLayer.forEach(function(m){ map.removeLayer(m); });
+  capSpotLayers.forEach(function(m){ map.removeLayer(m); });
+  // Reset state
+  Object.keys(sessions).forEach(function(k){ delete sessions[k]; });
+  Object.keys(wayData).forEach(function(k){ delete wayData[k]; });
+  Object.keys(wayLayers).forEach(function(k){ delete wayLayers[k]; });
+  Object.keys(gpsLayers).forEach(function(k){ delete gpsLayers[k]; });
+  Object.keys(clusterLayers).forEach(function(k){ delete clusterLayers[k]; });
+  Object.keys(capLayers).forEach(function(k){ delete capLayers[k]; });
+  Object.keys(dotLayers).forEach(function(k){ delete dotLayers[k]; });
+  Object.keys(telData).forEach(function(k){ delete telData[k]; });
+  Object.keys(capTelData).forEach(function(k){ delete capTelData[k]; });
+  Object.keys(globalPolyMap).forEach(function(k){ delete globalPolyMap[k]; });
+  Object.keys(SESSION_COLORS).forEach(function(k){ delete SESSION_COLORS[k]; });
+  SESSION_COLOR_IDX = 0;
+  combinedClusterLayer = [];
+  capSpotLayers = [];
+  // UI reset
+  document.getElementById('sessions-list').innerHTML = '';
+  document.getElementById('statsbar').style.display = 'none';
+  document.getElementById('detail-panel').classList.add('hidden');
+  document.getElementById('section-title').style.display = 'none';
+  // Accordion-groepen terug naar defaults: Tonen/Weergave open, Kaart dicht
+  var gT = document.getElementById('grp-tonen');     if (gT) gT.open = true;
+  var gW = document.getElementById('grp-weergave');  if (gW) gW.open = true;
+  var gK = document.getElementById('grp-kaart');     if (gK) gK.open = true;
+  // Capaciteitscontouren-toggle terug naar default (aan)
+  var capBtn = document.getElementById('capnetwerk-toggle');
+  if (capBtn && !capBtn.classList.contains('active')) {
+    capBtn.classList.add('active');
+    capNetwerkLayers.forEach(function(l) { l.addTo(map); });
+  }
+  // Basemap-opacity terug naar 100%
+  var opSlider = document.getElementById('basemap-opacity');
+  if (opSlider) { opSlider.value = 100; setBasemapOpacity(100); }
+  // Basemap terug naar OSM
+  if (currentBasemap !== 'osm') setBasemap('osm');
+  updateUI(); updateStats();
+}
 
 document.getElementById('gap-slider').addEventListener('input',function(){
   gapThreshold=+this.value;
@@ -1643,10 +2165,10 @@ function applyTimeFilter() {
     cfg.types.forEach(function(type){ showHideDots(sid, type, dotVisible[type] && inWin); });
   });
 
-  // Session-list toggles updaten
-  document.querySelectorAll('.session-toggle').forEach(function(el) {
+  // Session-list rij-states updaten (off-class)
+  document.querySelectorAll('.session-row').forEach(function(el) {
     const sid = el.dataset.sid;
-    el.classList.toggle('on', sessions[sid]?.visible || false);
+    el.classList.toggle('off', !(sessions[sid]?.visible));
   });
 
   redrawAllClusters();
@@ -1728,8 +2250,8 @@ function toggleTimeFilter(active) {
       const cfg = APP_CONFIG[sessions[sid].appType] || APP_CONFIG.fiets;
       cfg.types.forEach(function(type){ showHideDots(sid, type, dotVisible[type]); });
     });
-    document.querySelectorAll('.session-toggle').forEach(function(el) {
-      el.classList.add('on');
+    document.querySelectorAll('.session-row').forEach(function(el) {
+      el.classList.remove('off');
     });
     redrawAllClusters(); recolorAll(); updateStats();
   }
@@ -1746,17 +2268,18 @@ function updateUI() {
   const hasPocket   =Object.values(sessions).some(s=>s.appType==='pocket');
   const hasAny  =hasFiets||hasAuto||hasCap||hasTransect||hasPocket;
 
-  document.getElementById('statsbar').style.display           = hasAny  ?'flex':'none';
-  document.getElementById('toggles-fiets').style.display      = hasFiets?'block':'none';
-  document.getElementById('toggles-auto').style.display       = hasAuto ?'block':'none';
-  document.getElementById('cluster-toggle-row').style.display = hasAny  ?'block':'none';
-  document.getElementById('time-toggle-row').style.display   = hasAny  ?'block':'none';
-  document.getElementById('gap-row').style.display            = hasAny  ?'flex':'none';
-  document.getElementById('legend').style.display             = hasAny  ?'block':'none';
-  document.getElementById('legend-fiets').style.display       = hasFiets?'block':'none';
-  document.getElementById('legend-auto').style.display        = hasAuto ?'block':'none';
-  document.getElementById('pill-fiets').style.display         = hasFiets?'block':'none';
-  document.getElementById('pill-bezet').style.display         = hasAuto ?'block':'none';
+  document.getElementById('statsbar').style.display      = hasAny  ?'flex':'none';
+  // Tonen-groep: alleen relevant bij fiets/auto (die hebben type-toggles)
+  document.getElementById('grp-tonen').style.display     = (hasFiets||hasAuto) ?'':'none';
+  document.getElementById('toggles-fiets').style.display = hasFiets?'block':'none';
+  document.getElementById('toggles-auto').style.display  = hasAuto ?'block':'none';
+  // Weergave-groep: zinvol zodra er iéts geladen is
+  document.getElementById('grp-weergave').style.display  = hasAny  ?'':'none';
+  document.getElementById('legend').style.display        = hasAny  ?'block':'none';
+  document.getElementById('legend-fiets').style.display  = hasFiets?'block':'none';
+  document.getElementById('legend-auto').style.display   = hasAuto ?'block':'none';
+  document.getElementById('pill-fiets').style.display    = hasFiets?'block':'none';
+  document.getElementById('pill-bezet').style.display    = hasAuto ?'block':'none';
 }
 
 // ── STATS ─────────────────────────────────────────────────────────

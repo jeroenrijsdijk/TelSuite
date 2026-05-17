@@ -440,11 +440,31 @@ planningLayer = L.layerGroup().addTo(map);
         }).filter(function(c){ return !isNaN(c[0]) && !isNaN(c[1]); });
         if (coords.length < 2) return;
         L.polyline(coords, {
-          color: '#8e44ad', weight: 4, opacity: 0.5,
-          dashArray: '8 4', interactive: false
+          color: '#8e44ad', weight: 6, opacity: 0.9,
+          dashArray: null, interactive: false
         }).addTo(planningLayer).bindTooltip(w.naam || w.highway, {direction:'top', sticky:true});
+        // Witte kern voor beter contrast
+        L.polyline(coords, {
+          color: '#ffffff', weight: 2, opacity: 0.55,
+          interactive: false
+        }).addTo(planningLayer);
         planningWegen.push(w);
       });
+      // Inzoomen op planningsgebied
+      if (planningWegen.length > 0) {
+        var allCoords = [];
+        planningWegen.forEach(function(w) {
+          if (!w.geometrie_wkt) return;
+          var inner = w.geometrie_wkt.replace(/LINESTRING\s*\(/, '').replace(/\)$/, '');
+          inner.split(',').forEach(function(p) {
+            var parts = p.trim().split(' ').map(Number);
+            if (!isNaN(parts[1]) && !isNaN(parts[0])) allCoords.push([parts[1], parts[0]]);
+          });
+        });
+        if (allCoords.length) {
+          try { map.fitBounds(L.latLngBounds(allCoords).pad(0.15)); } catch(e) {}
+        }
+      }
       setStatus('Opdracht: ' + (data.sessie_naam||'') + ' · ' + planningWegen.length + ' wegen');
     })
     .catch(function(e) { setStatus('Opdracht laden mislukt: ' + e); });

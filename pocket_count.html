@@ -255,6 +255,9 @@ var holdStart   = null;
 var wakeLock    = null;
 var watching    = null;
 var lastLat     = null, lastLon = null;
+var routeLog    = [];   // [{ts, lat, lon, acc, wayId, osmName}]
+var lastRouteLat = null, lastRouteLon = null;
+var ROUTE_MIN_DIST = 5; // meter
 var HOLD_MS     = 600;
 
 function pad(n){ return String(n).padStart(2,'0'); }
@@ -286,7 +289,29 @@ function genSid() {
 function startGps() {
   if (!navigator.geolocation) return;
   watching = navigator.geolocation.watchPosition(
-    function(pos){ lastLat = pos.coords.latitude; lastLon = pos.coords.longitude; snapCheckRefresh(lastLat, lastLon); },
+    function(pos) {
+      lastLat = pos.coords.latitude;
+      lastLon = pos.coords.longitude;
+      var acc = Math.round(pos.coords.accuracy || 0);
+      snapCheckRefresh(lastLat, lastLon);
+      // Huidige snap bepalen (kan null zijn als netwerk nog niet geladen is)
+      var snapNow = snapNearestWay(lastLat, lastLon);
+      var widNow  = snapNow ? snapNow.wayId   : '';
+      var nameNow = snapNow ? snapNow.osmName : '';
+      // Route-punt opslaan bij voldoende verplaatsing
+      if (lastRouteLat === null) {
+        lastRouteLat = lastLat; lastRouteLon = lastLon;
+        routeLog.push({ ts: nowIso(), lat: lastLat, lon: lastLon, acc: acc, wayId: widNow, osmName: nameNow });
+      } else {
+        var cos = Math.cos(lastRouteLat * Math.PI / 180);
+        var dx = (lastLon - lastRouteLon) * 111320 * cos;
+        var dy = (lastLat - lastRouteLat) * 111320;
+        if (Math.sqrt(dx*dx + dy*dy) >= ROUTE_MIN_DIST) {
+          routeLog.push({ ts: nowIso(), lat: lastLat, lon: lastLon, acc: acc, wayId: widNow, osmName: nameNow });
+          lastRouteLat = lastLat; lastRouteLon = lastLon;
+        }
+      }
+    },
     function(){},
     { enableHighAccuracy: true, maximumAge: 3000 }
   );
@@ -336,8 +361,11 @@ function startTelling(type, icon, label) {
   telType    = type;
   telLabel   = label;
   telIcon    = icon;
-  telCount   = 0;
-  telHistory = [];
+  telCount    = 0;
+  telHistory  = [];
+  snapElements = {};
+  routeLog    = [];
+  lastRouteLat = null; lastRouteLon = null;
   startTime  = new Date();
 
   var color = getComputedStyle(document.documentElement).getPropertyValue('--c-' + type).trim();
@@ -409,12 +437,21 @@ function cancelHold() {
   fill.style.width = '0%';
 }
 
+var snapPendingQueue = [];  // tikken die wachten op eerste snap-respons
+
 function doTap() {
   telCount++;
-  var _snap = (lastLat!==null) ? snapNearestWay(lastLat, lastLon) : null;
-  telHistory.push({ ts: nowIso(), lat: lastLat, lon: lastLon,
-    wayId:   _snap ? _snap.wayId   : '',
-    osmName: _snap ? _snap.osmName : '' });
+  var tapEntry = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId: '', osmName: '' };
+  if (snapReady) {
+    var _snap = (lastLat!==null) ? snapNearestWay(lastLat, lastLon) : null;
+    tapEntry.wayId   = _snap ? _snap.wayId   : '';
+    tapEntry.osmName = _snap ? _snap.osmName : '';
+    telHistory.push(tapEntry);
+  } else {
+    // Snap nog niet beschikbaar — in wachtrij plaatsen
+    snapPendingQueue.push(tapEntry);
+    telHistory.push(tapEntry);
+  }
   document.getElementById('big-count').textContent = telCount;
   if (navigator.vibrate) navigator.vibrate(25);
   var s = document.getElementById('count-screen');
@@ -435,6 +472,91 @@ function doUndo() {
 }
 
 // ── Export ZIP ────────────────────────────────────────────────────────────────
+function buildNetwerkCsv(sid) {
+  var lines = ['osm_way_id;highway;geometrie_wkt'];
+  Object.keys(snapElements).forEach(function(wid) {
+    var el = snapElements[wid];
+    var coords = el.geometry.map(function(p){
+      return p.lon.toFixed(6)+' '+p.lat.toFixed(6);
+    }).join(', ');
+    lines.push(wid+';'+el.highway+';LINESTRING ('+coords+')');
+  });
+  return lines.join('\n');
+}
+
+// Leidt 'visits' (aaneengesloten verblijven op één wegvak) af uit routeLog.
+// Regels:
+//   - opeenvolgende routepunten met dezelfde wayId vormen één visit
+//   - een gat van >MAX_GAP_SEC seconden breekt een visit, ook bij gelijke wayId
+//   - visits met <MIN_VISIT_SEC seconden of <MIN_VISIT_PTS punten worden weggefilterd
+//     (vluchtige snap-flips bij kruisingen)
+// Per visit wordt geteld hoeveel tellingen erin vielen via timestamp-bereik.
+function buildBezochtCsv(sid, telHist) {
+  var MAX_GAP_SEC   = 30;
+  var MIN_VISIT_SEC = 5;
+  var MIN_VISIT_PTS = 3;
+
+  function tsParse(s) { return new Date(s).getTime(); }
+
+  // Tellingen sorteren op timestamp voor snelle range-toewijzing
+  var taps = telHist.filter(function(h){ return h.wayId; })
+                    .map(function(h){ return { wid: h.wayId, t: tsParse(h.ts) }; })
+                    .sort(function(a,b){ return a.t - b.t; });
+
+  var visits = [];
+  var cur = null;
+  for (var i = 0; i < routeLog.length; i++) {
+    var p   = routeLog[i];
+    var t   = tsParse(p.ts);
+    var wid = p.wayId || '';
+    if (!wid) {                       // geen snap → breek
+      if (cur) { visits.push(cur); cur = null; }
+      continue;
+    }
+    if (!cur || cur.wayId !== wid || (t - cur.tEnd) > MAX_GAP_SEC*1000) {
+      if (cur) visits.push(cur);
+      cur = { wayId: wid, osmName: p.osmName || '',
+              tStart: t, tEnd: t, nPts: 1 };
+    } else {
+      cur.tEnd = t;
+      cur.nPts += 1;
+      if (p.osmName && !cur.osmName) cur.osmName = p.osmName;
+    }
+  }
+  if (cur) visits.push(cur);
+
+  // Filter te korte visits weg
+  visits = visits.filter(function(v) {
+    var dur = (v.tEnd - v.tStart) / 1000;
+    return dur >= MIN_VISIT_SEC && v.nPts >= MIN_VISIT_PTS;
+  });
+
+  // Tellingen per visit toewijzen (lineaire pass — taps zijn gesorteerd)
+  visits.forEach(function(v) { v.nTel = 0; });
+  var ti = 0;
+  visits.forEach(function(v) {
+    while (ti < taps.length && taps[ti].t < v.tStart) ti++;
+    var j = ti;
+    while (j < taps.length && taps[j].t <= v.tEnd) {
+      if (taps[j].wid === v.wayId) v.nTel++;
+      j++;
+    }
+  });
+
+  function fmtTs(ms) {
+    var d = new Date(ms);
+    return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  }
+  var datum = fmtDate(startTime);
+  var lines = ['sessie_id;datum;osm_way_id;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen'];
+  visits.forEach(function(v) {
+    var dur = Math.round((v.tEnd - v.tStart) / 1000);
+    lines.push([sid, datum, v.wayId, v.osmName, fmtTs(v.tStart), fmtTs(v.tEnd),
+                dur, v.nPts, v.nTel].join(';'));
+  });
+  return lines.join('\n');
+}
+
 function stopTelling() {
   var endTime = new Date();
   var sid     = genSid() + '_pkt';
@@ -459,8 +581,22 @@ function stopTelling() {
   });
 
   var zip = new JSZip();
+  // GPS-track CSV (met wayId per punt voor transparantie/debug)
+  var gpsCsv = 'sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;straat\n';
+  routeLog.forEach(function(p) {
+    gpsCsv += [sid, p.ts, p.lat.toFixed(6), p.lon.toFixed(6), p.acc,
+               p.wayId || '', p.osmName || ''].join(';') + '\n';
+  });
+
   zip.file(sid + '_sessie.csv',    sessieCsv);
   zip.file(sid + '_telregels.csv', telregelsCsv);
+  if (routeLog.length) {
+    zip.file(sid + '_gps.csv', gpsCsv);
+    zip.file(sid + '_bezocht.csv', buildBezochtCsv(sid, telHistory));
+  }
+  if (Object.keys(snapElements).length) {
+    zip.file(sid + '_netwerk.csv', buildNetwerkCsv(sid));
+  }
 
   zip.generateAsync({ type: 'blob' }).then(function(blob) {
     var url = URL.createObjectURL(blob);
@@ -485,6 +621,7 @@ var SNAP_OVERPASS          = ['https://overpass-api.de/api/interpreter', 'https:
 
 var snapSegs     = [];
 var snapCacheLat = null, snapCacheLon = null;
+var snapElements = {};  // wayId → {highway, geometry} — voor netwerk.csv
 var snapReady    = false;
 
 function snapToXY(lat, lon, refLat, refLon) {
@@ -550,7 +687,26 @@ function snapFetchNetwork(lat, lon, attempt) {
       if (!data.elements||!data.elements.length) throw new Error('geen wegen');
       snapCacheLat=lat; snapCacheLon=lon;
       snapSegs=snapBuildSegs(data.elements,lat,lon);
+      // Accumuleer wegvakgeometrie voor netwerk.csv
+      data.elements.forEach(function(el) {
+        if (el.type!=='way'||!el.geometry||el.geometry.length<2) return;
+        if (!snapElements[el.id]) {
+          snapElements[String(el.id)] = {
+            highway: (el.tags&&el.tags.highway)||'',
+            geometry: el.geometry
+          };
+        }
+      });
       snapReady=true;
+      // Retro-snap tikken die wachtten op het netwerk
+      if (snapPendingQueue.length) {
+        snapPendingQueue.forEach(function(entry) {
+          if (entry.lat===null) return;
+          var s = snapNearestWay(entry.lat, entry.lon);
+          if (s) { entry.wayId = s.wayId; entry.osmName = s.osmName; }
+        });
+        snapPendingQueue = [];
+      }
     })
     .catch(function(){ snapFetchNetwork(lat,lon,attempt+1); });
 }

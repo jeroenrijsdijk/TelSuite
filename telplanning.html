@@ -81,6 +81,105 @@
     overflow: hidden;
   }
 
+  /* ── Mode tabs ── */
+  #mode-tabs {
+    display: flex;
+    gap: 4px;
+    background: rgba(255,255,255,0.06);
+    padding: 3px;
+    border-radius: 4px;
+  }
+  .mode-tab {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.55);
+    font-family: var(--font);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .mode-tab:hover { color: rgba(255,255,255,0.85); }
+  .mode-tab.active {
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  /* ── Dekkings-modus ── */
+  body.mode-dekking .maken-only { display: none !important; }
+  body.mode-maken   .dekking-only { display: none !important; }
+
+  #dz-bezocht {
+    border: 1.5px dashed var(--border);
+    border-radius: 4px;
+    padding: 14px 10px;
+    text-align: center;
+    color: var(--dim);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  #dz-bezocht:hover, #dz-bezocht.over {
+    border-color: var(--text); color: var(--text);
+  }
+  #dz-bezocht input { display: none; }
+  #dz-bezocht .dz-icon { font-size: 1.4rem; margin-bottom: 4px; }
+
+  .matrix {
+    display: grid;
+    grid-template-columns: 72px repeat(3, 1fr);
+    gap: 3px;
+    margin-top: 8px;
+  }
+  .matrix .row-label {
+    font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--muted);
+    display: flex; align-items: center;
+  }
+  .matrix .col-head {
+    font-size: 0.55rem; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--muted);
+    text-align: center; padding: 2px 0;
+  }
+  .matrix-cell {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    aspect-ratio: 1.6;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.1s, background 0.1s;
+  }
+  .matrix-cell:hover { border-color: var(--text); }
+  .matrix-cell.selected {
+    border-color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--text);
+  }
+  .matrix-cell .cnt {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 700; color: var(--text);
+    font-family: var(--mono);
+  }
+  /* Heatmap-kleuring per dekking */
+  .matrix-cell.lvl-0 { background: #f4d3d0; }   /* helemaal niet bezocht */
+  .matrix-cell.lvl-1 { background: #ffe7c2; }   /* 1× bezocht */
+  .matrix-cell.lvl-2 { background: #d4edda; }   /* 2× bezocht */
+  .matrix-cell.lvl-3 { background: #a8dab5; }   /* 3+× bezocht */
+
+  #cov-stats {
+    font-size: 0.7rem;
+    color: var(--dim);
+    line-height: 1.5;
+    font-family: var(--mono);
+  }
+
   /* ── Sidebar ── */
   #sidebar {
     width: 280px;
@@ -400,12 +499,16 @@
   }
 </style>
 </head>
-<body>
+<body class="mode-maken">
 
 <div id="header">
   <div>
     <div class="sub">TrafficCounterSuite</div>
     <h1>Telplanning</h1>
+  </div>
+  <div id="mode-tabs">
+    <button class="mode-tab active" id="tab-maken"   onclick="setMode('maken')">📋 Maken</button>
+    <button class="mode-tab"        id="tab-dekking" onclick="setMode('dekking')">🗺️ Dekking</button>
   </div>
   <div id="status-bar">Teken een contour om te beginnen</div>
 </div>
@@ -414,14 +517,14 @@
 
   <div id="sidebar">
 
-    <!-- Tekenen -->
+    <!-- Tekenen — gedeeld tussen beide modi -->
     <div class="panel-section">
       <div class="section-title">Gebied</div>
       <button id="btn-draw" onclick="toggleDraw()">&#9998; Teken contour</button>
       <button id="btn-clear" onclick="clearAll()" style="display:none">&#10005; Wis alles</button>
     </div>
 
-    <!-- Highway-type toggles -->
+    <!-- Highway-type toggles — gedeeld (filter werkt in beide modi) -->
     <div class="panel-section">
       <div class="section-title">Wegtypes</div>
       <div class="hw-toggles" id="hw-toggles">
@@ -468,8 +571,8 @@
       </div>
     </div>
 
-    <!-- Selectie -->
-    <div class="panel-section">
+    <!-- Selectie — alleen in Maken -->
+    <div class="panel-section maken-only">
       <div class="section-title">Selectie</div>
       <div class="sel-btns">
         <button class="sel-btn" onclick="selectAll()">Alles aan</button>
@@ -478,14 +581,14 @@
       </div>
     </div>
 
-    <!-- Stats -->
-    <div class="panel-section">
+    <!-- Stats — alleen in Maken -->
+    <div class="panel-section maken-only">
       <div class="section-title">Overzicht</div>
       <div id="stats-line">Nog geen wegen geladen.</div>
     </div>
 
-    <!-- Metadata -->
-    <div class="panel-section">
+    <!-- Metadata — alleen in Maken -->
+    <div class="panel-section maken-only">
       <div class="section-title">Sessiegegevens</div>
       <div class="meta-field">
         <div class="meta-label">Naam</div>
@@ -512,8 +615,29 @@
       </div>
     </div>
 
-    <!-- Opdrachten + Export -->
-    <div class="panel-section" style="margin-top:auto">
+    <!-- Dekkings-modus: ZIPs inladen -->
+    <div class="panel-section dekking-only">
+      <div class="section-title">Tellingen laden</div>
+      <label id="dz-bezocht">
+        <div class="dz-icon">📂</div>
+        <div>Sleep pocket-ZIPs hier<br>of klik om te kiezen</div>
+        <input type="file" id="bezocht-input" multiple accept=".zip">
+      </label>
+      <div id="cov-stats" style="margin-top:10px">Nog geen tellingen geladen.</div>
+    </div>
+
+    <!-- Dekkings-modus: cel-matrix -->
+    <div class="panel-section dekking-only">
+      <div class="section-title">Selectie dagdeel</div>
+      <div id="dekking-matrix"></div>
+      <div style="margin-top:8px;font-size:0.65rem;color:var(--muted);line-height:1.4">
+        Cel = wegen × bezoeken in dat dagdeel.<br>
+        Klik om de kaart te kleuren naar dekking.
+      </div>
+    </div>
+
+    <!-- Opdrachten + Export — alleen in Maken -->
+    <div class="panel-section maken-only" style="margin-top:auto">
       <button id="btn-opdrachten" onclick="openOpdrachten()"
         style="width:100%;padding:9px;background:none;border:1px solid var(--border);
                border-radius:3px;font-family:var(--font);font-size:0.7rem;font-weight:700;
@@ -550,12 +674,79 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
 var ways        = [];      // [{id, naam, highway, coords, selected, visible, layer}]
 var drawingMode = false;
-var drawnLayer  = null;
-var drawnPolygon = null;
+var drawnPolygons = [];  // meerdere getekende contouren
+var currentMode = 'maken';   // 'maken' | 'dekking'
+
+// ── Dekkings-modus state ─────────────────────────────────────────────────────
+// Coverage: per wegvak → per cell-key → aantal bezoeken
+// cell-key = `${dagtype}|${dagdeel}`  (bv. "weekdag|middag")
+// Dagdelen volgen het schema in de overdracht: 6 vakken × 3 dagtypes = 18 cellen
+var DAGDELEN = [
+  { key:'ochtendspits', label:'ocht.spits', h0:7,  h1:9.5 },
+  { key:'ochtend',      label:'ochtend',    h0:9.5,h1:12  },
+  { key:'middag',       label:'middag',     h0:12, h1:15  },
+  { key:'avondspits',   label:'av.spits',   h0:15, h1:18.5},
+  { key:'avond',        label:'avond',      h0:18.5,h1:22 },
+  { key:'nacht',        label:'nacht',      h0:22, h1:7   }   // wrap
+];
+var DAGTYPES = [
+  { key:'weekdag',  label:'weekdag'  },
+  { key:'zaterdag', label:'zaterdag' },
+  { key:'zondag',   label:'zondag'   }
+];
+// JS getDay(): 0=zo, 1=ma..6=za
+function dagtypeForDate(d) {
+  var dow = d.getDay();
+  if (dow === 0) return 'zondag';
+  if (dow === 6) return 'zaterdag';
+  return 'weekdag';
+}
+function dagdeelForTime(hh) {
+  // hh: uur als float (bv. 14.5 voor 14:30)
+  for (var i = 0; i < DAGDELEN.length; i++) {
+    var d = DAGDELEN[i];
+    if (d.key === 'nacht') {  // wrap-around
+      if (hh >= d.h0 || hh < d.h1) return d.key;
+    } else {
+      if (hh >= d.h0 && hh < d.h1) return d.key;
+    }
+  }
+  return 'nacht';
+}
+
+var coverage      = {};   // wayId → { 'weekdag|middag': aantal, ... }
+var loadedVisits  = 0;    // teller voor stats-regel
+var loadedZips    = 0;
+var selectedCell  = null; // bv. 'weekdag|middag'
+var COV_COLORS    = ['#e74c3c', '#f39c12', '#27ae60', '#1e8449'];  // 0,1,2,3+
+
+function coverageForWay(wid) {
+  if (!selectedCell) return 0;
+  return (coverage[wid] && coverage[wid][selectedCell]) || 0;
+}
+
+// Punt-in-polygoon (ray-casting) — GeoJSON coords [lon,lat]
+function ptInGeoJsonPoly(lon, lat, geojsonPoly) {
+  var ring = geojsonPoly.coordinates[0];
+  var inside = false;
+  for (var i=0,j=ring.length-1; i<ring.length; j=i++) {
+    var xi=ring[i][0],yi=ring[i][1], xj=ring[j][0],yj=ring[j][1];
+    if (((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
+// Weg centroïd
+function wayCentroid(coords) {
+  var la=0,lo=0;
+  coords.forEach(function(c){la+=c[0];lo+=c[1];});
+  return {lat:la/coords.length, lon:lo/coords.length};
+}
 
 var HW_GROUPS = {
   primary:     ['primary', 'primary_link'],
@@ -609,16 +800,15 @@ map.on(L.Draw.Event.DRAWSTART, function() {
 });
 
 map.on(L.Draw.Event.CREATED, function(e) {
-  drawnItems.clearLayers();
-  drawnLayer = e.layer;
-  drawnItems.addLayer(drawnLayer);
-  drawnPolygon = e.layer.toGeoJSON().geometry;
+  drawnItems.addLayer(e.layer);
+  var geom = e.layer.toGeoJSON().geometry;
+  drawnPolygons.push(geom);
   drawingMode = false;
   document.getElementById('btn-draw').classList.remove('drawing');
-  document.getElementById('btn-draw').textContent = '\u270E Herteken contour';
+  document.getElementById('btn-draw').textContent = '\u270E Voeg contour toe';
   document.getElementById('btn-clear').style.display = '';
-  setStatus('Contour getekend — wegen ophalen\u2026');
-  fetchWays();
+  setStatus('Contour ' + drawnPolygons.length + ' getekend \u2014 wegen ophalen\u2026');
+  fetchWaysForPolygon(geom);
 });
 
 // ── Tekenmodus ────────────────────────────────────────────────────────────────
@@ -637,8 +827,11 @@ function toggleDraw() {
 
 function clearAll() {
   drawnItems.clearLayers();
-  drawnLayer = null; drawnPolygon = null;
-  ways.forEach(function(w){ if (w.layer) map.removeLayer(w.layer); });
+  drawnPolygons = [];
+  ways.forEach(function(w){
+    if (w.layer) map.removeLayer(w.layer);
+    if (w.layer && w.layer._hitLayer) map.removeLayer(w.layer._hitLayer);
+  });
   ways = [];
   updateStats(); updateCounts();
   document.getElementById('btn-clear').style.display = 'none';
@@ -650,19 +843,28 @@ function clearAll() {
 // ── Overpass ophalen ──────────────────────────────────────────────────────────
 function buildQuery(geojsonPoly) {
   var coords = geojsonPoly.coordinates[0];
-  // Overpass poly-filter: lat lon paren, laatste punt niet herhalen
-  var ring = coords.slice(0, -1); // GeoJSON sluit de ring, Overpass niet
+  var ring = coords.slice(0, -1);
   var polyStr = ring.map(function(c){ return c[1].toFixed(6)+' '+c[0].toFixed(6); }).join(' ');
-  return '[out:json][timeout:25];(way["highway"]["area"!="yes"](poly:"' + polyStr + '"););out body geom;';
+  // Centroid berekenen voor around-buffer
+  var sumLat=0, sumLon=0;
+  ring.forEach(function(c){ sumLon+=c[0]; sumLat+=c[1]; });
+  var cLat=(sumLat/ring.length).toFixed(6), cLon=(sumLon/ring.length).toFixed(6);
+  // Radius inschatting: halve diagonaal van bounding box + 50m buffer
+  var lats=ring.map(function(c){return c[1];}), lons=ring.map(function(c){return c[0];});
+  var dLat=(Math.max.apply(null,lats)-Math.min.apply(null,lats))*111320/2;
+  var dLon=(Math.max.apply(null,lons)-Math.min.apply(null,lons))*111320*Math.cos(parseFloat(cLat)*Math.PI/180)/2;
+  var radius=Math.round(Math.sqrt(dLat*dLat+dLon*dLon)+50);
+  // Poly voor exact gebied, around voor buffer
+  return '[out:json][timeout:25];(way["highway"]["area"!="yes"](poly:"'+polyStr+'");way["highway"]["area"!="yes"](around:'+radius+','+cLat+','+cLon+'););out body geom;';
 }
 
-function fetchWays(endpointIdx) {
+function fetchWaysForPolygon(geojsonPoly, endpointIdx) {
   if (endpointIdx === undefined) endpointIdx = 0;
-  if (!drawnPolygon) return;
+  if (!geojsonPoly) return;
   document.getElementById('loading').style.display = '';
   setStatus('Overpass ophalen via endpoint ' + (endpointIdx+1) + '\u2026');
 
-  var query = buildQuery(drawnPolygon);
+  var query = buildQuery(geojsonPoly);
   console.log('[Overpass] query:', query);
   console.log('[Overpass] endpoint:', OVERPASS_ENDPOINTS[endpointIdx]);
   fetch(OVERPASS_ENDPOINTS[endpointIdx], {
@@ -681,12 +883,12 @@ function fetchWays(endpointIdx) {
     })
     .then(function(data) {
       document.getElementById('loading').style.display = 'none';
-      processWays(data.elements || []);
+      processWays(data.elements || [], geojsonPoly);
     })
     .catch(function(e) {
       console.error('[Overpass] fout:', e);
       if (endpointIdx < OVERPASS_ENDPOINTS.length - 1) {
-        fetchWays(endpointIdx + 1);
+        fetchWaysForPolygon(geojsonPoly, endpointIdx + 1);
       } else {
         document.getElementById('loading').style.display = 'none';
         setStatus('Overpass ophalen mislukt: ' + e.message);
@@ -709,22 +911,28 @@ function wayToWkt(geom) {
   }).join(', ') + ')';
 }
 
-function processWays(elements) {
-  // Verwijder oude lagen
-  ways.forEach(function(w){ if (w.layer) map.removeLayer(w.layer); });
-  ways = [];
+function processWays(elements, geojsonPoly) {
+  // Bestaande way-IDs bijhouden
+  var existingIds = {};
+  ways.forEach(function(w){ existingIds[w.id] = true; });
 
+  var newWays = [];
   var seen = {};
   elements.forEach(function(el) {
     if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) return;
     if (seen[el.id]) return;
     seen[el.id] = true;
+    if (existingIds[el.id]) return; // al aanwezig
 
     var hw    = (el.tags && el.tags.highway) ? el.tags.highway : '';
     var naam  = (el.tags && el.tags.name)    ? el.tags.name    : '(' + hw + ')';
     var group = hwGroup(hw);
     var coords = el.geometry.map(function(n){ return [n.lat, n.lon]; });
     var wkt   = wayToWkt(el.geometry);
+
+    // Bepaal of weg binnen de getekende polygoon valt
+    var c = wayCentroid(coords);
+    var inPoly = geojsonPoly ? ptInGeoJsonPoly(c.lon, c.lat, geojsonPoly) : true;
 
     var way = {
       id:       String(el.id),
@@ -733,25 +941,29 @@ function processWays(elements) {
       group:    group,
       coords:   coords,
       wkt:      wkt,
-      selected: true,
+      selected: inPoly,   // buffer-wegen standaard niet geselecteerd
       visible:  true,
       layer:    null
     };
 
     way.layer = makeWayLayer(way);
+    newWays.push(way);
     ways.push(way);
   });
 
   applyVisibility();
   updateCounts();
   updateStats();
-  document.getElementById('btn-export').disabled = (ways.length === 0);
-  setStatus(ways.length + ' wegen geladen — klik om te selecteren/deselecteren');
+  document.getElementById('btn-export').disabled = (ways.filter(function(w){return w.selected;}).length === 0);
 
-  // Zoom naar resultaten
-  if (ways.length > 0) {
-    var group = L.featureGroup(ways.map(function(w){ return w.layer; }));
-    map.fitBounds(group.getBounds().pad(0.1));
+  var nIn  = ways.filter(function(w){ return w.selected; }).length;
+  var nBuf = ways.filter(function(w){ return !w.selected; }).length;
+  setStatus(ways.length + ' wegen — ' + nIn + ' geselecteerd, ' + nBuf + ' in buffer (klik om toe te voegen)');
+
+  // Zoom alleen bij eerste lading
+  if (newWays.length > 0 && ways.length === newWays.length) {
+    var grp = L.featureGroup(ways.map(function(w){ return w.layer; }));
+    map.fitBounds(grp.getBounds().pad(0.1));
   }
 }
 
@@ -759,13 +971,24 @@ function makeWayLayer(way) {
   var layer = L.polyline(way.coords, {
     color:   HW_COLORS[way.group] || '#888',
     weight:  3,
-    opacity: 0.85
+    opacity: 0.85,
+    interactive: false
   });
-  layer.bindTooltip(way.naam + ' (' + way.highway + ')', {
+  // Brede transparante klikzone bovenop de lijn
+  var hitLayer = L.polyline(way.coords, {
+    color:   '#000',
+    weight:  18,
+    opacity: 0,
+    interactive: true
+  });
+  hitLayer.bindTooltip(way.naam + ' (' + way.highway + ')', {
     direction: 'top', className: 'way-tip'
   });
-  layer.on('click', function() { toggleWaySelect(way); });
+  hitLayer.on('click', function() { toggleWaySelect(way); });
   layer.addTo(map);
+  hitLayer.addTo(map);
+  // Bewaar beide lagen zodat we ze kunnen verwijderen/stylen
+  layer._hitLayer = hitLayer;
   return layer;
 }
 
@@ -777,6 +1000,19 @@ function toggleWaySelect(way) {
 
 function applyWayStyle(way) {
   if (!way.layer) return;
+  if (currentMode === 'dekking') {
+    // Dekkings-modus: kleur op basis van bezoeken in geselecteerde cel
+    var visits = coverageForWay(way.id);
+    var col = COV_COLORS[Math.min(visits, 3)];
+    way.layer.setStyle({
+      color:   col,
+      weight:  3,
+      opacity: 0.85,
+      dashArray: visits === 0 ? '6 4' : null
+    });
+    return;
+  }
+  // Maken-modus
   var sel = way.selected;
   way.layer.setStyle({
     color:   sel ? (HW_COLORS[way.group] || '#888') : '#b0b0a8',
@@ -991,6 +1227,159 @@ function startOpdracht(item) {
 function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// ── Mode switch ──────────────────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  document.body.classList.toggle('mode-maken',   mode === 'maken');
+  document.body.classList.toggle('mode-dekking', mode === 'dekking');
+  document.getElementById('tab-maken').classList.toggle('active',   mode === 'maken');
+  document.getElementById('tab-dekking').classList.toggle('active', mode === 'dekking');
+  // Re-style alle wegen
+  ways.forEach(applyWayStyle);
+  if (mode === 'dekking') {
+    renderDekkingMatrix();
+    setStatus('Selecteer een dagdeel om de dekking te zien');
+  } else {
+    setStatus(ways.length ? '\u2713 ' + ways.length + ' wegen geladen' : 'Teken een contour om te beginnen');
+  }
+}
+
+// ── Dekkings-matrix bouwen ───────────────────────────────────────────────────
+function renderDekkingMatrix() {
+  var host = document.getElementById('dekking-matrix');
+  if (!host) return;
+  var html = '<div class="matrix">';
+  // Kop-rij: lege hoek + dagtype-labels
+  html += '<div class="col-head"></div>';
+  DAGTYPES.forEach(function(dt){ html += '<div class="col-head">' + dt.label + '</div>'; });
+  // Datarijen: per dagdeel
+  DAGDELEN.forEach(function(dd) {
+    html += '<div class="row-label">' + dd.label + '</div>';
+    DAGTYPES.forEach(function(dt) {
+      var key = dt.key + '|' + dd.key;
+      var visits = totalVisitsInCell(key);
+      var lvl = visits === 0 ? 0 : visits < 3 ? 1 : visits < 8 ? 2 : 3;
+      var sel = (selectedCell === key) ? ' selected' : '';
+      html += '<div class="matrix-cell lvl-' + lvl + sel + '" data-cell="' + key + '" '
+            + 'onclick="selectCell(\'' + key + '\')" '
+            + 'title="' + dt.label + ' · ' + dd.label + ': ' + visits + ' bezoeken">'
+            + '<div class="cnt">' + (visits || '') + '</div></div>';
+    });
+  });
+  html += '</div>';
+  host.innerHTML = html;
+}
+
+// Totaal bezoeken in een cel over alle wegvakken
+function totalVisitsInCell(cellKey) {
+  var t = 0;
+  Object.keys(coverage).forEach(function(wid) {
+    t += coverage[wid][cellKey] || 0;
+  });
+  return t;
+}
+
+function selectCell(key) {
+  selectedCell = (selectedCell === key) ? null : key;
+  renderDekkingMatrix();
+  ways.forEach(applyWayStyle);
+  updateCoverageStats();
+}
+
+function updateCoverageStats() {
+  var el = document.getElementById('cov-stats');
+  if (!el) return;
+  if (!loadedZips) {
+    el.textContent = 'Nog geen tellingen geladen.';
+    return;
+  }
+  var header = loadedZips + ' ZIP\u00b7' + loadedVisits + ' bezoeken';
+  if (!selectedCell || !ways.length) {
+    el.innerHTML = header;
+    return;
+  }
+  var n0 = 0, n1 = 0, n2 = 0;
+  ways.forEach(function(w) {
+    if (!w.visible) return;
+    var v = coverageForWay(w.id);
+    if (v === 0) n0++;
+    else if (v === 1) n1++;
+    else n2++;
+  });
+  el.innerHTML = header
+    + '<br><span style="color:' + COV_COLORS[0] + '">\u25cf</span> ' + n0 + ' nog niet bezocht'
+    + '<br><span style="color:' + COV_COLORS[1] + '">\u25cf</span> ' + n1 + ' \u00d71 bezocht'
+    + '<br><span style="color:' + COV_COLORS[2] + '">\u25cf</span> ' + n2 + ' \u22652\u00d7 bezocht';
+}
+
+// ── ZIPs inlezen en coverage opbouwen ────────────────────────────────────────
+function handleBezochtFiles(files) {
+  var arr = Array.from(files).filter(function(f){ return f.name.endsWith('.zip'); });
+  if (!arr.length) return;
+  arr.forEach(function(f) {
+    JSZip.loadAsync(f).then(function(zip) {
+      // Vind *_bezocht.csv binnen de ZIP
+      var name = Object.keys(zip.files).find(function(n){ return /_bezocht\.csv$/.test(n); });
+      if (!name) {
+        setStatus('ZIP zonder bezocht.csv overgeslagen: ' + f.name);
+        return;
+      }
+      zip.files[name].async('string').then(function(text) {
+        ingestBezochtCsv(text);
+        loadedZips++;
+        renderDekkingMatrix();
+        ways.forEach(applyWayStyle);
+        updateCoverageStats();
+      });
+    }).catch(function(err) {
+      setStatus('ZIP-fout: ' + f.name);
+    });
+  });
+}
+
+function ingestBezochtCsv(csv) {
+  var lines = csv.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  if (lines.length < 2) return;
+  var header = lines[0].split(';');
+  var idxDatum = header.indexOf('datum');
+  var idxWid   = header.indexOf('osm_way_id');
+  var idxStart = header.indexOf('start_tijd');
+  if (idxDatum < 0 || idxWid < 0 || idxStart < 0) {
+    setStatus('bezocht.csv mist verplichte kolommen');
+    return;
+  }
+  for (var i = 1; i < lines.length; i++) {
+    var cols = lines[i].split(';');
+    var datumStr = cols[idxDatum];
+    var widStr   = cols[idxWid];
+    var startStr = cols[idxStart];
+    if (!datumStr || !widStr || !startStr) continue;
+    var d = new Date(datumStr + 'T' + startStr);
+    if (isNaN(d.getTime())) continue;
+    var dt = dagtypeForDate(d);
+    var hh = d.getHours() + d.getMinutes()/60;
+    var dd = dagdeelForTime(hh);
+    var key = dt + '|' + dd;
+    if (!coverage[widStr]) coverage[widStr] = {};
+    coverage[widStr][key] = (coverage[widStr][key] || 0) + 1;
+    loadedVisits++;
+  }
+}
+
+// Dropzone-koppeling
+(function() {
+  var dz = document.getElementById('dz-bezocht');
+  var inp = document.getElementById('bezocht-input');
+  if (!dz || !inp) return;
+  inp.addEventListener('change', function(){ handleBezochtFiles(this.files); });
+  dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function(){ dz.classList.remove('over'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault(); dz.classList.remove('over');
+    handleBezochtFiles(e.dataTransfer.files);
+  });
+})();
 
 // ── Init: datum en tijdstip prefill ──────────────────────────────────────────
 (function() {
