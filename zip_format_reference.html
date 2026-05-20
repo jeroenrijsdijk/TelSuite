@@ -435,10 +435,10 @@
   <div class="section-body" style="border-color:#d4007a">
     <div class="file-list">
       <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata incl. type en icoon</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Per tik: timestamp, type, lat/lon, osm_way_id, straat</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor met osm_way_id en straat per punt (v2.2+)</span></div>
-      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Geometrie van alle wegvakken die de snap-engine heeft gezien (v2.1+)</span></div>
-      <div class="file-row"><span class="file-name">_bezocht.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Per bezoek aan een wegvak: duur, GPS-punten, aantal tellingen (v2.2+)</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Per tik: timestamp, type, lat/lon, osm_way_id, segment_index (v2.3+), straat</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor met osm_way_id, segment_index (v2.3+) en straat per punt</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Eén rij per ~40m segment met segment_index, segment_count en sub-LINESTRING (v2.3+)</span></div>
+      <div class="file-row"><span class="file-name">_bezocht.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Per visit aan een segment: duur, GPS-punten, aantal tellingen (v2.3: per (way, segment) i.p.v. per way)</span></div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_sessie.csv</div>
@@ -449,26 +449,40 @@
       </div>
     </div>
     <div class="csv-block">
-      <div class="csv-title">_telregels.csv</div>
-      <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;straat
-20260514_131611_lok_pkt;1;2026-05-14T13:15:52;fiets;51.852540;4.332551;123456;Korenmarkt</div>
-    </div>
-    <div class="csv-block">
-      <div class="csv-title">_gps.csv (v2.2+)</div>
-      <div class="csv-sample">sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;straat
-20260514_131611_lok_pkt;2026-05-14T13:15:50;51.852540;4.332551;5;123456;Korenmarkt</div>
+      <div class="csv-title">_telregels.csv (v2.3+)</div>
+      <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat
+20260514_131611_lok_pkt;1;2026-05-14T13:15:52;fiets;51.852540;4.332551;123456;2;Korenmarkt</div>
       <div class="csv-notes">
-        <div class="csv-note">Routepunt bij ≥5m verplaatsing. <code>osm_way_id</code> en <code>straat</code> zijn nieuw in v2.2 — sneller verwerken in telrapport, en input voor het afleiden van <code>_bezocht.csv</code>.</div>
+        <div class="csv-note"><code>segment_index</code> (0-gebaseerd) wijst aan welk ~40m segment van de way is geraakt. Voor v2.2 ZIPs zonder deze kolom interpreteren tools dit als 0.</div>
       </div>
     </div>
     <div class="csv-block">
-      <div class="csv-title">_bezocht.csv (v2.2+)</div>
-      <div class="csv-sample">sessie_id;datum;osm_way_id;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen
-20260514_131611_lok_pkt;2026-05-14;123456;Korenmarkt;13:15:50;13:16:05;15;14;3</div>
+      <div class="csv-title">_gps.csv (v2.3+)</div>
+      <div class="csv-sample">sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;segment_index;straat
+20260514_131611_lok_pkt;2026-05-14T13:15:50;51.852540;4.332551;5;123456;2;Korenmarkt</div>
       <div class="csv-notes">
-        <div class="csv-note">Eén regel per <strong>bezoek</strong> (aaneengesloten verblijf op één wegvak). Visits korter dan 5s of met minder dan 3 GPS-punten worden uitgefilterd. Een gat van &gt;30s breekt een visit. Datum staat in elke regel — self-contained voor dagdeel-classificatie in telplanning.</div>
-        <div class="csv-note">Flux-berekening: <code>n_tellingen × 60 / duur_sec = passages/min</code></div>
-        <div class="csv-note">Voor oude pocket-ZIPs zonder dit bestand: gebruik <code>build_bezocht.py</code> om het retroactief te genereren.</div>
+        <div class="csv-note">Routepunt bij ≥5m verplaatsing. <code>segment_index</code> komt uit dezelfde snap-engine als telregels — input voor het afleiden van <code>_bezocht.csv</code> per segment.</div>
+      </div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_netwerk.csv (v2.3+)</div>
+      <div class="csv-sample">osm_way_id;segment_index;segment_count;highway;geometrie_wkt
+123456;0;3;residential;LINESTRING (4.3325 51.8525, 4.3329 51.8525)
+123456;1;3;residential;LINESTRING (4.3329 51.8525, 4.3333 51.8525)
+123456;2;3;residential;LINESTRING (4.3333 51.8525, 4.3337 51.8525)</div>
+      <div class="csv-notes">
+        <div class="csv-note">Eén rij per segment. Wegen korter dan 60m blijven heel (één segment); langere wegen worden parametrisch gesplitst in stukken van ~40m. <code>segment_count</code> staat per rij voor zelfstandige interpretatie.</div>
+      </div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_bezocht.csv (v2.3+)</div>
+      <div class="csv-sample">sessie_id;datum;osm_way_id;segment_index;segment_count;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen
+20260514_131611_lok_pkt;2026-05-14;123456;2;3;Korenmarkt;13:15:50;13:16:05;15;14;3</div>
+      <div class="csv-notes">
+        <div class="csv-note">Eén regel per <strong>visit</strong> (aaneengesloten verblijf op één segment). Visits korter dan 5s of met minder dan 3 GPS-punten worden uitgefilterd. Een gat van &gt;30s breekt een visit. Datum staat in elke regel — self-contained voor dagdeel-classificatie in telplanning.</div>
+        <div class="csv-note">KNIME-koppeling: <code>(sessie_id, osm_way_id, segment_index)</code> als composite key.</div>
+        <div class="csv-note">Flux-berekening: <code>n_tellingen × 60 / duur_sec = passages/min</code> — nu per segment, accurater voor lange straten.</div>
+        <div class="csv-note">Voor oude v2.2 pocket-ZIPs: <code>python build_bezocht.py FILE_OR_DIR</code> upgradet de ZIP in-place naar v2.3 (idempotent — overslaan met --force om opnieuw te doen).</div>
       </div>
     </div>
   </div>

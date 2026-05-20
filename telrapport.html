@@ -416,9 +416,9 @@ const APP_CONFIG = {
     colors: { car:'#c0392b', bike:'#2980b9', ped:'#8e44ad', other:'#555555' },
     labels: { car:'auto', bike:'fiets', ped:'voetg.', other:'anders' },
     heatVal: function(s) { return Math.sqrt((s.totaal||0)) / Math.sqrt(30); },
-    detailCols: ['car','bike','ped','other'],
-    detailLabels: { car:'auto', bike:'fiets', ped:'voetganger', other:'anders' },
-    detailClasses: { car:'c-fiets', bike:'c-brom', ped:'c-tot', other:'c-muted' },
+    detailCols: ['totaal', 'p_per_m'],
+    detailLabels: { totaal:'tikken', p_per_m:'p/m' },
+    detailClasses: { totaal:'c-tot', p_per_m:'c-brom' },
   },
   transect: {
     types:  ['car','truck','moto','bike','ped'],
@@ -593,8 +593,11 @@ setBasemap('osm');
 
 // ── STATE ─────────────────────────────────────────────────────────
 const sessions      = {};
-const wayData       = {};   // wid → { geometry, highway, sessions:[] }
-const wayLayers     = {};
+// wayData en wayLayers keyen op composite key "wayId:segIdx".
+// Voor pocket v2.3 zijn dit echte sub-segmenten; voor andere app-types
+// en oude v2.2 pocket-ZIPs is segIdx altijd 0 (de hele way).
+const wayData       = {};   // key → { geometry, highway, sessions:[], osmName, wayId, segIdx, segCount }
+const wayLayers     = {};   // key → L.polyline
 const gpsLayers     = {};
 const dotLayers     = {};   // sid → { type → [marker] }
 const clusterLayers    = {};   // sid → [marker]
@@ -606,6 +609,13 @@ let   timeFilterActive = false;
 let   currentTimeHour  = 10;
 const TYPES_TRANSECT = ['car','truck','moto','bike','ped'];
 const globalPolyMap = {};   // wayId → [[lat,lon],...] voor spatial join
+
+// Composite-key helpers — verstop het samenstel-detail op één plek.
+function wkey(wid, segIdx) { return wid + ':' + (segIdx || 0); }
+function parseKey(k) {
+  const i = k.lastIndexOf(':');
+  return { wid: k.slice(0, i), segIdx: +k.slice(i+1) || 0 };
+}
 
 
 const dotVisible    = { fiets:true, wrak:true, brommer:true, breed:true,
@@ -656,15 +666,16 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
       if (!dotLayers[sid][type]) dotLayers[sid][type] = [];
       dotLayers[sid][type].push(m);
 
-      // wayData vullen voor clustering
+      // wayData vullen voor clustering — transect is altijd seg 0
       if (wid) {
-        if (!wayData[wid]) wayData[wid] = { geometry:[[la,lo],[la,lo]], highway:'', sessions:[], osmName:naam };
-        let ws = wayData[wid].sessions.find(function(s){ return s.sid===sid; });
+        const k = wkey(wid, 0);
+        if (!wayData[k]) wayData[k] = { geometry:[[la,lo],[la,lo]], highway:'', sessions:[], osmName:naam, wayId:wid, segIdx:0, segCount:1 };
+        let ws = wayData[k].sessions.find(function(s){ return s.sid===sid; });
         if (!ws) {
           ws = { sid:sid, appType:'transect', naam:naam };
           TYPES_TRANSECT.forEach(function(t){ ws[t]=0; ws[t+'_a']=0; ws[t+'_b']=0; });
           ws.totaal_a=0; ws.totaal_b=0;
-          wayData[wid].sessions.push(ws);
+          wayData[k].sessions.push(ws);
         }
         ws[type] = (ws[type]||0)+1;
         if (richting !== 'B') { ws[type+'_a']=(ws[type+'_a']||0)+1; ws.totaal_a++; }
@@ -674,24 +685,25 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
 
     // Wegvak-geometrie ophalen via netCSV als die er is
     if (hasSnap) {
-      var wayIds = Object.keys(wayData).filter(function(wid){
-        return wayData[wid].sessions.some(function(s){ return s.sid===sid; });
+      var sessKeys = Object.keys(wayData).filter(function(k){
+        return wayData[k].sessions.some(function(s){ return s.sid===sid; });
       });
       // Probeer geometrie te laden van bestaand netwerk
-      var missingGeom = wayIds.filter(function(wid){
-        var g = wayData[wid].geometry;
+      var missingGeom = sessKeys.filter(function(k){
+        var g = wayData[k].geometry;
         return !g || (g.length===2 && g[0][0]===g[1][0] && g[0][1]===g[1][1]);
       });
       if (missingGeom.length) {
-        var query='[out:json][timeout:10];way(id:'+missingGeom.join(',')+');out geom;';
+        var missingWids = missingGeom.map(function(k){ return parseKey(k).wid; });
+        var query='[out:json][timeout:10];way(id:'+missingWids.join(',')+');out geom;';
         fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(query))
           .then(function(r){return r.json();})
           .then(function(data){
             (data.elements||[]).forEach(function(el){
-              var wid=String(el.id);
-              if (wayData[wid]&&el.geometry) {
-                wayData[wid].geometry = el.geometry.map(function(p){return[p.lat,p.lon];});
-                wayLayers[wid] = L.polyline(wayData[wid].geometry, {color:'#5500cc',weight:3,opacity:0.6}).addTo(map);
+              var k = wkey(String(el.id), 0);
+              if (wayData[k]&&el.geometry) {
+                wayData[k].geometry = el.geometry.map(function(p){return[p.lat,p.lon];});
+                wayLayers[k] = L.polyline(wayData[k].geometry, {color:'#5500cc',weight:3,opacity:0.6}).addTo(map);
               }
             });
             drawClusters(sid);
@@ -725,34 +737,41 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV) {
   }
 
   // _netwerk.csv (pocket v2.1+) levert geometrie van alle bezochte wegvakken.
-  // We zetten dat in wayData zodat zowel telregels als zero-visit detectie
-  // direct geometrie hebben — geen Overpass-fetch nodig.
-  const netWayIds = [];
+  // v2.3: één rij per segment (segment_index, segment_count, eigen sub-LINESTRING).
+  // v2.2 backward-compat: één rij per way zonder segment_index → segIdx=0.
+  // Elke (wayId, segIdx) wordt een eigen entry in wayData met sub-geometrie.
+  const netKeys = [];
   if (netCSV) {
     parseCSV(netCSV).forEach(function(r) {
       const wid = (r.osm_way_id || '').trim(); if (!wid) return;
       const geom = parseWKT(r.geometrie_wkt);
       if (!geom || geom.length < 2) return;
-      if (!wayData[wid]) wayData[wid] = { geometry: geom, highway: r.highway || '', sessions: [], osmName: '' };
-      else if (wayData[wid].geometry.length < 2 ||
-               (wayData[wid].geometry.length === 2 &&
-                wayData[wid].geometry[0][0] === wayData[wid].geometry[1][0] &&
-                wayData[wid].geometry[0][1] === wayData[wid].geometry[1][1])) {
-        wayData[wid].geometry = geom;
-        wayData[wid].highway  = wayData[wid].highway || r.highway || '';
+      const segIdx   = +(r.segment_index   || 0) || 0;
+      const segCount = +(r.segment_count   || 1) || 1;
+      const k = wkey(wid, segIdx);
+      if (!wayData[k]) wayData[k] = { geometry: geom, highway: r.highway || '',
+                                      sessions: [], osmName: '',
+                                      wayId: wid, segIdx: segIdx, segCount: segCount };
+      else if (wayData[k].geometry.length < 2 ||
+               (wayData[k].geometry.length === 2 &&
+                wayData[k].geometry[0][0] === wayData[k].geometry[1][0] &&
+                wayData[k].geometry[0][1] === wayData[k].geometry[1][1])) {
+        wayData[k].geometry = geom;
+        wayData[k].highway  = wayData[k].highway || r.highway || '';
+        wayData[k].segCount = segCount;
       }
-      netWayIds.push(wid);
+      netKeys.push(k);
     });
   }
 
-  // Geen telregels — wél eventueel zero-visited wegvakken tonen
+  // Geen telregels — wél eventueel zero-visited segmenten tonen
   if (!telCSV) {
-    if (gpsCSV && netWayIds.length) {
-      detectZeroVisited(gpsCSV, netWayIds, new Set())
-        .forEach(function(wid){ addPocketZero(sid, sm, wid); });
+    if (gpsCSV && netKeys.length) {
+      detectZeroVisited(gpsCSV, netKeys, new Set())
+        .forEach(function(k){ addPocketZero(sid, sm, k); });
       recolorAll();
       drawClusters(sid);
-      const visGeom = netWayIds.map(function(w){ return wayData[w].geometry; }).filter(Boolean);
+      const visGeom = netKeys.map(function(k){ return wayData[k].geometry; }).filter(Boolean);
       if (visGeom.length) try { map.fitBounds(L.featureGroup(visGeom.map(function(g){ return L.polyline(g); })).getBounds().pad(0.2)); } catch(e) {}
     }
     renderSessions(); updateUI(); updateStats();
@@ -764,10 +783,12 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV) {
   const rows  = parseCSV(telCSV);
   const hasSnap = rows.some(function(r){ return r.osm_way_id && r.osm_way_id.trim(); });
 
-  // telData vullen zodat drawClusters werkt
+  // telData vullen zodat drawClusters werkt — segIdx onthouden voor segment-projectie
   telData[sid] = rows.filter(function(r){ return r.osm_way_id && r.osm_way_id.trim(); })
     .map(function(r){ return { type:ptype, lat_marker:r.lat, lon_marker:r.lon,
-      straat:r.straat||'', osm_way_id:r.osm_way_id, snapped:'1' }; });
+      straat:r.straat||'', osm_way_id:r.osm_way_id,
+      segment_index: +(r.segment_index || 0) || 0,
+      snapped:'1' }; });
 
   rows.forEach(function(r) {
     const la = parseFloat(r.lat), lo = parseFloat(r.lon);
@@ -781,51 +802,62 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV) {
     if (!dotLayers[sid][ptype]) dotLayers[sid][ptype] = [];
     dotLayers[sid][ptype].push(m);
 
-    // wayData vullen voor getelde wegvakken
-    const wid = r.osm_way_id ? r.osm_way_id.trim() : null;
-    const naam = r.straat || '';
+    // wayData vullen voor getelde segmenten — composite key
+    const wid    = r.osm_way_id ? r.osm_way_id.trim() : null;
+    const segIdx = +(r.segment_index || 0) || 0;
+    const naam   = r.straat || '';
     if (wid) {
-      if (!wayData[wid]) wayData[wid] = { geometry:[[la,lo],[la,lo]], highway:'', sessions:[], osmName:naam };
-      if (!wayData[wid].osmName && naam) wayData[wid].osmName = naam;
-      let ws = wayData[wid].sessions.find(function(s){ return s.sid===sid; });
+      const k = wkey(wid, segIdx);
+      if (!wayData[k]) wayData[k] = { geometry:[[la,lo],[la,lo]], highway:'',
+                                      sessions:[], osmName:naam,
+                                      wayId:wid, segIdx:segIdx, segCount:1 };
+      if (!wayData[k].osmName && naam) wayData[k].osmName = naam;
+      let ws = wayData[k].sessions.find(function(s){ return s.sid===sid; });
       if (!ws) {
         ws = { sid:sid, appType:'pocket', naam:naam, totaal:0 };
         ws[ptype] = 0;
-        wayData[wid].sessions.push(ws);
+        wayData[k].sessions.push(ws);
       }
       ws[ptype] = (ws[ptype]||0)+1;
       ws.totaal  = (ws.totaal ||0)+1;
     }
   });
 
-  // Zero-visited detectie (alleen zinvol als we netwerk + GPS hebben)
-  if (gpsCSV && netWayIds.length) {
-    const counted = new Set(rows.map(function(r){ return (r.osm_way_id||'').trim(); }).filter(Boolean));
-    detectZeroVisited(gpsCSV, netWayIds, counted)
-      .forEach(function(wid){ addPocketZero(sid, sm, wid); });
+  // Zero-visited detectie op composite keys
+  if (gpsCSV && netKeys.length) {
+    const counted = new Set(rows.map(function(r){
+      const wid = (r.osm_way_id||'').trim();
+      return wid ? wkey(wid, +(r.segment_index || 0) || 0) : '';
+    }).filter(Boolean));
+    detectZeroVisited(gpsCSV, netKeys, counted)
+      .forEach(function(k){ addPocketZero(sid, sm, k); });
   }
 
-  // Wegvak-geometrie ophalen voor getelde ways die nog geen geometrie hebben
-  // (alleen nodig als netCSV ontbreekt — backwards compat met oude pocket-ZIPs)
+  // Geometrie ophalen voor getelde segmenten zonder geometrie
+  // (alleen nodig als netCSV ontbreekt — backwards compat met heel oude pocket-ZIPs).
+  // We fetchen op wayId-niveau via Overpass en mappen dat op segIdx=0 alleen.
   if (hasSnap) {
-    const wayIds = Object.keys(wayData).filter(function(wid){
-      return wayData[wid].sessions.some(function(s){ return s.sid===sid; });
+    const sessKeys = Object.keys(wayData).filter(function(k){
+      return wayData[k].sessions.some(function(s){ return s.sid===sid; });
     });
-    const missing = wayIds.filter(function(wid){
-      const g=wayData[wid].geometry;
+    const missing = sessKeys.filter(function(k){
+      const g=wayData[k].geometry;
       return !g||(g.length===2&&g[0][0]===g[1][0]&&g[0][1]===g[1][1]);
     });
     if (missing.length) {
-      const q='[out:json][timeout:10];way(id:'+missing.join(',')+');out geom;';
+      const missingWids = [...new Set(missing.map(function(k){ return parseKey(k).wid; }))];
+      const q='[out:json][timeout:10];way(id:'+missingWids.join(',')+');out geom;';
       fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q))
         .then(function(r){return r.json();})
         .then(function(data){
           (data.elements||[]).forEach(function(el){
             const wid=String(el.id);
-            if (wayData[wid]&&el.geometry) {
-              wayData[wid].geometry=el.geometry.map(function(p){return[p.lat,p.lon];});
-              if (!wayLayers[wid])
-                wayLayers[wid]=L.polyline(wayData[wid].geometry,
+            // Alleen segIdx=0 vullen (oude pocket had geen segmenten)
+            const k = wkey(wid, 0);
+            if (wayData[k]&&el.geometry) {
+              wayData[k].geometry=el.geometry.map(function(p){return[p.lat,p.lon];});
+              if (!wayLayers[k])
+                wayLayers[k]=L.polyline(wayData[k].geometry,
                   {color:'#3a3d42',weight:2,opacity:0.5}).addTo(map);
             }
           });
@@ -834,13 +866,13 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV) {
     }
   }
 
-  // Polylines aanmaken voor wegvakken met geometrie maar zonder eigen layer
-  Object.keys(wayData).forEach(function(wid){
-    if (!wayLayers[wid] && wayData[wid].geometry && wayData[wid].geometry.length >= 2 &&
-        wayData[wid].sessions.some(function(s){ return s.sid === sid; })) {
-      const g = wayData[wid].geometry;
+  // Polylines aanmaken voor segmenten met geometrie maar zonder eigen layer
+  Object.keys(wayData).forEach(function(k){
+    if (!wayLayers[k] && wayData[k].geometry && wayData[k].geometry.length >= 2 &&
+        wayData[k].sessions.some(function(s){ return s.sid === sid; })) {
+      const g = wayData[k].geometry;
       if (!(g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) {
-        wayLayers[wid] = L.polyline(g, {color:'#3a3d42', weight:2, opacity:0.5}).addTo(map);
+        wayLayers[k] = L.polyline(g, {color:'#3a3d42', weight:2, opacity:0.5}).addTo(map);
       }
     }
   });
@@ -853,9 +885,9 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV) {
   if (alle.length) { try{ map.fitBounds(L.featureGroup(alle).getBounds().pad(0.2)); }catch(e){} }
 }
 
-// Voegt een zero-visited sessie-entry toe aan een wegvak.
-function addPocketZero(sid, sm, wid) {
-  const wd = wayData[wid]; if (!wd) return;
+// Voegt een zero-visited sessie-entry toe aan een segment.
+function addPocketZero(sid, sm, key) {
+  const wd = wayData[key]; if (!wd) return;
   const ptype = sm.type || 'other';
   let ws = wd.sessions.find(function(s){ return s.sid === sid; });
   if (ws) return;  // al een normale of zero-entry voor deze sessie
@@ -898,26 +930,47 @@ function cleanNaam(s) {
 
 // ── HEAT COLOUR ───────────────────────────────────────────────────
 function heatColor(t) {
-  // t = 0..1
+  // t = 0..1 → groen (weinig) via geel naar rood (druk)
   const r = Math.round(255 * Math.min(2*t, 1));
   const g = Math.round(255 * Math.min(2*(1-t), 1));
   return `rgb(${r},${g},0)`;
 }
 
-function wayHeat(wid) {
-  const wd = wayData[wid]; if (!wd || !wd.sessions.length) return null;
+// Lengte van een polyline [[lat,lon],...] in meters (Cartesisch, WGS84).
+function segmentLengthM(geom) {
+  if (!geom || geom.length < 2) return 40; // fallback: targetlengte
+  const LAT_M = 111320;
+  let total = 0;
+  for (let i = 1; i < geom.length; i++) {
+    const cos = Math.cos(geom[i-1][0] * Math.PI / 180);
+    const dx = (geom[i][1] - geom[i-1][1]) * LAT_M * cos;
+    const dy = (geom[i][0] - geom[i-1][0]) * LAT_M;
+    total += Math.sqrt(dx*dx + dy*dy);
+  }
+  return total || 40;
+}
+
+function wayHeat(key) {
+  const wd = wayData[key]; if (!wd || !wd.sessions.length) return null;
   // Zero-visited sessies tellen niet mee voor heat — die krijgen een eigen render
   const visSessions = wd.sessions.filter(s => sessions[s.sid]?.visible && !s.zeroVisited);
   if (!visSessions.length) return null;
-  // Determine dominant appType for this way
   const appType = visSessions[0].appType;
-  const cfg = APP_CONFIG[appType] || APP_CONFIG.fiets;
   if (appType === 'auto') {
-    // Gemiddelde bezettingsgraad over zichtbare sessies
     const avg = visSessions.reduce((a,s) => a + (s.bezettingsgraad_pct||0), 0) / visSessions.length;
     return { t: avg / 100, appType };
+  } else if (appType === 'pocket') {
+    // Kleur op passages per gestrekte meter.
+    // Schaal: 1 passage/m = maximum (t=1). Voldoende onderscheid via √.
+    // Totaal tikken over alle zichtbare sessies, gedeeld door segmentlengte.
+    const total = visSessions.reduce((a,s) => a + (s.totaal||0), 0);
+    if (!total) return null;
+    const lenM = segmentLengthM(wd.geometry);
+    const density = total / lenM;           // passages per meter
+    const t = Math.sqrt(Math.min(1, density));   // √-schaal, 1/m = saturatie
+    return { t, appType, total, density: +density.toFixed(4), lenM: Math.round(lenM) };
   } else {
-    // √-schaal op totaal
+    // Fiets/transect: √-schaal op totaal t.o.v. sessie-maximum
     const total = visSessions.reduce((a,s) => a + (s.totaal||0), 0);
     return { t: Math.min(Math.sqrt(total) / Math.sqrt(maxFietsTotaal), 1), appType, total };
   }
@@ -926,8 +979,8 @@ function wayHeat(wid) {
 function recolorAll() {
   // Herbereken maxFietsTotaal
   let mx = 1;
-  Object.keys(wayData).forEach(wid => {
-    const wd = wayData[wid];
+  Object.keys(wayData).forEach(k => {
+    const wd = wayData[k];
     const fietsTotal = wd.sessions.filter(s => s.appType==='fiets' && sessions[s.sid]?.visible)
                                   .reduce((a,s) => a + (s.totaal||0), 0);
     if (fietsTotal > mx) mx = fietsTotal;
@@ -937,15 +990,15 @@ function recolorAll() {
   Object.keys(wayLayers).forEach(recolorOne);
 }
 
-function recolorOne(wid) {
-  const line = wayLayers[wid]; if (!line) return;
-  const heat = wayHeat(wid);
+function recolorOne(key) {
+  const line = wayLayers[key]; if (!line) return;
+  const heat = wayHeat(key);
   if (heat) {
     line.setStyle({ color: heatColor(heat.t), opacity:0.9, weight:4, dashArray: null });
     return;
   }
   // Geen heat — check voor zichtbare zero-visited sessies
-  const wd = wayData[wid];
+  const wd = wayData[key];
   const zeroSess = wd && wd.sessions.find(function(s){
     return s.zeroVisited && sessions[s.sid] && sessions[s.sid].visible;
   });
@@ -1011,28 +1064,28 @@ function nearestWayDist(plat, plon, geometry) {
   return best;
 }
 
-// Bepaalt welke wegvakken bezocht zijn maar geen telregels hebben.
-// gpsCSV: ruwe CSV-string ; netWayIds: lijst wegId's (geometrie zit in wayData);
-// countedSet: Set van wegId's die wél telregels hebben in deze sessie.
-function detectZeroVisited(gpsCSV, netWayIds, countedSet) {
+// Bepaalt welke segmenten bezocht zijn maar geen telregels hebben.
+// gpsCSV: ruwe CSV-string ; netKeys: lijst composite keys (geometrie zit in wayData);
+// countedSet: Set van composite keys die wél telregels hebben in deze sessie.
+function detectZeroVisited(gpsCSV, netKeys, countedSet) {
   const points = parseCSV(gpsCSV)
     .map(function(r){ return [+r.lat, +r.lon]; })
     .filter(function(c){ return !isNaN(c[0]) && !isNaN(c[1]); });
-  if (!points.length || !netWayIds.length) return [];
+  if (!points.length || !netKeys.length) return [];
 
   const hits = {};
   points.forEach(function(p) {
-    let best = { wid: null, d: POCKET_SNAP_M };
-    netWayIds.forEach(function(wid) {
-      const geom = wayData[wid] && wayData[wid].geometry;
+    let best = { key: null, d: POCKET_SNAP_M };
+    netKeys.forEach(function(k) {
+      const geom = wayData[k] && wayData[k].geometry;
       const d = nearestWayDist(p[0], p[1], geom);
-      if (d < best.d) best = { wid: wid, d: d };
+      if (d < best.d) best = { key: k, d: d };
     });
-    if (best.wid) hits[best.wid] = (hits[best.wid] || 0) + 1;
+    if (best.key) hits[best.key] = (hits[best.key] || 0) + 1;
   });
 
-  return Object.keys(hits).filter(function(wid) {
-    return hits[wid] >= POCKET_MIN_HITS && !countedSet.has(wid);
+  return Object.keys(hits).filter(function(k) {
+    return hits[k] >= POCKET_MIN_HITS && !countedSet.has(k);
   });
 }
 
@@ -1217,8 +1270,8 @@ function drawClusters(sid) {
 
   // Transect/pocket zonder wayData: gap-clustering op losse stippen
   if (appType === 'transect' || appType === 'pocket') {
-    const hasWayData = Object.keys(wayData).some(function(wid) {
-      return wayData[wid].sessions.some(function(s){ return s.sid===sid; });
+    const hasWayData = Object.keys(wayData).some(function(k) {
+      return wayData[k].sessions.some(function(s){ return s.sid===sid; });
     });
     if (!hasWayData) {
       // Cluster stippen uit dotLayers via gap-drempel
@@ -1271,11 +1324,13 @@ function drawClusters(sid) {
   const groups = {};
   rows.forEach(r => {
     const wid=r.osm_way_id, zijde=r.zijde||'X';
-    const geometry=wayData[wid]?.geometry; if (!geometry) return;
+    const segIdx = +(r.segment_index || 0) || 0;
+    const k = wkey(wid, segIdx);
+    const geometry=wayData[k]?.geometry; if (!geometry) return;
     const la=+r.lat_marker, lo=+r.lon_marker; if (isNaN(la)||isNaN(lo)) return;
-    const key=`${wid}|${zijde}`;
-    if (!groups[key]) groups[key]={ wid, zijde, items:[] };
-    groups[key].items.push({
+    const gkey=`${k}|${zijde}`;
+    if (!groups[gkey]) groups[gkey]={ wid, segIdx, zijde, items:[] };
+    groups[gkey].items.push({
       pos: projectOnPolyline(la,lo,geometry),
       lat:la, lon:lo,
       type: (r.type||'').toLowerCase()
@@ -1360,11 +1415,12 @@ function drawClusters(sid) {
     });
   });
 
-  // Zero-visited wegvakken voor pocket: kleine "0"-badge op het centroïd,
-  // in sessiekleur, gestreepte rand — visueel verschillend van getelde clusters.
+  // Zero-visited segmenten voor pocket: kleine "0"-badge op het centroïd
+  // van het segment, in sessiekleur, gestreepte rand — visueel verschillend
+  // van getelde clusters.
   if (appType === 'pocket') {
-    Object.keys(wayData).forEach(function(wid) {
-      const wd = wayData[wid];
+    Object.keys(wayData).forEach(function(k) {
+      const wd = wayData[k];
       const zeroSess = wd.sessions.find(function(s){ return s.sid === sid && s.zeroVisited; });
       if (!zeroSess || !wd.geometry || wd.geometry.length < 2) return;
       let cLat = 0, cLon = 0;
@@ -1398,11 +1454,13 @@ function redrawAllClusters() {
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────
-function showWegvakDetail(wid) {
-  const wd=wayData[wid]; if (!wd) return;
+function showWegvakDetail(key) {
+  const wd=wayData[key]; if (!wd) return;
+  const wid = wd.wayId || parseKey(key).wid;
   const namen=[...new Set(wd.sessions.map(s=>s.naam).filter(s=>s&&s!=='—'))];
+  const segLabel = (wd.segCount && wd.segCount > 1) ? ` · seg ${wd.segIdx+1}/${wd.segCount}` : '';
   document.getElementById('detail-title').textContent = namen.join(' / ') || `Way ${wid}`;
-  document.getElementById('detail-sub').textContent   = `${wd.highway} · OSM ${wid}`;
+  document.getElementById('detail-sub').textContent   = `${wd.highway} · OSM ${wid}${segLabel}`;
 
   const relevant=wd.sessions.filter(s=>sessions[s.sid]?.visible)
     .sort((a,b)=>a.sid.localeCompare(b.sid));
@@ -1410,6 +1468,13 @@ function showWegvakDetail(wid) {
   if (!relevant.length) {
     html='<div style="color:var(--muted);font-size:11px">Geen zichtbare sessies.</div>';
   } else {
+    // Voeg p_per_m toe aan pocket-sessies op basis van bekende geometrie
+    const lenM = segmentLengthM(wd.geometry);
+    relevant.forEach(s => {
+      if (s.appType === 'pocket' && lenM > 0) {
+        s.p_per_m = ((s.totaal||0) / lenM).toFixed(3);
+      }
+    });
     // Groepeer per appType (kan gemengd zijn als map beide types heeft)
     const byType={};
     relevant.forEach(s=>{ (byType[s.appType]=byType[s.appType]||[]).push(s); });
@@ -1433,6 +1498,11 @@ function showWegvakDetail(wid) {
           if (c==='bezettingsgraad_pct') {
             const avg=Math.round(slist.reduce((a,s)=>a+(+s[c]||0),0)/slist.length);
             html+=`<td class="${classes[c]||''}">${avg}%</td>`;
+          } else if (c==='p_per_m') {
+            // Gewogen gemiddelde: totaal tikken / lengte (zelfde lengte voor alle sessies per segment)
+            const totTot = slist.reduce((a,s)=>a+(+s.totaal||0),0);
+            const lenM2  = segmentLengthM(wd.geometry);
+            html+=`<td class="${classes[c]||''}">${(totTot/lenM2).toFixed(3)}</td>`;
           } else {
             html+=`<td class="${classes[c]||''}">${slist.reduce((a,s)=>a+(+s[c]||0),0)}</td>`;
           }
@@ -1758,20 +1828,23 @@ async function loadZip(file) {
   const cfg = APP_CONFIG[appType];
   sessions[sid]={ meta:sm, visible:true, appType };
 
-  // Geometrie laden
+  // Geometrie laden — capaciteit/fiets/auto kennen geen segmenten, alles op segIdx=0
   parseCSV(netCSV).forEach(r=>{
-    if (!wayData[r.osm_way_id])
-      wayData[r.osm_way_id]={ geometry:parseWKT(r.geometrie_wkt), highway:r.highway, sessions:[] };
+    const wid = r.osm_way_id;
+    const k = wkey(wid, 0);
+    if (!wayData[k])
+      wayData[k]={ geometry:parseWKT(r.geometrie_wkt), highway:r.highway,
+                   sessions:[], osmName:'', wayId:wid, segIdx:0, segCount:1 };
   });
 
-  // Straten → ways
+  // Straten → ways (alles segIdx=0)
   parseCSV(stratenCSV).forEach(r=>{
     const naam = cleanNaam(r.naam || r.straat);  // naam (v1.4+) of straat (compat)
     const wids = String(r.osm_way_ids||'').split('|').map(s=>s.trim()).filter(Boolean);
     if (!wids.length) return;
     const factor = 1 / wids.length;
     wids.forEach(wid=>{
-      const wd=wayData[wid]; if (!wd) return;
+      const wd=wayData[wkey(wid, 0)]; if (!wd) return;
       const entry = { sid, naam, appType };
       if (appType === 'fiets') {
         entry.fiets   = Math.round((+r.fiets  ||0)*factor);
@@ -1793,14 +1866,14 @@ async function loadZip(file) {
   });
 
   // Wegvak-polylijnen
-  Object.entries(wayData).forEach(([wid,wd])=>{
-    if (!wayLayers[wid]) {
-      wayLayers[wid]=L.polyline(wd.geometry,{color:'#3a3d42',weight:2,opacity:0.5})
-        .on('click',()=>showWegvakDetail(wid))
+  Object.entries(wayData).forEach(([k,wd])=>{
+    if (!wayLayers[k]) {
+      wayLayers[k]=L.polyline(wd.geometry,{color:'#3a3d42',weight:2,opacity:0.5})
+        .on('click',()=>showWegvakDetail(k))
         .on('mouseover', function(e) {
           this.setStyle({weight:6,opacity:1});
-          const wd2 = wayData[wid];
-          const naam = wd2.sessions[0] ? cleanNaam(wd2.sessions[0].naam) : wid;
+          const wd2 = wayData[k];
+          const naam = wd2.sessions[0] ? cleanNaam(wd2.sessions[0].naam) : (wd2.wayId || k);
           const visSess = wd2.sessions.filter(s=>sessions[s.sid]?.visible);
           const tellijnen = visSess.map(function(s) {
             const sm = sessions[s.sid].meta;
@@ -1818,7 +1891,7 @@ async function loadZip(file) {
         })
         .on('mouseout', function() {
           this.closeTooltip();
-          recolorOne(wid);
+          recolorOne(k);
         })
         .addTo(map);
     }
@@ -2066,7 +2139,7 @@ function setBasemapOpacity(val) {
 function resetAll() {
   if (!confirm('Alle geladen sessies verwijderen?')) return;
   // Verwijder alle kaartlagen
-  Object.keys(wayLayers).forEach(function(wid){ map.removeLayer(wayLayers[wid]); });
+  Object.keys(wayLayers).forEach(function(k){ map.removeLayer(wayLayers[k]); });
   Object.keys(gpsLayers).forEach(function(sid){ map.removeLayer(gpsLayers[sid]); });
   Object.keys(clusterLayers).forEach(function(sid){
     (clusterLayers[sid]||[]).forEach(function(m){ map.removeLayer(m); });
@@ -2202,8 +2275,8 @@ function drawTimeDots() {
     if (h === null) return;
 
     // Bbox-check: heeft de sessie wayData binnen de kaartbbox?
-    const inBbox = Object.keys(wayData).some(function(wid) {
-      const wd = wayData[wid];
+    const inBbox = Object.keys(wayData).some(function(k) {
+      const wd = wayData[k];
       if (!wd.sessions.some(function(ws){ return ws.sid === sid; })) return false;
       return wd.geometry && wd.geometry.some(function(pt) {
         return bounds.contains(L.latLng(pt[0], pt[1]));

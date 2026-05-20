@@ -298,16 +298,17 @@ function startGps() {
       var snapNow = snapNearestWay(lastLat, lastLon);
       var widNow  = snapNow ? snapNow.wayId   : '';
       var nameNow = snapNow ? snapNow.osmName : '';
+      var segNow  = snapNow ? snapNow.segIdx  : 0;
       // Route-punt opslaan bij voldoende verplaatsing
       if (lastRouteLat === null) {
         lastRouteLat = lastLat; lastRouteLon = lastLon;
-        routeLog.push({ ts: nowIso(), lat: lastLat, lon: lastLon, acc: acc, wayId: widNow, osmName: nameNow });
+        routeLog.push({ ts: nowIso(), lat: lastLat, lon: lastLon, acc: acc, wayId: widNow, segIdx: segNow, osmName: nameNow });
       } else {
         var cos = Math.cos(lastRouteLat * Math.PI / 180);
         var dx = (lastLon - lastRouteLon) * 111320 * cos;
         var dy = (lastLat - lastRouteLat) * 111320;
         if (Math.sqrt(dx*dx + dy*dy) >= ROUTE_MIN_DIST) {
-          routeLog.push({ ts: nowIso(), lat: lastLat, lon: lastLon, acc: acc, wayId: widNow, osmName: nameNow });
+          routeLog.push({ ts: nowIso(), lat: lastLat, lon: lastLon, acc: acc, wayId: widNow, segIdx: segNow, osmName: nameNow });
           lastRouteLat = lastLat; lastRouteLon = lastLon;
         }
       }
@@ -441,10 +442,11 @@ var snapPendingQueue = [];  // tikken die wachten op eerste snap-respons
 
 function doTap() {
   telCount++;
-  var tapEntry = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId: '', osmName: '' };
+  var tapEntry = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId: '', segIdx: 0, osmName: '' };
   if (snapReady) {
     var _snap = (lastLat!==null) ? snapNearestWay(lastLat, lastLon) : null;
     tapEntry.wayId   = _snap ? _snap.wayId   : '';
+    tapEntry.segIdx  = _snap ? _snap.segIdx  : 0;
     tapEntry.osmName = _snap ? _snap.osmName : '';
     telHistory.push(tapEntry);
   } else {
@@ -472,35 +474,88 @@ function doUndo() {
 }
 
 // ── Export ZIP ────────────────────────────────────────────────────────────────
+
+// Knip een polyline-geometrie in segmenten van ~SEGMENT_TARGET_M.
+// Geometry mag [{lat,lon},...] of [[lat,lon],...] zijn.
+// Returns: array sub-polylines (elk [[lat,lon],...]) — minstens één.
+function splitWayIntoSegments(geom) {
+  if (!geom || geom.length < 2) return [geom ? geom.map(_normPt) : []];
+  var pts = geom.map(_normPt);
+  var refLat = pts[0][0];
+  var cos = Math.cos(refLat * Math.PI / 180);
+  // Cumulatieve afstand per knoop
+  var cum = [0];
+  for (var i = 1; i < pts.length; i++) {
+    var dx = (pts[i][1] - pts[i-1][1]) * 111320 * cos;
+    var dy = (pts[i][0] - pts[i-1][0]) * 111320;
+    cum.push(cum[i-1] + Math.sqrt(dx*dx + dy*dy));
+  }
+  var total = cum[cum.length-1];
+  if (total < SEGMENT_MIN_M) return [pts];
+  var N = Math.max(1, Math.round(total / SEGMENT_TARGET_M));
+  if (N === 1) return [pts];
+  var segLen = total / N;
+  var result = [];
+  var curSeg = [pts[0]];
+  var nextCut = segLen;
+  var done = 0;
+  for (var j = 1; j < pts.length; j++) {
+    var dStart = cum[j-1], dEnd = cum[j], edge = dEnd - dStart;
+    // Eén edge kan meerdere cuts bevatten als segLen < edge-lengte (zeldzaam)
+    while (done < N - 1 && dEnd >= nextCut && edge > 0) {
+      var t = (nextCut - dStart) / edge;
+      var cutLat = pts[j-1][0] + t * (pts[j][0] - pts[j-1][0]);
+      var cutLon = pts[j-1][1] + t * (pts[j][1] - pts[j-1][1]);
+      curSeg.push([cutLat, cutLon]);
+      result.push(curSeg);
+      curSeg = [[cutLat, cutLon]];
+      nextCut += segLen;
+      done++;
+    }
+    curSeg.push(pts[j]);
+  }
+  result.push(curSeg);
+  return result;
+}
+
+function _normPt(p) {
+  return (p && p.lat !== undefined) ? [p.lat, p.lon] : p;
+}
+
 function buildNetwerkCsv(sid) {
-  var lines = ['osm_way_id;highway;geometrie_wkt'];
+  var lines = ['osm_way_id;segment_index;segment_count;highway;geometrie_wkt'];
   Object.keys(snapElements).forEach(function(wid) {
     var el = snapElements[wid];
-    var coords = el.geometry.map(function(p){
-      return p.lon.toFixed(6)+' '+p.lat.toFixed(6);
-    }).join(', ');
-    lines.push(wid+';'+el.highway+';LINESTRING ('+coords+')');
+    var subs = splitWayIntoSegments(el.geometry);
+    subs.forEach(function(sub, idx) {
+      var coords = sub.map(function(p){
+        return p[1].toFixed(6)+' '+p[0].toFixed(6);
+      }).join(', ');
+      lines.push([wid, idx, subs.length, el.highway,
+                  'LINESTRING ('+coords+')'].join(';'));
+    });
   });
   return lines.join('\n');
 }
 
-// Leidt 'visits' (aaneengesloten verblijven op één wegvak) af uit routeLog.
+// Leidt 'visits' (aaneengesloten verblijven op één wegsegment) af uit routeLog.
 // Regels:
-//   - opeenvolgende routepunten met dezelfde wayId vormen één visit
-//   - een gat van >MAX_GAP_SEC seconden breekt een visit, ook bij gelijke wayId
+//   - opeenvolgende routepunten met dezelfde (wayId, segIdx) vormen één visit
+//   - een gat van >MAX_GAP_SEC seconden breekt een visit, ook bij gelijke key
 //   - visits met <MIN_VISIT_SEC seconden of <MIN_VISIT_PTS punten worden weggefilterd
-//     (vluchtige snap-flips bij kruisingen)
-// Per visit wordt geteld hoeveel tellingen erin vielen via timestamp-bereik.
+//     (vluchtige snap-flips bij kruisingen of segmentgrenzen)
+// Per visit wordt geteld hoeveel tellingen erin vielen (matching op key + tijdsbereik).
 function buildBezochtCsv(sid, telHist) {
   var MAX_GAP_SEC   = 30;
   var MIN_VISIT_SEC = 5;
   var MIN_VISIT_PTS = 3;
 
   function tsParse(s) { return new Date(s).getTime(); }
+  function keyOf(wid, segIdx) { return wid + ':' + (segIdx || 0); }
 
   // Tellingen sorteren op timestamp voor snelle range-toewijzing
   var taps = telHist.filter(function(h){ return h.wayId; })
-                    .map(function(h){ return { wid: h.wayId, t: tsParse(h.ts) }; })
+                    .map(function(h){ return { wid:h.wayId, segIdx:h.segIdx||0, t:tsParse(h.ts) }; })
                     .sort(function(a,b){ return a.t - b.t; });
 
   var visits = [];
@@ -509,13 +564,15 @@ function buildBezochtCsv(sid, telHist) {
     var p   = routeLog[i];
     var t   = tsParse(p.ts);
     var wid = p.wayId || '';
+    var seg = p.segIdx || 0;
     if (!wid) {                       // geen snap → breek
       if (cur) { visits.push(cur); cur = null; }
       continue;
     }
-    if (!cur || cur.wayId !== wid || (t - cur.tEnd) > MAX_GAP_SEC*1000) {
+    var sameKey = cur && cur.wayId === wid && cur.segIdx === seg;
+    if (!sameKey || (t - cur.tEnd) > MAX_GAP_SEC*1000) {
       if (cur) visits.push(cur);
-      cur = { wayId: wid, osmName: p.osmName || '',
+      cur = { wayId: wid, segIdx: seg, osmName: p.osmName || '',
               tStart: t, tEnd: t, nPts: 1 };
     } else {
       cur.tEnd = t;
@@ -538,9 +595,16 @@ function buildBezochtCsv(sid, telHist) {
     while (ti < taps.length && taps[ti].t < v.tStart) ti++;
     var j = ti;
     while (j < taps.length && taps[j].t <= v.tEnd) {
-      if (taps[j].wid === v.wayId) v.nTel++;
+      if (taps[j].wid === v.wayId && taps[j].segIdx === v.segIdx) v.nTel++;
       j++;
     }
+  });
+
+  // segment_count per way bepalen via splitWayIntoSegments op snapElements
+  var segCountFor = {};
+  Object.keys(snapElements).forEach(function(wid) {
+    var subs = splitWayIntoSegments(snapElements[wid].geometry);
+    segCountFor[wid] = subs.length;
   });
 
   function fmtTs(ms) {
@@ -548,10 +612,12 @@ function buildBezochtCsv(sid, telHist) {
     return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
   }
   var datum = fmtDate(startTime);
-  var lines = ['sessie_id;datum;osm_way_id;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen'];
+  var lines = ['sessie_id;datum;osm_way_id;segment_index;segment_count;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen'];
   visits.forEach(function(v) {
     var dur = Math.round((v.tEnd - v.tStart) / 1000);
-    lines.push([sid, datum, v.wayId, v.osmName, fmtTs(v.tStart), fmtTs(v.tEnd),
+    var segCount = segCountFor[v.wayId] || 1;
+    lines.push([sid, datum, v.wayId, v.segIdx, segCount, v.osmName,
+                fmtTs(v.tStart), fmtTs(v.tEnd),
                 dur, v.nPts, v.nTel].join(';'));
   });
   return lines.join('\n');
@@ -570,22 +636,25 @@ function stopTelling() {
     + [sid, datum, start, eind, 'pocket', csvType, telCount].join(';');
 
   // telregels.csv
-  var telregelsCsv = 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;straat\n';
+  var telregelsCsv = 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat\n';
   telHistory.forEach(function(h, i) {
     telregelsCsv += [sid, i+1, h.ts, csvType,
       h.lat !== null ? h.lat.toFixed(6) : '',
       h.lon !== null ? h.lon.toFixed(6) : '',
       h.wayId  || '',
+      h.wayId  ? (h.segIdx || 0) : '',
       h.osmName|| ''
     ].join(';') + '\n';
   });
 
   var zip = new JSZip();
-  // GPS-track CSV (met wayId per punt voor transparantie/debug)
-  var gpsCsv = 'sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;straat\n';
+  // GPS-track CSV (met wayId/segment_index per punt voor transparantie/debug)
+  var gpsCsv = 'sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;segment_index;straat\n';
   routeLog.forEach(function(p) {
     gpsCsv += [sid, p.ts, p.lat.toFixed(6), p.lon.toFixed(6), p.acc,
-               p.wayId || '', p.osmName || ''].join(';') + '\n';
+               p.wayId || '',
+               p.wayId ? (p.segIdx || 0) : '',
+               p.osmName || ''].join(';') + '\n';
   });
 
   zip.file(sid + '_sessie.csv',    sessieCsv);
@@ -619,6 +688,12 @@ var SNAP_ROAD_FETCH_RADIUS = 250;
 var SNAP_MAX_M             = 50;
 var SNAP_OVERPASS          = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 
+// Wegvakken worden bij export opgeknipt in segmenten van ~SEGMENT_TARGET_M.
+// Wegen korter dan SEGMENT_MIN_M blijven heel (één segment).
+// Toewijzing van segIdx per snap gebeurt via midpoint van elke OSM-edge.
+var SEGMENT_TARGET_M       = 40;
+var SEGMENT_MIN_M          = 60;
+
 var snapSegs     = [];
 var snapCacheLat = null, snapCacheLon = null;
 var snapElements = {};  // wayId → {highway, geometry} — voor netwerk.csv
@@ -640,14 +715,25 @@ function snapBuildSegs(elements, refLat, refLon) {
   var segs=[];
   elements.forEach(function(el) {
     if (el.type!=='way'||!el.geometry||el.geometry.length<2) return;
-    for (var i=0;i<el.geometry.length-1;i++) {
-      var a=el.geometry[i], b=el.geometry[i+1];
-      if (!a||!b) continue;
-      var axy=snapToXY(a.lat,a.lon,refLat,refLon);
-      var bxy=snapToXY(b.lat,b.lon,refLat,refLon);
+    var xy = el.geometry.map(function(p){ return snapToXY(p.lat, p.lon, refLat, refLon); });
+    // Cumulatieve afstand per knoop (in meters)
+    var cum = [0];
+    for (var k=1; k<xy.length; k++) {
+      var ex = xy[k].x - xy[k-1].x, ey = xy[k].y - xy[k-1].y;
+      cum.push(cum[k-1] + Math.sqrt(ex*ex + ey*ey));
+    }
+    var totalLen = cum[cum.length-1];
+    var nSeg   = (totalLen < SEGMENT_MIN_M) ? 1 : Math.max(1, Math.round(totalLen / SEGMENT_TARGET_M));
+    var segLen = (nSeg > 0) ? (totalLen / nSeg) : totalLen;
+    for (var i=0; i<xy.length-1; i++) {
       segs.push({
-        ax:axy.x,ay:axy.y,bx:bxy.x,by:bxy.y,
+        ax:xy[i].x,   ay:xy[i].y,
+        bx:xy[i+1].x, by:xy[i+1].y,
         wayId:String(el.id),
+        cumStart: cum[i],          // m langs way tot deze edge begint
+        edgeLen:  cum[i+1]-cum[i], // m van deze edge
+        segLen:   segLen,          // m per segment van deze way
+        nSeg:     nSeg,
         osmName:(el.tags&&el.tags.name)||'',
         highway:(el.tags&&el.tags.highway)||''
       });
@@ -659,19 +745,28 @@ function snapBuildSegs(elements, refLat, refLon) {
 function snapNearestWay(lat, lon) {
   if (!snapSegs.length || snapCacheLat===null) return null;
   var p = snapToXY(lat, lon, snapCacheLat, snapCacheLon);
-  var bestD=Infinity, bestSeg=null, bestPt=null;
+  var bestD=Infinity, bestSeg=null, bestPt=null, bestT=0;
   for (var i=0;i<snapSegs.length;i++) {
     var s=snapSegs[i];
-    var cp=snapClosest(p.x,p.y,s.ax,s.ay,s.bx,s.by);
-    var d=Math.sqrt((cp.x-p.x)*(cp.x-p.x)+(cp.y-p.y)*(cp.y-p.y));
-    if (d<bestD) { bestD=d; bestSeg=s; bestPt=cp; }
+    // Inline snapClosest om t-parameter te onthouden
+    var dx=s.bx-s.ax, dy=s.by-s.ay, l2=dx*dx+dy*dy;
+    var t = (l2===0) ? 0 : Math.max(0,Math.min(1,((p.x-s.ax)*dx+(p.y-s.ay)*dy)/l2));
+    var cx=s.ax+t*dx, cy=s.ay+t*dy;
+    var d=Math.sqrt((cx-p.x)*(cx-p.x)+(cy-p.y)*(cy-p.y));
+    if (d<bestD) { bestD=d; bestSeg=s; bestPt={x:cx,y:cy}; bestT=t; }
   }
   if (bestD>SNAP_MAX_M||!bestSeg) return null;
+  // segIdx afleiden uit positie langs de hele way
+  var snapM = bestSeg.cumStart + bestT * bestSeg.edgeLen;
+  var segIdx = (bestSeg.nSeg <= 1 || bestSeg.segLen === 0)
+             ? 0
+             : Math.min(bestSeg.nSeg - 1, Math.floor(snapM / bestSeg.segLen));
   var cos=Math.cos(snapCacheLat*Math.PI/180);
   return {
     lat: snapCacheLat+bestPt.y/111320,
     lon: snapCacheLon+bestPt.x/(111320*cos),
     wayId: bestSeg.wayId,
+    segIdx: segIdx,
     osmName: bestSeg.osmName
   };
 }
@@ -703,7 +798,7 @@ function snapFetchNetwork(lat, lon, attempt) {
         snapPendingQueue.forEach(function(entry) {
           if (entry.lat===null) return;
           var s = snapNearestWay(entry.lat, entry.lon);
-          if (s) { entry.wayId = s.wayId; entry.osmName = s.osmName; }
+          if (s) { entry.wayId = s.wayId; entry.segIdx = s.segIdx; entry.osmName = s.osmName; }
         });
         snapPendingQueue = [];
       }

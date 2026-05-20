@@ -37,7 +37,7 @@ Verzameling standalone veldonderzoek-tools voor mobiliteit en infrastructuur in 
 
 | Bestand | Functie |
 |---|---|
-| `build_bezocht.py` | Genereert `_bezocht.csv` retroactief voor oude pocket-ZIPs (Python stdlib) |
+| `build_bezocht.py` | Upgrade pocket-ZIPs naar v2.3 segment-aware formaat (Python stdlib, in-place) |
 
 ## Gebruik
 
@@ -94,6 +94,7 @@ Voor het opslaan van planningen op de server zijn PHP 5.6+ en een schrijfbare `/
 - Wandelende telling met OSM-snapping
 - Pocket: één-knops modus, lang indrukken voor undo
 - Pocket v2.2: `_bezocht.csv` met visit-duur per wegvak — voor flux-analyse
+- Pocket v2.3: wegvakken opgeknipt in ~40m segmenten — atomaire eenheid is `osm_way_id + segment_index`. Lange straten krijgen daardoor heat per segment in plaats van uniform per way.
 
 ### Telrapport
 
@@ -129,11 +130,13 @@ Volledige specificatie in `zip_format_reference.html`.
 
 ## KNIME-koppeling
 
-- Sleutel: `sessie_id`
+- Sleutel pocket v2.3: `(sessie_id, osm_way_id, segment_index)`
+- Sleutel andere apps: `(sessie_id, osm_way_id)` — geen segmenten
 - `osm_way_id` koppelt telregels ↔ netwerk
 - Straten gegroepeerd op `osmName`, niet op Nominatim-string
 - Datum-formaat: `YYYY-MM-DD`
-- Voor pocket-flux: `n_tellingen × 60 / duur_sec = passages/min` (uit `_bezocht.csv`)
+- Voor pocket-flux: `n_tellingen × 60 / duur_sec = passages/min` (uit `_bezocht.csv`, nu per segment)
+- Oude v2.2 pocket-ZIPs upgraden met `python build_bezocht.py FILE_OR_DIR`
 
 ## Technische stijlgids
 
@@ -154,4 +157,4 @@ Kleurcodering app-types:
 
 ## Versie
 
-Huidige release: **v2.2** — zie `overdracht_v2_2.md` voor de technische overdracht (wijzigingen, architectuur, drempel-constanten, pane-hiërarchie, vervolgstappen).
+Huidige release: **v2.3** — zie `overdracht_v2_3.md` voor de technische overdracht. Pocket wegvakken zijn nu opgeknipt in ~40m segmenten; oude v2.2 ZIPs upgraden via `build_bezocht.py`.
