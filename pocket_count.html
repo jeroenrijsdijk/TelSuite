@@ -193,6 +193,109 @@
     touch-action: manipulation;
     z-index: 10;
   }
+  /* ── Preview overlay ── */
+  #preview-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,10,0.88);
+    z-index: 200;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 24px 16px 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #preview-overlay.visible { display: flex; }
+  #preview-header {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+  #preview-title {
+    font-family: var(--font);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(240,240,236,0.6);
+  }
+  #preview-close {
+    background: none;
+    border: none;
+    color: rgba(240,240,236,0.45);
+    font-family: var(--font);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 4px 0;
+    touch-action: manipulation;
+  }
+  #preview-canvas {
+    width: 100%;
+    max-width: 420px;
+    border-radius: 6px;
+    background: #f0f0ec;
+    display: block;
+  }
+  #preview-stats {
+    width: 100%;
+    max-width: 420px;
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .pstat {
+    background: rgba(255,255,255,0.07);
+    border-radius: 4px;
+    padding: 10px 14px;
+    flex: 1;
+    min-width: 90px;
+  }
+  .pstat-val {
+    font-family: var(--font);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f0f0ec;
+    line-height: 1;
+  }
+  .pstat-lbl {
+    font-family: var(--font);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(240,240,236,0.4);
+    margin-top: 4px;
+  }
+  #preview-legend {
+    width: 100%;
+    max-width: 420px;
+    margin-top: 12px;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .pleg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(240,240,236,0.45);
+  }
+  .pleg-swatch { width: 20px; height: 4px; border-radius: 2px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -674,10 +777,154 @@ function stopTelling() {
     a.download = sid + '.zip';
     a.click();
     setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    // Preview tonen na korte vertraging (download-dialoog eerst)
+    setTimeout(function(){ showPreview(); }, 400);
   });
 
   closeTelScreen();
   document.getElementById('choose-screen').style.display = '';
+}
+
+// ── POST-TELLING PREVIEW ──────────────────────────────────────────────────────
+function heatColorPreview(t) {
+  var r = Math.round(255 * Math.min(2*t, 1));
+  var g = Math.round(255 * Math.min(2*(1-t), 1));
+  return 'rgb('+r+','+g+',0)';
+}
+
+function polyLenM(pts) {
+  if (!pts || pts.length < 2) return 0;
+  var LAT_M = 111320;
+  var total = 0;
+  for (var i = 1; i < pts.length; i++) {
+    var cos = Math.cos(pts[i-1][0] * Math.PI / 180);
+    var dx = (pts[i][1] - pts[i-1][1]) * LAT_M * cos;
+    var dy = (pts[i][0] - pts[i-1][0]) * LAT_M;
+    total += Math.sqrt(dx*dx + dy*dy);
+  }
+  return total;
+}
+
+function showPreview() {
+  // Segmenten bouwen per (wayId, segIdx) inclusief sub-geometrie en tikken
+  var segMap = {};
+  Object.keys(snapElements).forEach(function(wid) {
+    var subs = splitWayIntoSegments(snapElements[wid].geometry);
+    subs.forEach(function(sub, idx) {
+      segMap[wid + ':' + idx] = { geom: sub, taps: 0, lenM: polyLenM(sub) };
+    });
+  });
+
+  telHistory.forEach(function(h) {
+    if (!h.wayId) return;
+    var key = h.wayId + ':' + (h.segIdx || 0);
+    if (segMap[key]) segMap[key].taps++;
+  });
+
+  var gpsTrack = routeLog.map(function(p) { return [p.lat, p.lon]; });
+
+  // Bezochte segmenten via GPS-hits (ook zero-visited tonen)
+  var GPS_SNAP_M = 15, MIN_HITS = 3;
+  var gpsHits = {};
+  if (gpsTrack.length && Object.keys(segMap).length) {
+    var refLat0 = gpsTrack[0][0];
+    var cos0 = Math.cos(refLat0 * Math.PI / 180);
+    var LAT_M0 = 111320;
+    gpsTrack.forEach(function(pt) {
+      var bestKey = null, bestD = GPS_SNAP_M;
+      Object.keys(segMap).forEach(function(key) {
+        var geom = segMap[key].geom;
+        var px = pt[1]*LAT_M0*cos0, py = pt[0]*LAT_M0;
+        for (var i = 0; i < geom.length - 1; i++) {
+          var ax=geom[i][1]*LAT_M0*cos0,   ay=geom[i][0]*LAT_M0;
+          var bx=geom[i+1][1]*LAT_M0*cos0, by=geom[i+1][0]*LAT_M0;
+          var dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy;
+          var t2=l2?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2)):0;
+          var d=Math.sqrt(Math.pow(px-(ax+t2*dx),2)+Math.pow(py-(ay+t2*dy),2));
+          if (d<bestD) { bestD=d; bestKey=key; }
+        }
+      });
+      if (bestKey) gpsHits[bestKey] = (gpsHits[bestKey]||0)+1;
+    });
+  }
+
+  var segKeys = Object.keys(segMap).filter(function(k) {
+    return segMap[k].taps > 0 || (gpsHits[k]||0) >= MIN_HITS;
+  });
+
+  if (!segKeys.length && !gpsTrack.length) return;
+
+  // Bounding box over alle punten
+  var allPts = gpsTrack.slice();
+  segKeys.forEach(function(k) { segMap[k].geom.forEach(function(p) { allPts.push(p); }); });
+  if (!allPts.length) return;
+
+  var minLat=allPts[0][0], maxLat=allPts[0][0], minLon=allPts[0][1], maxLon=allPts[0][1];
+  allPts.forEach(function(p) {
+    if (p[0]<minLat) minLat=p[0]; if (p[0]>maxLat) maxLat=p[0];
+    if (p[1]<minLon) minLon=p[1]; if (p[1]>maxLon) maxLon=p[1];
+  });
+
+  // Canvas
+  var cvs = document.getElementById('preview-canvas');
+  var W   = cvs.offsetWidth || 360;
+  var PAD = Math.round(W * 0.07);
+  cvs.width = W; cvs.height = W;
+  var ctx = cvs.getContext('2d');
+  ctx.fillStyle = '#f0f0ec';
+  ctx.fillRect(0, 0, W, W);
+
+  // Projectie met aspect-correctie
+  var midLat  = (minLat+maxLat)/2;
+  var cosCorr = Math.cos(midLat*Math.PI/180);
+  var dLatM   = (maxLat-minLat)*111320 || 10;
+  var dLonM   = (maxLon-minLon)*111320*cosCorr || 10;
+  var drawW   = W-2*PAD, drawH = W-2*PAD;
+  var scale   = Math.min(drawW/dLonM, drawH/dLatM);
+  var offX    = (drawW-dLonM*scale)/2;
+  var offY    = (drawH-dLatM*scale)/2;
+
+  function proj(lat, lon) {
+    return [PAD+offX+(lon-minLon)*111320*cosCorr*scale,
+            PAD+offY+(maxLat-lat)*111320*scale];
+  }
+
+  function drawLine(pts, color, width, dash) {
+    if (!pts||pts.length<2) return;
+    ctx.beginPath();
+    ctx.setLineDash(dash||[]);
+    ctx.strokeStyle=color; ctx.lineWidth=width;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    var p0=proj(pts[0][0],pts[0][1]);
+    ctx.moveTo(p0[0],p0[1]);
+    for (var i=1;i<pts.length;i++) { var p=proj(pts[i][0],pts[i][1]); ctx.lineTo(p[0],p[1]); }
+    ctx.stroke();
+  }
+
+  // Tekenen: GPS-spoor, zero-visited, getelde segmenten
+  if (gpsTrack.length>1) drawLine(gpsTrack,'rgba(140,140,160,0.4)',Math.max(1,W/300),[4,4]);
+  segKeys.forEach(function(k) { if (segMap[k].taps===0) drawLine(segMap[k].geom,'rgba(60,61,66,0.3)',Math.max(2,W/160),[5,5]); });
+
+  var maxD=0;
+  segKeys.forEach(function(k) { if (segMap[k].taps>0&&segMap[k].lenM>0) { var d=segMap[k].taps/segMap[k].lenM; if(d>maxD) maxD=d; } });
+  segKeys.forEach(function(k) {
+    var s=segMap[k]; if (s.taps===0) return;
+    var t=Math.sqrt(Math.min(1, s.lenM>0?s.taps/s.lenM:0));
+    drawLine(s.geom, heatColorPreview(t), Math.max(3,W/100), null);
+  });
+
+  // Stats
+  var nGeteld = segKeys.filter(function(k){return segMap[k].taps>0;}).length;
+  var kmStr   = gpsTrack.length>1?(polyLenM(gpsTrack)/1000).toFixed(2):'—';
+  document.getElementById('pstat-tikken').textContent = telCount;
+  document.getElementById('pstat-segs').textContent   = nGeteld+'/'+segKeys.length;
+  document.getElementById('pstat-km').textContent     = kmStr;
+  document.getElementById('pstat-max').textContent    = maxD>0?maxD.toFixed(2):'—';
+  document.getElementById('preview-overlay').classList.add('visible');
+}
+
+function closePreview() {
+  document.getElementById('preview-overlay').classList.remove('visible');
 }
 
 // ── OSM SNAP MODULE (transect/pocket variant) ─────────────────────────────────
@@ -819,5 +1066,27 @@ function snapCheckRefresh(lat, lon) {
 // ── EINDE SNAP MODULE ─────────────────────────────────────────────────────────
 
 </script>
+<!-- Preview overlay — verschijnt na opslaan ZIP -->
+<div id="preview-overlay">
+  <div id="preview-header">
+    <span id="preview-title">Telling afgerond</span>
+    <button id="preview-close" onclick="closePreview()">&#x2715; Sluiten</button>
+  </div>
+  <canvas id="preview-canvas" width="800" height="800"></canvas>
+  <div id="preview-stats">
+    <div class="pstat"><div class="pstat-val" id="pstat-tikken">—</div><div class="pstat-lbl">Tikken</div></div>
+    <div class="pstat"><div class="pstat-val" id="pstat-segs">—</div><div class="pstat-lbl">Segmenten</div></div>
+    <div class="pstat"><div class="pstat-val" id="pstat-km">—</div><div class="pstat-lbl">Km gelopen</div></div>
+    <div class="pstat"><div class="pstat-val" id="pstat-max">—</div><div class="pstat-lbl">Max p/m</div></div>
+  </div>
+  <div id="preview-legend">
+    <div class="pleg"><div class="pleg-swatch" style="background:rgb(0,220,0)"></div>weinig</div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgb(255,200,0)"></div>matig</div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgb(255,60,0)"></div>druk (≥1/m)</div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgba(60,61,66,0.35);border:1.5px dashed #888"></div>bezocht, 0 tikken</div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgba(160,160,180,0.5)"></div>GPS-spoor</div>
+  </div>
+</div>
+
 </body>
 </html>
