@@ -418,6 +418,7 @@
     padding: 8px;
   }
   .opdracht-row {
+    position: relative;
     padding: 10px 12px;
     border: 1px solid var(--border);
     border-radius: 3px;
@@ -426,6 +427,25 @@
     transition: border-color 0.1s, background 0.1s;
   }
   .opdracht-row:hover { border-color: var(--text); background: #f5f5f1; }
+  .opdracht-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 0.65rem;
+    font-family: var(--font);
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 4px 6px;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+  .opdracht-row:hover .opdracht-delete { opacity: 1; }
+  .opdracht-delete:hover { color: #c0392b; }
   .opdracht-naam {
     font-size: 0.85rem;
     font-weight: 700;
@@ -1335,6 +1355,17 @@ function loadOpdrachten() {
           + '<span>' + item.n_wegen + ' wegen</span>'
           + '</div>';
         row.onclick = function() { startOpdracht(item); };
+
+        // Verwijder-knop — eigen handler die niet doorvloeit naar de row
+        var btn = document.createElement('button');
+        btn.className = 'opdracht-delete';
+        btn.textContent = '✕ verwijder';
+        btn.onclick = function(e) {
+          e.stopPropagation();
+          verwijderOpdracht(item);
+        };
+        row.appendChild(btn);
+
         list.appendChild(row);
       });
     })
@@ -1346,6 +1377,28 @@ function loadOpdrachten() {
 function startOpdracht(item) {
   var app = TELAPP_MAP[item.tel_type] || 'parkeertelling.html';
   window.location.href = app + '?plan=' + encodeURIComponent('/planningen/' + item.bestand);
+}
+
+function verwijderOpdracht(item) {
+  var msg = 'Verwijder opdracht "' + item.sessie_naam + '"?\n\n'
+          + 'Deze actie kan niet ongedaan worden gemaakt.';
+  if (!confirm(msg)) return;
+  fetch('/planningen/planning_delete.php', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ bestand: item.bestand })
+  })
+    .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, body:j }; }); })
+    .then(function(res) {
+      if (res.ok && res.body.ok) {
+        loadOpdrachten();  // lijst opnieuw ophalen
+      } else {
+        alert('Verwijderen mislukt: ' + (res.body.error || 'onbekende fout'));
+      }
+    })
+    .catch(function(e) {
+      alert('Verwijderen mislukt: ' + e);
+    });
 }
 
 function escHtml(s) {
