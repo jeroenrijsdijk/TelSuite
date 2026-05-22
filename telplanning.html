@@ -677,10 +677,67 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
-var ways        = [];      // [{id, naam, highway, coords, selected, visible, layer}]
+var ways        = [];      // [{id, naam, highway, coords, segments:[{idx,count,coords}], selected, visible, layer, segLayers:[], segHits:[]}]
 var drawingMode = false;
 var drawnPolygons = [];  // meerdere getekende contouren
 var currentMode = 'maken';   // 'maken' | 'dekking'
+
+// Segment-aware analyse: zelfde algoritme als pocket_count/build_bezocht/telrapport.
+// Wegen worden in ~40m segmenten gesplitst voor dekkings-modus.
+var SEGMENT_TARGET_M = 40;
+var SEGMENT_MIN_M    = 60;
+
+function polyLengthM(coords) {
+  if (!coords || coords.length < 2) return 0;
+  var LAT_M = 111320;
+  var total = 0;
+  for (var i = 1; i < coords.length; i++) {
+    var cos = Math.cos(coords[i-1][0] * Math.PI / 180);
+    var dx = (coords[i][1] - coords[i-1][1]) * LAT_M * cos;
+    var dy = (coords[i][0] - coords[i-1][0]) * LAT_M;
+    total += Math.sqrt(dx*dx + dy*dy);
+  }
+  return total;
+}
+
+// Knipt een polyline parametrisch in segmenten van ~SEGMENT_TARGET_M.
+// Returns: [{idx, count, coords:[[lat,lon],...]}, ...]
+function splitWayIntoSegments(coords) {
+  if (!coords || coords.length < 2) return [{idx:0, count:1, coords: coords||[]}];
+  var total = polyLengthM(coords);
+  if (total < SEGMENT_MIN_M) return [{idx:0, count:1, coords: coords.slice()}];
+  var N = Math.max(1, Math.round(total / SEGMENT_TARGET_M));
+  if (N === 1) return [{idx:0, count:1, coords: coords.slice()}];
+  var LAT_M = 111320;
+  var cum = [0];
+  for (var i = 1; i < coords.length; i++) {
+    var cos = Math.cos(coords[i-1][0] * Math.PI / 180);
+    var dx = (coords[i][1] - coords[i-1][1]) * LAT_M * cos;
+    var dy = (coords[i][0] - coords[i-1][0]) * LAT_M;
+    cum.push(cum[i-1] + Math.sqrt(dx*dx + dy*dy));
+  }
+  var segLen = total / N;
+  var result = [];
+  var cur = [coords[0]];
+  var nextCut = segLen;
+  var done = 0;
+  for (var j = 1; j < coords.length; j++) {
+    var dStart = cum[j-1], dEnd = cum[j], edge = dEnd - dStart;
+    while (done < N - 1 && dEnd >= nextCut && edge > 0) {
+      var t = (nextCut - dStart) / edge;
+      var cLat = coords[j-1][0] + t * (coords[j][0] - coords[j-1][0]);
+      var cLon = coords[j-1][1] + t * (coords[j][1] - coords[j-1][1]);
+      cur.push([cLat, cLon]);
+      result.push({idx: done, count: N, coords: cur});
+      cur = [[cLat, cLon]];
+      nextCut += segLen;
+      done++;
+    }
+    cur.push(coords[j]);
+  }
+  result.push({idx: done, count: N, coords: cur});
+  return result;
+}
 
 // ── Dekkings-modus state ─────────────────────────────────────────────────────
 // Coverage: per wegvak → per cell-key → aantal bezoeken
@@ -719,15 +776,41 @@ function dagdeelForTime(hh) {
   return 'nacht';
 }
 
-var coverage      = {};   // wayId → { 'weekdag|middag': aantal, ... }
+// Composite key voor coverage: "wayId:segIdx".
+// v2.2 ZIPs zonder segment_index → segIdx=0 (alle telregels op segment 0;
+// onderrapportage maar geaccepteerd voor backward compat).
+function segKey(wid, segIdx) { return wid + ':' + (segIdx || 0); }
+
+var coverage      = {};   // segKey → { 'weekdag|middag': aantal, ... }
 var loadedVisits  = 0;    // teller voor stats-regel
 var loadedZips    = 0;
 var selectedCell  = null; // bv. 'weekdag|middag'
 var COV_COLORS    = ['#e74c3c', '#f39c12', '#27ae60', '#1e8449'];  // 0,1,2,3+
 
+// Coverage voor een specifiek segment in de geselecteerde cel.
+function coverageForSeg(wid, segIdx) {
+  if (!selectedCell) return 0;
+  var k = segKey(wid, segIdx);
+  return (coverage[k] && coverage[k][selectedCell]) || 0;
+}
+
+// Coverage voor een hele way, geaggregeerd over alle segmenten (max of som
+// hangt af van de modus). Voor dekking-matrix: aantal unieke bezoeken
+// op deze way in deze cel = aantal segmenten met ≥1 bezoek, gedeeld door
+// totaal segmenten, of simpeler: max-bezoeken over segmenten.
 function coverageForWay(wid) {
   if (!selectedCell) return 0;
-  return (coverage[wid] && coverage[wid][selectedCell]) || 0;
+  // Way-niveau aggregatie: maximum over segmenten (de "best gedekte plek"
+  // op de way). In dekking-modus tekenen we per segment, dus deze functie
+  // wordt nog enkel gebruikt voor stats.
+  var way = ways.find(function(w){ return w.id === wid; });
+  if (!way) return (coverage[segKey(wid,0)] && coverage[segKey(wid,0)][selectedCell]) || 0;
+  var best = 0;
+  way.segments.forEach(function(s) {
+    var v = coverageForSeg(wid, s.idx);
+    if (v > best) best = v;
+  });
+  return best;
 }
 
 // Punt-in-polygoon (ray-casting) — GeoJSON coords [lon,lat]
@@ -831,6 +914,8 @@ function clearAll() {
   ways.forEach(function(w){
     if (w.layer) map.removeLayer(w.layer);
     if (w.layer && w.layer._hitLayer) map.removeLayer(w.layer._hitLayer);
+    if (w.segLayers) w.segLayers.forEach(function(l){ if (map.hasLayer(l)) map.removeLayer(l); });
+    if (w.segHits)   w.segHits.forEach(  function(l){ if (map.hasLayer(l)) map.removeLayer(l); });
   });
   ways = [];
   updateStats(); updateCounts();
@@ -935,15 +1020,18 @@ function processWays(elements, geojsonPoly) {
     var inPoly = geojsonPoly ? ptInGeoJsonPoly(c.lon, c.lat, geojsonPoly) : true;
 
     var way = {
-      id:       String(el.id),
-      naam:     naam,
-      highway:  hw,
-      group:    group,
-      coords:   coords,
-      wkt:      wkt,
-      selected: inPoly,   // buffer-wegen standaard niet geselecteerd
-      visible:  true,
-      layer:    null
+      id:        String(el.id),
+      naam:      naam,
+      highway:   hw,
+      group:     group,
+      coords:    coords,
+      segments:  splitWayIntoSegments(coords),
+      wkt:       wkt,
+      selected:  inPoly,   // buffer-wegen standaard niet geselecteerd
+      visible:   true,
+      layer:     null,
+      segLayers: [],   // sub-segment polylines, alleen actief in dekking-modus
+      segHits:   []    // brede klikzones per segment
     };
 
     way.layer = makeWayLayer(way);
@@ -1000,19 +1088,61 @@ function toggleWaySelect(way) {
 
 function applyWayStyle(way) {
   if (!way.layer) return;
+
   if (currentMode === 'dekking') {
-    // Dekkings-modus: kleur op basis van bezoeken in geselecteerde cel
-    var visits = coverageForWay(way.id);
-    var col = COV_COLORS[Math.min(visits, 3)];
-    way.layer.setStyle({
-      color:   col,
-      weight:  3,
-      opacity: 0.85,
-      dashArray: visits === 0 ? '6 4' : null
-    });
+    // Hele-way layers verbergen, segmenten tonen
+    if (map.hasLayer(way.layer)) map.removeLayer(way.layer);
+    if (way.layer._hitLayer && map.hasLayer(way.layer._hitLayer)) map.removeLayer(way.layer._hitLayer);
+
+    // Segment-layers aanmaken bij eerste binnenkomst in dekking-modus
+    if (!way.segLayers.length) {
+      way.segments.forEach(function(seg) {
+        var line = L.polyline(seg.coords, { color:'#888', weight:3, opacity:0.85, interactive:false });
+        var hit  = L.polyline(seg.coords, { color:'#000', weight:18, opacity:0, interactive:true });
+        var lbl  = way.naam + (seg.count > 1 ? ' · seg ' + (seg.idx+1) + '/' + seg.count : '');
+        hit.bindTooltip(lbl, { direction:'top', className:'way-tip' });
+        hit.on('click', function() {
+          // Klik op segment: één bezoek toevoegen aan/aftrekken van planning?
+          // Voor nu: doet niets — pure visualisatie. Toggle blijft op way-niveau.
+          toggleWaySelect(way);
+        });
+        way.segLayers.push(line);
+        way.segHits.push(hit);
+      });
+    }
+
+    // Visibility + kleur per segment
+    if (way.visible) {
+      way.segLayers.forEach(function(line, i) {
+        if (!map.hasLayer(line)) line.addTo(map);
+        if (!map.hasLayer(way.segHits[i])) way.segHits[i].addTo(map);
+        var visits = coverageForSeg(way.id, way.segments[i].idx);
+        var col = COV_COLORS[Math.min(visits, 3)];
+        line.setStyle({
+          color: col, weight: 3, opacity: 0.85,
+          dashArray: visits === 0 ? '6 4' : null
+        });
+      });
+    } else {
+      way.segLayers.forEach(function(line, i) {
+        if (map.hasLayer(line)) map.removeLayer(line);
+        if (map.hasLayer(way.segHits[i])) map.removeLayer(way.segHits[i]);
+      });
+    }
     return;
   }
-  // Maken-modus
+
+  // Maken-modus: segmenten verbergen, hele way tonen
+  if (way.segLayers.length) {
+    way.segLayers.forEach(function(line, i) {
+      if (map.hasLayer(line)) map.removeLayer(line);
+      if (map.hasLayer(way.segHits[i])) map.removeLayer(way.segHits[i]);
+    });
+  }
+  if (way.visible && !map.hasLayer(way.layer)) way.layer.addTo(map);
+  if (way.visible && way.layer._hitLayer && !map.hasLayer(way.layer._hitLayer))
+    way.layer._hitLayer.addTo(map);
+
   var sel = way.selected;
   way.layer.setStyle({
     color:   sel ? (HW_COLORS[way.group] || '#888') : '#b0b0a8',
@@ -1024,14 +1154,8 @@ function applyWayStyle(way) {
 
 function applyVisibility() {
   ways.forEach(function(w) {
-    var vis = hwVisible[w.group];
-    w.visible = vis;
-    if (vis) {
-      if (!map.hasLayer(w.layer)) w.layer.addTo(map);
-    } else {
-      if (map.hasLayer(w.layer)) map.removeLayer(w.layer);
-    }
-    applyWayStyle(w);
+    w.visible = hwVisible[w.group];
+    applyWayStyle(w);  // regelt visibility + styling op basis van modus
   });
 }
 
@@ -1345,6 +1469,7 @@ function ingestBezochtCsv(csv) {
   var idxDatum = header.indexOf('datum');
   var idxWid   = header.indexOf('osm_way_id');
   var idxStart = header.indexOf('start_tijd');
+  var idxSeg   = header.indexOf('segment_index');   // v2.3+, optioneel
   if (idxDatum < 0 || idxWid < 0 || idxStart < 0) {
     setStatus('bezocht.csv mist verplichte kolommen');
     return;
@@ -1355,14 +1480,17 @@ function ingestBezochtCsv(csv) {
     var widStr   = cols[idxWid];
     var startStr = cols[idxStart];
     if (!datumStr || !widStr || !startStr) continue;
+    var segIdx = (idxSeg >= 0 && cols[idxSeg]) ? parseInt(cols[idxSeg], 10) : 0;
+    if (isNaN(segIdx)) segIdx = 0;
     var d = new Date(datumStr + 'T' + startStr);
     if (isNaN(d.getTime())) continue;
     var dt = dagtypeForDate(d);
     var hh = d.getHours() + d.getMinutes()/60;
     var dd = dagdeelForTime(hh);
     var key = dt + '|' + dd;
-    if (!coverage[widStr]) coverage[widStr] = {};
-    coverage[widStr][key] = (coverage[widStr][key] || 0) + 1;
+    var sk = segKey(widStr, segIdx);
+    if (!coverage[sk]) coverage[sk] = {};
+    coverage[sk][key] = (coverage[sk][key] || 0) + 1;
     loadedVisits++;
   }
 }

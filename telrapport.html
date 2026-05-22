@@ -149,6 +149,53 @@
   .cmp-table td:first-child { text-align: left; color: var(--muted); font-size: 10px; }
   .cmp-table .sum-row td { border-top: 1px solid var(--border); font-weight: bold; border-bottom: none; }
 
+  /* 7×24 weekprofiel-tabel */
+  .hm-tbl { width: 100%; border-collapse: collapse; font-family: 'Courier New', monospace;
+    font-size: 11px; table-layout: fixed; }
+  .hm-tbl thead th { color: var(--muted); font-weight: normal; padding: 2px 0;
+    text-align: center; font-size: 10px; }
+  .hm-tbl tbody th { color: var(--muted); font-weight: normal; padding: 0 6px 0 0;
+    text-align: right; font-size: 11px; width: 28px; }
+  .hm-tbl td { padding: 0; height: 22px; text-align: center; color: rgba(0,0,0,0.78);
+    font-weight: 600; line-height: 22px; cursor: default; }
+  .hm-tbl td.hm-tot, .hm-tbl th.hm-tot { background: rgba(255,255,255,0.04) !important;
+    color: var(--muted); font-weight: 700; }
+  .hm-tbl .hm-foot th, .hm-tbl .hm-foot td { border-top: 1px solid var(--border);
+    background: rgba(255,255,255,0.03); color: var(--muted); }
+  .hm-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px;
+    font-size: 9px; color: var(--muted); letter-spacing: 1px; }
+  .hm-leg-sw { display: inline-block; width: 18px; height: 10px; border-radius: 2px;
+    vertical-align: middle; }
+  .hm-leg-lbl { vertical-align: middle; margin-left: 3px; }
+
+  /* Weekprofiel-modal (popup over kaart) */
+  #weekprofile-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 2000; display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #weekprofile-modal.hidden { display: none; }
+  #weekprofile-content {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    max-width: 760px; width: 100%; max-height: calc(100vh - 48px);
+    overflow: auto; padding: 18px 20px;
+  }
+  #weekprofile-header { display: flex; justify-content: space-between;
+    align-items: flex-start; margin-bottom: 14px; }
+  #weekprofile-title { font-size: 14px; font-weight: bold; color: var(--accent); }
+  #weekprofile-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  #weekprofile-close { background: none; border: none; color: var(--muted);
+    font-size: 16px; cursor: pointer; padding: 4px 8px; }
+  #weekprofile-close:hover { color: var(--text); }
+  .hm-btn { display: block; width: 100%; margin-top: 10px; padding: 8px;
+    background: rgba(74,158,255,0.12); border: 1px solid rgba(74,158,255,0.35);
+    border-radius: 4px; color: var(--accent); font-size: 11px;
+    letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; }
+  .hm-btn:hover { background: rgba(74,158,255,0.2); }
+  .hm-meta { font-size: 10.5px; color: var(--muted); margin-bottom: 10px;
+    line-height: 1.5; }
+
   #map { flex: 1; }
 
   .cluster-label {
@@ -355,6 +402,20 @@
   </div>
 
   <div id="map"></div>
+
+  <!-- Weekprofiel-popup voor pocket-segmenten -->
+  <div id="weekprofile-modal" class="hidden" onclick="if(event.target===this) closeWeekprofile()">
+    <div id="weekprofile-content">
+      <div id="weekprofile-header">
+        <div>
+          <div id="weekprofile-title">Weekprofiel</div>
+          <div id="weekprofile-sub"></div>
+        </div>
+        <button id="weekprofile-close" onclick="closeWeekprofile()">✕</button>
+      </div>
+      <div id="weekprofile-body"></div>
+    </div>
+  </div>
 
   <div id="timebar">
     <div id="timebar-header">
@@ -604,6 +665,7 @@ const clusterLayers    = {};   // sid → [marker]
 const capLayers      = {};   // sid → [marker] voor capaciteitssessies
 const capTelData    = {};   // sid → [telregels] voor capaciteitssessies
 const telData       = {};   // sid → filtered snapped telregels
+const visitData     = {};   // sid → [{ wid, segIdx, tStart, tEnd, durSec, nGps, nTel }]
 let   capSpotLayers = [];   // tijdelijke spot-markers bij klik capaciteit
 let   timeFilterActive = false;
 let   currentTimeHour  = 10;
@@ -720,11 +782,34 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
   }
 }
 
-function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV) {
+function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
   sessions[sid] = { meta:sm, visible:true, appType:'pocket' };
   getSessionColor(sid);
   clusterLayers[sid] = [];
   dotLayers[sid]     = {};
+
+  // Parse _bezocht.csv (pocket v2.2+) — visits met aanwezigheidsduur per segment.
+  // Bij v2.2: één visit per way (segIdx=0); v2.3: per (way, segIdx).
+  // Datum staat in elke regel, tijden zijn HH:MM:SS in lokale tijd.
+  if (bezCSV) {
+    const visits = [];
+    parseCSV(bezCSV).forEach(function(r) {
+      const wid = (r.osm_way_id || '').trim(); if (!wid) return;
+      const segIdx = +(r.segment_index || 0) || 0;
+      const datum  = r.datum || sm.datum || '';
+      const tStart = parseLocalDateTime(datum, r.start_tijd);
+      const tEnd   = parseLocalDateTime(datum, r.eind_tijd);
+      if (!tStart || !tEnd) return;
+      visits.push({
+        wid: wid, segIdx: segIdx,
+        tStart: tStart, tEnd: tEnd,
+        durSec: +r.duur_sec || ((tEnd - tStart) / 1000),
+        nGps:   +r.n_gps   || 0,
+        nTel:   +r.n_tellingen || 0
+      });
+    });
+    if (visits.length) visitData[sid] = visits;
+  }
 
   // GPS-spoor (zelfde dashed-stijl als transect, in sessiekleur)
   if (gpsCSV) {
@@ -856,9 +941,11 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV) {
             const k = wkey(wid, 0);
             if (wayData[k]&&el.geometry) {
               wayData[k].geometry=el.geometry.map(function(p){return[p.lat,p.lon];});
-              if (!wayLayers[k])
+              if (!wayLayers[k]) {
                 wayLayers[k]=L.polyline(wayData[k].geometry,
                   {color:'#3a3d42',weight:2,opacity:0.5}).addTo(map);
+                attachPocketSegmentInteraction(k);
+              }
             }
           });
           recolorAll(); renderSessions(); drawClusters(sid);
@@ -873,6 +960,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV) {
       const g = wayData[k].geometry;
       if (!(g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) {
         wayLayers[k] = L.polyline(g, {color:'#3a3d42', weight:2, opacity:0.5}).addTo(map);
+        attachPocketSegmentInteraction(k);
       }
     }
   });
@@ -926,6 +1014,29 @@ function fmtDatum(d, t) {
 function cleanNaam(s) {
   if (!s) return '—';
   return s.split(',')[0].trim() || s;
+}
+
+// Combineer datum (YYYY-MM-DD of YYYYMMDD) + tijd (HH:MM:SS) → Date in lokale tijd.
+// Geeft null bij ongeldige input.
+function parseLocalDateTime(datum, tijd) {
+  if (!datum || !tijd) return null;
+  let d = String(datum).split(' ')[0].split('T')[0];
+  if (/^\d{8}$/.test(d)) d = d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8);
+  const m = String(tijd).match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  const [y, mo, da] = d.split('-').map(Number);
+  return new Date(y, mo-1, da, +m[1], +m[2], +(m[3]||0));
+}
+
+// Voegt click- en hover-gedrag toe aan een pocket-segment-polylijn.
+// Idempotent — kan veilig meermaals worden aangeroepen op dezelfde key.
+function attachPocketSegmentInteraction(k) {
+  const layer = wayLayers[k];
+  if (!layer || layer._pktAttached) return;
+  layer._pktAttached = true;
+  layer.on('click', function() { showWegvakDetail(k); });
+  layer.on('mouseover', function() { this.setStyle({ weight: 6, opacity: 1 }); });
+  layer.on('mouseout',  function() { recolorOne(k); });
 }
 
 // ── HEAT COLOUR ───────────────────────────────────────────────────
@@ -1453,17 +1564,279 @@ function redrawAllClusters() {
   Object.keys(sessions).forEach(sid=>drawClusters(sid));
 }
 
+// ── 7×24 HEATMAP voor pocket-segment ──────────────────────────────────────
+// Per cel (dag-van-week, uur): aanwezigheidstijd in segment-meter-uren en
+// aantal tikken in dat tijdvenster. Visits over uurgrenzen worden proportioneel
+// gesplitst zodat een visit van 23:55–00:05 niet aan één uur wordt toegeschreven.
+// Tikken worden via dezelfde proportie verdeeld (gebrek aan tijdstempel op
+// tap-niveau in _bezocht.csv) — dat is een aanvaardbare benadering.
+//
+// Eenheid in cel: tikken per meter per uur (passages/m·u).
+function buildWeeklyHeatmap(key) {
+  const wd = wayData[key]; if (!wd) return null;
+  const wid = wd.wayId || parseKey(key).wid;
+  const segIdx = wd.segIdx || 0;
+  const lenM = segmentLengthM(wd.geometry);
+  if (lenM <= 0) return null;
+
+  // cells[d][h] = { secs: aanwezigheid in s, taps: tikken }
+  const cells = Array.from({length: 7}, () =>
+    Array.from({length: 24}, () => ({ secs: 0, taps: 0 })));
+
+  let anyVisit = false;
+  Object.keys(visitData).forEach(function(sid) {
+    if (!sessions[sid]?.visible) return;
+    visitData[sid].forEach(function(v) {
+      if (v.wid !== wid || (v.segIdx||0) !== segIdx) return;
+      anyVisit = true;
+      splitVisitIntoHourBuckets(v).forEach(function(bucket) {
+        cells[bucket.dow][bucket.hour].secs += bucket.secs;
+        cells[bucket.dow][bucket.hour].taps += bucket.taps;
+      });
+    });
+  });
+
+  if (!anyVisit) return null;
+
+  // Cel-waarde uitrekenen + max bepalen voor kleurschaal
+  let maxVal = 0;
+  for (let d = 0; d < 7; d++) for (let h = 0; h < 24; h++) {
+    const c = cells[d][h];
+    if (c.secs > 0) {
+      const meterHours = lenM * (c.secs / 3600);
+      c.value = c.taps / meterHours;   // tikken per meter per uur
+      if (c.value > maxVal) maxVal = c.value;
+    } else {
+      c.value = null;
+    }
+  }
+  return { cells: cells, lenM: lenM, maxVal: maxVal };
+}
+
+// Splitst een visit in stukken per (dag, uur)-bucket.
+// Tikken worden naar rato van aanwezigheidstijd over de buckets verdeeld.
+function splitVisitIntoHourBuckets(v) {
+  const buckets = [];
+  let cur = new Date(v.tStart.getTime());
+  const totalSec = (v.tEnd - v.tStart) / 1000;
+  if (totalSec <= 0) return buckets;
+  while (cur < v.tEnd) {
+    const nextHour = new Date(cur.getTime());
+    nextHour.setMinutes(0, 0, 0);
+    nextHour.setHours(nextHour.getHours() + 1);
+    const chunkEnd = (nextHour < v.tEnd) ? nextHour : v.tEnd;
+    const chunkSec = (chunkEnd - cur) / 1000;
+    if (chunkSec > 0) {
+      // dow: 0=ma, 1=di, ..., 6=zo  (JS standaard 0=zo → omzetten)
+      const jsDay = cur.getDay();
+      const dow = (jsDay + 6) % 7;
+      buckets.push({
+        dow: dow,
+        hour: cur.getHours(),
+        secs: chunkSec,
+        taps: v.nTel * (chunkSec / totalSec)
+      });
+    }
+    cur = chunkEnd;
+  }
+  return buckets;
+}
+
+// Rendert de 7×24 heatmap als HTML-string. Cellen krijgen heat-kleur via
+// dezelfde √-schaal als de kaart (1 p/m·u = saturatie).
+function renderWeeklyHeatmap(hm) {
+  const DAGEN = ['ma','di','wo','do','vr','za','zo'];
+  const HOURS = Array.from({length: 24}, (_, h) => h);
+  // Som rij/kolom voor totalen
+  const dayTot = Array(7).fill(null).map(() => ({ secs: 0, taps: 0 }));
+  const hourTot = Array(24).fill(null).map(() => ({ secs: 0, taps: 0 }));
+  let totSec = 0, totTap = 0;
+  for (let d = 0; d < 7; d++) for (let h = 0; h < 24; h++) {
+    const c = hm.cells[d][h];
+    dayTot[d].secs += c.secs; dayTot[d].taps += c.taps;
+    hourTot[h].secs += c.secs; hourTot[h].taps += c.taps;
+    totSec += c.secs; totTap += c.taps;
+  }
+  function valOf(secs, taps) {
+    if (secs <= 0) return null;
+    return taps / (hm.lenM * (secs / 3600));
+  }
+  // Slimme afronding: ≥10 → geheel getal (anders past 100+ niet in cel)
+  //                    1..10 → één decimaal
+  //                    <1    → één decimaal (incl. trailing 0)
+  function fmtVal(v) {
+    if (v === null || v === undefined) return '';
+    if (v >= 10) return Math.round(v).toString();
+    return v.toFixed(1);
+  }
+  // Hybride kleurschaal: saturatie bij max(100, observed max).
+  // 100 p/m·u is "drukke centrumstoep", boven 100 schaalt mee zodat
+  // extreem drukke segmenten ook nog kleurspreiding behouden.
+  const SAT_MIN = 100;
+  const saturation = Math.max(SAT_MIN, hm.maxVal || 0);
+  function cellStyle(val) {
+    if (val === null) return 'background:rgba(255,255,255,0.04);';
+    const t = Math.sqrt(Math.min(1, val / saturation));
+    const r = Math.round(255 * Math.min(2*t, 1));
+    const g = Math.round(255 * Math.min(2*(1-t), 1));
+    return `background:rgb(${r},${g},0);`;
+  }
+
+  let html = `<table class="hm-tbl"><thead><tr><th></th>`;
+  HOURS.forEach(h => { html += `<th>${h}</th>`; });
+  html += `<th class="hm-tot">∑</th></tr></thead><tbody>`;
+  for (let d = 0; d < 7; d++) {
+    html += `<tr><th>${DAGEN[d]}</th>`;
+    for (let h = 0; h < 24; h++) {
+      const c = hm.cells[d][h];
+      const v = c.value;
+      const title = (v !== null)
+        ? `${DAGEN[d]} ${h}:00 · ${v.toFixed(2)} p/m·u (${Math.round(c.taps)} tikken in ${(c.secs/60).toFixed(1)} min)`
+        : `${DAGEN[d]} ${h}:00 · niet gemeten`;
+      const txt = (v !== null && v >= 0.5) ? fmtVal(v) : '';
+      html += `<td style="${cellStyle(v)}" title="${title}">${txt}</td>`;
+    }
+    const rowVal = valOf(dayTot[d].secs, dayTot[d].taps);
+    html += `<td class="hm-tot" title="${rowVal !== null ? rowVal.toFixed(2) + ' p/m·u' : 'geen data'}">${fmtVal(rowVal)}</td></tr>`;
+  }
+  // Footer met uur-totalen
+  html += `<tr class="hm-foot"><th>∑</th>`;
+  for (let h = 0; h < 24; h++) {
+    const colVal = valOf(hourTot[h].secs, hourTot[h].taps);
+    html += `<td title="${colVal !== null ? colVal.toFixed(2) + ' p/m·u' : 'geen data'}">${fmtVal(colVal)}</td>`;
+  }
+  const grandVal = valOf(totSec, totTap);
+  html += `<td class="hm-tot">${fmtVal(grandVal)}</td></tr>`;
+  html += `</tbody></table>`;
+  // Compacte legenda onder de tabel
+  const legSteps = [0, 10, 30, 60, 100, Math.max(saturation, 100)];
+  let legHtml = '<div class="hm-legend">';
+  for (let i = 0; i < legSteps.length - 1; i++) {
+    const mid = (legSteps[i] + legSteps[i+1]) / 2;
+    legHtml += `<span class="hm-leg-sw" style="${cellStyle(mid)}"></span>` +
+               `<span class="hm-leg-lbl">${fmtVal(legSteps[i])}–${fmtVal(legSteps[i+1])}</span>`;
+  }
+  legHtml += '</div>';
+  return html + legHtml;
+}
+
+// ── WEEKPROFIEL POPUP ─────────────────────────────────────────────────────
+function openWeekprofile(key) {
+  const wd = wayData[key]; if (!wd) return;
+  const hm = buildWeeklyHeatmap(key);
+  if (!hm) return;
+  const wid = wd.wayId || parseKey(key).wid;
+  const segIdx = wd.segIdx || 0;
+  const namen = [...new Set(wd.sessions.map(s => s.naam).filter(s => s && s !== '—'))];
+  const segLabel = (wd.segCount && wd.segCount > 1) ? ` · seg ${wd.segIdx+1}/${wd.segCount}` : '';
+  document.getElementById('weekprofile-title').textContent =
+    (namen.join(' / ') || `Way ${wid}`);
+  document.getElementById('weekprofile-sub').textContent =
+    `${wd.highway} · OSM ${wid}${segLabel} · ${Math.round(hm.lenM)} m`;
+
+  let body = '<div class="hm-meta">' +
+    'Cellen: <strong>passages per meter per uur</strong> ' +
+    '(<code>tikken ÷ segmentlengte ÷ aanwezigheidstijd</code>). ' +
+    'Visits over uurgrenzen worden proportioneel gesplitst. ' +
+    'Lege cel = niet gemeten. Alleen zichtbare sessies tellen mee.' +
+    '</div>';
+  body += renderWeeklyHeatmap(hm);
+  body += renderSegmentSessionTable(wd, wid, segIdx, hm.lenM);
+
+  document.getElementById('weekprofile-body').innerHTML = body;
+  document.getElementById('weekprofile-modal').classList.remove('hidden');
+}
+
+// Compacte sessie-tabel: per sessie de bijdrage aan dit segment.
+// Toont datum, aanwezigheidstijd (uit visits), tikken, en p/m·u per sessie.
+function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
+  const rows = [];
+  Object.keys(visitData).forEach(function(sid) {
+    if (!sessions[sid]?.visible) return;
+    const matches = visitData[sid].filter(function(v) {
+      return v.wid === wid && (v.segIdx||0) === segIdx;
+    });
+    if (!matches.length) return;
+    const totSec = matches.reduce((a,v) => a + v.durSec, 0);
+    const totTel = matches.reduce((a,v) => a + v.nTel, 0);
+    const meterHours = lenM * (totSec / 3600);
+    const pmh = meterHours > 0 ? totTel / meterHours : 0;
+    const sm  = sessions[sid].meta || {};
+    rows.push({
+      datum: fmtDatum(sm.datum, sm.start_tijd),
+      teller: sm.teller || '',
+      visits: matches.length,
+      secs: totSec,
+      tel: totTel,
+      pmh: pmh
+    });
+  });
+  if (!rows.length) return '';
+  rows.sort((a,b) => a.datum.localeCompare(b.datum));
+
+  let html = '<div style="margin-top:18px;font-size:10px;color:var(--muted);' +
+             'letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">' +
+             'Tellingen op dit segment</div>';
+  html += '<table class="cmp-table"><tr>' +
+          '<th>datum</th><th>visits</th><th>aanwezig</th><th>tikken</th><th>p/m·u</th>' +
+          '</tr>';
+  rows.forEach(r => {
+    const minStr = (r.secs >= 60) ? (r.secs/60).toFixed(1) + ' min'
+                                  : Math.round(r.secs) + ' s';
+    html += `<tr><td>${r.datum}</td>` +
+            `<td>${r.visits}</td>` +
+            `<td>${minStr}</td>` +
+            `<td>${r.tel}</td>` +
+            `<td>${r.pmh.toFixed(2)}</td></tr>`;
+  });
+  if (rows.length > 1) {
+    const totSec = rows.reduce((a,r) => a + r.secs, 0);
+    const totTel = rows.reduce((a,r) => a + r.tel, 0);
+    const totVis = rows.reduce((a,r) => a + r.visits, 0);
+    const grand  = (lenM * (totSec/3600)) > 0 ? totTel / (lenM * (totSec/3600)) : 0;
+    const minStr = (totSec >= 60) ? (totSec/60).toFixed(1) + ' min'
+                                  : Math.round(totSec) + ' s';
+    html += `<tr class="sum-row"><td>∑</td><td>${totVis}</td>` +
+            `<td>${minStr}</td><td>${totTel}</td><td>${grand.toFixed(2)}</td></tr>`;
+  }
+  html += '</table>';
+  return html;
+}
+
+function closeWeekprofile() {
+  document.getElementById('weekprofile-modal').classList.add('hidden');
+}
+
+// Esc-toets sluit popup
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const m = document.getElementById('weekprofile-modal');
+    if (m && !m.classList.contains('hidden')) closeWeekprofile();
+  }
+});
+
 // ── DETAIL PANEL ──────────────────────────────────────────────────
 function showWegvakDetail(key) {
   const wd=wayData[key]; if (!wd) return;
   const wid = wd.wayId || parseKey(key).wid;
+  const visSessions = wd.sessions.filter(s => sessions[s.sid]?.visible);
+
+  // Pocket-only segment met visit-data: sla het kleine paneel over,
+  // open de popup direct. Gemengde of niet-pocket segmenten: zie hieronder.
+  const appTypesPresent = new Set(visSessions.map(s => s.appType));
+  const isPocketOnly = appTypesPresent.size === 1 && appTypesPresent.has('pocket');
+  if (isPocketOnly) {
+    const hm = buildWeeklyHeatmap(key);
+    if (hm) { openWeekprofile(key); return; }
+    // Geen visit-data beschikbaar — val terug op het normale paneel
+  }
+
   const namen=[...new Set(wd.sessions.map(s=>s.naam).filter(s=>s&&s!=='—'))];
   const segLabel = (wd.segCount && wd.segCount > 1) ? ` · seg ${wd.segIdx+1}/${wd.segCount}` : '';
   document.getElementById('detail-title').textContent = namen.join(' / ') || `Way ${wid}`;
   document.getElementById('detail-sub').textContent   = `${wd.highway} · OSM ${wid}${segLabel}`;
 
-  const relevant=wd.sessions.filter(s=>sessions[s.sid]?.visible)
-    .sort((a,b)=>a.sid.localeCompare(b.sid));
+  const relevant=visSessions.sort((a,b)=>a.sid.localeCompare(b.sid));
   let html='';
   if (!relevant.length) {
     html='<div style="color:var(--muted);font-size:11px">Geen zichtbare sessies.</div>';
@@ -1511,6 +1884,23 @@ function showWegvakDetail(key) {
       }
       html+=`</table>`;
     });
+
+    // Pocket: knop tonen om weekprofiel-popup te openen als er visit-data is
+    const isPocket = relevant.some(s => s.appType === 'pocket');
+    if (isPocket && Object.keys(visitData).length) {
+      // Quick-check: heeft dit segment überhaupt visits?
+      const wid = wd.wayId || parseKey(key).wid;
+      const segIdx = wd.segIdx || 0;
+      const hasVisits = Object.keys(visitData).some(function(sid) {
+        if (!sessions[sid]?.visible) return false;
+        return visitData[sid].some(function(v) {
+          return v.wid === wid && (v.segIdx||0) === segIdx;
+        });
+      });
+      if (hasVisits) {
+        html += `<button class="hm-btn" onclick="openWeekprofile('${key.replace(/'/g, "\\'")}')">Toon weekprofiel ›</button>`;
+      }
+    }
   }
   document.getElementById('detail-body').innerHTML=html;
   document.getElementById('detail-panel').classList.remove('hidden');
@@ -1792,6 +2182,7 @@ async function loadZip(file) {
   const get=suf=>{ const k=Object.keys(F).find(k=>k.endsWith(suf)); return k?F[k]:null; };
   const sessieCSV=get('_sessie.csv'), stratenCSV=get('_straten.csv'),
         netCSV=get('_netwerk.csv'), gpsCSV=get('_gps.csv'), telCSV=get('_telregels.csv'),
+        bezCSV=get('_bezocht.csv'),
         capCSV=get('_capaciteit.csv');
 
   if (!sessieCSV) { alert(`Geen sessie.csv gevonden in ${file.name}`); return; }
@@ -1820,7 +2211,7 @@ async function loadZip(file) {
 
   // Pocket-sessie: apart pad
   if (appType === 'pocket') {
-    loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV);
+    loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV);
     return;
   }
 
@@ -2163,6 +2554,7 @@ function resetAll() {
   Object.keys(capLayers).forEach(function(k){ delete capLayers[k]; });
   Object.keys(dotLayers).forEach(function(k){ delete dotLayers[k]; });
   Object.keys(telData).forEach(function(k){ delete telData[k]; });
+  Object.keys(visitData).forEach(function(k){ delete visitData[k]; });
   Object.keys(capTelData).forEach(function(k){ delete capTelData[k]; });
   Object.keys(globalPolyMap).forEach(function(k){ delete globalPolyMap[k]; });
   Object.keys(SESSION_COLORS).forEach(function(k){ delete SESSION_COLORS[k]; });
