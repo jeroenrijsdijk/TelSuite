@@ -458,11 +458,11 @@
   const SEP = ';';
 
   const TYPES = [
-    { id: 'car',   label: '🚗' },
-    { id: 'truck', label: '🚛' },
-    { id: 'moto',  label: '🏍' },
-    { id: 'bike',  label: '🚲' },
-    { id: 'ped',   label: '🚶' },
+    { id: 'car',   icon: '🚗', label: 'Car' },
+    { id: 'truck', icon: '🚛', label: 'Truck' },
+    { id: 'moto',  icon: '🏍', label: 'Motorcycle' },
+    { id: 'bike',  icon: '🚲', label: 'Bicycle' },
+    { id: 'ped',   icon: '🚶', label: 'Pedestrian' },
   ];
 
   const counts = {};
@@ -585,7 +585,7 @@
         <button class="btn-dir" onclick="adjust('${t.id}','a',1)"><span class="dir-sym">&lt;</span><span class="dir-plus">+1</span></button>
         <div class="side-count"><div class="dir-count" id="cnt-${t.id}-a">0</div></div>
         <button class="btn-min" onclick="adjust('${t.id}','a',-1)">-</button>
-        <div class="card-center"><div class="lbl">${t.label}</div></div>
+        <div class="card-center"><div class="lbl">${t.icon}</div></div>
         <button class="btn-min" onclick="adjust('${t.id}','b',-1)">-</button>
         <div class="side-count"><div class="dir-count" id="cnt-${t.id}-b">0</div></div>
         <button class="btn-dir" onclick="adjust('${t.id}','b',1)"><span class="dir-sym">&gt;</span><span class="dir-plus">+1</span></button>`;
