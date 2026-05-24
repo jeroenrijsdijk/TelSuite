@@ -196,6 +196,51 @@
   .hm-meta { font-size: 10.5px; color: var(--muted); margin-bottom: 10px;
     line-height: 1.5; }
 
+  /* Stand-still popup (traffic_counter CSV) */
+  .ss-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 2000; display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .ss-modal {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    max-width: 620px; width: 100%; max-height: calc(100vh - 48px);
+    overflow: auto; padding: 16px 20px;
+  }
+  .ss-head { display: flex; justify-content: space-between;
+    align-items: flex-start; margin-bottom: 4px; }
+  .ss-title { font-size: 14px; font-weight: bold; color: var(--accent); }
+  .ss-city { color: var(--muted); font-weight: normal; }
+  .ss-close { background: none; border: none; color: var(--muted);
+    font-size: 16px; cursor: pointer; padding: 4px 8px; }
+  .ss-close:hover { color: var(--text); }
+  .ss-sub { font-size: 11px; color: var(--muted); margin-bottom: 10px;
+    line-height: 1.5; }
+  .ss-notes { font-size: 11px; color: var(--text); margin-bottom: 10px;
+    font-style: italic; }
+  .ss-tbl { width: 100%; border-collapse: collapse; margin-bottom: 14px;
+    font-size: 12px; }
+  .ss-tbl th, .ss-tbl td { padding: 4px 8px; text-align: right;
+    border-bottom: 1px solid var(--border); }
+  .ss-tbl th:first-child, .ss-tbl td:first-child { text-align: left; }
+  .ss-tbl th { font-weight: normal; color: var(--muted);
+    letter-spacing: 0.5px; font-size: 11px; }
+  .ss-tbl tr.ss-sum td { border-top: 1px solid var(--border);
+    border-bottom: none; padding-top: 6px; }
+  .ss-tbl tr.ss-perh td { color: var(--muted); font-size: 11px;
+    border-bottom: none; padding-top: 2px; }
+  .ss-swatch { display: inline-block; width: 9px; height: 9px;
+    border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .ss-tl-title { font-size: 11px; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+  .ss-tl { width: 100%; height: auto; display: block;
+    background: var(--panel, #fafaf7); border: 1px solid var(--border);
+    border-radius: 4px; }
+  .ss-tl-empty { font-size: 11px; color: var(--muted);
+    padding: 14px; text-align: center; border: 1px dashed var(--border);
+    border-radius: 4px; }
+
   #map { flex: 1; }
 
   .cluster-label {
@@ -243,6 +288,20 @@
   }
   #timebar-track {
     position: relative; height: 28px; margin-bottom: 4px;
+  }
+  #day-pills {
+    display: flex; gap: 4px; margin: 0 0 8px;
+  }
+  .day-pill {
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--muted); font-family: var(--font); font-size: 10.5px;
+    font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+    padding: 4px 10px; cursor: pointer; border-radius: 3px;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .day-pill:hover { color: var(--text); border-color: var(--text); }
+  .day-pill.active {
+    background: var(--text); color: var(--bg); border-color: var(--text);
   }
   #time-slider {
     -webkit-appearance: none; appearance: none;
@@ -302,8 +361,8 @@
 
     <div id="dropzone">
       <div class="dz-icon">📂</div>
-      <div class="dz-text">Sleep ZIP-bestanden hier<br>of klik om te kiezen</div>
-      <input type="file" id="file-input" multiple accept=".zip">
+      <div class="dz-text">Sleep ZIP- of CSV-bestanden hier<br>of klik om te kiezen</div>
+      <input type="file" id="file-input" multiple accept=".zip,.csv">
     </div>
 
     <div id="statsbar" style="display:none">
@@ -421,6 +480,12 @@
     <div id="timebar-header">
       <span id="timebar-label">Tijdvenster</span>
       <span id="timebar-window">—</span>
+    </div>
+    <div id="day-pills">
+      <button class="day-pill active" data-day="all">Alle</button>
+      <button class="day-pill" data-day="weekday">Werkdagen</button>
+      <button class="day-pill" data-day="saturday">Za</button>
+      <button class="day-pill" data-day="sunday">Zo</button>
     </div>
     <div id="timebar-track">
       <input type="range" id="time-slider" min="0" max="23" value="10" step="1">
@@ -666,9 +731,15 @@ const capLayers      = {};   // sid → [marker] voor capaciteitssessies
 const capTelData    = {};   // sid → [telregels] voor capaciteitssessies
 const telData       = {};   // sid → filtered snapped telregels
 const visitData     = {};   // sid → [{ wid, segIdx, tStart, tEnd, durSec, nGps, nTel }]
+const standStillData    = {};  // sid → { lat, lon, accuracy, gpsReliable, street, city,
+                                //         start, end, durSec, factor, dirA, dirB,
+                                //         summary:{type→{a,b}}, log:[{ts,type,dir}] }
+const standStillMarkers = {};  // sid → L.circleMarker
+const standStillRings   = {};  // sid → L.circle (accuracy-ring bij dubieuze GPS)
 let   capSpotLayers = [];   // tijdelijke spot-markers bij klik capaciteit
 let   timeFilterActive = false;
 let   currentTimeHour  = 10;
+let   currentDayFilter = 'all';   // 'all' | 'weekday' | 'saturday' | 'sunday'
 const TYPES_TRANSECT = ['car','truck','moto','bike','ped'];
 const globalPolyMap = {};   // wayId → [[lat,lon],...] voor spatial join
 
@@ -689,6 +760,389 @@ let maxFietsTotaal  = 1;
 // ── UTILS ─────────────────────────────────────────────────────────
 const parseCSV = txt =>
   Papa.parse(txt.trim(), { header:true, delimiter:';', skipEmptyLines:true }).data;
+
+// ── STAND-STILL (traffic_counter.html CSV) ────────────────────────
+// Een Stand-Still-telling is fundamenteel anders dan way-gebaseerde tellingen:
+// één GPS-punt, één tijdvenster, gesplitst per richting en voertuigtype.
+// Er is geen wayData/clusterLayers/dotLayers voor deze sid — alleen een marker.
+
+// Vehicle-lookup tolereert zowel v2.4-tekst ("Car") als oudere emoji-CSV's.
+const SS_VEHICLE_LOOKUP = {
+  '🚗':'car','car':'car',
+  '🚛':'truck','truck':'truck',
+  '🏍':'moto','motorcycle':'moto',
+  '🚲':'bike','bicycle':'bike',
+  '🚶':'ped','pedestrian':'ped'
+};
+const SS_TYPE_ORDER  = ['car','truck','moto','bike','ped'];
+const SS_TYPE_LABEL  = { car:'auto', truck:'vracht', moto:'motor', bike:'fiets', ped:'voetg.' };
+// Kleuren consistent met APP_CONFIG.transect zodat het visueel rijmt
+const SS_TYPE_COLOR  = { car:'#cc0000', truck:'#e07800', moto:'#e6b800', bike:'#7700cc', ped:'#d4007a' };
+
+// Parse traffic_counter.html CSV-export naar een gestructureerd object.
+// Bestand heeft drie secties: metadata key-value, samenvattingstabel, timestamp log.
+function parseStandStillCsv(text) {
+  const lines = text.split(/\r?\n/);
+  const meta = {};
+  const log = [];
+  // Summary wordt geïndexeerd op type-code (car/truck/...) → {a, b}
+  const summary = {};
+  SS_TYPE_ORDER.forEach(t => { summary[t] = { a:0, b:0 }; });
+  let dirA = '', dirB = '';
+  // States: 'meta' (key-value), 'summary' (na header met "Vehicle Type;"), 'log' (na "Time;Vehicle;Direction"), 'idle' (tussen secties)
+  let state = 'meta';
+
+  const splitRow = s => s.split(';');
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (!raw.trim()) { if (state !== 'log') state = 'idle'; continue; }
+    if (raw.startsWith('sep=')) continue;          // Excel separator hint
+    if (raw === 'Traffic Count Export') continue;  // Banner
+    const cells = splitRow(raw);
+
+    // Header van samenvattingstabel
+    if (cells[0] === 'Vehicle Type') {
+      // Eerste twee tellings-kolommen geven de richting-namen
+      dirA = (cells[1] || '').replace(/ counted$/, '').trim() || 'Direction A';
+      dirB = (cells[2] || '').replace(/ counted$/, '').trim() || 'Direction B';
+      state = 'summary';
+      continue;
+    }
+    // Header van timestamp-log
+    if (cells[0] === 'Timestamp Log') { state = 'idle'; continue; }
+    if (cells[0] === 'Time' && cells[1] === 'Vehicle' && cells[2] === 'Direction') {
+      state = 'log';
+      continue;
+    }
+
+    if (state === 'meta' || state === 'idle') {
+      // key-value: "GPS latitude;51.8514"  (de 3e cel is bij Extrapolation factor de uitleg)
+      if (cells.length >= 2) meta[cells[0]] = cells[1];
+      continue;
+    }
+
+    if (state === 'summary') {
+      if (cells[0] === 'TOTAL') { state = 'idle'; continue; }
+      const code = SS_VEHICLE_LOOKUP[ (cells[0] || '').toLowerCase() ] || SS_VEHICLE_LOOKUP[cells[0]];
+      if (code) {
+        summary[code] = { a: parseInt(cells[1]||'0',10)||0, b: parseInt(cells[2]||'0',10)||0 };
+      }
+      continue;
+    }
+
+    if (state === 'log') {
+      // ts ; vehicle ; direction
+      const ts   = (cells[0]||'').trim();
+      const vraw = (cells[1]||'').trim();
+      const draw = (cells[2]||'').trim();
+      const code = SS_VEHICLE_LOOKUP[vraw.toLowerCase()] || SS_VEHICLE_LOOKUP[vraw];
+      if (!ts || !code) continue;
+      const dir = (draw === dirA) ? 'a' : (draw === dirB) ? 'b' : null;
+      if (!dir) continue;
+      log.push({ ts, type: code, dir });
+    }
+  }
+
+  // Helpers om "2026-05-22 16:57:52" robuust te parsen
+  const parseDT = s => {
+    if (!s) return null;
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+    if (!m) return null;
+    return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]);
+  };
+
+  const start = parseDT(meta['Start time']);
+  const end   = parseDT(meta['End time']);
+  const durSec = (start && end) ? Math.max(0, Math.round((end - start)/1000)) : 0;
+
+  const lat = parseFloat(meta['GPS latitude']);
+  const lon = parseFloat(meta['GPS longitude']);
+  const accuracy = parseFloat(meta['GPS accuracy (m)']);
+  const gpsReliable = (meta['GPS reliable'] || '').toLowerCase().startsWith('yes');
+
+  // Extrapolatiefactor staat als "4.0079" in cel [1], met uitleg in cel [2]
+  const factor = parseFloat(meta['Extrapolation factor']);
+
+  return {
+    lat, lon,
+    accuracy: isNaN(accuracy) ? null : accuracy,
+    gpsReliable,
+    street:  meta['GPS street']  || '',
+    city:    meta['GPS city']    || '',
+    country: meta['GPS country'] || '',
+    notes:   meta['Location / Notes'] || '',
+    start, end, durSec,
+    factor: isNaN(factor) ? null : factor,
+    dirA, dirB,
+    summary,
+    log
+  };
+}
+
+// Bouw een compacte sessie-id uit start-time. Stabiel — herladen geeft zelfde id.
+function ssBuildSid(start) {
+  if (!(start instanceof Date) || isNaN(start)) return 'ss_' + Date.now();
+  const p = n => String(n).padStart(2,'0');
+  return 'ss_' + start.getFullYear() + p(start.getMonth()+1) + p(start.getDate())
+              + '_' + p(start.getHours()) + p(start.getMinutes()) + p(start.getSeconds());
+}
+
+async function loadStandStillCsv(file) {
+  const text = await file.text();
+  let data;
+  try { data = parseStandStillCsv(text); }
+  catch (err) { alert('Kan ' + file.name + ' niet lezen: ' + err.message); return; }
+
+  if (!data.start || isNaN(data.lat) || isNaN(data.lon)) {
+    alert(file.name + ': mist start-tijd of GPS-coördinaten.');
+    return;
+  }
+
+  const sid = ssBuildSid(data.start);
+  if (sessions[sid]) return;  // duplicate, stil overslaan
+
+  // Totalen voor stats + pin-grootte
+  const totalCount = SS_TYPE_ORDER.reduce((a,t)=>a+(data.summary[t].a + data.summary[t].b), 0);
+  const perHour = data.factor ? totalCount * data.factor : (data.durSec ? totalCount * 3600 / data.durSec : 0);
+  data.totalCount = totalCount;
+  data.perHour = perHour;
+
+  // Pseudo-meta zodat renderSessions/applySessionVisibility ermee kunnen werken
+  const pad = n => String(n).padStart(2,'0');
+  const dStr = data.start.getFullYear() + '-' + pad(data.start.getMonth()+1) + '-' + pad(data.start.getDate());
+  const tStr = pad(data.start.getHours()) + ':' + pad(data.start.getMinutes()) + ':' + pad(data.start.getSeconds());
+  const meta = {
+    sessie_id: sid,
+    teller: '',
+    datum: dStr,
+    start_tijd: tStr,
+    eind_tijd: data.end ? (pad(data.end.getHours())+':'+pad(data.end.getMinutes())+':'+pad(data.end.getSeconds())) : '',
+    app_type: 'standstill',
+    n_waarnemingen: totalCount
+  };
+  sessions[sid] = { meta, visible: true, appType: 'standstill' };
+  getSessionColor(sid);
+  standStillData[sid] = data;
+
+  // Pin-grootte: √-geschaald op passages/u, gecapt tussen 8 en 28 px radius
+  const r = Math.max(8, Math.min(28, 8 + Math.sqrt(perHour) * 1.2));
+  const color = getSessionColor(sid);
+
+  const marker = L.circleMarker([data.lat, data.lon], {
+    radius: r,
+    color: '#fff',
+    weight: 2,
+    fillColor: color,
+    fillOpacity: 0.75,
+    pane: 'clusters'
+  });
+  marker.bindTooltip(
+    (data.street || 'punt-telling') + ' · ' + Math.round(perHour) + '/u · ' + Math.round(data.durSec/60) + ' min',
+    { direction:'top' }
+  );
+  marker.on('click', () => openStandStillPopup(sid));
+  marker.addTo(map);
+  standStillMarkers[sid] = marker;
+
+  // Accuracy-ring als GPS dubieus
+  if (data.accuracy && data.accuracy >= 25) {
+    const ring = L.circle([data.lat, data.lon], {
+      radius: data.accuracy,
+      color: color, weight: 1.5, opacity: 0.6,
+      fillOpacity: 0, dashArray: '4 4',
+      interactive: false,
+      pane: 'clusters'
+    }).addTo(map);
+    standStillRings[sid] = ring;
+  }
+
+  renderSessions(); updateUI(); updateStats();
+
+  // Eerste sessie? Zoom erop in.
+  if (Object.keys(sessions).length === 1) {
+    map.setView([data.lat, data.lon], 17);
+  }
+}
+
+// Popup: header + samenvatting-tabel + timeline. Hergebruikt het bestaande
+// weekprofile-overlay-stramien (modal in een vaste positie) maar met eigen content.
+function openStandStillPopup(sid) {
+  const data = standStillData[sid]; if (!data) return;
+  const meta = sessions[sid].meta;
+
+  // Welke types komen voor? (lege types weglaten houdt grafiek leesbaar)
+  const presentTypes = SS_TYPE_ORDER.filter(t =>
+    (data.summary[t].a + data.summary[t].b) > 0
+  );
+
+  const totA = SS_TYPE_ORDER.reduce((a,t)=>a+data.summary[t].a, 0);
+  const totB = SS_TYPE_ORDER.reduce((a,t)=>a+data.summary[t].b, 0);
+  const tot  = totA + totB;
+  const fmtN = n => (n >= 100 ? Math.round(n) : Math.round(n*10)/10);
+
+  // Per-uur extrapolatie
+  const perH = data.factor || (data.durSec ? 3600/data.durSec : 0);
+  const aPerH = totA * perH, bPerH = totB * perH;
+
+  let tableHtml = '<table class="ss-tbl">';
+  tableHtml += '<tr><th></th><th>' + escapeHtml(data.dirA) + '</th><th>' + escapeHtml(data.dirB) + '</th><th>totaal</th></tr>';
+  presentTypes.forEach(t => {
+    const a = data.summary[t].a, b = data.summary[t].b;
+    tableHtml += '<tr>'
+      + '<td><span class="ss-swatch" style="background:'+SS_TYPE_COLOR[t]+'"></span>' + SS_TYPE_LABEL[t] + '</td>'
+      + '<td>' + a + '</td>'
+      + '<td>' + b + '</td>'
+      + '<td><b>' + (a+b) + '</b></td>'
+    + '</tr>';
+  });
+  tableHtml += '<tr class="ss-sum"><td>geteld</td><td>'+totA+'</td><td>'+totB+'</td><td><b>'+tot+'</b></td></tr>';
+  if (perH) {
+    tableHtml += '<tr class="ss-perh"><td>per uur</td><td>'+Math.round(aPerH)+'</td><td>'+Math.round(bPerH)+'</td><td><b>'+Math.round(aPerH+bPerH)+'</b></td></tr>';
+  }
+  tableHtml += '</table>';
+
+  const timelineSvg = renderStandStillTimeline(data, presentTypes);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'ss-overlay';
+  overlay.innerHTML =
+    '<div class="ss-modal">' +
+      '<div class="ss-head">' +
+        '<div class="ss-title">📍 ' + escapeHtml(data.street || 'punt-telling') +
+          (data.city ? ' <span class="ss-city">· '+escapeHtml(data.city)+'</span>' : '') +
+        '</div>' +
+        '<button class="ss-close" aria-label="sluiten">×</button>' +
+      '</div>' +
+      '<div class="ss-sub">' + escapeHtml(meta.datum) + ' · ' + escapeHtml(meta.start_tijd) +
+        ' – ' + escapeHtml(meta.eind_tijd || '?') +
+        ' · ' + Math.round(data.durSec/60) + ' min' +
+        (data.accuracy ? ' · GPS ±' + Math.round(data.accuracy) + 'm' + (data.gpsReliable ? '' : ' ⚠') : '') +
+      '</div>' +
+      (data.notes && data.notes !== 'n/a' ? '<div class="ss-notes">' + escapeHtml(data.notes) + '</div>' : '') +
+      tableHtml +
+      '<div class="ss-tl-title">Tijdreeks · passages per minuut</div>' +
+      timelineSvg +
+    '</div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelector('.ss-close').addEventListener('click', () => overlay.remove());
+}
+
+// Kleine HTML-escape voor user-input (street names, notes, richting-namen)
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// SVG-timeline: stacked bars per minuut, kleur per type.
+// X-as: minuten vanaf start_tijd. Y-as: aantal passages per minuut.
+function renderStandStillTimeline(data, presentTypes) {
+  if (!data.start || !data.end || data.log.length === 0) {
+    return '<div class="ss-tl-empty">Geen timestamp-log beschikbaar</div>';
+  }
+
+  // Bucket-keuze: target ~30 buckets, afgerond op nette eenheden.
+  const durMin = Math.max(1, data.durSec/60);
+  let bucketSec = 60;  // default 1 min
+  if (durMin > 90)       bucketSec = 300;  // 5 min
+  else if (durMin > 45)  bucketSec = 120;  // 2 min
+  else if (durMin > 25)  bucketSec = 60;   // 1 min
+  else if (durMin > 10)  bucketSec = 30;   // 30 s
+  else                   bucketSec = 30;   // 30 s ook bij heel korte tellingen
+
+  const nBuckets = Math.max(1, Math.ceil(data.durSec / bucketSec));
+  // buckets[bi] = { type → count }
+  const buckets = [];
+  for (let i = 0; i < nBuckets; i++) {
+    const o = {}; presentTypes.forEach(t => o[t] = 0); buckets.push(o);
+  }
+
+  // Plaats log-events in buckets. Timestamps zijn "HH:MM:SS" relatief aan start-datum.
+  const startMs = data.start.getTime();
+  data.log.forEach(ev => {
+    const m = ev.ts.match(/^(\d{2}):(\d{2}):(\d{2})/);
+    if (!m) return;
+    // Combineer met start-datum (en rol over middernacht indien nodig)
+    let t = new Date(data.start);
+    t.setHours(+m[1], +m[2], +m[3], 0);
+    if (t < data.start) t = new Date(t.getTime() + 86400000); // dag erbij
+    const offset = (t.getTime() - startMs) / 1000;
+    if (offset < 0 || offset > data.durSec + bucketSec) return;
+    const bi = Math.min(nBuckets-1, Math.floor(offset / bucketSec));
+    if (buckets[bi][ev.type] !== undefined) buckets[bi][ev.type]++;
+  });
+
+  // Y-max: hoogste stack-totaal
+  const stackTotals = buckets.map(b => presentTypes.reduce((a,t)=>a+b[t], 0));
+  const yMax = Math.max(1, ...stackTotals);
+
+  // SVG-layout
+  const W = 540, H = 160, padL = 32, padR = 8, padT = 8, padB = 22;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const barW = Math.max(1, plotW / nBuckets - 1);
+  const xStep = plotW / nBuckets;
+
+  // Y-as ticks: nette gehele waarden
+  const niceMax = yMax <= 5 ? yMax : Math.ceil(yMax / 5) * 5;
+  const tickCount = Math.min(5, niceMax);
+  const yTicks = [];
+  for (let i = 0; i <= tickCount; i++) {
+    const v = Math.round(niceMax * i / tickCount);
+    yTicks.push(v);
+  }
+
+  // X-as ticks: ~5 labels, op nette tijd-eenheden
+  const tickEvery = Math.max(1, Math.ceil(nBuckets / 5));
+  const xLabels = [];
+  for (let bi = 0; bi <= nBuckets; bi += tickEvery) {
+    const t = new Date(startMs + bi * bucketSec * 1000);
+    const pad = n => String(n).padStart(2,'0');
+    xLabels.push({ x: padL + bi * xStep, label: pad(t.getHours())+':'+pad(t.getMinutes()) });
+  }
+
+  let svg = '<svg class="ss-tl" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">';
+
+  // Grid + Y-labels
+  yTicks.forEach(v => {
+    const y = padT + plotH - (v / niceMax) * plotH;
+    svg += '<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+y+'" y2="'+y+'" stroke="#e5e5e0" stroke-width="1"/>';
+    svg += '<text x="'+(padL-4)+'" y="'+(y+3)+'" text-anchor="end" font-size="9" fill="#777">'+v+'</text>';
+  });
+
+  // Bars: stacked per type
+  buckets.forEach((b, bi) => {
+    let yCursor = padT + plotH;
+    presentTypes.forEach(t => {
+      const v = b[t];
+      if (v <= 0) return;
+      const h = (v / niceMax) * plotH;
+      const x = padL + bi * xStep + 0.5;
+      yCursor -= h;
+      svg += '<rect x="'+x+'" y="'+yCursor+'" width="'+barW+'" height="'+h+'" '
+           + 'fill="'+SS_TYPE_COLOR[t]+'" opacity="0.85">'
+           + '<title>'+SS_TYPE_LABEL[t]+': '+v+'</title></rect>';
+    });
+  });
+
+  // X-as
+  svg += '<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+(padT+plotH)+'" y2="'+(padT+plotH)+'" stroke="#999"/>';
+  xLabels.forEach(l => {
+    svg += '<text x="'+l.x+'" y="'+(H-6)+'" text-anchor="middle" font-size="9" fill="#777">'+l.label+'</text>';
+  });
+
+  // Legenda (alleen aanwezige types)
+  const legX = padL, legY = padT + 4;
+  let legCursor = 0;
+  presentTypes.forEach(t => {
+    svg += '<rect x="'+(legX+legCursor)+'" y="'+legY+'" width="10" height="10" fill="'+SS_TYPE_COLOR[t]+'"/>';
+    svg += '<text x="'+(legX+legCursor+13)+'" y="'+(legY+9)+'" font-size="10" fill="#444">'+SS_TYPE_LABEL[t]+'</text>';
+    legCursor += 13 + (SS_TYPE_LABEL[t].length * 6) + 8;
+  });
+
+  svg += '</svg>';
+  return svg;
+}
 
 function loadTransectZip(sid, sm, telCSV, gpsCSV) {
   sessions[sid] = { meta:sm, visible:true, appType:'transect' };
@@ -2364,6 +2818,7 @@ function renderSessions() {
                    : s.appType==='capaciteit'?'🅿'
                    : s.appType==='transect'?'🚶'
                    : s.appType==='pocket'?'📷'
+                   : s.appType==='standstill'?'📍'
                    : '🚲';
     const color = SESSION_COLORS[sid] || '#888';
     const teller = s.meta.teller ? s.meta.teller : '';
@@ -2400,6 +2855,14 @@ function applySessionVisibility(sid) {
   const s = sessions[sid]; if (!s) return;
   const row = document.querySelector('.session-row[data-sid="'+sid+'"]');
   if (row) row.classList.toggle('off', !s.visible);
+
+  // Stand-still: alleen marker + accuracy-ring. Geen wayData, geen dots, geen clusters.
+  if (s.appType === 'standstill') {
+    if (standStillMarkers[sid]) s.visible ? standStillMarkers[sid].addTo(map) : map.removeLayer(standStillMarkers[sid]);
+    if (standStillRings[sid])   s.visible ? standStillRings[sid].addTo(map)   : map.removeLayer(standStillRings[sid]);
+    return;
+  }
+
   if (gpsLayers[sid]) s.visible ? gpsLayers[sid].addTo(map) : map.removeLayer(gpsLayers[sid]);
   if (capLayers[sid]) capLayers[sid].forEach(m => s.visible ? m.addTo(map) : map.removeLayer(m));
   const cfg = APP_CONFIG[s.appType] || APP_CONFIG.fiets;
@@ -2597,8 +3060,28 @@ function sessionHour(sid) {
   return m ? parseInt(m[1]) : null;
 }
 
-function sessionInWindow(sid) {
-  if (!timeFilterActive) return true;
+// Dag-van-de-week uit sessie.meta.datum (YYYY-MM-DD of YYYYMMDD).
+// Returns 0=zo, 1=ma, ..., 6=za — of null als parsen faalt.
+function sessionDow(sid) {
+  const d = sessions[sid]?.meta?.datum || '';
+  let m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) m = d.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (!m) return null;
+  const dt = new Date(+m[1], +m[2]-1, +m[3]);
+  return isNaN(dt) ? null : dt.getDay();
+}
+
+function sessionInDayFilter(sid) {
+  if (currentDayFilter === 'all') return true;
+  const dow = sessionDow(sid);
+  if (dow === null) return true;  // onbekende datum → niet wegfilteren
+  if (currentDayFilter === 'weekday')  return dow >= 1 && dow <= 5;
+  if (currentDayFilter === 'saturday') return dow === 6;
+  if (currentDayFilter === 'sunday')   return dow === 0;
+  return true;
+}
+
+function sessionInTimeWindow(sid) {
   const h = sessionHour(sid);
   if (h === null) return true;
   const lo = (currentTimeHour - 1 + 24) % 24;
@@ -2606,6 +3089,11 @@ function sessionInWindow(sid) {
   // Venster: lo:00 – hi:59 (3 uur breed)
   if (lo <= hi) return h >= lo && h <= hi;
   return h >= lo || h <= hi; // over middernacht
+}
+
+function sessionInWindow(sid) {
+  if (!timeFilterActive) return true;
+  return sessionInTimeWindow(sid) && sessionInDayFilter(sid);
 }
 
 function applyTimeFilter() {
@@ -2619,6 +3107,12 @@ function applyTimeFilter() {
   Object.keys(sessions).forEach(function(sid) {
     const inWin = sessionInWindow(sid);
     sessions[sid].visible = inWin;
+    // Stand-still: alleen marker + ring
+    if (sessions[sid].appType === 'standstill') {
+      if (standStillMarkers[sid]) inWin ? standStillMarkers[sid].addTo(map) : map.removeLayer(standStillMarkers[sid]);
+      if (standStillRings[sid])   inWin ? standStillRings[sid].addTo(map)   : map.removeLayer(standStillRings[sid]);
+      return;
+    }
     // GPS
     if (gpsLayers[sid]) inWin ? gpsLayers[sid].addTo(map) : map.removeLayer(gpsLayers[sid]);
     // Cap layers
@@ -2699,6 +3193,16 @@ document.getElementById('time-slider').addEventListener('input', function() {
   applyTimeFilter();
 });
 
+// Dag-filter pills: één-actief, applyTimeFilter herevalueert venster
+document.getElementById('day-pills').addEventListener('click', function(e) {
+  const btn = e.target.closest('.day-pill'); if (!btn) return;
+  currentDayFilter = btn.dataset.day;
+  this.querySelectorAll('.day-pill').forEach(function(b) {
+    b.classList.toggle('active', b === btn);
+  });
+  if (timeFilterActive) applyTimeFilter();
+});
+
 // Timebar toggle: knop in de sidebar
 function toggleTimeFilter(active) {
   timeFilterActive = active;
@@ -2710,6 +3214,11 @@ function toggleTimeFilter(active) {
     // Alles weer zichtbaar
     Object.keys(sessions).forEach(function(sid) {
       sessions[sid].visible = true;
+      if (sessions[sid].appType === 'standstill') {
+        if (standStillMarkers[sid]) standStillMarkers[sid].addTo(map);
+        if (standStillRings[sid])   standStillRings[sid].addTo(map);
+        return;
+      }
       if (gpsLayers[sid]) gpsLayers[sid].addTo(map);
       if (capLayers[sid]) capLayers[sid].forEach(function(m){ m.addTo(map); });
       const cfg = APP_CONFIG[sessions[sid].appType] || APP_CONFIG.fiets;
@@ -2766,14 +3275,24 @@ function updateStats() {
 }
 
 // ── DROP ──────────────────────────────────────────────────────────
+function loadFile(file) {
+  const name = (file.name || '').toLowerCase();
+  if (name.endsWith('.csv')) return loadStandStillCsv(file);
+  if (name.endsWith('.zip')) return loadZip(file);
+  // Onbekend type: stil overslaan (multi-select kan andere bestanden bevatten)
+}
+
 const dz=document.getElementById('dropzone'), fi=document.getElementById('file-input');
 dz.addEventListener('click',()=>fi.click());
-fi.addEventListener('change',e=>{ [...e.target.files].forEach(loadZip); fi.value=''; });
+fi.addEventListener('change',e=>{ [...e.target.files].forEach(loadFile); fi.value=''; });
 document.addEventListener('dragover',e=>{ e.preventDefault(); dz.classList.add('over'); });
 document.addEventListener('dragleave',e=>{ if(!e.relatedTarget) dz.classList.remove('over'); });
 document.addEventListener('drop',e=>{
   e.preventDefault(); dz.classList.remove('over');
-  [...e.dataTransfer.files].filter(f=>f.name.endsWith('.zip')).forEach(loadZip);
+  [...e.dataTransfer.files].filter(f=>{
+    const n = f.name.toLowerCase();
+    return n.endsWith('.zip') || n.endsWith('.csv');
+  }).forEach(loadFile);
 });
 </script>
 </body>
