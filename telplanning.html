@@ -159,7 +159,8 @@
   .matrix-cell:hover { border-color: var(--text); }
   .matrix-cell.selected {
     border-color: var(--text);
-    box-shadow: inset 0 0 0 1px var(--text);
+    border-width: 2px;
+    margin: -1px;   /* compenseer zodat aspect-ratio constant blijft */
   }
   .matrix-cell .cnt {
     position: absolute; inset: 0;
@@ -204,6 +205,39 @@
     text-transform: uppercase;
     color: var(--muted);
     margin-bottom: 8px;
+  }
+
+  /* ── Achtergrondkaart-keuze ── */
+  .basemap-row { display: flex; gap: 4px; }
+  .basemap-pill {
+    flex: 1;
+    padding: 6px 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    border-radius: 3px;
+    font-family: var(--font);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--dim);
+    cursor: pointer;
+    transition: border-color 0.1s, color 0.1s, background 0.1s;
+  }
+  .basemap-pill:hover { border-color: var(--text); color: var(--text); }
+  .basemap-pill.active { border-color: var(--text); background: var(--text); color: var(--bg); }
+  .basemap-slider-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 8px;
+  }
+  .basemap-slider-row label {
+    font-size: 0.6rem; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .basemap-slider-row input[type=range] { flex: 1; accent-color: var(--text); }
+  .basemap-slider-row .pct {
+    font-size: 0.7rem; font-family: var(--mono);
+    color: var(--text); min-width: 36px; text-align: right;
   }
 
   /* ── Tekenmodus ── */
@@ -672,6 +706,23 @@
       </button>
     </div>
 
+    <!-- Achtergrondkaart — beschikbaar in beide modi -->
+    <div class="panel-section">
+      <div class="section-title">Achtergrond</div>
+      <div class="basemap-row">
+        <button class="basemap-pill active" data-bm="osm"       onclick="setBasemap('osm')">OSM</button>
+        <button class="basemap-pill"        data-bm="positron"  onclick="setBasemap('positron')">Positron</button>
+        <button class="basemap-pill"        data-bm="topo"      onclick="setBasemap('topo')">Topo</button>
+        <button class="basemap-pill"        data-bm="luchtfoto" onclick="setBasemap('luchtfoto')">Lucht</button>
+      </div>
+      <div class="basemap-slider-row">
+        <label>basis</label>
+        <input type="range" id="basemap-opacity" min="0" max="100" value="100" step="5"
+               oninput="setBasemapOpacity(this.value)">
+        <span class="pct" id="basemap-pct">100%</span>
+      </div>
+    </div>
+
   </div>
 
   <div id="map"></div>
@@ -881,10 +932,87 @@ var OVERPASS_ENDPOINTS = [
 ];
 
 // ── Map init ─────────────────────────────────────────────────────────────────
-var map = L.map('map', { zoomControl: true }).setView([52.1, 5.1], 8);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors', maxZoom: 21
-}).addTo(map);
+// Bewaar laatst gebruikte locatie in localStorage; start daar 2 zoomstappen
+// uitgezoomd zodat je een ruimere context ziet voordat je verder inzoomt.
+var VIEW_STORAGE_KEY = 'telplanning_view';
+
+function loadStoredView() {
+  try {
+    var raw = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (!raw) return null;
+    var v = JSON.parse(raw);
+    if (typeof v.lat !== 'number' || typeof v.lng !== 'number' ||
+        typeof v.zoom !== 'number') return null;
+    return v;
+  } catch (e) { return null; }
+}
+
+function saveCurrentView() {
+  try {
+    var c = map.getCenter();
+    localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({
+      lat: c.lat, lng: c.lng, zoom: map.getZoom()
+    }));
+  } catch (e) { /* private mode of quota — stil falen */ }
+}
+
+var stored = loadStoredView();
+var initCenter = stored ? [stored.lat, stored.lng] : [52.1, 5.1];
+var initZoom   = stored ? Math.max(0, stored.zoom - 2) : 8;
+
+var map = L.map('map', { zoomControl: true }).setView(initCenter, initZoom);
+map.on('moveend zoomend', saveCurrentView);
+
+// Achtergrondkaarten — identieke set en gedrag als telrapport.
+var BASEMAPS = {
+  osm: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19, subdomains: 'abc'
+  },
+  positron: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+    attribution: '© CARTO · © OpenStreetMap',
+    maxZoom: 20, subdomains: 'abcd'
+  },
+  topo: {
+    url: 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png',
+    attribution: '© Kadaster · BRT-A grijs',
+    maxZoom: 19, subdomains: 'abc'
+  },
+  luchtfoto: {
+    url: 'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_ortho25/EPSG:3857/{z}/{x}/{y}.jpeg',
+    attribution: '© Kadaster · Luchtfoto 25cm',
+    maxZoom: 19, subdomains: 'abc'
+  }
+};
+var tileLayer = null;
+var currentBasemap = '';
+
+function setBasemap(key) {
+  if (!BASEMAPS[key] || key === currentBasemap) return;
+  var slider = document.getElementById('basemap-opacity');
+  var opacity = slider ? (parseInt(slider.value, 10) || 100) / 100 : 1;
+  if (tileLayer) map.removeLayer(tileLayer);
+  var cfg = BASEMAPS[key];
+  tileLayer = L.tileLayer(cfg.url, {
+    attribution: cfg.attribution,
+    maxZoom:     cfg.maxZoom,
+    subdomains:  cfg.subdomains,
+    opacity:     opacity
+  }).addTo(map);
+  currentBasemap = key;
+  document.querySelectorAll('.basemap-pill').forEach(function(p) {
+    p.classList.toggle('active', p.dataset.bm === key);
+  });
+}
+
+function setBasemapOpacity(val) {
+  if (tileLayer) tileLayer.setOpacity(val / 100);
+  document.getElementById('basemap-pct').textContent = val + '%';
+}
+
+setBasemap('osm');
 
 // Draw control
 var drawnItems = new L.FeatureGroup().addTo(map);
@@ -1138,10 +1266,16 @@ function applyWayStyle(way) {
         if (!map.hasLayer(way.segHits[i])) way.segHits[i].addTo(map);
         var visits = coverageForSeg(way.id, way.segments[i].idx);
         var col = COV_COLORS[Math.min(visits, 3)];
-        line.setStyle({
-          color: col, weight: 3, opacity: 0.85,
-          dashArray: visits === 0 ? '6 4' : null
-        });
+        // Bezochte segmenten prominent, niet-bezochte subtiel als achtergrond
+        if (visits === 0) {
+          line.setStyle({
+            color: col, weight: 1.5, opacity: 0.4, dashArray: '4 4'
+          });
+        } else {
+          line.setStyle({
+            color: col, weight: 4, opacity: 0.9, dashArray: null
+          });
+        }
       });
     } else {
       way.segLayers.forEach(function(line, i) {
@@ -1490,19 +1624,26 @@ function updateCoverageStats() {
     + '<br><span style="color:' + COV_COLORS[2] + '">\u25cf</span> ' + n2 + ' \u22652\u00d7 bezocht';
 }
 
+// Houdt bij welke sessie-ID's al geladen zijn — voorkomt dubbel inladen.
+var loadedSids = {};
+
 // ── ZIPs inlezen en coverage opbouwen ────────────────────────────────────────
 function handleBezochtFiles(files) {
   var arr = Array.from(files).filter(function(f){ return f.name.endsWith('.zip'); });
   if (!arr.length) return;
   arr.forEach(function(f) {
     JSZip.loadAsync(f).then(function(zip) {
-      // Vind *_bezocht.csv binnen de ZIP
       var name = Object.keys(zip.files).find(function(n){ return /_bezocht\.csv$/.test(n); });
       if (!name) {
         setStatus('ZIP zonder bezocht.csv overgeslagen: ' + f.name);
         return;
       }
       zip.files[name].async('string').then(function(text) {
+        // Sessie-ID uit eerste rij van bezocht.csv — uniek per telling.
+        // Wordt afgekapt als de ZIP al eens geladen is; geen melding nodig.
+        var sid = extractSessieId(text);
+        if (sid && loadedSids[sid]) return;
+        if (sid) loadedSids[sid] = true;
         ingestBezochtCsv(text);
         loadedZips++;
         renderDekkingMatrix();
@@ -1513,6 +1654,22 @@ function handleBezochtFiles(files) {
       setStatus('ZIP-fout: ' + f.name);
     });
   });
+}
+
+// Eerste niet-header rij uit bezocht.csv pakken om sessie_id af te lezen.
+function extractSessieId(csv) {
+  var lines = csv.split(/\r?\n/);
+  if (lines.length < 2) return null;
+  var header = lines[0].split(';');
+  var idxSid = header.indexOf('sessie_id');
+  if (idxSid < 0) return null;
+  for (var i = 1; i < lines.length; i++) {
+    var row = lines[i];
+    if (!row.trim()) continue;
+    var sid = row.split(';')[idxSid];
+    if (sid && sid.trim()) return sid.trim();
+  }
+  return null;
 }
 
 function ingestBezochtCsv(csv) {
