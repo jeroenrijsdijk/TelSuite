@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Traffic Counter</title>
+<title>Verkeerstellingen + Traffic Counter + rvmk.nl</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
 
@@ -59,11 +59,11 @@
   }
 
   .title-block .sub {
-    font-size: 0.7rem;
-    letter-spacing: 3px;
+    font-size: 1.4rem;
+    letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--subdim);
-    margin-top: 6px;
+    margin-top: 8px;
     font-weight: 500;
   }
 
@@ -207,68 +207,187 @@
     background: linear-gradient(90deg, #a05a3c, #cc785c);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
+
+  /* ── Language toggle ── */
+  .lang-toggle {
+    position: fixed; top: 14px; right: 16px;
+    display: flex; align-items: center; gap: 4px;
+    z-index: 100;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 2px;
+  }
+  .lang-btn {
+    background: none; border: none;
+    font: inherit; letter-spacing: inherit;
+    color: var(--subdim); cursor: pointer;
+    padding: 4px 6px;
+    transition: color 0.15s, border-color 0.15s;
+    border-bottom: 2px solid transparent;
+  }
+  .lang-btn:hover { color: var(--text); }
+  .lang-btn.active {
+    color: var(--text);
+    border-bottom-color: var(--text);
+  }
+  .lang-sep { color: var(--border); }
 </style>
 </head>
 <body>
 
+<div class="lang-toggle">
+  <button class="lang-btn" data-lang="nl">NL</button>
+  <span class="lang-sep">|</span>
+  <button class="lang-btn" data-lang="en">EN</button>
+</div>
+
 <div class="wrap">
 
   <div class="title-block">
-    <h1>Traffic Counter</h1>
+    <h1 data-i18n="appName">Traffic Counter</h1>
     <h3>RVMK.NL</h3>
-    <h3>(please be careful while counting!)</h3>
-    <div class="sub">Choose your counting mode</div>
+    <h3 data-i18n="warning">(please be careful while counting!)</h3>
+    <h3> - - - </h3>
+    <div class="sub" data-i18n="sub">Choose your counting mode</div>
   </div>
 
   <a class="mode-card static-card" href="traffic_counter.html">
-    <div class="mode-label">Static mode</div>
-    <div class="mode-title">Stand Still<br>and Count</div>
-    <div class="mode-desc">Fixed location at the roadside. One GPS fix. Counts per vehicle type and direction, with hourly extrapolation.</div>
+    <div class="mode-label" data-i18n="staticLabel">Static mode</div>
+    <div class="mode-title" data-i18n="staticTitle">Stand Still<br>and Count</div>
+    <div class="mode-desc" data-i18n="staticDesc">Fixed location at the roadside. One GPS fix. Counts per vehicle type and direction, with hourly extrapolation.</div>
     <div class="mode-arrow">&gt;</div>
   </a>
 
   <a class="mode-card transect-card" href="traffic_counter_transect.html">
-    <div class="mode-label">Transect mode</div>
-    <div class="mode-title">Move<br>and Count</div>
-    <div class="mode-desc">Walk a path, a shopping street or cycle a route. GPS tracks your position continuously. Every count is pinned to a location on the live map.</div>
+    <div class="mode-label" data-i18n="transectLabel">Transect mode</div>
+    <div class="mode-title" data-i18n="transectTitle">Move<br>and Count</div>
+    <div class="mode-desc" data-i18n="transectDesc">Walk a path, a shopping street or cycle a route. GPS tracks your position continuously. Every count is pinned to a location on the live map.</div>
     <div class="mode-arrow">&gt;</div>
   </a>
 
   <a class="mode-card" href="pocket_count.html" style="--accent:#d4007a;">
     <style>.mode-card[href="pocket_count.html"]:hover { border-color:#d4007a; box-shadow:0 4px 20px rgba(212,0,122,0.12); }</style>
-    <div class="mode-label">Pocket mode</div>
-    <div class="mode-title">Move and<br>Count Simple</div>
-    <div class="mode-desc">One button, one type, no screen needed. Tap anywhere to count. Keep the phone in your pocket. Downloads a ZIP when done.</div>
+    <div class="mode-label" data-i18n="pocketLabel">Pocket mode</div>
+    <div class="mode-title" data-i18n="pocketTitle">Move and<br>Count Simple</div>
+    <div class="mode-desc" data-i18n="pocketDesc">One button, one type, no screen needed. Tap anywhere to count. Keep the phone in your pocket. Downloads a ZIP when done.</div>
     <div class="mode-arrow">&gt;</div>
   </a>
   
   <a class="mode-card parking-card" href="parkeertelling.html">
-    <div class="mode-label">Walk and Count Parked Cars</div>
-    <div class="mode-title">Walk and<br>Survey Parked Cars</div>
-    <div class="mode-desc">Walk a street and count parked cars and empty spaces. GPS tracks your route. Every observation is pinned to the live map.</div>
+    <div class="mode-label" data-i18n="parkingLabel">Walk and Count Parked Cars</div>
+    <div class="mode-title" data-i18n="parkingTitle">Walk and<br>Survey Parked Cars</div>
+    <div class="mode-desc" data-i18n="parkingDesc">Walk a street and count parked cars and empty spaces. GPS tracks your route. Every observation is pinned to the live map.</div>
     <div class="mode-arrow">&gt;</div>
   </a>
 
   <a class="mode-card bike-card" href="fietsparkeren.html">
-    <div class="mode-label">Walk and Count Parked Bikes</div>
-    <div class="mode-title">Walk and <br>Survey Parked Bikes</div>
-    <div class="mode-desc">Walk a street and count parked bikes. GPS tracks your route. Every observation is pinned to the live map.</div>
+    <div class="mode-label" data-i18n="bikeLabel">Walk and Count Parked Bikes</div>
+    <div class="mode-title" data-i18n="bikeTitle">Walk and <br>Survey Parked Bikes</div>
+    <div class="mode-desc" data-i18n="bikeDesc">Walk a street and count parked bikes. GPS tracks your route. Every observation is pinned to the live map.</div>
     <div class="mode-arrow">&gt;</div>
   </a>
 
   <a class="mode-card" href="capaciteitstelling.html" style="--accent:#8e44ad;">
     <style>.mode-card[href="capaciteitstelling.html"]:hover { border-color:#8e44ad; box-shadow:0 4px 20px rgba(142,68,173,0.12); }</style>
-    <div class="mode-label">Walk and Map Car Parking Capacity</div>
-    <div class="mode-title">Mapping<br>capacity only</div>
-    <div class="mode-desc">Walk a street and count a base map of parking spots for cars. GPS tracks your route. Every observation is pinned to the live map. GPS + OSM-snap.</div>
+    <div class="mode-label" data-i18n="capacityLabel">Walk and Map Car Parking Capacity</div>
+    <div class="mode-title" data-i18n="capacityTitle">Mapping<br>capacity only</div>
+    <div class="mode-desc" data-i18n="capacityDesc">Walk a street and count a base map of parking spots for cars. GPS tracks your route. Every observation is pinned to the live map. GPS + OSM-snap.</div>
     <div class="mode-arrow">&gt;</div>
   </a>
 
   <div class="help-link">
-    <a href="traffic_counter_help.html">Help &amp; documentation</a>
+    <a href="traffic_counter_help.html" data-i18n="helpLink">Help &amp; documentation</a>
   </div>
 
 </div>
+
+<script>
+const i18n = {
+  en: {
+    pageTitle:     'Traffic Counter',
+    appName:       'Traffic Counter',
+    warning:       '(please be careful while counting!)',
+    sub:           'Choose your counting mode',
+    staticLabel:   'Static mode',
+    staticTitle:   'Stand Still<br>and Count',
+    staticDesc:    'Fixed location at the roadside. One GPS fix. Counts per vehicle type and direction, with hourly extrapolation.',
+    transectLabel: 'Transect mode',
+    transectTitle: 'Move<br>and Count',
+    transectDesc:  'Walk a path, a shopping street or cycle a route. GPS tracks your position continuously. Every count is pinned to a location on the live map.',
+    pocketLabel:   'Pocket mode',
+    pocketTitle:   'Move and<br>Count Most Simple',
+    pocketDesc:    'One button, one type, no screen needed. Tap anywhere to count. Keep the phone in your pocket. Downloads a ZIP when done.',
+    parkingLabel:  'Walk and Count Parked Cars',
+    parkingTitle:  'Walk and<br>Survey Parked Cars',
+    parkingDesc:   'Walk a street and count parked cars and empty spaces. GPS tracks your route. Every observation is pinned to the live map.',
+    bikeLabel:     'Walk and Count Parked Bikes',
+    bikeTitle:     'Walk and<br>Survey Parked Bikes',
+    bikeDesc:      'Walk a street and count parked bikes. GPS tracks your route. Every observation is pinned to the live map.',
+    capacityLabel: 'Walk and Map Car Parking Capacity',
+    capacityTitle: 'Mapping<br>capacity only',
+    capacityDesc:  'Walk a street and count a base map of parking spots for cars. GPS tracks your route. Every observation is pinned to the live map. GPS + OSM-snap.',
+    helpLink:      'Help &amp; documentation'
+  },
+  nl: {
+    pageTitle:     'Verkeerstellingen',
+    appName:       'Verkeerstellingen',
+    warning:       '(wees voorzichtig tijdens het tellen!)',
+    sub:           'KIES JE VERKEERSTELLING',
+    staticLabel:   'Stilstaan aan de wegkant',
+    staticTitle:   'Stilstaand tellen',
+    staticDesc:    'Vaste locatie langs de weg. Eén GPS-fix. Tellingen per voertuigtype en richting, met extrapolatie naar een uur.',
+    transectLabel: 'Lopend of fietsend tellen',
+    transectTitle: 'Lopend/Fietsend tellen',
+    transectDesc:  'Loop een pad of winkelstraat, of fiets een route. De GPS volgt je route. Elke waarneming wordt vastgepind op de live kaart.',
+    pocketLabel:   'Eenvoudig tellen',
+    pocketTitle:   'Eenvoudig tellen. Stilstaand of Lopend.',
+    pocketDesc:    'Eén knop, één type, geen scherm nodig. Tik overal op het scherm om te tellen. Houd je telefoon in je zak. Downloadt een ZIP als je klaar bent.',
+    parkingLabel:  "Geparkeerde auto's tellen",
+    parkingTitle:  "Parkeertelling auto's",
+    parkingDesc:   "Loop een straat en tel geparkeerde auto's en lege plekken. De GPS volgt je route. Elke waarneming wordt vastgepind op de live kaart.",
+    bikeLabel:     'Geparkeerde fietsen tellen',
+    bikeTitle:     'Parkeertelling Fietsen',
+    bikeDesc:      'Loop een straat en tel geparkeerde fietsen. De GPS volgt je route. Elke waarneming wordt vastgepind op de live kaart.',
+    capacityLabel: 'Parkeercapaciteit in kaart',
+    capacityTitle: 'Parkeer-capaciteit in kaart',
+    capacityDesc:  "Loop een straat en breng het aantal parkeerplaatsen voor auto's in kaart. De GPS volgt je route. Elke waarneming wordt vastgepind op de live kaart. Een telling wordt op een OpenStreetMap-link geplaatst.",
+    helpLink:      'Help &amp; documentatie'
+  }
+};
+
+// Detectie-volgorde: 1) opgeslagen keuze, 2) browser-taal, 3) EN-default
+function detectLanguage() {
+  try {
+    const saved = localStorage.getItem('tc_lang');
+    if (saved === 'nl' || saved === 'en') return saved;
+  } catch (e) { /* private mode: gewoon door naar browser-detect */ }
+  const bl = (navigator.language || navigator.userLanguage || '').toLowerCase();
+  return bl.startsWith('nl') ? 'nl' : 'en';
+}
+
+function setLanguage(lang) {
+  const dict = i18n[lang] || i18n.en;
+  document.documentElement.lang = lang;
+  document.title = dict.pageTitle;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    const key = el.dataset.i18n;
+    if (dict[key] !== undefined) el.innerHTML = dict[key];
+  });
+  document.querySelectorAll('.lang-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.lang === lang);
+  });
+}
+
+document.querySelectorAll('.lang-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    const lang = btn.dataset.lang;
+    try { localStorage.setItem('tc_lang', lang); } catch (e) { /* private mode */ }
+    setLanguage(lang);
+  });
+});
+
+setLanguage(detectLanguage());
+</script>
 
 </body>
 </html>
