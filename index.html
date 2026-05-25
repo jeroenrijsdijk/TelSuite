@@ -58,6 +58,15 @@
     line-height: 1.2;
   }
 
+  .title-block .brand {
+    font-size: 0.78rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-top: 6px;
+    font-weight: 700;
+  }
+
   .title-block .sub {
     font-size: 1.4rem;
     letter-spacing: 2px;
@@ -121,6 +130,22 @@
   .mode-card.bike-card:hover {
     border-color: #2980b9;
     box-shadow: 0 4px 20px rgba(41,128,185,0.12);
+  }
+
+  .mode-card.pocket-card {
+    --accent: #d4007a;
+  }
+  .mode-card.pocket-card:hover {
+    border-color: #d4007a;
+    box-shadow: 0 4px 20px rgba(212,0,122,0.12);
+  }
+
+  .mode-card.capacity-card {
+    --accent: #8e44ad;
+  }
+  .mode-card.capacity-card:hover {
+    border-color: #8e44ad;
+    box-shadow: 0 4px 20px rgba(142,68,173,0.12);
   }
 
   .mode-label {
@@ -245,9 +270,7 @@
 
   <div class="title-block">
     <h1 data-i18n="appName">Traffic Counter</h1>
-    <h3>RVMK.NL</h3>
-    <h3 data-i18n="warning">(please be careful while counting!)</h3>
-    <h3> - - - </h3>
+    <div class="brand">rvmk.nl</div>
     <div class="sub" data-i18n="sub">Choose your counting mode</div>
   </div>
 
@@ -265,8 +288,7 @@
     <div class="mode-arrow">&gt;</div>
   </a>
 
-  <a class="mode-card" href="pocket_count.html" style="--accent:#d4007a;">
-    <style>.mode-card[href="pocket_count.html"]:hover { border-color:#d4007a; box-shadow:0 4px 20px rgba(212,0,122,0.12); }</style>
+  <a class="mode-card pocket-card" href="pocket_count.html">
     <div class="mode-label" data-i18n="pocketLabel">Pocket mode</div>
     <div class="mode-title" data-i18n="pocketTitle">Move and<br>Count Simple</div>
     <div class="mode-desc" data-i18n="pocketDesc">One button, one type, no screen needed. Tap anywhere to count. Keep the phone in your pocket. Downloads a ZIP when done.</div>
@@ -287,8 +309,7 @@
     <div class="mode-arrow">&gt;</div>
   </a>
 
-  <a class="mode-card" href="capaciteitstelling.html" style="--accent:#8e44ad;">
-    <style>.mode-card[href="capaciteitstelling.html"]:hover { border-color:#8e44ad; box-shadow:0 4px 20px rgba(142,68,173,0.12); }</style>
+  <a class="mode-card capacity-card" href="capaciteitstelling.html">
     <div class="mode-label" data-i18n="capacityLabel">Walk and Map Car Parking Capacity</div>
     <div class="mode-title" data-i18n="capacityTitle">Mapping<br>capacity only</div>
     <div class="mode-desc" data-i18n="capacityDesc">Walk a street and count a base map of parking spots for cars. GPS tracks your route. Every observation is pinned to the live map. GPS + OSM-snap.</div>
@@ -306,7 +327,6 @@ const i18n = {
   en: {
     pageTitle:     'Traffic Counter',
     appName:       'Traffic Counter',
-    warning:       '(please be careful while counting!)',
     sub:           'Choose your counting mode',
     staticLabel:   'Static mode',
     staticTitle:   'Stand Still<br>and Count',
@@ -315,7 +335,7 @@ const i18n = {
     transectTitle: 'Move<br>and Count',
     transectDesc:  'Walk a path, a shopping street or cycle a route. GPS tracks your position continuously. Every count is pinned to a location on the live map.',
     pocketLabel:   'Pocket mode',
-    pocketTitle:   'Move and<br>Count Most Simple',
+    pocketTitle:   'Move and<br>Count Simple',
     pocketDesc:    'One button, one type, no screen needed. Tap anywhere to count. Keep the phone in your pocket. Downloads a ZIP when done.',
     parkingLabel:  'Walk and Count Parked Cars',
     parkingTitle:  'Walk and<br>Survey Parked Cars',
@@ -331,8 +351,7 @@ const i18n = {
   nl: {
     pageTitle:     'Verkeerstellingen',
     appName:       'Verkeerstellingen',
-    warning:       '(wees voorzichtig tijdens het tellen!)',
-    sub:           'KIES JE VERKEERSTELLING',
+    sub:           'Kies je verkeerstelling',
     staticLabel:   'Stilstaan aan de wegkant',
     staticTitle:   'Stilstaand tellen',
     staticDesc:    'Vaste locatie langs de weg. Eén GPS-fix. Tellingen per voertuigtype en richting, met extrapolatie naar een uur.',

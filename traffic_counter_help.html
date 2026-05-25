@@ -18,6 +18,7 @@
     --red:    #c8000a;
     --orange: #b35c00;
     --violet: #5500cc;
+    --teal:   #0a7570;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,11 +33,12 @@
   }
 
   header {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
     border-bottom: 3px solid var(--text); padding-bottom: 10px; margin-bottom: 28px;
   }
   header h1 { font-size: 1.2rem; letter-spacing: 3px; text-transform: uppercase; font-weight: 700; }
-  .back-links { display: flex; gap: 8px; }
+  .back-links { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
   .back {
     font-size: 0.68rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
     color: var(--dim); text-decoration: none; border: 2px solid var(--border);
@@ -133,6 +135,26 @@
   .file-name { font-family: 'Share Tech Mono', monospace; font-size: 0.75rem; color: var(--text); white-space: nowrap; }
   .file-desc { font-size: 0.8rem; font-weight: 500; color: var(--dim); }
 
+  /* ── Methodiek: aanwijzing-blokken met 'Onze keuze' cards ── */
+  .method-item { margin-bottom: 22px; }
+  .method-item h4 {
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--text); margin-bottom: 6px;
+  }
+  .method-item p { margin-bottom: 8px; }
+  .choice-card {
+    background: var(--panel); border: 2px solid var(--border); border-radius: 8px;
+    border-left: 5px solid var(--teal); padding: 10px 14px; margin-top: 6px;
+  }
+  .choice-label {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--teal); margin-bottom: 4px;
+  }
+  .choice-card p { font-size: 0.85rem; color: var(--text); margin: 0; }
+  .choice-card p + p { margin-top: 4px; }
+  .choice-card ul { font-size: 0.85rem; color: var(--text); margin: 4px 0 0 18px; padding: 0; }
+  .choice-card ul li { margin-bottom: 2px; }
+
   .branding {
     display: flex; align-items: center; justify-content: center;
     gap: 8px; padding-top: 24px; border-top: 2px solid var(--border); margin-top: 8px;
@@ -169,7 +191,11 @@
 <!-- Table of contents -->
 <div class="toc">
   <div class="toc-title">Contents</div>
-  <p style="font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--green);margin:4px 0 6px;">Traffic Counter</p>
+  <p style="font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--teal);margin:4px 0 6px;">Methodiek</p>
+  <ol>
+    <li><a href="#methodiek">Generieke telregels &amp; onze keuzes</a></li>
+  </ol>
+  <p style="font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--green);margin:14px 0 6px;">Traffic Counter</p>
   <ol>
     <li><a href="#overview">Overview &amp; two modes</a></li>
     <li><a href="#session">Starting and ending a session</a></li>
@@ -229,6 +255,117 @@
     <li><a href="#files">Bestanden</a></li>
   </ol>
 </div>
+
+<!-- Methodiek (Nederlands) -->
+<section id="methodiek" lang="nl">
+  <h2>Methodiek — generieke telregels</h2>
+  <p>Een telling is een meting volgens een afgesproken protocol. Wat je niet vastlegt vóór je begint, kun je achteraf niet terughalen. Een tweede waarnemer moet — met dezelfde werkinstructie — tot vergelijkbare cijfers komen. Lukt dat niet, dan meet je je eigen interpretatie, niet de werkelijkheid. Onder elke generieke regel staat de keuze die wij maken.</p>
+
+  <div class="method-item">
+    <h4>Eén protocol per studie, niet per teller</h4>
+    <p>De grootste vijand van vergelijkbaarheid is een goedbedoelde "verbetering" halverwege. Begin je consequent op de minuut, ga dan niet op dag drie afronden op kwartieren omdat het zo prettig in een tabel past. Tel je voetgangers in beide richtingen, doe dat dan ook bij regen, ook als het rustig is, ook als je moe bent. Wat in week één een aanname was, wordt in week vier een trend — wijzigingen halverwege maken die trend onleesbaar.</p>
+    <div class="choice-card">
+      <div class="choice-label">Onze keuze</div>
+      <p>Bij elke nieuwe studie leggen we het protocol kort vast in de naamgeving en in een eventueel notitieveld bij de sessie. Komen we tijdens de studie een tekort tegen, dan beëindigen we de studie en starten een nieuwe — geen verschuiving van regels binnen één lopende meting.</p>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <h4>Definieer de eenheid</h4>
+    <p>Wat tel je precies? Een "voetganger" lijkt duidelijk, maar telt een gezin met kinderwagen als één of als meer? Een fietser die aan de hand loopt — voetganger of fietser? Een bezorgscooter — gemotoriseerd of fiets? De twijfelgevallen vallen elke keer net iets anders uit zolang ze niet zijn vastgelegd.</p>
+    <div class="choice-card">
+      <div class="choice-label">Onze keuze</div>
+      <ul>
+        <li>Voetganger = elke persoon die zich op eigen benen voortbeweegt, inclusief inzittenden van kinderwagens en rolstoelen. Een ouder met kind in een kinderwagen = 2 voetgangers.</li>
+        <li>Fiets aan de hand = voetganger (de persoon gebruikt voetganger-infrastructuur).</li>
+        <li>Skater, step (zonder motor), skateboard = voetganger.</li>
+        <li>Elektrische step of e-scooter (staand, gemotoriseerd) = aparte categorie indien relevant; anders bij gemotoriseerd verkeer.</li>
+        <li>E-bakfiets en speed-pedelec = fiets, ongeacht aandrijving.</li>
+        <li>Bezorgscooter (snorscooter, brommer) = gemotoriseerd verkeer.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <h4>Definieer de plek</h4>
+    <p>"Bij de bushalte" is geen telpunt. Welke kant van de straat, vanaf welke paal tot welke paal, tellen wachtenden mee of alleen passanten? Bij parkeertellingen: tel je auto's op het vak of in een gebied? Halve auto's op de hoek? Een eenduidige fysieke begrenzing — een denkbeeldige lijn tussen twee herkenbare punten — werkt beter dan een vage zone.</p>
+    <div class="choice-card">
+      <div class="choice-label">Onze keuze</div>
+      <ul>
+        <li>Passages: een denkbeeldige lijn tussen twee herkenbare punten (lichtmast, hoek van een gebouw, paal). De lijn wordt voor de sessie in gedachten genomen en niet verschoven.</li>
+        <li>Parkeren: een vak is "bezet" wanneer de auto duidelijk hoort bij dat vak — bij twijfel kijken we naar het zwaartepunt van het voertuig.</li>
+        <li>Voertuigen die deels buiten een vak staan tellen mee bij het dichtstbijzijnde vak; auto's die volledig buiten elk vak staan tellen we als "buiten vak" (foutparkeren).</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <h4>Definieer het moment</h4>
+    <p>Een telling is altijd een momentopname, ook als die "een uur duurt". Voor stand-still (momentopname-telling): leg vast hoe lang je over één ronde doet, en houd dat constant. Voor flux (passages over een lijn): leg vast hoe lang je telinterval is. Bij vergelijking tussen dagen of locaties moeten die intervallen identiek zijn — een kwartier op woensdag en een uur op zaterdag levert getallen op die nauwelijks tegen elkaar te zetten zijn.</p>
+    <div class="choice-card">
+      <div class="choice-label">Onze keuze</div>
+      <ul>
+        <li>Flux/passages: telintervallen van 15 minuten, aansluitend op de CROW-standaard.</li>
+        <li>Stand-still: telrondes van vaste duur per studie (meestal 30 min of 60 min), op vaste klokmomenten gestart.</li>
+        <li>Kruispunttellingen: hele uren in blokken van 15 minuten.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <h4>Tel ononderbroken, of registreer de onderbreking</h4>
+    <p>Een teller die even afgeleid wordt en daarna weer mee gaat tellen levert een ondertelling op die niet als zodanig herkenbaar is in de data. Beter: pauzeer expliciet en herstart, dan kun je het interval later corrigeren.</p>
+    <div class="choice-card">
+      <div class="choice-label">Onze keuze</div>
+      <p>Bij elke onderbreking sluiten we de sessie en starten we een nieuwe. Geen "ik mis dit even"-gedrag binnen een lopende sessie. De sessietoggle in de telapps is hiervoor bedoeld.</p>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <h4>Twee waarnemers ≠ twee keer zo nauwkeurig</h4>
+    <p>Twee mensen die "samen" een drukke kruising tellen, tellen meestal de helft dubbel en de andere helft helemaal niet, tenzij ze van tevoren afspreken wie welke beweging doet. Verdeel de bewegingen (richtingen, vakken, modaliteiten) expliciet, en zorg dat de scheiding ondubbelzinnig is.</p>
+    <div class="choice-card">
+      <div class="choice-label">Onze keuze</div>
+      <p>Eén teller per stroom of per gebied — geen overlappende verantwoordelijkheden. Bij kruispunten volgen we de Nederlandse 1–12 nummering voor bewegingen; per teller hoogstens enkele duidelijk gescheiden nummers. Bij parkeertellingen verdelen we vakken of zones zonder overlap.</p>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <h4>Wat geen meting is, is geen nul</h4>
+    <p>Een ontbrekende waarde is iets anders dan een nul. Als de teller om 14:00 koffie ging halen en er stond niemand toen hij terug kwam, is dat geen "0 passages tussen 14:00 en 14:15" — dat is geen meting op dat moment. Schrijf het zo op. Een nul-meting is een legitieme observatie ("ik keek, er was niemand"); een gat in de telling is dat niet.</p>
+    <div class="choice-card">
+      <div class="choice-label">Onze keuze</div>
+      <p>Niet-gemeten intervallen laten we leeg in de nabewerking. Nullen worden alleen geregistreerd waar daadwerkelijk gekeken is en niemand gepasseerd is. In de ZIP-bestanden is dit het verschil tussen een ontbrekende sessie en een sessie zonder telregels.</p>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <h4>Onverwacht is interessant — schrijf het op</h4>
+    <p>Bouwwerkzaamheden in de straat, een markt om de hoek, schoolvakantie, slechte weersomslag tijdens de telling: dat zijn geen "fouten" in je data, dat zijn contextuele factoren. Niet noteren = later raden waarom dinsdag 18 mei zo afweek van het patroon. Drie regels in een notitie zijn vaak het verschil tussen bruikbare en onverklaarbare uitschieters.</p>
+    <div class="choice-card">
+      <div class="choice-label">Onze keuze</div>
+      <p>Bij elke sessie vullen we het notitieveld in met waarneembare context: weer, wegwerkzaamheden, evenementen, schoolvakantie, of opvallend rustige/drukke omstandigheden. Liever te veel context dan te weinig — een lege notitie betekent achteraf altijd raden.</p>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <h4>De teller is een instrument — kalibreer jezelf</h4>
+    <p>Voor je begint aan een serieuze studie: tel een rustig kwartier op een bekende plek, en tel het nog eens. Komen je twee tellingen niet binnen ~5% overeen, dan zit er iets in je manier van tellen dat nog niet stabiel is. Train je oog en je vingers eerst, en pas dan op gevoelige meetlocaties.</p>
+    <div class="choice-card">
+      <div class="choice-label">Onze keuze</div>
+      <p>Bij nieuwe studies of nieuwe tellers nemen we minstens één testronde of testkwartier vóór de eerste echte sessie. Dat is geen "verloren tijd" maar instrumentkalibratie.</p>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <h4>Tijd boven volledigheid, bijna altijd</h4>
+    <p>Bij twijfel tussen "ik tel deze ene perfect" en "ik volg het ritme van de telling": kies het ritme. Een meting die om 13:00 had moeten starten en pas om 13:08 begint omdat je nog één tikje wou afronden, is een meting van 52 minuten in plaats van 60 — en dat is in vergelijkingen erger dan één gemiste passage.</p>
+    <div class="choice-card">
+      <div class="choice-label">Onze keuze</div>
+      <p>We starten en stoppen op klokslag. Een tikje minder of meer op de overgang weegt minder zwaar dan een onzuiver tijdsinterval. Bij flux is consistente tijdsduur belangrijker dan absolute volledigheid van een individueel interval.</p>
+    </div>
+  </div>
+</section>
 
 <!-- 1. Overview -->
 <section id="overview">
