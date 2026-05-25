@@ -548,9 +548,17 @@ function doTap() {
   var tapEntry = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId: '', segIdx: 0, osmName: '' };
   if (snapReady) {
     var _snap = (lastLat!==null) ? snapNearestWay(lastLat, lastLon) : null;
-    tapEntry.wayId   = _snap ? _snap.wayId   : '';
-    tapEntry.segIdx  = _snap ? _snap.segIdx  : 0;
-    tapEntry.osmName = _snap ? _snap.osmName : '';
+    if (_snap) {
+      tapEntry.wayId   = _snap.wayId;
+      tapEntry.segIdx  = _snap.segIdx;
+      tapEntry.osmName = _snap.osmName;
+    } else if (snapAnchorWayId !== null && snapElements[snapAnchorWayId]) {
+      // Verse snap mislukte (waarschijnlijk GPS-glitch), maar we hadden net
+      // nog een anker. Erf het anker: betrouwbaarder dan ‘onbekend’ noteren.
+      tapEntry.wayId   = snapAnchorWayId;
+      tapEntry.segIdx  = snapAnchorSegIdx;
+      tapEntry.osmName = snapElements[snapAnchorWayId].osmName || '';
+    }
     telHistory.push(tapEntry);
   } else {
     // Snap nog niet beschikbaar — in wachtrij plaatsen
@@ -932,7 +940,8 @@ function closePreview() {
 // geen kompas-fusie. Graceful degradeert als Overpass niet bereikbaar is.
 
 var SNAP_ROAD_FETCH_RADIUS = 250;
-var SNAP_MAX_M             = 50;
+var SNAP_MAX_M             = 50;   // max snap-afstand voor verse fixes
+var SNAP_RESET_M           = 100;  // boven deze afstand tot huidig anker → anker breekt
 var SNAP_OVERPASS          = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 
 // Wegvakken worden bij export opgeknipt in segmenten van ~SEGMENT_TARGET_M.
@@ -943,8 +952,21 @@ var SEGMENT_MIN_M          = 60;
 
 var snapSegs     = [];
 var snapCacheLat = null, snapCacheLon = null;
-var snapElements = {};  // wayId → {highway, geometry} — voor netwerk.csv
+var snapElements = {};  // wayId → {highway, osmName, geometry} — voor netwerk.csv en anker-erven
 var snapReady    = false;
+
+// ── Adjacency-state ─────────────────────────────────────────────────────────
+// Twee ways zijn topologisch verbonden als ze een OSM-node delen. We bouwen
+// cumulatief (groeit met elke Overpass-fetch) want anker moet over refetches
+// heen blijven werken.
+var snapNodeToWays = {};   // nodeId → {wayId1:true, wayId2:true, ...}
+var snapAdjacency  = {};   // wayId  → {wayId2:true, wayId3:true, ...}
+
+// Huidige anker — de way waarvan we zeker zijn dat de teller er ‘zit’.
+// Verspringt alleen naar adjacent ways (depth-1 → depth-2). Wordt null bij
+// reset (anker > SNAP_RESET_M weg) of bij sessie-start (eerste fix wint).
+var snapAnchorWayId  = null;
+var snapAnchorSegIdx = 0;
 
 function snapToXY(lat, lon, refLat, refLon) {
   var cos = Math.cos(refLat * Math.PI / 180);
@@ -989,52 +1011,175 @@ function snapBuildSegs(elements, refLat, refLon) {
   return segs;
 }
 
+// Registreer een way in de adjacency-administratie. Idempotent: bij refetch
+// van overlappend gebied gaan er geen dubbele edges in. Voegt zowel ‘way zit
+// op deze nodes’ als ‘deze ways zijn nu aan elkaar verbonden’ toe.
+function snapRegisterWay(el) {
+  if (!el.nodes || el.nodes.length < 2) return;
+  var wid = String(el.id);
+  for (var i = 0; i < el.nodes.length; i++) {
+    var nid = el.nodes[i];
+    if (!snapNodeToWays[nid]) snapNodeToWays[nid] = {};
+    if (snapNodeToWays[nid][wid]) continue;  // al geregistreerd
+    snapNodeToWays[nid][wid] = true;
+    if (!snapAdjacency[wid]) snapAdjacency[wid] = {};
+    // Verbind wid met alle ways die deze node ook delen
+    Object.keys(snapNodeToWays[nid]).forEach(function(other) {
+      if (other === wid) return;
+      snapAdjacency[wid][other] = true;
+      if (!snapAdjacency[other]) snapAdjacency[other] = {};
+      snapAdjacency[other][wid] = true;
+    });
+  }
+}
+
+// Geef de set van wayIds die binnen ‘depth’ sprongen bereikbaar is vanaf wayId.
+// depth=1 = anker + directe buren. depth=2 = ook buren-van-buren (voor het geval
+// een korte tussen-way nooit een eigen fix kreeg, bijv. bij snelheid).
+function snapAdjacencySet(wayId, depth) {
+  var result = {};
+  result[wayId] = true;
+  var frontier = [wayId];
+  for (var d = 0; d < depth; d++) {
+    var next = [];
+    for (var i = 0; i < frontier.length; i++) {
+      var adj = snapAdjacency[frontier[i]];
+      if (!adj) continue;
+      var keys = Object.keys(adj);
+      for (var j = 0; j < keys.length; j++) {
+        if (!result[keys[j]]) { result[keys[j]] = true; next.push(keys[j]); }
+      }
+    }
+    frontier = next;
+    if (!frontier.length) break;
+  }
+  return result;
+}
+
+// Minimum-afstand van punt p naar een specifieke way (zonder SNAP_MAX_M-cutoff).
+// Nodig om te beslissen of het anker echt onbereikbaar ver weg is (→ reset)
+// of slechts tijdelijk net buiten 50m valt door GPS-jitter (→ anker behouden).
+function snapDistanceToWay(p, wayId) {
+  var best = Infinity;
+  for (var i = 0; i < snapSegs.length; i++) {
+    var s = snapSegs[i];
+    if (s.wayId !== wayId) continue;
+    var dx = s.bx - s.ax, dy = s.by - s.ay, l2 = dx*dx + dy*dy;
+    var t = (l2 === 0) ? 0 : Math.max(0, Math.min(1, ((p.x-s.ax)*dx + (p.y-s.ay)*dy) / l2));
+    var cx = s.ax + t*dx, cy = s.ay + t*dy;
+    var d = Math.sqrt((cx-p.x)*(cx-p.x) + (cy-p.y)*(cy-p.y));
+    if (d < best) best = d;
+  }
+  return best;
+}
+
 function snapNearestWay(lat, lon) {
   if (!snapSegs.length || snapCacheLat===null) return null;
   var p = snapToXY(lat, lon, snapCacheLat, snapCacheLon);
-  var bestD=Infinity, bestSeg=null, bestPt=null, bestT=0;
+
+  // Stap 1: beste edge per way binnen SNAP_MAX_M verzamelen
+  var bestPerWay = {};  // wayId → {d, seg, pt:{x,y}, t}
   for (var i=0;i<snapSegs.length;i++) {
     var s=snapSegs[i];
-    // Inline snapClosest om t-parameter te onthouden
     var dx=s.bx-s.ax, dy=s.by-s.ay, l2=dx*dx+dy*dy;
     var t = (l2===0) ? 0 : Math.max(0,Math.min(1,((p.x-s.ax)*dx+(p.y-s.ay)*dy)/l2));
     var cx=s.ax+t*dx, cy=s.ay+t*dy;
     var d=Math.sqrt((cx-p.x)*(cx-p.x)+(cy-p.y)*(cy-p.y));
-    if (d<bestD) { bestD=d; bestSeg=s; bestPt={x:cx,y:cy}; bestT=t; }
+    if (d>SNAP_MAX_M) continue;
+    if (!bestPerWay[s.wayId] || d<bestPerWay[s.wayId].d) {
+      bestPerWay[s.wayId] = {d:d, seg:s, pt:{x:cx,y:cy}, t:t};
+    }
   }
-  if (bestD>SNAP_MAX_M||!bestSeg) return null;
-  // segIdx afleiden uit positie langs de hele way
-  var snapM = bestSeg.cumStart + bestT * bestSeg.edgeLen;
-  var segIdx = (bestSeg.nSeg <= 1 || bestSeg.segLen === 0)
-             ? 0
-             : Math.min(bestSeg.nSeg - 1, Math.floor(snapM / bestSeg.segLen));
-  var cos=Math.cos(snapCacheLat*Math.PI/180);
-  return {
-    lat: snapCacheLat+bestPt.y/111320,
-    lon: snapCacheLon+bestPt.x/(111320*cos),
-    wayId: bestSeg.wayId,
-    segIdx: segIdx,
-    osmName: bestSeg.osmName
-  };
+
+  // Helper: kies dichtstbijzijnde wayId uit een toegestane set
+  function pickWithin(allowedSet) {
+    var bestId=null, bestC=null;
+    var keys = Object.keys(bestPerWay);
+    for (var k=0;k<keys.length;k++) {
+      if (!allowedSet[keys[k]]) continue;
+      var c = bestPerWay[keys[k]];
+      if (!bestC || c.d < bestC.d) { bestC=c; bestId=keys[k]; }
+    }
+    return bestId ? {info:bestC, wayId:bestId} : null;
+  }
+
+  // Helper: bouw return-object en update anker-state
+  function buildResult(chosen) {
+    var s = chosen.info.seg;
+    var snapM = s.cumStart + chosen.info.t * s.edgeLen;
+    var segIdx = (s.nSeg <= 1 || s.segLen === 0)
+               ? 0
+               : Math.min(s.nSeg - 1, Math.floor(snapM / s.segLen));
+    var cos=Math.cos(snapCacheLat*Math.PI/180);
+    snapAnchorWayId  = chosen.wayId;
+    snapAnchorSegIdx = segIdx;
+    return {
+      lat: snapCacheLat + chosen.info.pt.y/111320,
+      lon: snapCacheLon + chosen.info.pt.x/(111320*cos),
+      wayId: chosen.wayId,
+      segIdx: segIdx,
+      osmName: s.osmName
+    };
+  }
+
+  // Stap 2: keuze op basis van anker-state
+  // 2a: geen anker → globaal dichtstbijzijnde (initialisatie)
+  if (snapAnchorWayId === null) {
+    var all = {};
+    var akeys = Object.keys(bestPerWay);
+    for (var ak=0;ak<akeys.length;ak++) all[akeys[ak]] = true;
+    var chosen = pickWithin(all);
+    return chosen ? buildResult(chosen) : null;
+  }
+
+  // 2b: anker bestaat → eerst depth-1 (anker + directe buren)
+  var chosen1 = pickWithin(snapAdjacencySet(snapAnchorWayId, 1));
+  if (chosen1) return buildResult(chosen1);
+
+  // 2c: depth-2 (anker + buren + buren-van-buren) — voor snelheid/gemiste fix
+  var chosen2 = pickWithin(snapAdjacencySet(snapAnchorWayId, 2));
+  if (chosen2) return buildResult(chosen2);
+
+  // 2d: geen verbonden kandidaat. Anker écht te ver weg?
+  var anchorD = snapDistanceToWay(p, snapAnchorWayId);
+  if (anchorD > SNAP_RESET_M) {
+    // Reset: anker is meer dan SNAP_RESET_M weg → teller is verplaatst, herijken
+    snapAnchorWayId  = null;
+    snapAnchorSegIdx = 0;
+    var all2 = {};
+    var bkeys = Object.keys(bestPerWay);
+    for (var bk=0;bk<bkeys.length;bk++) all2[bkeys[bk]] = true;
+    var chosen3 = pickWithin(all2);
+    return chosen3 ? buildResult(chosen3) : null;
+  }
+
+  // 2e: anker binnen SNAP_RESET_M maar geen verbonden kandidaat in 50m.
+  // Waarschijnlijke GPS-glitch (tunnel-uitkomst, bebouwingsreflectie).
+  // Anker behouden, deze fix krijgt geen verse snap.
+  return null;
 }
 
 function snapFetchNetwork(lat, lon, attempt) {
   if (attempt===undefined) attempt=0;
   if (attempt>=SNAP_OVERPASS.length*2) return;
   var epIdx=attempt%SNAP_OVERPASS.length;
-  var query='[out:json][timeout:8];way["highway"~"residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path"]["area"!="yes"](around:'+SNAP_ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out tags geom;';
+  // body geom: levert tags + node-IDs (el.nodes) + geometrie. Node-IDs zijn nodig
+  // voor adjacency-detectie (twee ways grenzen aan elkaar via gedeelde node-ID).
+  var query='[out:json][timeout:8];way["highway"~"residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path"]["area"!="yes"](around:'+SNAP_ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out body geom;';
   fetch(SNAP_OVERPASS[epIdx]+'?data='+encodeURIComponent(query))
     .then(function(r){ return r.ok?r.json():Promise.reject(r.status); })
     .then(function(data) {
       if (!data.elements||!data.elements.length) throw new Error('geen wegen');
       snapCacheLat=lat; snapCacheLon=lon;
       snapSegs=snapBuildSegs(data.elements,lat,lon);
-      // Accumuleer wegvakgeometrie voor netwerk.csv
+      // Accumuleer wegvakgeometrie voor netwerk.csv én adjacency-administratie
       data.elements.forEach(function(el) {
         if (el.type!=='way'||!el.geometry||el.geometry.length<2) return;
+        snapRegisterWay(el);  // adjacency cumulatief bijwerken
         if (!snapElements[el.id]) {
           snapElements[String(el.id)] = {
             highway: (el.tags&&el.tags.highway)||'',
+            osmName: (el.tags&&el.tags.name)||'',
             geometry: el.geometry
           };
         }
