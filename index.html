@@ -3,7 +3,46 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Verkeerstellingen + Traffic Counter + rvmk.nl</title>
+
+<!-- ── SEO ────────────────────────────────────────────────────────────── -->
+<title>Online Traffic Counting — Vehicle &amp; Parking Surveys | rvmk.nl</title>
+<meta name="description" content="Free online traffic counting — count vehicles, pedestrians and parked cars directly in your browser. GPS-aware survey tools for fieldwork, no installation.">
+<link rel="canonical" href="https://rvmk.nl/">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Online Traffic counting — Vehicle &amp; Parking Surveys">
+<meta property="og:description" content="Free online traffic counting — count vehicles, pedestrians and parked cars directly in your browser. GPS-aware survey tools for fieldwork, no installation.">
+<meta property="og:url" content="https://rvmk.nl/">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="nl_NL">
+<meta property="og:site_name" content="rvmk.nl">
+
+<!-- Structured data: WebApplication -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Online Traffic Counting",
+  "alternateName": "RVMK Verkeersteller",
+  "url": "https://rvmk.nl/",
+  "description": "Free online traffic counting for vehicle, pedestrian and parking surveys. Browser-based, GPS-aware, no installation required.",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Any (web browser)",
+  "browserRequirements": "Requires a modern browser with GPS support for fieldwork features.",
+  "inLanguage": ["en", "nl"],
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+  },
+  "creator": {
+    "@type": "Organization",
+    "name": "rvmk.nl",
+    "url": "https://rvmk.nl/"
+  }
+}
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
 
@@ -56,15 +95,6 @@
     text-transform: uppercase;
     font-weight: 700;
     line-height: 1.2;
-  }
-
-  .title-block .brand {
-    font-size: 0.78rem;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    color: var(--dim);
-    margin-top: 6px;
-    font-weight: 700;
   }
 
   .title-block .sub {
@@ -130,22 +160,6 @@
   .mode-card.bike-card:hover {
     border-color: #2980b9;
     box-shadow: 0 4px 20px rgba(41,128,185,0.12);
-  }
-
-  .mode-card.pocket-card {
-    --accent: #d4007a;
-  }
-  .mode-card.pocket-card:hover {
-    border-color: #d4007a;
-    box-shadow: 0 4px 20px rgba(212,0,122,0.12);
-  }
-
-  .mode-card.capacity-card {
-    --accent: #8e44ad;
-  }
-  .mode-card.capacity-card:hover {
-    border-color: #8e44ad;
-    box-shadow: 0 4px 20px rgba(142,68,173,0.12);
   }
 
   .mode-label {
@@ -269,9 +283,9 @@
 <div class="wrap">
 
   <div class="title-block">
-    <h1 data-i18n="appName">Traffic Counter</h1>
-    <div class="brand">rvmk.nl</div>
-    <div class="sub" data-i18n="sub">Choose your counting mode</div>
+    <h1 data-i18n="appName">Traffic Counting</h1>
+    <h3>RVMK.NL</h3>
+    <div class="sub" data-i18n="sub">Online traffic counting — choose your mode</div>
   </div>
 
   <a class="mode-card static-card" href="traffic_counter.html">
@@ -288,7 +302,8 @@
     <div class="mode-arrow">&gt;</div>
   </a>
 
-  <a class="mode-card pocket-card" href="pocket_count.html">
+  <a class="mode-card" href="pocket_count.html" style="--accent:#d4007a;">
+    <style>.mode-card[href="pocket_count.html"]:hover { border-color:#d4007a; box-shadow:0 4px 20px rgba(212,0,122,0.12); }</style>
     <div class="mode-label" data-i18n="pocketLabel">Pocket mode</div>
     <div class="mode-title" data-i18n="pocketTitle">Move and<br>Count Simple</div>
     <div class="mode-desc" data-i18n="pocketDesc">One button, one type, no screen needed. Tap anywhere to count. Keep the phone in your pocket. Downloads a ZIP when done.</div>
@@ -309,7 +324,8 @@
     <div class="mode-arrow">&gt;</div>
   </a>
 
-  <a class="mode-card capacity-card" href="capaciteitstelling.html">
+  <a class="mode-card" href="capaciteitstelling.html" style="--accent:#8e44ad;">
+    <style>.mode-card[href="capaciteitstelling.html"]:hover { border-color:#8e44ad; box-shadow:0 4px 20px rgba(142,68,173,0.12); }</style>
     <div class="mode-label" data-i18n="capacityLabel">Walk and Map Car Parking Capacity</div>
     <div class="mode-title" data-i18n="capacityTitle">Mapping<br>capacity only</div>
     <div class="mode-desc" data-i18n="capacityDesc">Walk a street and count a base map of parking spots for cars. GPS tracks your route. Every observation is pinned to the live map. GPS + OSM-snap.</div>
@@ -325,9 +341,9 @@
 <script>
 const i18n = {
   en: {
-    pageTitle:     'Traffic Counter',
-    appName:       'Traffic Counter',
-    sub:           'Choose your counting mode',
+    pageTitle:     'Online Traffic Counting — Vehicle & Parking Surveys | rvmk.nl',
+    appName:       'Traffic Counting',
+    sub:           'Online traffic counting — choose your mode',
     staticLabel:   'Static mode',
     staticTitle:   'Stand Still<br>and Count',
     staticDesc:    'Fixed location at the roadside. One GPS fix. Counts per vehicle type and direction, with hourly extrapolation.',
@@ -335,7 +351,7 @@ const i18n = {
     transectTitle: 'Move<br>and Count',
     transectDesc:  'Walk a path, a shopping street or cycle a route. GPS tracks your position continuously. Every count is pinned to a location on the live map.',
     pocketLabel:   'Pocket mode',
-    pocketTitle:   'Move and<br>Count Simple',
+    pocketTitle:   'Move and<br>Count Most Simple',
     pocketDesc:    'One button, one type, no screen needed. Tap anywhere to count. Keep the phone in your pocket. Downloads a ZIP when done.',
     parkingLabel:  'Walk and Count Parked Cars',
     parkingTitle:  'Walk and<br>Survey Parked Cars',
@@ -349,9 +365,9 @@ const i18n = {
     helpLink:      'Help &amp; documentation'
   },
   nl: {
-    pageTitle:     'Verkeerstellingen',
+    pageTitle:     'Online Verkeersteller — Verkeers- en Parkeertellingen | rvmk.nl',
     appName:       'Verkeerstellingen',
-    sub:           'Kies je verkeerstelling',
+    sub:           'Online verkeersteller — kies je telling',
     staticLabel:   'Stilstaan aan de wegkant',
     staticTitle:   'Stilstaand tellen',
     staticDesc:    'Vaste locatie langs de weg. Eén GPS-fix. Tellingen per voertuigtype en richting, met extrapolatie naar een uur.',

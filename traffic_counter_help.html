@@ -212,7 +212,7 @@
   <ol start="11">
     <li><a href="#park-overzicht">Wat doen de parkeertellingen?</a></li>
     <li><a href="#park-eerstegebruik">Hints bij het eerste gebruik</a></li>
-    <li><a href="#park-types">Auto vs. Fietsparkeren</a></li>
+    <li><a href="#park-types">Twee parkeertel-apps (auto / fiets)</a></li>
     <li><a href="#park-sessie">Sessie starten en stoppen</a></li>
     <li><a href="#park-tellen">Tellen: knoppen &amp; kantelmodus</a></li>
     <li><a href="#park-minimap">Mini-kaart &amp; bearing</a></li>
@@ -601,7 +601,8 @@
 
 <!-- 13. Types -->
 <section id="park-types">
-  <h2>13 — Auto vs. Fietsparkeren</h2>
+  <h2>13 — Twee parkeertel-apps (auto / fiets)</h2>
+  <p>Auto en fiets zijn <em>aparte apps</em> in de suite — niet twee modi binnen één tool. Beide werken volgens hetzelfde patroon (lopen + tellen + GPS-snap + ZIP-export), maar de knoppen en de uitvoer-bestanden verschillen per type.</p>
   <div class="card" style="border-left:5px solid var(--orange);">
     <div class="card-title">🚗 Autoparkeren — parkeertelling.html</div>
     <p>
@@ -806,7 +807,8 @@
 <section id="pocket-overzicht">
   <h2>25 — Wat doet de Pocket-telling?</h2>
   <p>Een ultra-eenvoudige app om één type passant te tellen zonder naar het scherm te kijken. Je kiest het vervoertype, stopt de telefoon in je jaszak en tikt. Ideaal voor langere wandelingen in een winkelcentrum, langs een drukke passage of op een fietsbrug.</p>
-  <p>De telling heeft OSM-wegsnapping ingebouwd — als er bereik is worden de observaties automatisch gekoppeld aan het dichtstbijzijnde wegvak, zodat de resultaten direct bruikbaar zijn in telrapport.html.</p>
+  <p>De telling heeft OSM-wegsnapping ingebouwd — observaties worden automatisch gekoppeld aan een wegvak. De snap kijkt niet alleen naar afstand maar ook naar de <em>topologie</em>: een nieuwe positie wordt bij voorkeur gesnapt op een wegvak dat aansluit op het wegvak waar je net was. Dit voorkomt dat tellingen in dichte voetgangerszones per ongeluk op een parallelle straat belanden.</p>
+  <p style="margin-top:6px;font-size:0.85em;color:var(--dim);">Technische uitleg van het snap-algoritme: zie <a href="snap_methodology.html"><code>snap_methodology.html</code></a>.</p>
 </section>
 
 <section id="pocket-gebruik">
@@ -882,12 +884,19 @@
 <section id="rapport-kaart">
   <h2>30 — Kaartvisualisatie per type</h2>
   <table class="key-table">
+    <tr><td>stand-still</td><td>Pin op telpunt-locatie. <strong>Klik</strong> = tijdreeks van de telling. Bij meerdere stand-still sessies op nabije punten worden ze samen geclusterd.</td></tr>
     <tr><td>auto</td><td>Warmtekaart groen→rood op bezettingsgraad % per wegvak</td></tr>
     <tr><td>fiets</td><td>Warmtekaart groen→rood op √(totaal) per wegvak</td></tr>
     <tr><td>capaciteit</td><td>Paarse polygonen met nummerbadge — klik voor uitsplitsing per soort. Hover toont hoeveel observaties er geometrisch binnen het vlak vallen</td></tr>
     <tr><td>transect</td><td>Gekleurde stippen per voertuigtype, geclustered op afstand. Als OSM-snapping beschikbaar was: wegvak-clustering met warmtekaart</td></tr>
     <tr><td>pocket</td><td>Gekleurde stippen, geclustered op afstand. <strong>GPS-spoor</strong> in sessiekleur (dashed). Bij <code>_netwerk.csv</code> + <code>_gps.csv</code>: zero-visit detectie voor bezochte wegen zonder tellingen</td></tr>
   </table>
+  <div class="card mode-both" style="border-left:5px solid var(--green);">
+    <div class="card-title">Stand-still pin &amp; tijdreeks-popup (nieuw v2.5)</div>
+    <p>Een stand-still telling krijgt één <strong>pin</strong> op de telpunt-locatie. Klikken opent een popup met de <strong>tijdreeks</strong>: passages per minuut/kwartier over de duur van de sessie, uitgesplitst per voertuigtype.</p>
+    <p style="margin-top:6px;">Boven de tijdreeks staan <strong>dag-filter pills</strong> als er meerdere sessies van dezelfde locatie op verschillende dagen zijn geladen — elke pill is een dag, klikken filtert. Een aparte <strong>weekprofiel</strong>-knop opent een tweede popup met de gemiddelde verdeling over alle geladen dagen, per uur.</p>
+    <p style="margin-top:6px;font-size:0.85em;color:var(--dim);">De tijdreeks reageert op de sessie-toggles in de sidebar: alleen ingeschakelde sessies tellen mee voor de grafiek en het weekprofiel.</p>
+  </div>
   <div class="card mode-both">
     <div class="card-title">Gecombineerde clustering (transect + pocket)</div>
     <p>Meerdere sessies van hetzelfde gebied worden samen geclusterd. Een cluster met punten uit twee sessies krijgt een diagonaal tweekleurig icoon. Klik voor een uitsplitsing per sessie en per type. De gap-slider bepaalt de clusterradius in meters.</p>
@@ -1058,12 +1067,19 @@
       <span class="file-desc">Telplanning — gebiedselectie, opdrachten, dekkings-analyse</span>
     </div>
     <div class="file-row">
-      <span class="file-name">zip_format_reference.html</span>
-      <span class="file-desc">ZIP-formaat referentie — technische documentatie per app-type</span>
-    </div>
-    <div class="file-row">
       <span class="file-name">traffic_counter_help.html</span>
       <span class="file-desc">This help file — covers all tools</span>
+    </div>
+  </div>
+  <p style="margin-top:14px;"><strong>Technische documentatie:</strong></p>
+  <div class="file-list" style="margin-top:6px;">
+    <div class="file-row">
+      <span class="file-name">zip_format_reference.html</span>
+      <span class="file-desc">ZIP-formaat referentie — per app-type welke CSV's verplicht/optioneel zijn en welke kolommen</span>
+    </div>
+    <div class="file-row">
+      <span class="file-name">snap_methodology.html</span>
+      <span class="file-desc">GPS snap methodology — adjacency-aware road snapping (currently in pocket_count.html only)</span>
     </div>
     <div class="file-row">
       <span class="file-name">build_bezocht.py</span>

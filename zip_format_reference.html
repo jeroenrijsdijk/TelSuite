@@ -21,6 +21,7 @@
     --c-cap:        #8e44ad;
     --c-transect:   #5500cc;
     --c-pocket:     #d4007a;
+    --c-ss:         #0a8a30;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -289,7 +290,7 @@
 </div>
 
 <div class="intro">
-  Telrapport.html accepts ZIP archives from any of the five survey apps. The app type is detected from the <code>app_type</code> field in <code>_sessie.csv</code>. Each type follows a different loading path and requires a different set of files. All CSV files use semicolon delimiters and UTF-8 encoding. File names must start with the session ID and end with the suffix shown below.
+  Telrapport.html accepts five ZIP archive types and one loose CSV. The format is detected from the <code>app_type</code> field in <code>_sessie.csv</code> for ZIPs, or from the file structure for loose CSV (stand-still). All CSV files use semicolon delimiters and UTF-8 encoding. Inside a ZIP, file names must start with the session ID and end with the suffix shown below.
 </div>
 
 <!-- ── AUTO ── -->
@@ -301,11 +302,11 @@
   </div>
   <div class="section-body" style="border-color:#c07800">
     <div class="file-list">
-      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata</span></div>
-      <div class="file-row"><span class="file-name">_straten.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Bezetting per straat — warmtekaart</span></div>
-      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">OSM-wegvakgeometrie als WKT</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Individuele observaties voor hover-detail</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor (blauw stippelpad)</span></div>
+      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata</span></div>
+      <div class="file-row"><span class="file-name">_straten.csv</span><span class="file-req required">Required</span><span class="file-desc">Occupancy per street &mdash; drives the heatmap</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req required">Required</span><span class="file-desc">OSM way geometry as WKT</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Individual observations for hover detail</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track (blue dashed path)</span></div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_sessie.csv</div>
@@ -317,8 +318,8 @@
       <div class="csv-sample">sessie_id;naam;osm_way_ids;goed;fout;leeg;spec;bezet;vrij;bezettingsgraad_pct;eerste_waarneming;laatste_waarneming
 20260514_100500_qah;Voorstraat;12345|67890;14;2;8;1;17;8;68.0;10:07:22;11:32:14</div>
       <div class="csv-notes">
-        <div class="csv-note"><code>osm_way_ids</code>: pipe-separated lijst van way-IDs die tot deze straatnaam behoren</div>
-        <div class="csv-note"><code>bezettingsgraad_pct</code>: decimaal getal, punt als scheidingsteken — basis voor de warmtekaart</div>
+        <div class="csv-note"><code>osm_way_ids</code>: pipe-separated list of way IDs belonging to this street name</div>
+        <div class="csv-note"><code>bezettingsgraad_pct</code>: decimal number, dot as separator &mdash; the basis for the heatmap</div>
       </div>
     </div>
     <div class="csv-block">
@@ -326,7 +327,7 @@
       <div class="csv-sample">osm_way_id;highway;geometrie_wkt
 12345;residential;LINESTRING (4.332000 51.852000, 4.333000 51.853000)</div>
       <div class="csv-notes">
-        <div class="csv-note">WKT-coördinaten als <code>lon lat</code> (niet lat lon)</div>
+        <div class="csv-note">WKT coordinates as <code>lon lat</code> (not lat lon)</div>
       </div>
     </div>
   </div>
@@ -341,17 +342,17 @@
   </div>
   <div class="section-body" style="border-color:#2980b9">
     <div class="file-list">
-      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata</span></div>
-      <div class="file-row"><span class="file-name">_straten.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Bezetting per straat — warmtekaart op √(totaal)</span></div>
-      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">OSM-wegvakgeometrie als WKT</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Individuele observaties</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor</span></div>
+      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata</span></div>
+      <div class="file-row"><span class="file-name">_straten.csv</span><span class="file-req required">Required</span><span class="file-desc">Occupancy per street &mdash; heatmap on &radic;(total)</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req required">Required</span><span class="file-desc">OSM way geometry as WKT</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Individual observations</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track</span></div>
     </div>
     <div class="csv-block">
-      <div class="csv-title">_straten.csv — afwijkende kolommen t.o.v. auto</div>
+      <div class="csv-title">_straten.csv &mdash; columns differ from auto</div>
       <div class="csv-sample">sessie_id;naam;osm_way_ids;fiets;brommer;breed;wrak;bezet;vrij;bezettingsgraad_pct;eerste_waarneming;laatste_waarneming</div>
       <div class="csv-notes">
-        <div class="csv-note">Warmtekaart kleurt op √(fiets + brommer + breed + wrak)</div>
+        <div class="csv-note">Heatmap colors on &radic;(fiets + brommer + breed + wrak)</div>
       </div>
     </div>
   </div>
@@ -366,11 +367,11 @@
   </div>
   <div class="section-body" style="border-color:#8e44ad">
     <div class="file-list">
-      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata</span></div>
-      <div class="file-row"><span class="file-name">_capaciteit.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Capaciteitsaantallen per soort per way</span></div>
-      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Aanbevolen</span><span class="file-desc">POLYGON WKT voor parkeervlakken — anders Overpass-call</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Individuele stippen bij klik op terrein</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor</span></div>
+      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata</span></div>
+      <div class="file-row"><span class="file-name">_capaciteit.csv</span><span class="file-req required">Required</span><span class="file-desc">Capacity counts per type per way</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Recommended</span><span class="file-desc">POLYGON WKT for parking areas &mdash; otherwise Overpass call</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Individual dots when clicking on an area</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track</span></div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_capaciteit.csv</div>
@@ -379,17 +380,17 @@
 20260429_094659_mat;142108527;Damstraat;nvt;gehandicapt;2;2026-04-29T07:46:42;2026-04-29T07:46:42</div>
       <div class="csv-notes">
         <div class="csv-note"><code>soort</code>: <code>regulier</code> / <code>gehandicapt</code> / <code>laadpaal</code> / <code>gereserveerd</code></div>
-        <div class="csv-note">Meerdere rijen per <code>osm_way_id</code> — één per soort</div>
+        <div class="csv-note">Multiple rows per <code>osm_way_id</code> &mdash; one per <code>soort</code></div>
       </div>
     </div>
     <div class="csv-block">
-      <div class="csv-title">_netwerk.csv — capaciteit variant</div>
+      <div class="csv-title">_netwerk.csv &mdash; capacity variant</div>
       <div class="csv-sample">osm_way_id;highway;geometrie_wkt
 142108527;parking;POLYGON ((4.332000 51.852000, 4.333000 51.852000, 4.333000 51.853000, 4.332000 51.852000))
 987654321;residential;LINESTRING (4.335000 51.854000, 4.336000 51.855000)</div>
       <div class="csv-notes">
-        <div class="csv-note"><code>highway=parking</code> + POLYGON → vlak direct getekend, geen Overpass nodig</div>
-        <div class="csv-note"><code>highway=residential</code> (etc.) + LINESTRING → wegvak-geometrie voor straat-modus</div>
+        <div class="csv-note"><code>highway=parking</code> + POLYGON &rarr; area drawn directly, no Overpass needed</div>
+        <div class="csv-note"><code>highway=residential</code> (etc.) + LINESTRING &rarr; way geometry for street mode</div>
       </div>
     </div>
   </div>
@@ -404,9 +405,9 @@
   </div>
   <div class="section-body" style="border-color:#5500cc">
     <div class="file-list">
-      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Observaties per voertuig per richting</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor (blauw stippelpad)</span></div>
+      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req required">Required</span><span class="file-desc">Observations per vehicle per direction</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track (blue dashed path)</span></div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_sessie.csv</div>
@@ -419,7 +420,7 @@
 20260514_113917_ard_trn;1;11:38:04;car;Noord;51.852540;4.332551;6.2</div>
       <div class="csv-notes">
         <div class="csv-note"><code>type</code>: <code>car</code> / <code>truck</code> / <code>moto</code> / <code>bike</code> / <code>ped</code></div>
-        <div class="csv-note"><code>richting</code>: vrije tekst — label zoals ingesteld door de teller (bijv. "Noord", "Centrum")</div>
+        <div class="csv-note"><code>richting</code>: free text &mdash; label as set by the counter (e.g. "Noord", "Centrum")</div>
       </div>
     </div>
   </div>
@@ -434,18 +435,18 @@
   </div>
   <div class="section-body" style="border-color:#d4007a">
     <div class="file-list">
-      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Verplicht</span><span class="file-desc">Sessiemetadata incl. type en icoon</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Per tik: timestamp, type, lat/lon, osm_way_id, segment_index (v2.3+), straat</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">GPS-spoor met osm_way_id, segment_index (v2.3+) en straat per punt</span></div>
-      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Eén rij per ~40m segment met segment_index, segment_count en sub-LINESTRING (v2.3+)</span></div>
-      <div class="file-row"><span class="file-name">_bezocht.csv</span><span class="file-req optional">Optioneel</span><span class="file-desc">Per visit aan een segment: duur, GPS-punten, aantal tellingen (v2.3: per (way, segment) i.p.v. per way)</span></div>
+      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata including type and icon</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Per tap: timestamp, type, lat/lon, osm_way_id, segment_index (v2.3+), street</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track with osm_way_id, segment_index (v2.3+) and street per point</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Optional</span><span class="file-desc">One row per ~40m segment with segment_index, segment_count and sub-LINESTRING (v2.3+)</span></div>
+      <div class="file-row"><span class="file-name">_bezocht.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Per visit to a segment: duration, GPS points, count of taps (v2.3: per (way, segment) instead of per way)</span></div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_sessie.csv</div>
       <div class="csv-sample">sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen
 20260514_131611_lok_pkt;2026-05-14;13:15:44;13:16:11;pocket;fiets;42</div>
       <div class="csv-notes">
-        <div class="csv-note"><code>type</code>: <code>car</code> / <code>bike</code> / <code>ped</code> / of vrije tekst bij "Iets Anders"</div>
+        <div class="csv-note"><code>type</code>: <code>car</code> / <code>bike</code> / <code>ped</code> / or free text when "Iets Anders" is chosen</div>
       </div>
     </div>
     <div class="csv-block">
@@ -453,7 +454,7 @@
       <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat
 20260514_131611_lok_pkt;1;2026-05-14T13:15:52;fiets;51.852540;4.332551;123456;2;Korenmarkt</div>
       <div class="csv-notes">
-        <div class="csv-note"><code>segment_index</code> (0-gebaseerd) wijst aan welk ~40m segment van de way is geraakt. Voor v2.2 ZIPs zonder deze kolom interpreteren tools dit als 0.</div>
+        <div class="csv-note"><code>segment_index</code> (0-based) indicates which ~40m segment of the way was hit. For v2.2 ZIPs without this column, tools interpret it as 0.</div>
       </div>
     </div>
     <div class="csv-block">
@@ -461,7 +462,7 @@
       <div class="csv-sample">sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;segment_index;straat
 20260514_131611_lok_pkt;2026-05-14T13:15:50;51.852540;4.332551;5;123456;2;Korenmarkt</div>
       <div class="csv-notes">
-        <div class="csv-note">Routepunt bij ≥5m verplaatsing. <code>segment_index</code> komt uit dezelfde snap-engine als telregels — input voor het afleiden van <code>_bezocht.csv</code> per segment.</div>
+        <div class="csv-note">Route point at &ge;5m displacement. <code>segment_index</code> comes from the same snap engine as the telregels &mdash; input for deriving <code>_bezocht.csv</code> per segment.</div>
       </div>
     </div>
     <div class="csv-block">
@@ -471,7 +472,7 @@
 123456;1;3;residential;LINESTRING (4.3329 51.8525, 4.3333 51.8525)
 123456;2;3;residential;LINESTRING (4.3333 51.8525, 4.3337 51.8525)</div>
       <div class="csv-notes">
-        <div class="csv-note">Eén rij per segment. Wegen korter dan 60m blijven heel (één segment); langere wegen worden parametrisch gesplitst in stukken van ~40m. <code>segment_count</code> staat per rij voor zelfstandige interpretatie.</div>
+        <div class="csv-note">One row per segment. Ways shorter than 60m stay whole (one segment); longer ways are split parametrically into pieces of ~40m. <code>segment_count</code> is repeated per row for self-contained interpretation.</div>
       </div>
     </div>
     <div class="csv-block">
@@ -479,18 +480,69 @@
       <div class="csv-sample">sessie_id;datum;osm_way_id;segment_index;segment_count;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen
 20260514_131611_lok_pkt;2026-05-14;123456;2;3;Korenmarkt;13:15:50;13:16:05;15;14;3</div>
       <div class="csv-notes">
-        <div class="csv-note">Eén regel per <strong>visit</strong> (aaneengesloten verblijf op één segment). Visits korter dan 5s of met minder dan 3 GPS-punten worden uitgefilterd. Een gat van &gt;30s breekt een visit. Datum staat in elke regel — self-contained voor dagdeel-classificatie in telplanning.</div>
-        <div class="csv-note">KNIME-koppeling: <code>(sessie_id, osm_way_id, segment_index)</code> als composite key.</div>
-        <div class="csv-note">Flux-berekening: <code>n_tellingen × 60 / duur_sec = passages/min</code> — nu per segment, accurater voor lange straten.</div>
-        <div class="csv-note">Voor oude v2.2 pocket-ZIPs: <code>python build_bezocht.py FILE_OR_DIR</code> upgradet de ZIP in-place naar v2.3 (idempotent — overslaan met --force om opnieuw te doen).</div>
+        <div class="csv-note">One row per <strong>visit</strong> (a contiguous stay on one segment). Visits shorter than 5s or with fewer than 3 GPS points are filtered out. A gap of &gt;30s breaks a visit. The date is in every row &mdash; self-contained for day-part classification in telplanning.</div>
+        <div class="csv-note">KNIME join: <code>(sessie_id, osm_way_id, segment_index)</code> as composite key.</div>
+        <div class="csv-note">Flux calculation: <code>n_tellingen &times; 60 / duur_sec = passages/min</code> &mdash; now per segment, more accurate for long streets.</div>
+        <div class="csv-note">For old v2.2 pocket ZIPs: <code>python build_bezocht.py FILE_OR_DIR</code> upgrades the ZIP in-place to v2.3 (idempotent &mdash; pass --force to redo).</div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ── Overzicht ── -->
+<!-- ── STAND-STILL ── -->
+<div class="section">
+  <div class="section-header" style="border-color:#0a8a30">
+    <span class="app-tag" style="background:var(--c-ss)">stand-still</span>
+    <h2>Stand Still and Count</h2>
+    <span class="filename-hint">*.csv (loose file, no ZIP)</span>
+  </div>
+  <div class="section-body" style="border-color:#0a8a30">
+    <p style="font-size:0.92rem;color:var(--dim);margin-bottom:14px;">
+      Unlike the other five formats, a stand-still export from <code>traffic_counter.html</code> is a <strong>single loose CSV</strong> &mdash; not a ZIP. The file is human-readable and uses a section-based structure rather than separate per-purpose CSVs. Telrapport detects it from the <code>Traffic Count Export</code> banner on line 2 and parses the three sections in order.
+    </p>
+    <div class="csv-block">
+      <div class="csv-title">Structure &mdash; three sections separated by blank lines</div>
+      <div class="csv-sample">sep=;
+Traffic Count Export
+Exported at;2026-05-22T17:03:11
+Location / Notes;Voorstraat ter hoogte van nr 12
+Start time;2026-05-22 16:32:18
+End time;2026-05-22 16:47:18
+Observed duration;15:00
+GPS latitude;51.851400
+GPS longitude;4.331200
+GPS accuracy (m);8
+GPS reliable;Yes (&lt; 25m)
+GPS street;Voorstraat
+GPS city;Spijkenisse
+GPS country;NL
+GPS recorded at;2026-05-22 16:32:20
+Extrapolation factor;4.0000;= 3600 / 900 seconds
+
+Vehicle Type;North counted;South counted;Total counted;...
+Car;42;38;80;...
+Bike;15;20;35;...
+TOTAL;57;58;115;...
+
+Timestamp Log
+Time;Vehicle;Direction
+16:32:24;Car;North
+16:32:31;Bike;South
+...</div>
+      <div class="csv-notes">
+        <div class="csv-note"><strong>Section 1 &mdash; metadata</strong>: key-value rows. Required keys for telrapport: <code>Start time</code>, <code>End time</code>, <code>GPS latitude</code>, <code>GPS longitude</code>. Optional but recognised: <code>Location / Notes</code>, <code>GPS accuracy (m)</code>, <code>GPS reliable</code>, <code>GPS street</code>, <code>GPS city</code>, <code>GPS country</code>, <code>Extrapolation factor</code>.</div>
+        <div class="csv-note"><strong>Section 2 &mdash; summary table</strong>: starts at the <code>Vehicle Type</code> header. The first two count columns define the direction labels (<code>dirA</code>, <code>dirB</code>) for the entire session. Rows end at the <code>TOTAL</code> row.</div>
+        <div class="csv-note"><strong>Section 3 &mdash; timestamp log</strong>: starts after the <code>Time;Vehicle;Direction</code> header. Each row is one observation. Direction values must match the labels from section 2.</div>
+        <div class="csv-note">Vehicle type names are matched case-insensitively against the internal lookup table (<code>SS_VEHICLE_LOOKUP</code>); unrecognised types are dropped silently.</div>
+        <div class="csv-note">Session ID is synthesised by telrapport from the start time (e.g. <code>ss_20260522_163218</code>). Reloading the same file produces the same ID.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Overview ── -->
 <div class="summary-section">
-  <h2>Overzicht — verplichte en optionele bestanden</h2>
+  <h2>Overview &mdash; required and optional files</h2>
   <table>
     <thead>
       <tr>
@@ -506,54 +558,58 @@
     </thead>
     <tbody>
       <tr>
+        <td>stand-still</td>
+        <td colspan="7" style="font-style:italic;color:var(--dim);">single loose CSV &mdash; see section above</td>
+      </tr>
+      <tr>
         <td>auto</td>
-        <td class="check">&#10003; vereist</td>
-        <td class="check">&#10003; vereist</td>
-        <td class="check">&#10003; vereist</td>
+        <td class="check">&#10003; required</td>
+        <td class="check">&#10003; required</td>
+        <td class="check">&#10003; required</td>
         <td class="na">&mdash;</td>
-        <td class="opt">optioneel</td>
-        <td class="opt">optioneel</td>
+        <td class="opt">optional</td>
+        <td class="opt">optional</td>
         <td class="na">&mdash;</td>
       </tr>
       <tr>
         <td>fiets</td>
-        <td class="check">&#10003; vereist</td>
-        <td class="check">&#10003; vereist</td>
-        <td class="check">&#10003; vereist</td>
+        <td class="check">&#10003; required</td>
+        <td class="check">&#10003; required</td>
+        <td class="check">&#10003; required</td>
         <td class="na">&mdash;</td>
-        <td class="opt">optioneel</td>
-        <td class="opt">optioneel</td>
+        <td class="opt">optional</td>
+        <td class="opt">optional</td>
         <td class="na">&mdash;</td>
       </tr>
       <tr>
         <td>capaciteit</td>
-        <td class="check">&#10003; vereist</td>
+        <td class="check">&#10003; required</td>
         <td class="na">&mdash;</td>
-        <td class="opt">aanbevolen</td>
-        <td class="check">&#10003; vereist</td>
-        <td class="opt">optioneel</td>
-        <td class="opt">optioneel</td>
+        <td class="opt">recommended</td>
+        <td class="check">&#10003; required</td>
+        <td class="opt">optional</td>
+        <td class="opt">optional</td>
         <td class="na">&mdash;</td>
       </tr>
       <tr>
         <td>transect</td>
-        <td class="check">&#10003; vereist</td>
+        <td class="check">&#10003; required</td>
         <td class="na">&mdash;</td>
         <td class="na">&mdash;</td>
         <td class="na">&mdash;</td>
-        <td class="check">&#10003; vereist</td>
-        <td class="opt">optioneel</td>
+        <td class="check">&#10003; required</td>
+        <td class="opt">optional</td>
         <td class="na">&mdash;</td>
       </tr>
       <tr>
         <td>pocket</td>
-        <td class="check">&#10003; vereist</td>
+        <td class="check">&#10003; required</td>
         <td class="na">&mdash;</td>
-        <td class="opt">aanbevolen</td>
+        <td class="opt">recommended</td>
         <td class="na">&mdash;</td>
-        <td class="opt">optioneel</td>
-        <td class="opt">aanbevolen</td>
-        <td class="opt">aanbevolen</td>
+        <td class="opt">optional</td>
+        <td class="opt">recommended</td>
+        <td class="opt">recommended</td>
       </tr>
     </tbody>
   </table>

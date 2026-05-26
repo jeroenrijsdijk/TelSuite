@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset
+      xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+            http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+<!-- created with Free Online Sitemap Generator www.xml-sitemaps.com -->
+
+
+<url>
+  <loc>https://rvmk.nl/</loc>
+  <lastmod>2026-05-25T09:09:39+00:00</lastmod>
+  <priority>1.00</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/traffic_counter.html</loc>
+  <lastmod>2026-05-23T10:05:34+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/traffic_counter_transect.html</loc>
+  <lastmod>2026-05-23T10:05:41+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/pocket_count.html</loc>
+  <lastmod>2026-05-25T07:14:22+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/parkeertelling.html</loc>
+  <lastmod>2026-05-23T10:05:40+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/fietsparkeren.html</loc>
+  <lastmod>2026-05-23T10:05:38+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/capaciteitstelling.html</loc>
+  <lastmod>2026-05-23T10:05:37+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/traffic_counter_help.html</loc>
+  <lastmod>2026-05-25T09:09:39+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/index.html</loc>
+  <lastmod>2026-05-25T09:09:39+00:00</lastmod>
+  <priority>0.64</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/telrapport.html</loc>
+  <lastmod>2026-05-23T10:11:52+00:00</lastmod>
+  <priority>0.64</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/telplanning.html</loc>
+  <lastmod>2026-05-23T10:05:34+00:00</lastmod>
+  <priority>0.64</priority>
+</url>
+<url>
+  <loc>https://rvmk.nl/snap_methodology.html</loc>
+  <lastmod>2026-05-25T09:09:39+00:00</lastmod>
+  <priority>0.64</priority>
+</url>
+
+
+</urlset>
