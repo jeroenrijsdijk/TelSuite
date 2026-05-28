@@ -196,6 +196,51 @@
   .hm-meta { font-size: 10.5px; color: var(--muted); margin-bottom: 10px;
     line-height: 1.5; }
 
+  /* Stand-still popup (traffic_counter CSV) */
+  .ss-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 2000; display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .ss-modal {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    max-width: 620px; width: 100%; max-height: calc(100vh - 48px);
+    overflow: auto; padding: 16px 20px;
+  }
+  .ss-head { display: flex; justify-content: space-between;
+    align-items: flex-start; margin-bottom: 4px; }
+  .ss-title { font-size: 14px; font-weight: bold; color: var(--accent); }
+  .ss-city { color: var(--muted); font-weight: normal; }
+  .ss-close { background: none; border: none; color: var(--muted);
+    font-size: 16px; cursor: pointer; padding: 4px 8px; }
+  .ss-close:hover { color: var(--text); }
+  .ss-sub { font-size: 11px; color: var(--muted); margin-bottom: 10px;
+    line-height: 1.5; }
+  .ss-notes { font-size: 11px; color: var(--text); margin-bottom: 10px;
+    font-style: italic; }
+  .ss-tbl { width: 100%; border-collapse: collapse; margin-bottom: 14px;
+    font-size: 12px; }
+  .ss-tbl th, .ss-tbl td { padding: 4px 8px; text-align: right;
+    border-bottom: 1px solid var(--border); }
+  .ss-tbl th:first-child, .ss-tbl td:first-child { text-align: left; }
+  .ss-tbl th { font-weight: normal; color: var(--muted);
+    letter-spacing: 0.5px; font-size: 11px; }
+  .ss-tbl tr.ss-sum td { border-top: 1px solid var(--border);
+    border-bottom: none; padding-top: 6px; }
+  .ss-tbl tr.ss-perh td { color: var(--muted); font-size: 11px;
+    border-bottom: none; padding-top: 2px; }
+  .ss-swatch { display: inline-block; width: 9px; height: 9px;
+    border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .ss-tl-title { font-size: 11px; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+  .ss-tl { width: 100%; height: auto; display: block;
+    background: var(--panel, #fafaf7); border: 1px solid var(--border);
+    border-radius: 4px; }
+  .ss-tl-empty { font-size: 11px; color: var(--muted);
+    padding: 14px; text-align: center; border: 1px dashed var(--border);
+    border-radius: 4px; }
+
   #map { flex: 1; }
 
   .cluster-label {
@@ -243,6 +288,20 @@
   }
   #timebar-track {
     position: relative; height: 28px; margin-bottom: 4px;
+  }
+  #day-pills {
+    display: flex; gap: 4px; margin: 0 0 8px;
+  }
+  .day-pill {
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--muted); font-family: var(--font); font-size: 10.5px;
+    font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+    padding: 4px 10px; cursor: pointer; border-radius: 3px;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .day-pill:hover { color: var(--text); border-color: var(--text); }
+  .day-pill.active {
+    background: var(--text); color: var(--bg); border-color: var(--text);
   }
   #time-slider {
     -webkit-appearance: none; appearance: none;
@@ -302,8 +361,8 @@
 
     <div id="dropzone">
       <div class="dz-icon">📂</div>
-      <div class="dz-text">Sleep ZIP-bestanden hier<br>of klik om te kiezen</div>
-      <input type="file" id="file-input" multiple accept=".zip">
+      <div class="dz-text">Sleep ZIP- of CSV-bestanden hier<br>of klik om te kiezen</div>
+      <input type="file" id="file-input" multiple accept=".zip,.csv">
     </div>
 
     <div id="statsbar" style="display:none">
@@ -384,6 +443,29 @@
       </div>
     </details>
 
+    <!-- ── CORRECTIE ── handmatig herplaatsen van waarnemingen ─── -->
+    <details class="ctrl-group" id="grp-correctie" style="display:none">
+      <summary>Correctie<span class="grp-hint" id="corr-hint"></span></summary>
+      <div class="ctrl-body">
+        <div style="font-size:10px;color:var(--muted);padding:2px 0 6px;line-height:1.4">
+          Sleep-modus aan: alle waarnemingen worden sleepbaar.
+          Sleep naar de juiste plek, kies de way uit de popup.
+        </div>
+        <div class="toggle-row">
+          <button class="dot-btn" id="edit-toggle" style="color:#fff;flex:1"
+                  onclick="toggleEditMode()">
+            <span class="dot" style="background:#ff9933;border:1px solid #888"></span>sleep-modus
+          </button>
+        </div>
+        <div class="toggle-row" style="margin-top:6px">
+          <button class="dot-btn" id="export-corr-btn" style="color:#fff;flex:1;opacity:0.4;pointer-events:none"
+                  onclick="exportCorrectedZips()">
+            ⤓ exporteer gecorrigeerde ZIP
+          </button>
+        </div>
+      </div>
+    </details>
+
     <div id="section-title" class="section-title" style="display:none">
       <span>Sessies</span><span class="count" id="sessies-count"></span>
     </div>
@@ -421,6 +503,12 @@
     <div id="timebar-header">
       <span id="timebar-label">Tijdvenster</span>
       <span id="timebar-window">—</span>
+    </div>
+    <div id="day-pills">
+      <button class="day-pill active" data-day="all">Alle</button>
+      <button class="day-pill" data-day="weekday">Werkdagen</button>
+      <button class="day-pill" data-day="saturday">Za</button>
+      <button class="day-pill" data-day="sunday">Zo</button>
     </div>
     <div id="timebar-track">
       <input type="range" id="time-slider" min="0" max="23" value="10" step="1">
@@ -666,9 +754,15 @@ const capLayers      = {};   // sid → [marker] voor capaciteitssessies
 const capTelData    = {};   // sid → [telregels] voor capaciteitssessies
 const telData       = {};   // sid → filtered snapped telregels
 const visitData     = {};   // sid → [{ wid, segIdx, tStart, tEnd, durSec, nGps, nTel }]
+const standStillData    = {};  // sid → { lat, lon, accuracy, gpsReliable, street, city,
+                                //         start, end, durSec, factor, dirA, dirB,
+                                //         summary:{type→{a,b}}, log:[{ts,type,dir}] }
+const standStillMarkers = {};  // sid → L.circleMarker
+const standStillRings   = {};  // sid → L.circle (accuracy-ring bij dubieuze GPS)
 let   capSpotLayers = [];   // tijdelijke spot-markers bij klik capaciteit
 let   timeFilterActive = false;
 let   currentTimeHour  = 10;
+let   currentDayFilter = 'all';   // 'all' | 'weekday' | 'saturday' | 'sunday'
 const TYPES_TRANSECT = ['car','truck','moto','bike','ped'];
 const globalPolyMap = {};   // wayId → [[lat,lon],...] voor spatial join
 
@@ -689,6 +783,389 @@ let maxFietsTotaal  = 1;
 // ── UTILS ─────────────────────────────────────────────────────────
 const parseCSV = txt =>
   Papa.parse(txt.trim(), { header:true, delimiter:';', skipEmptyLines:true }).data;
+
+// ── STAND-STILL (traffic_counter.html CSV) ────────────────────────
+// Een Stand-Still-telling is fundamenteel anders dan way-gebaseerde tellingen:
+// één GPS-punt, één tijdvenster, gesplitst per richting en voertuigtype.
+// Er is geen wayData/clusterLayers/dotLayers voor deze sid — alleen een marker.
+
+// Vehicle-lookup tolereert zowel v2.4-tekst ("Car") als oudere emoji-CSV's.
+const SS_VEHICLE_LOOKUP = {
+  '🚗':'car','car':'car',
+  '🚛':'truck','truck':'truck',
+  '🏍':'moto','motorcycle':'moto',
+  '🚲':'bike','bicycle':'bike',
+  '🚶':'ped','pedestrian':'ped'
+};
+const SS_TYPE_ORDER  = ['car','truck','moto','bike','ped'];
+const SS_TYPE_LABEL  = { car:'auto', truck:'vracht', moto:'motor', bike:'fiets', ped:'voetg.' };
+// Kleuren consistent met APP_CONFIG.transect zodat het visueel rijmt
+const SS_TYPE_COLOR  = { car:'#cc0000', truck:'#e07800', moto:'#e6b800', bike:'#7700cc', ped:'#d4007a' };
+
+// Parse traffic_counter.html CSV-export naar een gestructureerd object.
+// Bestand heeft drie secties: metadata key-value, samenvattingstabel, timestamp log.
+function parseStandStillCsv(text) {
+  const lines = text.split(/\r?\n/);
+  const meta = {};
+  const log = [];
+  // Summary wordt geïndexeerd op type-code (car/truck/...) → {a, b}
+  const summary = {};
+  SS_TYPE_ORDER.forEach(t => { summary[t] = { a:0, b:0 }; });
+  let dirA = '', dirB = '';
+  // States: 'meta' (key-value), 'summary' (na header met "Vehicle Type;"), 'log' (na "Time;Vehicle;Direction"), 'idle' (tussen secties)
+  let state = 'meta';
+
+  const splitRow = s => s.split(';');
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (!raw.trim()) { if (state !== 'log') state = 'idle'; continue; }
+    if (raw.startsWith('sep=')) continue;          // Excel separator hint
+    if (raw === 'Traffic Count Export') continue;  // Banner
+    const cells = splitRow(raw);
+
+    // Header van samenvattingstabel
+    if (cells[0] === 'Vehicle Type') {
+      // Eerste twee tellings-kolommen geven de richting-namen
+      dirA = (cells[1] || '').replace(/ counted$/, '').trim() || 'Direction A';
+      dirB = (cells[2] || '').replace(/ counted$/, '').trim() || 'Direction B';
+      state = 'summary';
+      continue;
+    }
+    // Header van timestamp-log
+    if (cells[0] === 'Timestamp Log') { state = 'idle'; continue; }
+    if (cells[0] === 'Time' && cells[1] === 'Vehicle' && cells[2] === 'Direction') {
+      state = 'log';
+      continue;
+    }
+
+    if (state === 'meta' || state === 'idle') {
+      // key-value: "GPS latitude;51.8514"  (de 3e cel is bij Extrapolation factor de uitleg)
+      if (cells.length >= 2) meta[cells[0]] = cells[1];
+      continue;
+    }
+
+    if (state === 'summary') {
+      if (cells[0] === 'TOTAL') { state = 'idle'; continue; }
+      const code = SS_VEHICLE_LOOKUP[ (cells[0] || '').toLowerCase() ] || SS_VEHICLE_LOOKUP[cells[0]];
+      if (code) {
+        summary[code] = { a: parseInt(cells[1]||'0',10)||0, b: parseInt(cells[2]||'0',10)||0 };
+      }
+      continue;
+    }
+
+    if (state === 'log') {
+      // ts ; vehicle ; direction
+      const ts   = (cells[0]||'').trim();
+      const vraw = (cells[1]||'').trim();
+      const draw = (cells[2]||'').trim();
+      const code = SS_VEHICLE_LOOKUP[vraw.toLowerCase()] || SS_VEHICLE_LOOKUP[vraw];
+      if (!ts || !code) continue;
+      const dir = (draw === dirA) ? 'a' : (draw === dirB) ? 'b' : null;
+      if (!dir) continue;
+      log.push({ ts, type: code, dir });
+    }
+  }
+
+  // Helpers om "2026-05-22 16:57:52" robuust te parsen
+  const parseDT = s => {
+    if (!s) return null;
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+    if (!m) return null;
+    return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]);
+  };
+
+  const start = parseDT(meta['Start time']);
+  const end   = parseDT(meta['End time']);
+  const durSec = (start && end) ? Math.max(0, Math.round((end - start)/1000)) : 0;
+
+  const lat = parseFloat(meta['GPS latitude']);
+  const lon = parseFloat(meta['GPS longitude']);
+  const accuracy = parseFloat(meta['GPS accuracy (m)']);
+  const gpsReliable = (meta['GPS reliable'] || '').toLowerCase().startsWith('yes');
+
+  // Extrapolatiefactor staat als "4.0079" in cel [1], met uitleg in cel [2]
+  const factor = parseFloat(meta['Extrapolation factor']);
+
+  return {
+    lat, lon,
+    accuracy: isNaN(accuracy) ? null : accuracy,
+    gpsReliable,
+    street:  meta['GPS street']  || '',
+    city:    meta['GPS city']    || '',
+    country: meta['GPS country'] || '',
+    notes:   meta['Location / Notes'] || '',
+    start, end, durSec,
+    factor: isNaN(factor) ? null : factor,
+    dirA, dirB,
+    summary,
+    log
+  };
+}
+
+// Bouw een compacte sessie-id uit start-time. Stabiel — herladen geeft zelfde id.
+function ssBuildSid(start) {
+  if (!(start instanceof Date) || isNaN(start)) return 'ss_' + Date.now();
+  const p = n => String(n).padStart(2,'0');
+  return 'ss_' + start.getFullYear() + p(start.getMonth()+1) + p(start.getDate())
+              + '_' + p(start.getHours()) + p(start.getMinutes()) + p(start.getSeconds());
+}
+
+async function loadStandStillCsv(file) {
+  const text = await file.text();
+  let data;
+  try { data = parseStandStillCsv(text); }
+  catch (err) { alert('Kan ' + file.name + ' niet lezen: ' + err.message); return; }
+
+  if (!data.start || isNaN(data.lat) || isNaN(data.lon)) {
+    alert(file.name + ': mist start-tijd of GPS-coördinaten.');
+    return;
+  }
+
+  const sid = ssBuildSid(data.start);
+  if (sessions[sid]) return;  // duplicate, stil overslaan
+
+  // Totalen voor stats + pin-grootte
+  const totalCount = SS_TYPE_ORDER.reduce((a,t)=>a+(data.summary[t].a + data.summary[t].b), 0);
+  const perHour = data.factor ? totalCount * data.factor : (data.durSec ? totalCount * 3600 / data.durSec : 0);
+  data.totalCount = totalCount;
+  data.perHour = perHour;
+
+  // Pseudo-meta zodat renderSessions/applySessionVisibility ermee kunnen werken
+  const pad = n => String(n).padStart(2,'0');
+  const dStr = data.start.getFullYear() + '-' + pad(data.start.getMonth()+1) + '-' + pad(data.start.getDate());
+  const tStr = pad(data.start.getHours()) + ':' + pad(data.start.getMinutes()) + ':' + pad(data.start.getSeconds());
+  const meta = {
+    sessie_id: sid,
+    teller: '',
+    datum: dStr,
+    start_tijd: tStr,
+    eind_tijd: data.end ? (pad(data.end.getHours())+':'+pad(data.end.getMinutes())+':'+pad(data.end.getSeconds())) : '',
+    app_type: 'standstill',
+    n_waarnemingen: totalCount
+  };
+  sessions[sid] = { meta, visible: true, appType: 'standstill' };
+  getSessionColor(sid);
+  standStillData[sid] = data;
+
+  // Pin-grootte: √-geschaald op passages/u, gecapt tussen 8 en 28 px radius
+  const r = Math.max(8, Math.min(28, 8 + Math.sqrt(perHour) * 1.2));
+  const color = getSessionColor(sid);
+
+  const marker = L.circleMarker([data.lat, data.lon], {
+    radius: r,
+    color: '#fff',
+    weight: 2,
+    fillColor: color,
+    fillOpacity: 0.75,
+    pane: 'clusters'
+  });
+  marker.bindTooltip(
+    (data.street || 'punt-telling') + ' · ' + Math.round(perHour) + '/u · ' + Math.round(data.durSec/60) + ' min',
+    { direction:'top' }
+  );
+  marker.on('click', () => openStandStillPopup(sid));
+  marker.addTo(map);
+  standStillMarkers[sid] = marker;
+
+  // Accuracy-ring als GPS dubieus
+  if (data.accuracy && data.accuracy >= 25) {
+    const ring = L.circle([data.lat, data.lon], {
+      radius: data.accuracy,
+      color: color, weight: 1.5, opacity: 0.6,
+      fillOpacity: 0, dashArray: '4 4',
+      interactive: false,
+      pane: 'clusters'
+    }).addTo(map);
+    standStillRings[sid] = ring;
+  }
+
+  renderSessions(); updateUI(); updateStats();
+
+  // Eerste sessie? Zoom erop in.
+  if (Object.keys(sessions).length === 1) {
+    map.setView([data.lat, data.lon], 17);
+  }
+}
+
+// Popup: header + samenvatting-tabel + timeline. Hergebruikt het bestaande
+// weekprofile-overlay-stramien (modal in een vaste positie) maar met eigen content.
+function openStandStillPopup(sid) {
+  const data = standStillData[sid]; if (!data) return;
+  const meta = sessions[sid].meta;
+
+  // Welke types komen voor? (lege types weglaten houdt grafiek leesbaar)
+  const presentTypes = SS_TYPE_ORDER.filter(t =>
+    (data.summary[t].a + data.summary[t].b) > 0
+  );
+
+  const totA = SS_TYPE_ORDER.reduce((a,t)=>a+data.summary[t].a, 0);
+  const totB = SS_TYPE_ORDER.reduce((a,t)=>a+data.summary[t].b, 0);
+  const tot  = totA + totB;
+  const fmtN = n => (n >= 100 ? Math.round(n) : Math.round(n*10)/10);
+
+  // Per-uur extrapolatie
+  const perH = data.factor || (data.durSec ? 3600/data.durSec : 0);
+  const aPerH = totA * perH, bPerH = totB * perH;
+
+  let tableHtml = '<table class="ss-tbl">';
+  tableHtml += '<tr><th></th><th>' + escapeHtml(data.dirA) + '</th><th>' + escapeHtml(data.dirB) + '</th><th>totaal</th></tr>';
+  presentTypes.forEach(t => {
+    const a = data.summary[t].a, b = data.summary[t].b;
+    tableHtml += '<tr>'
+      + '<td><span class="ss-swatch" style="background:'+SS_TYPE_COLOR[t]+'"></span>' + SS_TYPE_LABEL[t] + '</td>'
+      + '<td>' + a + '</td>'
+      + '<td>' + b + '</td>'
+      + '<td><b>' + (a+b) + '</b></td>'
+    + '</tr>';
+  });
+  tableHtml += '<tr class="ss-sum"><td>geteld</td><td>'+totA+'</td><td>'+totB+'</td><td><b>'+tot+'</b></td></tr>';
+  if (perH) {
+    tableHtml += '<tr class="ss-perh"><td>per uur</td><td>'+Math.round(aPerH)+'</td><td>'+Math.round(bPerH)+'</td><td><b>'+Math.round(aPerH+bPerH)+'</b></td></tr>';
+  }
+  tableHtml += '</table>';
+
+  const timelineSvg = renderStandStillTimeline(data, presentTypes);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'ss-overlay';
+  overlay.innerHTML =
+    '<div class="ss-modal">' +
+      '<div class="ss-head">' +
+        '<div class="ss-title">📍 ' + escapeHtml(data.street || 'punt-telling') +
+          (data.city ? ' <span class="ss-city">· '+escapeHtml(data.city)+'</span>' : '') +
+        '</div>' +
+        '<button class="ss-close" aria-label="sluiten">×</button>' +
+      '</div>' +
+      '<div class="ss-sub">' + escapeHtml(meta.datum) + ' · ' + escapeHtml(meta.start_tijd) +
+        ' – ' + escapeHtml(meta.eind_tijd || '?') +
+        ' · ' + Math.round(data.durSec/60) + ' min' +
+        (data.accuracy ? ' · GPS ±' + Math.round(data.accuracy) + 'm' + (data.gpsReliable ? '' : ' ⚠') : '') +
+      '</div>' +
+      (data.notes && data.notes !== 'n/a' ? '<div class="ss-notes">' + escapeHtml(data.notes) + '</div>' : '') +
+      tableHtml +
+      '<div class="ss-tl-title">Tijdreeks · passages per minuut</div>' +
+      timelineSvg +
+    '</div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelector('.ss-close').addEventListener('click', () => overlay.remove());
+}
+
+// Kleine HTML-escape voor user-input (street names, notes, richting-namen)
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// SVG-timeline: stacked bars per minuut, kleur per type.
+// X-as: minuten vanaf start_tijd. Y-as: aantal passages per minuut.
+function renderStandStillTimeline(data, presentTypes) {
+  if (!data.start || !data.end || data.log.length === 0) {
+    return '<div class="ss-tl-empty">Geen timestamp-log beschikbaar</div>';
+  }
+
+  // Bucket-keuze: target ~30 buckets, afgerond op nette eenheden.
+  const durMin = Math.max(1, data.durSec/60);
+  let bucketSec = 60;  // default 1 min
+  if (durMin > 90)       bucketSec = 300;  // 5 min
+  else if (durMin > 45)  bucketSec = 120;  // 2 min
+  else if (durMin > 25)  bucketSec = 60;   // 1 min
+  else if (durMin > 10)  bucketSec = 30;   // 30 s
+  else                   bucketSec = 30;   // 30 s ook bij heel korte tellingen
+
+  const nBuckets = Math.max(1, Math.ceil(data.durSec / bucketSec));
+  // buckets[bi] = { type → count }
+  const buckets = [];
+  for (let i = 0; i < nBuckets; i++) {
+    const o = {}; presentTypes.forEach(t => o[t] = 0); buckets.push(o);
+  }
+
+  // Plaats log-events in buckets. Timestamps zijn "HH:MM:SS" relatief aan start-datum.
+  const startMs = data.start.getTime();
+  data.log.forEach(ev => {
+    const m = ev.ts.match(/^(\d{2}):(\d{2}):(\d{2})/);
+    if (!m) return;
+    // Combineer met start-datum (en rol over middernacht indien nodig)
+    let t = new Date(data.start);
+    t.setHours(+m[1], +m[2], +m[3], 0);
+    if (t < data.start) t = new Date(t.getTime() + 86400000); // dag erbij
+    const offset = (t.getTime() - startMs) / 1000;
+    if (offset < 0 || offset > data.durSec + bucketSec) return;
+    const bi = Math.min(nBuckets-1, Math.floor(offset / bucketSec));
+    if (buckets[bi][ev.type] !== undefined) buckets[bi][ev.type]++;
+  });
+
+  // Y-max: hoogste stack-totaal
+  const stackTotals = buckets.map(b => presentTypes.reduce((a,t)=>a+b[t], 0));
+  const yMax = Math.max(1, ...stackTotals);
+
+  // SVG-layout
+  const W = 540, H = 160, padL = 32, padR = 8, padT = 8, padB = 22;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const barW = Math.max(1, plotW / nBuckets - 1);
+  const xStep = plotW / nBuckets;
+
+  // Y-as ticks: nette gehele waarden
+  const niceMax = yMax <= 5 ? yMax : Math.ceil(yMax / 5) * 5;
+  const tickCount = Math.min(5, niceMax);
+  const yTicks = [];
+  for (let i = 0; i <= tickCount; i++) {
+    const v = Math.round(niceMax * i / tickCount);
+    yTicks.push(v);
+  }
+
+  // X-as ticks: ~5 labels, op nette tijd-eenheden
+  const tickEvery = Math.max(1, Math.ceil(nBuckets / 5));
+  const xLabels = [];
+  for (let bi = 0; bi <= nBuckets; bi += tickEvery) {
+    const t = new Date(startMs + bi * bucketSec * 1000);
+    const pad = n => String(n).padStart(2,'0');
+    xLabels.push({ x: padL + bi * xStep, label: pad(t.getHours())+':'+pad(t.getMinutes()) });
+  }
+
+  let svg = '<svg class="ss-tl" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">';
+
+  // Grid + Y-labels
+  yTicks.forEach(v => {
+    const y = padT + plotH - (v / niceMax) * plotH;
+    svg += '<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+y+'" y2="'+y+'" stroke="#e5e5e0" stroke-width="1"/>';
+    svg += '<text x="'+(padL-4)+'" y="'+(y+3)+'" text-anchor="end" font-size="9" fill="#777">'+v+'</text>';
+  });
+
+  // Bars: stacked per type
+  buckets.forEach((b, bi) => {
+    let yCursor = padT + plotH;
+    presentTypes.forEach(t => {
+      const v = b[t];
+      if (v <= 0) return;
+      const h = (v / niceMax) * plotH;
+      const x = padL + bi * xStep + 0.5;
+      yCursor -= h;
+      svg += '<rect x="'+x+'" y="'+yCursor+'" width="'+barW+'" height="'+h+'" '
+           + 'fill="'+SS_TYPE_COLOR[t]+'" opacity="0.85">'
+           + '<title>'+SS_TYPE_LABEL[t]+': '+v+'</title></rect>';
+    });
+  });
+
+  // X-as
+  svg += '<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+(padT+plotH)+'" y2="'+(padT+plotH)+'" stroke="#999"/>';
+  xLabels.forEach(l => {
+    svg += '<text x="'+l.x+'" y="'+(H-6)+'" text-anchor="middle" font-size="9" fill="#777">'+l.label+'</text>';
+  });
+
+  // Legenda (alleen aanwezige types)
+  const legX = padL, legY = padT + 4;
+  let legCursor = 0;
+  presentTypes.forEach(t => {
+    svg += '<rect x="'+(legX+legCursor)+'" y="'+legY+'" width="10" height="10" fill="'+SS_TYPE_COLOR[t]+'"/>';
+    svg += '<text x="'+(legX+legCursor+13)+'" y="'+(legY+9)+'" font-size="10" fill="#444">'+SS_TYPE_LABEL[t]+'</text>';
+    legCursor += 13 + (SS_TYPE_LABEL[t].length * 6) + 8;
+  });
+
+  svg += '</svg>';
+  return svg;
+}
 
 function loadTransectZip(sid, sm, telCSV, gpsCSV) {
   sessions[sid] = { meta:sm, visible:true, appType:'transect' };
@@ -2191,6 +2668,9 @@ async function loadZip(file) {
   const sid=sm.sessie_id;
   if (sessions[sid]) return;
 
+  // ── Correctie-tool: bewaar originele File + alle telregels (incl. unsnapped) ──
+  originalFile[sid] = file;
+
   const appType = (sm.app_type||'').trim() === 'auto' ? 'auto'
                 : (sm.app_type||'').trim() === 'transect' ? 'transect'
                 : (sm.app_type||'').trim() === 'pocket' ? 'pocket'
@@ -2325,6 +2805,9 @@ async function loadZip(file) {
   if (telCSV) {
     const allRows=parseCSV(telCSV);
     const datum=fmtDatum(sm.datum, sm.start_tijd);
+    // ── Correctie-tool: tag elke regel met origineel index voor latere export ──
+    allRows.forEach(function(r, i){ r._originalIdx = i; });
+    allTelregels[sid] = allRows;
     telData[sid]=allRows.filter(r=>r.snapped==='1'||r.snapped===1);
     dotLayers[sid]={};
     allRows.forEach(r=>{
@@ -2338,6 +2821,9 @@ async function loadZip(file) {
         fillColor:cfg.colors[type], fillOpacity: snapped ? 0.85 : 0.35,
       }).bindTooltip(`${type}${snapped?'':' ⚠'} · ${cleanNaam(r.straat||r.naam)} · ${datum}`,
         {direction:'top',offset:[0,-4]});
+      // ── Correctie-tool: koppel circleMarker aan zijn telregel ──
+      m._telregel = r;
+      m._sid = sid;
       dotLayers[sid][type].push(m);
       if (dotVisible[type]) m.addTo(map);
     });
@@ -2364,6 +2850,7 @@ function renderSessions() {
                    : s.appType==='capaciteit'?'🅿'
                    : s.appType==='transect'?'🚶'
                    : s.appType==='pocket'?'📷'
+                   : s.appType==='standstill'?'📍'
                    : '🚲';
     const color = SESSION_COLORS[sid] || '#888';
     const teller = s.meta.teller ? s.meta.teller : '';
@@ -2400,6 +2887,14 @@ function applySessionVisibility(sid) {
   const s = sessions[sid]; if (!s) return;
   const row = document.querySelector('.session-row[data-sid="'+sid+'"]');
   if (row) row.classList.toggle('off', !s.visible);
+
+  // Stand-still: alleen marker + accuracy-ring. Geen wayData, geen dots, geen clusters.
+  if (s.appType === 'standstill') {
+    if (standStillMarkers[sid]) s.visible ? standStillMarkers[sid].addTo(map) : map.removeLayer(standStillMarkers[sid]);
+    if (standStillRings[sid])   s.visible ? standStillRings[sid].addTo(map)   : map.removeLayer(standStillRings[sid]);
+    return;
+  }
+
   if (gpsLayers[sid]) s.visible ? gpsLayers[sid].addTo(map) : map.removeLayer(gpsLayers[sid]);
   if (capLayers[sid]) capLayers[sid].forEach(m => s.visible ? m.addTo(map) : map.removeLayer(m));
   const cfg = APP_CONFIG[s.appType] || APP_CONFIG.fiets;
@@ -2558,6 +3053,16 @@ function resetAll() {
   Object.keys(capTelData).forEach(function(k){ delete capTelData[k]; });
   Object.keys(globalPolyMap).forEach(function(k){ delete globalPolyMap[k]; });
   Object.keys(SESSION_COLORS).forEach(function(k){ delete SESSION_COLORS[k]; });
+  // ── Correctie-tool state ──
+  if (editModeActive) { editModeActive = false;
+    const eb = document.getElementById('edit-toggle'); if (eb) eb.classList.remove('active'); }
+  Object.keys(editMarkers).forEach(function(k){
+    editMarkers[k].forEach(function(em){ map.removeLayer(em.marker); });
+    delete editMarkers[k];
+  });
+  Object.keys(originalFile).forEach(function(k){ delete originalFile[k]; });
+  Object.keys(allTelregels).forEach(function(k){ delete allTelregels[k]; });
+  updateCorrUi();
   SESSION_COLOR_IDX = 0;
   combinedClusterLayer = [];
   capSpotLayers = [];
@@ -2597,8 +3102,28 @@ function sessionHour(sid) {
   return m ? parseInt(m[1]) : null;
 }
 
-function sessionInWindow(sid) {
-  if (!timeFilterActive) return true;
+// Dag-van-de-week uit sessie.meta.datum (YYYY-MM-DD of YYYYMMDD).
+// Returns 0=zo, 1=ma, ..., 6=za — of null als parsen faalt.
+function sessionDow(sid) {
+  const d = sessions[sid]?.meta?.datum || '';
+  let m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) m = d.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (!m) return null;
+  const dt = new Date(+m[1], +m[2]-1, +m[3]);
+  return isNaN(dt) ? null : dt.getDay();
+}
+
+function sessionInDayFilter(sid) {
+  if (currentDayFilter === 'all') return true;
+  const dow = sessionDow(sid);
+  if (dow === null) return true;  // onbekende datum → niet wegfilteren
+  if (currentDayFilter === 'weekday')  return dow >= 1 && dow <= 5;
+  if (currentDayFilter === 'saturday') return dow === 6;
+  if (currentDayFilter === 'sunday')   return dow === 0;
+  return true;
+}
+
+function sessionInTimeWindow(sid) {
   const h = sessionHour(sid);
   if (h === null) return true;
   const lo = (currentTimeHour - 1 + 24) % 24;
@@ -2606,6 +3131,11 @@ function sessionInWindow(sid) {
   // Venster: lo:00 – hi:59 (3 uur breed)
   if (lo <= hi) return h >= lo && h <= hi;
   return h >= lo || h <= hi; // over middernacht
+}
+
+function sessionInWindow(sid) {
+  if (!timeFilterActive) return true;
+  return sessionInTimeWindow(sid) && sessionInDayFilter(sid);
 }
 
 function applyTimeFilter() {
@@ -2619,6 +3149,12 @@ function applyTimeFilter() {
   Object.keys(sessions).forEach(function(sid) {
     const inWin = sessionInWindow(sid);
     sessions[sid].visible = inWin;
+    // Stand-still: alleen marker + ring
+    if (sessions[sid].appType === 'standstill') {
+      if (standStillMarkers[sid]) inWin ? standStillMarkers[sid].addTo(map) : map.removeLayer(standStillMarkers[sid]);
+      if (standStillRings[sid])   inWin ? standStillRings[sid].addTo(map)   : map.removeLayer(standStillRings[sid]);
+      return;
+    }
     // GPS
     if (gpsLayers[sid]) inWin ? gpsLayers[sid].addTo(map) : map.removeLayer(gpsLayers[sid]);
     // Cap layers
@@ -2699,6 +3235,16 @@ document.getElementById('time-slider').addEventListener('input', function() {
   applyTimeFilter();
 });
 
+// Dag-filter pills: één-actief, applyTimeFilter herevalueert venster
+document.getElementById('day-pills').addEventListener('click', function(e) {
+  const btn = e.target.closest('.day-pill'); if (!btn) return;
+  currentDayFilter = btn.dataset.day;
+  this.querySelectorAll('.day-pill').forEach(function(b) {
+    b.classList.toggle('active', b === btn);
+  });
+  if (timeFilterActive) applyTimeFilter();
+});
+
 // Timebar toggle: knop in de sidebar
 function toggleTimeFilter(active) {
   timeFilterActive = active;
@@ -2710,6 +3256,11 @@ function toggleTimeFilter(active) {
     // Alles weer zichtbaar
     Object.keys(sessions).forEach(function(sid) {
       sessions[sid].visible = true;
+      if (sessions[sid].appType === 'standstill') {
+        if (standStillMarkers[sid]) standStillMarkers[sid].addTo(map);
+        if (standStillRings[sid])   standStillRings[sid].addTo(map);
+        return;
+      }
       if (gpsLayers[sid]) gpsLayers[sid].addTo(map);
       if (capLayers[sid]) capLayers[sid].forEach(function(m){ m.addTo(map); });
       const cfg = APP_CONFIG[sessions[sid].appType] || APP_CONFIG.fiets;
@@ -2745,6 +3296,9 @@ function updateUI() {
   document.getElementById('legend-auto').style.display   = hasAuto ?'block':'none';
   document.getElementById('pill-fiets').style.display    = hasFiets?'block':'none';
   document.getElementById('pill-bezet').style.display    = hasAuto ?'block':'none';
+
+  // Correctie-groep: alleen bij auto/fiets sessies (die hebben snap-issues)
+  document.getElementById('grp-correctie').style.display = (hasFiets||hasAuto) ?'':'none';
 }
 
 // ── STATS ─────────────────────────────────────────────────────────
@@ -2765,15 +3319,727 @@ function updateStats() {
   document.getElementById('s-bezet').textContent=totBezet;
 }
 
+// ════════════════════════════════════════════════════════════════════
+// ── CORRECTIE-TOOL ──────────────────────────────────────────────────
+// Handmatige correctie van foutief gesnapte waarnemingen.
+// Werkt op auto/fiets sessies. Past lat_marker/lon_marker/osm_way_id/
+// straat/zijde/hdg_osm/hdg_gebruikt aan en zet manually_corrected=1.
+// Export herbouwt _telregels.csv + _straten.csv, laat .gpx/.png/.gps
+// /.netwerk/.sessie ongemoeid (JSZip behoudt binaire bytes).
+// ════════════════════════════════════════════════════════════════════
+
+// State
+const originalFile     = {};   // sid → File (origineel ZIP-blob)
+const allTelregels     = {};   // sid → ALL parsed rows (snapped + unsnapped)
+const editMarkers      = {};   // sid → [{ marker, row, type }]
+let   editModeActive   = false;
+
+// CSS injectie voor de way-keuze popup
+(function injectCorrCss(){
+  const css = `
+    .corr-edit-icon {
+      width:14px; height:14px; border-radius:50%;
+      box-shadow: 0 0 6px rgba(0,0,0,0.6);
+      cursor: move;
+      transform: translate(-50%,-50%);
+      box-sizing: border-box;
+    }
+    .corr-edit-icon.corrected {
+      box-shadow: 0 0 0 2px #ff9933, 0 0 8px rgba(255,153,51,0.7);
+    }
+    .corr-popup .leaflet-popup-content-wrapper {
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    }
+    .corr-popup .leaflet-popup-tip { background: var(--panel); }
+    .corr-popup .leaflet-popup-close-button { color: var(--muted); }
+    .corr-popup-body { font-family: 'Courier New', monospace; font-size: 12px; min-width: 220px; }
+    .corr-popup-body .corr-title {
+      font-size: 10px; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.08em; margin-bottom: 6px;
+    }
+    .corr-popup-body .corr-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px; margin: 3px 0;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; cursor: pointer;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .corr-popup-body .corr-row:hover {
+      border-color: var(--accent); background: rgba(74,158,255,0.08);
+    }
+    .corr-popup-body .corr-row .name { flex:1; color: var(--text); }
+    .corr-popup-body .corr-row .dist { color: var(--muted); font-size: 11px; }
+    .corr-popup-body .corr-cancel {
+      display: block; width: 100%; text-align: center;
+      padding: 5px; margin-top: 6px; cursor: pointer;
+      color: var(--muted); font-size: 11px; background: none;
+      border: 1px solid var(--border); border-radius: 4px;
+      font-family: inherit;
+    }
+    .corr-popup-body .corr-cancel:hover { color: var(--text); border-color: var(--text); }
+    .corr-popup-body .corr-swap {
+      display: block; width: 100%; text-align: center;
+      padding: 7px; margin: 4px 0 6px 0; cursor: pointer;
+      color: var(--text); font-size: 12px; font-weight: bold;
+      background: rgba(255,153,51,0.12);
+      border: 1px solid #ff9933; border-radius: 4px;
+      font-family: inherit;
+    }
+    .corr-popup-body .corr-swap:hover { background: rgba(255,153,51,0.25); }
+    .corr-popup-body .corr-row.current { border-color: var(--accent); }
+
+    /* Hover-doorkijk: zodra de cursor op een way-keuze staat dimt het hele
+       popup-frame, zodat de oranje highlight op de kaart eronder zichtbaar
+       blijft. Mouse-leave → terug naar volledig. */
+    .corr-popup .leaflet-popup-content-wrapper,
+    .corr-popup .leaflet-popup-tip {
+      transition: opacity 0.15s ease;
+    }
+    .corr-popup:has(.corr-row:hover) .leaflet-popup-content-wrapper,
+    .corr-popup:has(.corr-row:hover) .leaflet-popup-tip {
+      opacity: 0.2;
+    }
+  `;
+  const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
+})();
+
+// ── Geometrie helpers ───────────────────────────────────────────────
+
+// Afstand (m) loodrecht op de way-as die we toepassen op gecorrigeerde
+// markers, zodat ze visueel in lijn liggen met de niet-gecorrigeerde
+// punten (die door TrafficCounterSuite ook al uit de as worden geplaatst).
+const OFFSET_M = 4;
+
+// Bearing in graden, 0=N, met de klok mee. Voor een korte segmentafstand
+// volstaat de Cartesische benadering (lat≈constant binnen één stad).
+function bearingDeg(lat1, lon1, lat2, lon2) {
+  const φ1 = lat1*Math.PI/180, φ2 = lat2*Math.PI/180;
+  const Δλ = (lon2-lon1)*Math.PI/180;
+  const y = Math.sin(Δλ)*Math.cos(φ2);
+  const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return ((Math.atan2(y, x)*180/Math.PI) + 360) % 360;
+}
+
+// Verplaats een lat/lon punt over een bepaalde afstand in een gegeven
+// bearing. Haversine forward, geschikt voor kleine afstanden (≤100m).
+function movePoint(lat, lon, bearingDegree, distM) {
+  const R = 6371000;
+  const br = bearingDegree * Math.PI / 180;
+  const φ1 = lat * Math.PI / 180;
+  const λ1 = lon * Math.PI / 180;
+  const d = distM / R;
+  const φ2 = Math.asin(Math.sin(φ1)*Math.cos(d) + Math.cos(φ1)*Math.sin(d)*Math.cos(br));
+  const λ2 = λ1 + Math.atan2(Math.sin(br)*Math.sin(d)*Math.cos(φ1),
+                              Math.cos(d) - Math.sin(φ1)*Math.sin(φ2));
+  return { lat: φ2 * 180/Math.PI, lon: λ2 * 180/Math.PI };
+}
+
+// Bereken de marker-positie: snap-punt op way-as + OFFSET_M loodrecht
+// naar de side-kant. R = +90° van travel-frame way-richting, L = -90°.
+function offsetMarkerPos(snap) {
+  const perpBearing = snap.zijde === 'R'
+    ? (snap.segBearing + 90 + 360) % 360
+    : (snap.segBearing - 90 + 360) % 360;
+  return movePoint(snap.snapLat, snap.snapLon, perpBearing, OFFSET_M);
+}
+
+// Snap sleep-positie op gekozen way + bereken zijde t.o.v. rijrichting.
+// Cross-product van segment-richting × (snap→drag) bepaalt L/R t.o.v.
+// way-orientatie; daarna evt. flip als surveyor tégen way-richting in liep.
+function snapAndSideOnWay(dragLat, dragLon, geometry, travelBearingDeg) {
+  if (!geometry || geometry.length < 2) return null;
+  const LAT_M = 111320;
+  const LON_M = 111320 * Math.cos(geometry[0][0] * Math.PI / 180);
+  const px = dragLon * LON_M, py = dragLat * LAT_M;
+
+  let best = null;
+  for (let i = 0; i < geometry.length - 1; i++) {
+    const ax = geometry[i][1]   * LON_M, ay = geometry[i][0]   * LAT_M;
+    const bx = geometry[i+1][1] * LON_M, by = geometry[i+1][0] * LAT_M;
+    const dx = bx - ax, dy = by - ay, len2 = dx*dx + dy*dy;
+    if (len2 === 0) continue;
+    const t = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / len2));
+    const sx = ax + t*dx, sy = ay + t*dy;
+    const d  = Math.hypot(px - sx, py - sy);
+    if (!best || d < best.dist) {
+      // cross > 0 → drag-punt links van segment-richting (math-conventie, y omhoog)
+      const cross = dx*(py - ay) - dy*(px - ax);
+      best = {
+        dist: d,
+        segIdx: i,
+        snapLat: sy / LAT_M,
+        snapLon: sx / LON_M,
+        cross: cross,
+        segBearing: bearingDeg(geometry[i][0], geometry[i][1],
+                               geometry[i+1][0], geometry[i+1][1])
+      };
+    }
+  }
+  if (!best) return null;
+
+  const sideInWayFrame = best.cross > 0 ? 'L' : 'R';
+
+  // Liep surveyor mét of tegen de way-knoop-volgorde in?
+  let sideInTravelFrame = sideInWayFrame;
+  let hdgOsmInTravelDir = best.segBearing;
+  if (isFinite(travelBearingDeg)) {
+    const diff = ((travelBearingDeg - best.segBearing + 540) % 360) - 180; // -180..180
+    if (Math.abs(diff) >= 90) {
+      // Tegen way-richting → flip side + flip way-bearing
+      sideInTravelFrame = sideInWayFrame === 'L' ? 'R' : 'L';
+      hdgOsmInTravelDir = (best.segBearing + 180) % 360;
+    }
+  }
+
+  return {
+    snapLat:    best.snapLat,
+    snapLon:    best.snapLon,
+    segIdx:     best.segIdx,
+    distM:      best.dist,
+    zijde:      sideInTravelFrame,
+    hdg_osm:    Math.round(hdgOsmInTravelDir),
+    segBearing: hdgOsmInTravelDir         // way-richting in travel-frame (na flip),
+                                          // gebruikt door applyCorrection voor 4m offset
+  };
+}
+
+// Vind de N dichtstbijzijnde ways uit wayData, gededupliceerd op wayId.
+// Returnt array van { key, wayId, name, geometry, dist }.
+function findNearestWays(lat, lon, n, maxDistM) {
+  maxDistM = maxDistM || 100;
+  const byWayId = {};
+  Object.keys(wayData).forEach(function(k) {
+    const wd = wayData[k];
+    if (!wd.geometry || wd.geometry.length < 2) return;
+    // Skip degenerate placeholder-geometries [[la,lo],[la,lo]]
+    if (wd.geometry.length === 2 &&
+        wd.geometry[0][0] === wd.geometry[1][0] &&
+        wd.geometry[0][1] === wd.geometry[1][1]) return;
+    const d = nearestWayDist(lat, lon, wd.geometry);
+    if (d > maxDistM) return;
+    const existing = byWayId[wd.wayId];
+    if (!existing || d < existing.dist) {
+      byWayId[wd.wayId] = {
+        key: k, wayId: wd.wayId, name: wd.osmName || wd.highway || '?',
+        geometry: wd.geometry, dist: d
+      };
+    }
+  });
+  return Object.values(byWayId).sort((a,b)=>a.dist-b.dist).slice(0, n);
+}
+
+// Beste schatting van rijrichting van surveyor voor een telregel.
+function travelBearingForRow(r) {
+  const candidates = [r.hdg_gps, r.hdg_kompas, r.hdg_gebruikt, r.hdg_osm];
+  for (let i = 0; i < candidates.length; i++) {
+    const v = parseFloat(candidates[i]);
+    if (isFinite(v) && v !== 0) return v;  // 0 = typisch missing/stationair
+  }
+  return NaN;
+}
+
+// ── Edit mode toggle ────────────────────────────────────────────────
+
+function makeEditIcon(typeColor, isCorrected) {
+  return L.divIcon({
+    className: '',
+    html: '<div class="corr-edit-icon' + (isCorrected?' corrected':'') + '" '
+        + 'style="background:' + typeColor + ';border:2px solid '
+        + (isCorrected?'#ff9933':'#fff') + '"></div>',
+    iconSize: [14,14], iconAnchor: [7,7]
+  });
+}
+
+function toggleEditMode() {
+  editModeActive = !editModeActive;
+  const btn = document.getElementById('edit-toggle');
+  if (editModeActive) {
+    btn.classList.add('active');
+    enterEditMode();
+  } else {
+    btn.classList.remove('active');
+    exitEditMode();
+  }
+  updateCorrUi();
+}
+
+function enterEditMode() {
+  // Voor elke auto/fiets sessie: verberg circleMarkers, plaats sleepbare markers
+  Object.keys(sessions).forEach(function(sid){
+    const s = sessions[sid];
+    if (!s.visible) return;
+    if (s.appType !== 'auto' && s.appType !== 'fiets') return;
+    editMarkers[sid] = [];
+    const cfg = APP_CONFIG[s.appType] || APP_CONFIG.auto;
+
+    // Verberg alle circle-markers van deze sessie
+    Object.values(dotLayers[sid] || {}).forEach(function(arr){
+      arr.forEach(function(m){ map.removeLayer(m); });
+    });
+
+    // Sleepbare markers — alleen voor SNAPPED records (anders is er geen
+    // betekenisvolle "huidige plek" om vanaf te slepen; user kan altijd
+    // alsnog corrigeren door drag-target te kiezen)
+    (allTelregels[sid] || []).forEach(function(r){
+      const snapped = (r.snapped === '1' || r.snapped === 1);
+      if (!snapped) return;
+      const la = parseFloat(r.lat_marker), lo = parseFloat(r.lon_marker);
+      if (isNaN(la) || isNaN(lo)) return;
+      const type  = (r.type||'').toLowerCase();
+      const color = (cfg.colors && cfg.colors[type]) || '#888';
+      const corrected = (r.manually_corrected === '1' || r.manually_corrected === 1);
+      const m = L.marker([la,lo], {
+        draggable: true,
+        icon: makeEditIcon(color, corrected),
+        zIndexOffset: 1000
+      });
+      m._origLatLng = L.latLng(la, lo);
+      m._row = r;
+      m._sid = sid;
+      m._typeColor = color;
+      // Drag vs click: dragstart zet vlag; click controleert vlag en negeert
+      // de click die Leaflet na een dragend ook nog vuurt.
+      m.on('dragstart', function(){ m._wasDragged = true; });
+      m.on('dragend',   function(){ handleDragEnd(m); });
+      m.on('click',     function(){
+        if (m._wasDragged) { m._wasDragged = false; return; }
+        showWayChoicePopup(m, m.getLatLng(), null);   // null = pure klik, geen drag
+      });
+      m.addTo(map);
+      editMarkers[sid].push({ marker: m, row: r });
+    });
+  });
+}
+
+function exitEditMode() {
+  clearHoverHL();
+  // Verwijder edit markers, herzet circle-markers op (eventueel geüpdate) posities
+  Object.keys(editMarkers).forEach(function(sid){
+    editMarkers[sid].forEach(function(em){ map.removeLayer(em.marker); });
+    delete editMarkers[sid];
+  });
+  // Sync circle-marker posities met (mogelijk gewijzigde) telregel data
+  Object.keys(dotLayers).forEach(function(sid){
+    Object.values(dotLayers[sid] || {}).forEach(function(arr){
+      arr.forEach(function(m){
+        const r = m._telregel; if (!r) return;
+        const la = parseFloat(r.lat_marker), lo = parseFloat(r.lon_marker);
+        if (!isNaN(la) && !isNaN(lo)) m.setLatLng([la, lo]);
+        // Update tooltip wanneer straat veranderd is
+        if (m.getTooltip) {
+          const tip = m.getTooltip();
+          if (tip) {
+            const type = (r.type||'').toLowerCase();
+            const datum = sessions[sid] ? fmtDatum(sessions[sid].meta.datum,
+                                                   sessions[sid].meta.start_tijd) : '';
+            tip.setContent((type) + ' · ' + cleanNaam(r.straat||r.naam||'') + ' · ' + datum);
+          }
+        }
+        // Herbevestig markers aan kaart (visibility hangt af van dotVisible)
+        const type = (r.type||'').toLowerCase();
+        if (dotVisible[type] && sessions[sid] && sessions[sid].visible) m.addTo(map);
+      });
+    });
+  });
+  // Hertekenenclusters voor alle sessies
+  Object.keys(sessions).forEach(function(sid){ drawClusters(sid); });
+  updateStats();
+}
+
+// ── Drag handler + way-keuze popup ──────────────────────────────────
+
+// Tijdelijke polyline om de way onder de muis te highlighten in de popup.
+let _hoverHL = null;
+function clearHoverHL() {
+  if (_hoverHL) { map.removeLayer(_hoverHL); _hoverHL = null; }
+}
+function showHoverHL(geometry) {
+  clearHoverHL();
+  if (!geometry || geometry.length < 2) return;
+  _hoverHL = L.polyline(geometry, {
+    color: '#ff9933', weight: 6, opacity: 0.85,
+    interactive: false, pane: 'overlayPane'
+  }).addTo(map);
+}
+
+function handleDragEnd(marker) {
+  const dragLL = marker.getLatLng();
+  const candidates = findNearestWays(dragLL.lat, dragLL.lng, 3, 100);
+  if (!candidates.length) {
+    // Niets binnen 100m → terugzetten
+    marker.setLatLng(marker._origLatLng);
+    alert('Geen way binnen 100m. Punt teruggezet.');
+    return;
+  }
+  showWayChoicePopup(marker, dragLL, candidates);
+}
+
+// Popup voor zowel drag-actie als pure klik op een marker.
+//   candidates === null → klik-modus: lookup vanaf huidige marker-positie,
+//                         huidige way wordt bovenaan getoond met "(huidig)".
+//   candidates array    → drag-modus: gebruikt de doorgegeven kandidaten.
+function showWayChoicePopup(marker, anchorLL, candidates) {
+  const r = marker._row;
+  const travelBearing = travelBearingForRow(r);
+  const isDragMode = !!candidates;
+
+  if (!candidates) {
+    candidates = findNearestWays(anchorLL.lat, anchorLL.lng, 3, 100);
+    // Zorg dat de huidige way altijd bovenaan staat, ook als 'ie buiten 100m valt
+    const curWid = r.osm_way_id;
+    const idx = candidates.findIndex(function(c){ return String(c.wayId) === String(curWid); });
+    if (idx > 0) {
+      const cur = candidates.splice(idx, 1)[0];
+      candidates.unshift(cur);
+    } else if (idx === -1 && curWid) {
+      const wd = wayData[wkey(curWid, 0)];
+      if (wd && wd.geometry && wd.geometry.length >= 2) {
+        candidates.unshift({
+          wayId: curWid,
+          name: wd.osmName || r.straat || '?',
+          geometry: wd.geometry,
+          dist: nearestWayDist(anchorLL.lat, anchorLL.lng, wd.geometry)
+        });
+        candidates = candidates.slice(0, 3);
+      }
+    }
+  }
+
+  const choices = candidates.map(function(c){
+    return { cand: c, snap: snapAndSideOnWay(anchorLL.lat, anchorLL.lng, c.geometry, travelBearing) };
+  });
+
+  const body = document.createElement('div');
+  body.className = 'corr-popup-body';
+
+  const titleTxt = isDragMode
+    ? 'Op welke way hoort dit punt?'
+    : ('Punt #' + (r.nr || '?') + ' · ' + (r.zijde || '?') + ' op ' + (r.osm_way_id || '?'));
+  body.innerHTML = '<div class="corr-title">' + escapeHtml(titleTxt) + '</div>';
+
+  // Swap-knop bovenaan (alleen klik-modus — bij drag is L/R net opnieuw berekend)
+  if (!isDragMode) {
+    const curSide = r.zijde || 'R';
+    const swap = document.createElement('button');
+    swap.className = 'corr-swap';
+    swap.textContent = '⇄ Wissel zijde: ' + curSide + ' → ' + (curSide === 'R' ? 'L' : 'R');
+    swap.onclick = function(){
+      clearHoverHL();
+      applySideSwap(marker);
+      marker.closePopup();
+    };
+    body.appendChild(swap);
+
+    const sep = document.createElement('div');
+    sep.className = 'corr-title';
+    sep.style.marginTop = '8px';
+    sep.textContent = 'Of kies een ander wegvak:';
+    body.appendChild(sep);
+  }
+
+  choices.forEach(function(ch){
+    const row = document.createElement('div');
+    row.className = 'corr-row';
+    const isCurrent = !isDragMode && String(ch.cand.wayId) === String(r.osm_way_id);
+    if (isCurrent) row.classList.add('current');
+    const sideTxt = ch.snap ? ' · ' + ch.snap.zijde : '';
+    const curTag = isCurrent ? ' <span style="color:var(--accent);font-size:10px">(huidig)</span>' : '';
+    row.innerHTML =
+      '<div class="name">' + escapeHtml(ch.cand.name) + curTag +
+      '<span style="color:var(--muted);font-size:10px"> · ' + ch.cand.wayId + sideTxt + '</span></div>' +
+      '<div class="dist">' + ch.cand.dist.toFixed(1) + ' m</div>';
+    row.addEventListener('mouseenter', function(){ showHoverHL(ch.cand.geometry); });
+    row.addEventListener('mouseleave', clearHoverHL);
+    row.onclick = function(){
+      clearHoverHL();
+      applyCorrection(marker, ch.cand, ch.snap);
+      marker.closePopup();
+    };
+    body.appendChild(row);
+  });
+
+  const cancel = document.createElement('button');
+  cancel.className = 'corr-cancel';
+  cancel.textContent = isDragMode
+    ? '× annuleren (terug naar oorspronkelijke plek)'
+    : '× sluiten';
+  cancel.onclick = function(){
+    clearHoverHL();
+    if (isDragMode) marker.setLatLng(marker._origLatLng);
+    marker.closePopup();
+  };
+  body.appendChild(cancel);
+
+  marker.unbindPopup();
+  marker.bindPopup(body, { className: 'corr-popup', closeButton: true, autoClose: true,
+                           closeOnEscapeKey: true, closeOnClick: false });
+  marker.on('popupclose', clearHoverHL);
+  marker.openPopup();
+}
+
+function applyCorrection(marker, chosen, snap) {
+  if (!snap) {
+    marker.setLatLng(marker._origLatLng);
+    return;
+  }
+  const r = marker._row;
+
+  // 4m offset loodrecht op de way-as, naar de side-kant.
+  const mPos = offsetMarkerPos(snap);
+
+  // Update telregel in-place
+  r.lat_marker = mPos.lat.toFixed(6);
+  r.lon_marker = mPos.lon.toFixed(6);
+  r.osm_way_id = chosen.wayId;
+  r.straat     = chosen.name;
+  r.zijde      = snap.zijde;
+  r.hdg_osm    = String(snap.hdg_osm);
+  r.hdg_gebruikt = String(snap.hdg_osm);
+  r.snapped    = '1';
+  r.manually_corrected = '1';
+
+  // Marker visueel updaten
+  marker.setLatLng([mPos.lat, mPos.lon]);
+  marker._origLatLng = L.latLng(mPos.lat, mPos.lon);
+  marker.setIcon(makeEditIcon(marker._typeColor, true));
+
+  // Clusters voor deze sessie hertekenen (telData wijst naar dezelfde rows)
+  drawClusters(marker._sid);
+  updateCorrUi();
+}
+
+// Pure L/R swap, zonder van way te wisselen. Snapt huidige marker-positie
+// terug op de huidige way, flipt zijde, en plaatst hem 4m aan de andere kant.
+function applySideSwap(marker) {
+  const r = marker._row;
+  const wid = r.osm_way_id;
+  if (!wid) { alert('Deze rij heeft geen osm_way_id.'); return; }
+  const wd = wayData[wkey(wid, 0)];
+  if (!wd || !wd.geometry || wd.geometry.length < 2) {
+    alert('Huidige way (' + wid + ') niet in geladen data — kies eerst een way via slepen.');
+    return;
+  }
+  const cur = marker.getLatLng();
+  const travelBearing = travelBearingForRow(r);
+  const snap = snapAndSideOnWay(cur.lat, cur.lng, wd.geometry, travelBearing);
+  if (!snap) return;
+
+  // Flip zijde; hdg_osm blijft hetzelfde (way-eigenschap, niet teller-eigenschap).
+  const flipped = Object.assign({}, snap, {
+    zijde: snap.zijde === 'R' ? 'L' : 'R'
+  });
+  const mPos = offsetMarkerPos(flipped);
+
+  r.lat_marker = mPos.lat.toFixed(6);
+  r.lon_marker = mPos.lon.toFixed(6);
+  r.zijde      = flipped.zijde;
+  r.manually_corrected = '1';
+
+  marker.setLatLng([mPos.lat, mPos.lon]);
+  marker._origLatLng = L.latLng(mPos.lat, mPos.lon);
+  marker.setIcon(makeEditIcon(marker._typeColor, true));
+
+  drawClusters(marker._sid);
+  updateCorrUi();
+}
+
+// ── UI helpers ──────────────────────────────────────────────────────
+
+function countCorrections(sid) {
+  return (allTelregels[sid] || []).filter(function(r){
+    return r.manually_corrected === '1' || r.manually_corrected === 1;
+  }).length;
+}
+
+function updateCorrUi() {
+  let total = 0;
+  Object.keys(allTelregels).forEach(function(sid){ total += countCorrections(sid); });
+  const hint = document.getElementById('corr-hint');
+  if (hint) hint.textContent = total > 0 ? '(' + total + ' aangepast)' : '';
+  const btn = document.getElementById('export-corr-btn');
+  if (btn) {
+    if (total > 0) { btn.style.opacity = '1'; btn.style.pointerEvents = ''; }
+    else           { btn.style.opacity = '0.4'; btn.style.pointerEvents = 'none'; }
+  }
+}
+
+// ── CSV regeneratie + ZIP export ────────────────────────────────────
+
+// Bouw _telregels.csv string. Header = oorspronkelijke header +
+// 'manually_corrected' kolom (alleen toevoegen als nog niet aanwezig).
+function buildTelregelsCsv(sid) {
+  const rows = allTelregels[sid] || [];
+  if (!rows.length) return '';
+  // Verzamel kolomvolgorde: oorspronkelijke parse-volgorde + extra kolommen
+  const baseCols = [
+    'sessie_id','nr','tijdstip','type','zijde','straat',
+    'lat_marker','lon_marker','lat_gps','lon_gps',
+    'snapped','osm_way_id','hdg_kompas','hdg_gps','hdg_osm','hdg_gebruikt'
+  ];
+  // Voeg alle keys uit eerste row toe die nog niet in baseCols zitten (en niet onze _privé velden)
+  const extraCols = [];
+  Object.keys(rows[0]).forEach(function(k){
+    if (k.startsWith('_')) return;
+    if (baseCols.indexOf(k) === -1 && k !== 'manually_corrected') extraCols.push(k);
+  });
+  const cols = baseCols.concat(extraCols).concat(['manually_corrected']);
+
+  const header = cols.join(';');
+  const lines  = [header];
+  rows.forEach(function(r){
+    lines.push(cols.map(function(c){
+      const v = r[c];
+      if (v === undefined || v === null) return '';
+      // Geen waarden met ; verwacht in deze data, maar voor de zekerheid
+      const s = String(v);
+      return s.indexOf(';') === -1 ? s : '"' + s.replace(/"/g,'""') + '"';
+    }).join(';'));
+  });
+  return lines.join('\n') + '\n';
+}
+
+// Herbouw _straten.csv via delta-aggregatie over de originele straten.csv.
+// Reden: de _straat_ veldwaarden in telregels matchen niet altijd de canonieke
+// OSM name=* tag die in straten.csv wordt gebruikt (bv. "Havenplein" in
+// telregels vs "Westkade" in straten.csv voor way 131138996). Door telregel-
+// counts op te tellen IN de bestaande rijen behouden we het oorspronkelijke
+// naam→way mapping. Nieuwe ways (niet in een bestaande rij) krijgen een
+// nieuwe rij gegroepeerd op `straat`.
+function buildStratenCsv(sid, originalStratenText) {
+  const rows = allTelregels[sid] || [];
+  const origStraten = parseCSV(originalStratenText || '');
+
+  // Map: osm_way_id → index in origStraten rijen
+  const wayToRow = {};
+  origStraten.forEach(function(row, idx){
+    String(row.osm_way_ids||'').split('|').forEach(function(wid){
+      const w = wid.trim(); if (w) wayToRow[w] = idx;
+    });
+  });
+
+  // Aggregeer telregel-counts in bestaande rijen
+  const aggs = origStraten.map(function(){
+    return { goed:0, fout:0, leeg:0, spec:0, first:null, last:null };
+  });
+  const newGroups = {};  // ways die in geen enkele bestaande rij voorkomen
+
+  rows.forEach(function(r){
+    const wid = String(r.osm_way_id||'').trim(); if (!wid) return;
+    const t   = (r.type||'').toLowerCase();
+    const ts  = r.tijdstip || '';
+    const idx = wayToRow[wid];
+    if (idx !== undefined) {
+      const a = aggs[idx];
+      if (a.hasOwnProperty(t)) a[t]++;
+      if (ts) { if (!a.first || ts<a.first) a.first=ts;
+                if (!a.last  || ts>a.last)  a.last =ts; }
+    } else {
+      const naam = (r.straat||'').trim() || ('way_'+wid);
+      if (!newGroups[naam]) newGroups[naam] = {
+        naam:naam, wayIds:new Set(),
+        goed:0, fout:0, leeg:0, spec:0, first:null, last:null };
+      const g = newGroups[naam]; g.wayIds.add(wid);
+      if (g.hasOwnProperty(t)) g[t]++;
+      if (ts) { if (!g.first || ts<g.first) g.first=ts;
+                if (!g.last  || ts>g.last)  g.last =ts; }
+    }
+  });
+
+  const out = [];
+  origStraten.forEach(function(row, idx){
+    const a = aggs[idx];
+    const bezet = a.goed + a.fout + a.spec;
+    const vrij  = a.leeg;
+    if (bezet + vrij === 0) return;  // rij waar alle correcties weg zijn: verbergen
+    const pct   = Math.round(bezet/(bezet+vrij)*100);
+    out.push([sid, row.naam, row.osm_way_ids,
+              a.goed, a.fout, a.leeg, a.spec, bezet, vrij, pct,
+              a.first || row.eerste_waarneming || '',
+              a.last  || row.laatste_waarneming || ''].join(';'));
+  });
+  Object.values(newGroups).forEach(function(g){
+    const bezet = g.goed + g.fout + g.spec;
+    const vrij  = g.leeg;
+    const pct   = (bezet+vrij)>0 ? Math.round(bezet/(bezet+vrij)*100) : 0;
+    out.push([sid, g.naam, Array.from(g.wayIds).sort().join('|'),
+              g.goed, g.fout, g.leeg, g.spec, bezet, vrij, pct,
+              g.first||'', g.last||''].join(';'));
+  });
+
+  const header = 'sessie_id;naam;osm_way_ids;goed;fout;leeg;spec;bezet;vrij;'
+               + 'bezettingsgraad_pct;eerste_waarneming;laatste_waarneming';
+  return [header].concat(out).join('\n') + '\n';
+}
+
+// Exporteer één gecorrigeerde ZIP. Behoudt binaire bytes (PNG, GPX)
+// door JSZip's loadAsync + selectief overschrijven.
+async function exportOneCorrectedZip(sid) {
+  const file = originalFile[sid];
+  if (!file) { alert('Origineel ZIP-bestand niet meer beschikbaar voor ' + sid); return; }
+
+  const zip = await JSZip.loadAsync(file);
+
+  // Lees originele straten.csv (nodig voor delta-aggregatie met behoud van naam-mapping)
+  let origStratenText = '';
+  const stratenEntry = Object.keys(zip.files).find(function(p){
+    return !zip.files[p].dir && p.split('/').pop().endsWith('_straten.csv');
+  });
+  if (stratenEntry) origStratenText = await zip.files[stratenEntry].async('text');
+
+  const newTel = buildTelregelsCsv(sid);
+  const newStr = buildStratenCsv(sid, origStratenText);
+
+  // Selectief overschrijven; andere entries (PNG, GPX, GPS, netwerk, sessie) blijven binair
+  Object.keys(zip.files).forEach(function(path){
+    if (zip.files[path].dir) return;
+    const base = path.split('/').pop();
+    if (base.endsWith('_telregels.csv')) zip.file(path, newTel);
+    else if (base.endsWith('_straten.csv')) zip.file(path, newStr);
+  });
+
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  const outName = file.name.replace(/\.zip$/i, '') + '_corrected.zip';
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = outName;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+async function exportCorrectedZips() {
+  const sids = Object.keys(allTelregels).filter(function(sid){
+    return countCorrections(sid) > 0;
+  });
+  if (!sids.length) { alert('Geen correcties om te exporteren.'); return; }
+  // Sequentieel, anders kan de browser meerdere downloads onderdrukken
+  for (let i = 0; i < sids.length; i++) {
+    try { await exportOneCorrectedZip(sids[i]); }
+    catch(e) { console.error('Export faalde voor ' + sids[i], e);
+               alert('Export faalde voor ' + sids[i] + ': ' + e.message); }
+  }
+}
+
 // ── DROP ──────────────────────────────────────────────────────────
+function loadFile(file) {
+  const name = (file.name || '').toLowerCase();
+  if (name.endsWith('.csv')) return loadStandStillCsv(file);
+  if (name.endsWith('.zip')) return loadZip(file);
+  // Onbekend type: stil overslaan (multi-select kan andere bestanden bevatten)
+}
+
 const dz=document.getElementById('dropzone'), fi=document.getElementById('file-input');
 dz.addEventListener('click',()=>fi.click());
-fi.addEventListener('change',e=>{ [...e.target.files].forEach(loadZip); fi.value=''; });
+fi.addEventListener('change',e=>{ [...e.target.files].forEach(loadFile); fi.value=''; });
 document.addEventListener('dragover',e=>{ e.preventDefault(); dz.classList.add('over'); });
 document.addEventListener('dragleave',e=>{ if(!e.relatedTarget) dz.classList.remove('over'); });
 document.addEventListener('drop',e=>{
   e.preventDefault(); dz.classList.remove('over');
-  [...e.dataTransfer.files].filter(f=>f.name.endsWith('.zip')).forEach(loadZip);
+  [...e.dataTransfer.files].filter(f=>{
+    const n = f.name.toLowerCase();
+    return n.endsWith('.zip') || n.endsWith('.csv');
+  }).forEach(loadFile);
 });
 </script>
 </body>

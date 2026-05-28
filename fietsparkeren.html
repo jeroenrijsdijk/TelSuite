@@ -1027,7 +1027,12 @@ function fetchRoads(lat, lon, endpointIdx) {
       _roadFetchRetry = 0; // succes — reset teller
       roadCacheLat = lat; roadCacheLon = lon;
       roadSegs = buildSegments(data.elements, lat, lon);
-      osmNetworkElements = data.elements;
+      // Cumulatief bijhouden: nieuwe ways toevoegen, bekende overslaan
+      var knownIds = {};
+      osmNetworkElements.forEach(function(el){ knownIds[el.id] = true; });
+      data.elements.forEach(function(el){
+        if (!knownIds[el.id]) osmNetworkElements.push(el);
+      });
       try { localStorage.setItem(LS_KEY+'_netwerk', JSON.stringify(osmNetworkElements)); } catch(e) {}
       roadSnapStatus = roadSegs.length ? 'ok' : 'error';
       setSnapBadge();
