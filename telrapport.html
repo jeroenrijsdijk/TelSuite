@@ -784,6 +784,23 @@ let maxFietsTotaal  = 1;
 const parseCSV = txt =>
   Papa.parse(txt.trim(), { header:true, delimiter:';', skipEmptyLines:true }).data;
 
+// ── Snap-zekerheid → subtiele markerrand ──────────────────────────
+// pocket_count.html schrijft per tik conf (0..1) + conf_level (green/amber/red)
+// in _telregels.csv. Hier vertalen we dat naar alleen een randkleur: vulling,
+// radius en betekenis van de stip blijven gelijk, alleen de rand verraadt
+// twijfel. Ontbreekt de kolom (oudere ZIP) → null → marker houdt zijn default.
+// Geeft {color, weight} terug om in de circleMarker-opties te mergen, of null.
+const CONF_RING = {
+  amber: { color:'#d99000', weight:2 },   // gedempt oranje, iets dikker
+  red:   { color:'#c0392b', weight:2 }    // gedempt rood
+};
+function confBorder(row) {
+  if (!row) return null;
+  var lvl = (row.conf_level || '').trim().toLowerCase();
+  if (lvl === 'amber' || lvl === 'red') return CONF_RING[lvl];
+  return null;  // green, leeg, of kolom afwezig → geen afwijkende rand
+}
+
 // ── STAND-STILL (traffic_counter.html CSV) ────────────────────────
 // Een Stand-Still-telling is fundamenteel anders dan way-gebaseerde tellingen:
 // één GPS-punt, één tijdvenster, gesplitst per richting en voertuigtype.
@@ -1326,7 +1343,17 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
     });
   }
 
-  // Geen telregels — wél eventueel zero-visited segmenten tonen
+  // Teken alle netwerk-ways als grijze achtergrondlaag (ook niet-getelde)
+  netKeys.forEach(function(k) {
+    if (!wayLayers[k] && wayData[k] && wayData[k].geometry && wayData[k].geometry.length >= 2) {
+      wayLayers[k] = L.polyline(wayData[k].geometry, {color:'#3a3d42', weight:2, opacity:0.5})
+        .on('click', function(){ showWegvakDetail(k); })
+        .addTo(map);
+      attachPocketSegmentInteraction(k);
+    }
+  });
+
+  // Geen telregels
   if (!telCSV) {
     if (gpsCSV && netKeys.length) {
       detectZeroVisited(gpsCSV, netKeys, new Set())
@@ -1356,10 +1383,13 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
     const la = parseFloat(r.lat), lo = parseFloat(r.lon);
     if (isNaN(la)||isNaN(lo)) return;
     const kleur = APP_CONFIG.pocket.colors[ptype] || '#555';
-    const m = L.circleMarker([la,lo], {
-      radius:5, color:'#fff', weight:1.5,
-      fillColor:kleur, fillOpacity:0.85, pane:'clusters'
-    }).bindTooltip((APP_CONFIG.pocket.labels[ptype]||ptype)+' · '+datum, {direction:'top'});
+    const opts = { radius:5, color:'#fff', weight:1.5,
+      fillColor:kleur, fillOpacity:0.85, pane:'clusters' };
+    const cb = confBorder(r);
+    if (cb) { opts.color = cb.color; opts.weight = cb.weight; }
+    const m = L.circleMarker([la,lo], opts)
+      .bindTooltip((APP_CONFIG.pocket.labels[ptype]||ptype)+' · '+datum
+        + (cb ? ' · snap '+r.conf_level : ''), {direction:'top'});
     m.addTo(map);
     if (!dotLayers[sid][ptype]) dotLayers[sid][ptype] = [];
     dotLayers[sid][ptype].push(m);
@@ -2787,11 +2817,13 @@ async function loadZip(file) {
       const type = r.type||'car';
       const richting = r.richting||'A';
       const kleur = APP_CONFIG.transect.colors[type]||'#888';
-      const m = L.circleMarker([la,lo], {
-        radius:5, color:'#fff', weight:1.5,
-        fillColor: kleur, fillOpacity:0.8, pane:'clusters'
-      }).bindTooltip(
-        (APP_CONFIG.transect.labels[type]||type)+' '+richting+' · '+datum,
+      const opts = { radius:5, color:'#fff', weight:1.5,
+        fillColor: kleur, fillOpacity:0.8, pane:'clusters' };
+      const cb = confBorder(r);
+      if (cb) { opts.color = cb.color; opts.weight = cb.weight; }
+      const m = L.circleMarker([la,lo], opts).bindTooltip(
+        (APP_CONFIG.transect.labels[type]||type)+' '+richting+' · '+datum
+          + (cb ? ' · snap '+r.conf_level : ''),
         {direction:'top'});
       m.addTo(map);
       if (!dotLayers[sid]) dotLayers[sid]={};
@@ -2816,10 +2848,12 @@ async function loadZip(file) {
       if (isNaN(la)||isNaN(lo)||!cfg.colors[type]) return;
       if (!dotLayers[sid][type]) dotLayers[sid][type]=[];
       const snapped=(r.snapped==='1'||r.snapped===1);
-      const m=L.circleMarker([la,lo],{
-        radius:4, color:'#111', weight:0.8,
-        fillColor:cfg.colors[type], fillOpacity: snapped ? 0.85 : 0.35,
-      }).bindTooltip(`${type}${snapped?'':' ⚠'} · ${cleanNaam(r.straat||r.naam)} · ${datum}`,
+      const opts={ radius:4, color:'#111', weight:0.8,
+        fillColor:cfg.colors[type], fillOpacity: snapped ? 0.85 : 0.35 };
+      const cb=confBorder(r);
+      if (cb) { opts.color=cb.color; opts.weight=cb.weight; }
+      const m=L.circleMarker([la,lo],opts)
+        .bindTooltip(`${type}${snapped?'':' ⚠'}${cb?' · snap '+r.conf_level:''} · ${cleanNaam(r.straat||r.naam)} · ${datum}`,
         {direction:'top',offset:[0,-4]});
       // ── Correctie-tool: koppel circleMarker aan zijn telregel ──
       m._telregel = r;
