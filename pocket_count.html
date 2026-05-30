@@ -411,6 +411,9 @@ var TRANSLATIONS = {
     other:            'Iets Anders',
     otherPlaceholder: 'Wat tel je?',
     btnBack:          '← Terug',
+    btnStop:          '■ Stop & Download',
+    btnStart:         '▶ Start',
+    undo:             'Undo',
     confirmBack:      function(n){ return 'Weet je zeker? De telling ('+n+') gaat verloren.'; },
     previewTitle:     'Telling afgerond',
     previewSave:      '⤓ ZIP opslaan',
@@ -418,6 +421,7 @@ var TRANSLATIONS = {
     statTaps:         'Tikken',
     statSegs:         'Segmenten',
     statKm:           'Km gelopen',
+    statMax:          'Max p/m',
     legLow:           'weinig',
     legMed:           'matig',
     legHigh:          'druk (≥1/m)',
@@ -432,6 +436,9 @@ var TRANSLATIONS = {
     other:            'Something Else',
     otherPlaceholder: 'What are you counting?',
     btnBack:          '← Back',
+    btnStop:          '■ Stop & Download',
+    btnStart:         '▶ Start',
+    undo:             'Undo',
     confirmBack:      function(n){ return 'Are you sure? The count ('+n+') will be lost.'; },
     previewTitle:     'Count complete',
     previewSave:      '⤓ Save ZIP',
@@ -439,6 +446,7 @@ var TRANSLATIONS = {
     statTaps:         'Taps',
     statSegs:         'Segments',
     statKm:           'Km walked',
+    statMax:          'Max p/m',
     legLow:           'low',
     legMed:           'medium',
     legHigh:          'busy (≥1/m)',
@@ -465,12 +473,16 @@ function applyLang() {
   document.getElementById('lbl-other').textContent       = T.other;
   document.getElementById('other-input').placeholder     = T.otherPlaceholder;
   document.getElementById('btn-back').textContent        = T.btnBack;
+  document.getElementById('btn-stop').innerHTML          = T.btnStop.replace('■','&#9632;');
+  document.getElementById('other-confirm').innerHTML     = T.btnStart.replace('▶','&#9654;');
+  document.getElementById('undo-lbl').textContent        = T.undo;
   document.getElementById('preview-title').textContent   = T.previewTitle;
   document.getElementById('preview-save').textContent    = T.previewSave;
   document.getElementById('preview-close').textContent   = T.previewClose;
   document.getElementById('lbl-tikken').textContent      = T.statTaps;
   document.getElementById('lbl-segs').textContent        = T.statSegs;
   document.getElementById('lbl-km').textContent          = T.statKm;
+  document.getElementById('lbl-max').textContent         = T.statMax;
   document.getElementById('leg-low').textContent         = T.legLow;
   document.getElementById('leg-med').textContent         = T.legMed;
   document.getElementById('leg-high').textContent        = T.legHigh;
@@ -1953,6 +1965,10 @@ function snapCheckRefresh(lat, lon) {
 }
 // ── EINDE SNAP MODULE ─────────────────────────────────────────────────────────
 
+// Pas de taal toe bij het laden zodat het vertaalsysteem de enige bron van
+// waarheid is (ook de HTML-defaults lopen er dan doorheen).
+applyLang();
+
 </script>
 <!-- Preview overlay — verschijnt na opslaan ZIP -->
 <div id="preview-overlay">
@@ -1968,7 +1984,7 @@ function snapCheckRefresh(lat, lon) {
     <div class="pstat"><div class="pstat-val" id="pstat-tikken">—</div><div class="pstat-lbl" id="lbl-tikken">Tikken</div></div>
     <div class="pstat"><div class="pstat-val" id="pstat-segs">—</div><div class="pstat-lbl" id="lbl-segs">Segmenten</div></div>
     <div class="pstat"><div class="pstat-val" id="pstat-km">—</div><div class="pstat-lbl" id="lbl-km">Km gelopen</div></div>
-    <div class="pstat"><div class="pstat-val" id="pstat-max">—</div><div class="pstat-lbl">Max p/m</div></div>
+    <div class="pstat"><div class="pstat-val" id="pstat-max">—</div><div class="pstat-lbl" id="lbl-max">Max p/m</div></div>
   </div>
   <div id="preview-legend">
     <div class="pleg"><div class="pleg-swatch" style="background:rgb(0,220,0)"></div><span id="leg-low">weinig</span></div>
