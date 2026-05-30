@@ -36,6 +36,7 @@
     gap: 0;
     background: #1a1918;
     padding: 24px 20px;
+    position: relative;
   }
 
   #choose-screen h1 {
@@ -346,19 +347,25 @@
 
 <!-- Keuze-scherm -->
 <div id="choose-screen">
-  <h1>Wat tel je?</h1>
+  <button id="lang-btn" onclick="toggleLang()"
+    style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.08);
+           border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.5);
+           font-family:var(--font);font-size:0.65rem;font-weight:700;letter-spacing:2px;
+           text-transform:uppercase;padding:7px 13px;border-radius:20px;
+           cursor:pointer;touch-action:manipulation;">EN</button>
+  <h1 id="choose-heading">Wat tel je?</h1>
   <div class="type-btns">
-    <button class="type-btn" style="background:var(--c-car)"   onclick="startTelling('car',  '&#x1F697;', 'Auto')">
-      <span class="icon">&#x1F697;</span><span class="lbl">Auto</span>
+    <button class="type-btn" style="background:var(--c-car)"   onclick="startTelling('car',  '&#x1F697;', t('car'))">
+      <span class="icon">&#x1F697;</span><span class="lbl" id="lbl-car">Auto</span>
     </button>
-    <button class="type-btn" style="background:var(--c-bike)"  onclick="startTelling('bike', '&#x1F6B2;', 'Fiets')">
-      <span class="icon">&#x1F6B2;</span><span class="lbl">Fiets</span>
+    <button class="type-btn" style="background:var(--c-bike)"  onclick="startTelling('bike', '&#x1F6B2;', t('bike'))">
+      <span class="icon">&#x1F6B2;</span><span class="lbl" id="lbl-bike">Fiets</span>
     </button>
-    <button class="type-btn" style="background:var(--c-ped)"   onclick="startTelling('ped',  '&#x1F6B6;', 'Voetganger')">
-      <span class="icon">&#x1F6B6;</span><span class="lbl">Voetganger</span>
+    <button class="type-btn" style="background:var(--c-ped)"   onclick="startTelling('ped',  '&#x1F6B6;', t('ped'))">
+      <span class="icon">&#x1F6B6;</span><span class="lbl" id="lbl-ped">Voetganger</span>
     </button>
     <button class="type-btn" style="background:#555"            onclick="chooseOther()">
-      <span class="icon">&#x2753;</span><span class="lbl">Iets Anders</span>
+      <span class="icon">&#x2753;</span><span class="lbl" id="lbl-other">Iets Anders</span>
     </button>
 
     <!-- Iets Anders invoer -->
@@ -391,7 +398,86 @@
 <button id="btn-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
 <button id="btn-back" style="display:none" onclick="backToChoose()">&#8592; Terug</button>
 
+
 <script>
+// ── Taal ──────────────────────────────────────────────────────────────────────
+var LANG = 'nl';
+var TRANSLATIONS = {
+  nl: {
+    heading:          'Wat tel je?',
+    car:              'Auto',
+    bike:             'Fiets',
+    ped:              'Voetganger',
+    other:            'Iets Anders',
+    otherPlaceholder: 'Wat tel je?',
+    btnBack:          '← Terug',
+    confirmBack:      function(n){ return 'Weet je zeker? De telling ('+n+') gaat verloren.'; },
+    previewTitle:     'Telling afgerond',
+    previewSave:      '⤓ ZIP opslaan',
+    previewClose:     '✕ Sluiten',
+    statTaps:         'Tikken',
+    statSegs:         'Segmenten',
+    statKm:           'Km gelopen',
+    legLow:           'weinig',
+    legMed:           'matig',
+    legHigh:          'druk (≥1/m)',
+    legZero:          'bezocht, 0 tikken',
+    legGps:           'GPS-spoor'
+  },
+  en: {
+    heading:          'What are you counting?',
+    car:              'Car',
+    bike:             'Bike',
+    ped:              'Pedestrian',
+    other:            'Something Else',
+    otherPlaceholder: 'What are you counting?',
+    btnBack:          '← Back',
+    confirmBack:      function(n){ return 'Are you sure? The count ('+n+') will be lost.'; },
+    previewTitle:     'Count complete',
+    previewSave:      '⤓ Save ZIP',
+    previewClose:     '✕ Close',
+    statTaps:         'Taps',
+    statSegs:         'Segments',
+    statKm:           'Km walked',
+    legLow:           'low',
+    legMed:           'medium',
+    legHigh:          'busy (≥1/m)',
+    legZero:          'visited, 0 taps',
+    legGps:           'GPS track'
+  }
+};
+
+function t(k) { return TRANSLATIONS[LANG][k]; }
+
+function toggleLang() {
+  LANG = (LANG === 'nl') ? 'en' : 'nl';
+  document.getElementById('lang-btn').textContent = (LANG === 'nl') ? 'EN' : 'NL';
+  document.documentElement.lang = LANG;
+  applyLang();
+}
+
+function applyLang() {
+  var T = TRANSLATIONS[LANG];
+  document.getElementById('choose-heading').textContent  = T.heading;
+  document.getElementById('lbl-car').textContent         = T.car;
+  document.getElementById('lbl-bike').textContent        = T.bike;
+  document.getElementById('lbl-ped').textContent         = T.ped;
+  document.getElementById('lbl-other').textContent       = T.other;
+  document.getElementById('other-input').placeholder     = T.otherPlaceholder;
+  document.getElementById('btn-back').textContent        = T.btnBack;
+  document.getElementById('preview-title').textContent   = T.previewTitle;
+  document.getElementById('preview-save').textContent    = T.previewSave;
+  document.getElementById('preview-close').textContent   = T.previewClose;
+  document.getElementById('lbl-tikken').textContent      = T.statTaps;
+  document.getElementById('lbl-segs').textContent        = T.statSegs;
+  document.getElementById('lbl-km').textContent          = T.statKm;
+  document.getElementById('leg-low').textContent         = T.legLow;
+  document.getElementById('leg-med').textContent         = T.legMed;
+  document.getElementById('leg-high').textContent        = T.legHigh;
+  document.getElementById('leg-zero').textContent        = T.legZero;
+  document.getElementById('leg-gps').textContent         = T.legGps;
+}
+
 var telType     = null;
 var telLabel    = null;
 var telIcon     = null;
@@ -541,7 +627,7 @@ function startTelling(type, icon, label) {
 }
 
 function backToChoose() {
-  if (telCount > 0 && !confirm('Weet je zeker? De telling (' + telCount + ') gaat verloren.')) return;
+  if (telCount > 0 && !confirm(t('confirmBack')(telCount))) return;
   closeTelScreen();
   document.getElementById('choose-screen').style.display = '';
 }
@@ -1879,17 +1965,17 @@ function snapCheckRefresh(lat, lon) {
   </div>
   <canvas id="preview-canvas" width="800" height="800"></canvas>
   <div id="preview-stats">
-    <div class="pstat"><div class="pstat-val" id="pstat-tikken">—</div><div class="pstat-lbl">Tikken</div></div>
-    <div class="pstat"><div class="pstat-val" id="pstat-segs">—</div><div class="pstat-lbl">Segmenten</div></div>
-    <div class="pstat"><div class="pstat-val" id="pstat-km">—</div><div class="pstat-lbl">Km gelopen</div></div>
+    <div class="pstat"><div class="pstat-val" id="pstat-tikken">—</div><div class="pstat-lbl" id="lbl-tikken">Tikken</div></div>
+    <div class="pstat"><div class="pstat-val" id="pstat-segs">—</div><div class="pstat-lbl" id="lbl-segs">Segmenten</div></div>
+    <div class="pstat"><div class="pstat-val" id="pstat-km">—</div><div class="pstat-lbl" id="lbl-km">Km gelopen</div></div>
     <div class="pstat"><div class="pstat-val" id="pstat-max">—</div><div class="pstat-lbl">Max p/m</div></div>
   </div>
   <div id="preview-legend">
-    <div class="pleg"><div class="pleg-swatch" style="background:rgb(0,220,0)"></div>weinig</div>
-    <div class="pleg"><div class="pleg-swatch" style="background:rgb(255,200,0)"></div>matig</div>
-    <div class="pleg"><div class="pleg-swatch" style="background:rgb(255,60,0)"></div>druk (≥1/m)</div>
-    <div class="pleg"><div class="pleg-swatch" style="background:rgba(60,61,66,0.35);border:1.5px dashed #888"></div>bezocht, 0 tikken</div>
-    <div class="pleg"><div class="pleg-swatch" style="background:rgba(160,160,180,0.5)"></div>GPS-spoor</div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgb(0,220,0)"></div><span id="leg-low">weinig</span></div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgb(255,200,0)"></div><span id="leg-med">matig</span></div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgb(255,60,0)"></div><span id="leg-high">druk (≥1/m)</span></div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgba(60,61,66,0.35);border:1.5px dashed #888"></div><span id="leg-zero">bezocht, 0 tikken</span></div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgba(160,160,180,0.5)"></div><span id="leg-gps">GPS-spoor</span></div>
   </div>
 </div>
 
