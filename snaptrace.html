@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>SnapTrace — GPS trace map-matching against OpenStreetMap</title>
+<!-- Open Graph (no Twitter/X cards by preference) -->
+<meta property="og:title" content="SnapTrace — GPS trace map-matching">
+<meta property="og:description" content="Snap a raw GPS trace (GPX or CSV) to OpenStreetMap ways using a topology-first Viterbi matcher. Standalone, no build, fetches its own ways from Overpass.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --bg:#161514; --panel:#1f1e1c; --panel2:#262421; --line:#34322e;
+    --ink:#eceae3; --mut:#9b988e; --dim:#6f6c64;
+    --gps:#4a9eff; --orig:#ff9933; --snap:#33cc66; --acc:#ef9f27;
+    --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow:hidden;font-size:14px}
+  #app{display:flex;height:100vh}
+  #side{width:320px;min-width:320px;background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;overflow-y:auto}
+  #map{flex:1;background:#0e0d0c}
+  header{padding:16px 16px 12px;border-bottom:1px solid var(--line)}
+  header h1{font-size:15px;font-weight:600;letter-spacing:.3px}
+  header p{font-size:11px;color:var(--mut);margin-top:3px;line-height:1.45}
+  .group{padding:14px 16px;border-bottom:1px solid var(--line)}
+  .group h2{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+    color:var(--dim);margin-bottom:10px}
+  .drop{border:1.5px dashed var(--line);border-radius:8px;padding:18px 12px;text-align:center;
+    cursor:pointer;transition:.15s;color:var(--mut);font-size:12px}
+  .drop:hover,.drop.over{border-color:var(--snap);color:var(--ink);background:var(--panel2)}
+  .drop b{color:var(--ink);font-weight:600}
+  input[type=file]{display:none}
+  .row{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--mut)}
+  .row label{flex:0 0 auto;min-width:62px}
+  .row select,.row input[type=range]{flex:1;background:var(--panel2);color:var(--ink);
+    border:1px solid var(--line);border-radius:5px;padding:4px;font-size:12px;font-family:var(--font)}
+  .row .val{flex:0 0 auto;min-width:28px;text-align:right;font-family:var(--mono);color:var(--ink)}
+  button.act{width:100%;padding:9px;margin-top:12px;background:var(--snap);color:#0c2c16;
+    border:none;border-radius:6px;font-weight:700;font-size:12px;letter-spacing:.5px;
+    cursor:pointer;font-family:var(--font);transition:.15s}
+  button.act:hover{filter:brightness(1.08)}
+  button.act:disabled{background:var(--line);color:var(--dim);cursor:not-allowed}
+  button.ghost{width:100%;padding:8px;margin-top:8px;background:transparent;color:var(--mut);
+    border:1px solid var(--line);border-radius:6px;font-size:11px;cursor:pointer;font-family:var(--font)}
+  button.ghost:hover{color:var(--ink);border-color:var(--mut)}
+  .legend{font-size:11px;line-height:1.7;color:var(--mut)}
+  .legend .sw{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+  .stat{font-size:11px;color:var(--mut);line-height:1.6;font-family:var(--mono)}
+  .stat b{color:var(--ink);font-weight:600}
+  #status{font-size:11px;color:var(--mut);padding:10px 16px;line-height:1.5;min-height:20px}
+  #status.err{color:#e2706b}
+  #status.busy{color:var(--acc)}
+  .spin{display:inline-block;width:10px;height:10px;border:2px solid var(--line);
+    border-top-color:var(--acc);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hint{font-size:10px;color:var(--dim);margin-top:6px;line-height:1.5}
+  .leaflet-container{background:#0e0d0c}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <header>
+      <h1>SnapTrace</h1>
+      <p>Snap a raw GPS trace to OpenStreetMap. Fetches its own ways from Overpass — no pocket data, only lat/lon.</p>
+    </header>
+
+    <div class="group">
+      <h2>1 · Trace</h2>
+      <label class="drop" id="drop">
+        <b>Drop a GPX or CSV</b><br>or tap to choose
+        <input type="file" id="file" accept=".gpx,.csv,.txt">
+      </label>
+      <div class="hint">CSV needs lat &amp; lon columns (any order); optional accuracy/hdop column is used as GPS noise.</div>
+    </div>
+
+    <div class="group" id="grp-match" style="display:none">
+      <h2>2 · Match</h2>
+      <div class="row">
+        <label>method</label>
+        <select id="method">
+          <option value="topo">topology-first (shared node)</option>
+          <option value="nearest">nearest-way only (baseline)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>radius</label>
+        <input type="range" id="radius" min="15" max="60" value="40" step="5"
+          oninput="document.getElementById('radius-v').textContent=this.value">
+        <span class="val" id="radius-v">40</span>
+      </div>
+      <div class="row">
+        <label>σ floor</label>
+        <input type="range" id="sigma" min="3" max="15" value="5" step="1"
+          oninput="document.getElementById('sigma-v').textContent=this.value">
+        <span class="val" id="sigma-v">5</span>
+      </div>
+      <button class="act" id="run" disabled>Fetch OSM &amp; snap</button>
+      <button class="ghost" id="reset">Clear</button>
+    </div>
+
+    <div id="status"></div>
+
+    <div class="group" id="grp-result" style="display:none">
+      <h2>Result</h2>
+      <div class="stat" id="stats"></div>
+      <div class="legend" style="margin-top:12px">
+        <div><span class="sw" style="background:var(--gps)"></span>raw GPS trace</div>
+        <div><span class="sw" style="background:var(--snap)"></span>snapped path</div>
+        <div><span class="sw" style="background:var(--acc);height:8px;border-radius:50%;width:8px"></span>switch point (way change)</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="hint">
+        Honest limits: open squares (pedestrian areas) and escalators can't be resolved from 2D position alone —
+        adjacent ways there share nodes, so &ldquo;which line&rdquo; isn't a sharp question. Works best on real street patterns.
+      </div>
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ============================================================================
+// SnapTrace — standalone GPS map-matching against OSM
+// Pipeline: parse trace (GPX/CSV) -> Overpass fetch ways for bbox ->
+//           topology-first Viterbi (node-ID adjacency) -> Leaflet display.
+// No build step, no dependencies beyond Leaflet. Plain ES5-ish JS.
+// ============================================================================
+
+var OVERPASS = ['https://overpass-api.de/api/interpreter',
+                'https://overpass.kumi.systems/api/interpreter'];
+var HIGHWAY_RE = 'residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path|steps|corridor';
+
+var LAT_M = 111320;
+function lonM(lat){ return LAT_M * Math.cos(lat*Math.PI/180); }
+function haversineM(la1,lo1,la2,lo2){ var lm=lonM((la1+la2)/2); return Math.hypot((lo2-lo1)*lm,(la2-la1)*LAT_M); }
+
+// ---- state ----
+var trace = null;     // [{lat,lon,acc}]
+var osmWays = null;   // [{wayId, nodes:[id], geometry:[[lat,lon]], highway, name}]
+var map, layers = { gps:null, snap:[], pts:[] };
+
+// ---- trace parsing ----
+function parseGPX(text){
+  var doc = new DOMParser().parseFromString(text, 'application/xml');
+  if (doc.querySelector('parsererror')) throw new Error('GPX is not valid XML');
+  var pts = [], nodes = doc.getElementsByTagName('trkpt');
+  if (!nodes.length) nodes = doc.getElementsByTagName('rtept');
+  if (!nodes.length) nodes = doc.getElementsByTagName('wpt');
+  for (var i=0;i<nodes.length;i++){
+    var lat=parseFloat(nodes[i].getAttribute('lat')), lon=parseFloat(nodes[i].getAttribute('lon'));
+    if (isNaN(lat)||isNaN(lon)) continue;
+    // optional <hdop> or Garmin accuracy extension -> noise estimate
+    var acc=0, h=nodes[i].getElementsByTagName('hdop')[0];
+    if (h) acc = parseFloat(h.textContent)*5 || 0;  // hdop -> rough metres
+    pts.push({lat:lat, lon:lon, acc:acc});
+  }
+  return pts;
+}
+function parseCSV(text){
+  var lines = text.replace(/\r/g,'').split('\n').filter(function(l){return l.trim();});
+  if (!lines.length) throw new Error('empty CSV');
+  // detect delimiter
+  var delim = (lines[0].indexOf(';')>-1 && lines[0].indexOf(',')===-1) ? ';' : (lines[0].indexOf('\t')>-1?'\t':',');
+  var header = lines[0].toLowerCase().split(delim).map(function(s){return s.trim();});
+  function findCol(names){ for (var n=0;n<names.length;n++){ var i=header.indexOf(names[n]); if(i>-1) return i; } return -1; }
+  var iLat = findCol(['lat','latitude','y']);
+  var iLon = findCol(['lon','lng','long','longitude','x']);
+  var iAcc = findCol(['acc','accuracy','nauwkeurigheid','hdop','precision']);
+  var start = 1;
+  if (iLat<0 || iLon<0){
+    // maybe headerless: assume first two numeric columns are lat,lon
+    var t = lines[0].split(delim);
+    if (!isNaN(parseFloat(t[0])) && !isNaN(parseFloat(t[1]))){ iLat=0; iLon=1; iAcc=-1; start=0; }
+    else throw new Error('CSV needs lat &amp; lon columns');
+  }
+  var pts=[];
+  for (var i=start;i<lines.length;i++){
+    var c=lines[i].split(delim);
+    var lat=parseFloat(c[iLat]), lon=parseFloat(c[iLon]);
+    if (isNaN(lat)||isNaN(lon)) continue;
+    var acc = iAcc>-1 ? (parseFloat(c[iAcc])||0) : 0;
+    pts.push({lat:lat, lon:lon, acc:acc});
+  }
+  return pts;
+}
+
+// ---- Overpass fetch ----
+function bbox(pts){
+  var s=Infinity,w=Infinity,n=-Infinity,e=-Infinity;
+  pts.forEach(function(p){ if(p.lat<s)s=p.lat; if(p.lat>n)n=p.lat; if(p.lon<w)w=p.lon; if(p.lon>e)e=p.lon; });
+  // pad ~60m so ways just outside the trace are still candidates
+  var padLat=60/LAT_M, padLon=60/lonM((s+n)/2);
+  return [s-padLat, w-padLon, n+padLat, e+padLon];
+}
+function fetchWays(pts, done, fail, attempt){
+  attempt = attempt||0;
+  if (attempt >= OVERPASS.length){ fail('All Overpass endpoints failed. Check connection or try again.'); return; }
+  var b = bbox(pts);
+  var q = '[out:json][timeout:25];way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"]('
+        + b[0].toFixed(6)+','+b[1].toFixed(6)+','+b[2].toFixed(6)+','+b[3].toFixed(6)+');out body geom;';
+  fetch(OVERPASS[attempt]+'?data='+encodeURIComponent(q))
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(data){
+      if (!data.elements) throw new Error('no data');
+      var ways = [];
+      data.elements.forEach(function(el){
+        if (el.type!=='way' || !el.geometry || el.geometry.length<2 || !el.nodes) return;
+        ways.push({
+          wayId: String(el.id),
+          nodes: el.nodes,                                   // exact node-IDs for adjacency
+          geometry: el.geometry.map(function(g){ return [g.lat, g.lon]; }),
+          highway: (el.tags&&el.tags.highway)||'',
+          name: (el.tags&&el.tags.name)||''
+        });
+      });
+      if (!ways.length){ fail('No OSM ways found in this area.'); return; }
+      done(ways);
+    })
+    .catch(function(){ fetchWays(pts, done, fail, attempt+1); });
+}
+
+// ---- matcher core (topology-first Viterbi, exact node-ID adjacency) ----
+function projectFull(plat, plon, geom){
+  var lm=lonM(geom[0][0]); var px=plon*lm, py=plat*LAT_M;
+  var best=Infinity,bSeg=0,bT=0,bLat=geom[0][0],bLon=geom[0][1];
+  for (var i=0;i<geom.length-1;i++){
+    var ax=geom[i][1]*lm, ay=geom[i][0]*LAT_M, bx=geom[i+1][1]*lm, by=geom[i+1][0]*LAT_M;
+    var dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy;
+    var t=(l2===0)?0:Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
+    var cx=ax+t*dx, cy=ay+t*dy, d=Math.hypot(px-cx,py-cy);
+    if (d<best){ best=d; bSeg=i; bT=t; bLat=cy/LAT_M; bLon=cx/lm; }
+  }
+  return { dist:best, lat:bLat, lon:bLon };
+}
+// adjacency from shared node-IDs (exact; no coordinate tolerance needed).
+// Also records the junction coordinate(s) per way-pair for junction-aware costs.
+function buildAdjacency(ways){
+  var nodeToWays={}, nodeCoord={};
+  ways.forEach(function(w){
+    w.nodes.forEach(function(n, idx){
+      (nodeToWays[n]=nodeToWays[n]||[]).push(w.wayId);
+      if(!nodeCoord[n] && w.geometry[idx]) nodeCoord[n]=w.geometry[idx];
+    });
+  });
+  var adj={}; ways.forEach(function(w){ adj[w.wayId]={}; });
+  var junctions={};
+  Object.keys(nodeToWays).forEach(function(n){
+    var a=nodeToWays[n]; if(a.length<2) return;
+    var J=nodeCoord[n];
+    for (var i=0;i<a.length;i++) for (var j=i+1;j<a.length;j++){
+      adj[a[i]][a[j]]=true; adj[a[j]][a[i]]=true;
+      if(J){ (junctions[a[i]+'|'+a[j]]=junctions[a[i]+'|'+a[j]]||[]).push(J);
+             (junctions[a[j]+'|'+a[i]]=junctions[a[j]+'|'+a[i]]||[]).push(J); }
+    }
+  });
+  return { adj:adj, junctions:junctions };
+}
+function hopClass(adj, a, b){
+  if (a===b) return 0;
+  if (adj[a] && adj[a][b]) return 1;
+  if (adj[a]){ for (var m in adj[a]) if (adj[m] && adj[m][b]) return 2; }
+  return Infinity;
+}
+function matchTopo(fixes, ways, opts){
+  opts=opts||{};
+  var sR=opts.searchRadius||40, sM=opts.sigmaMin||5;
+  var H1=(opts.hop1!=null)?opts.hop1:4, H2=(opts.hop2!=null)?opts.hop2:12, gamma=(opts.gamma!=null)?opts.gamma:0.02;
+  var JW=(opts.junctionWeight!=null)?opts.junctionWeight:0.08;
+  var nearestOnly = !!opts.nearestOnly;
+  var built = buildAdjacency(ways);
+  var adj=built.adj, junctions=built.junctions;
+
+  var cols=[];
+  for (var i=0;i<fixes.length;i++){
+    var sigma=Math.max(sM, fixes[i].acc||sM), cands=[];
+    for (var w=0;w<ways.length;w++){
+      var pr=projectFull(fixes[i].lat, fixes[i].lon, ways[w].geometry);
+      if (pr.dist<=sR){ var z=pr.dist/sigma; cands.push({wayId:ways[w].wayId, plat:pr.lat, plon:pr.lon, dist:pr.dist, emit:0.5*z*z}); }
+    }
+    cols.push(cands);
+  }
+  // baseline: pure nearest per fix (no transition)
+  if (nearestOnly){
+    return { path: cols.map(function(cs){ if(!cs.length) return null; var b=cs[0]; cs.forEach(function(c){ if(c.dist<b.dist) b=c; }); return b.wayId; }),
+             cols:cols, adj:adj };
+  }
+
+  var V=[], back=[];
+  for (var col=0;col<cols.length;col++){
+    V[col]={}; back[col]={};
+    var cur=cols[col];
+    if (col===0){ for(var a=0;a<cur.length;a++) V[0][cur[a].wayId]=cur[a].emit; continue; }
+    var prev=cols[col-1];
+    var gpsStep=haversineM(fixes[col-1].lat,fixes[col-1].lon,fixes[col].lat,fixes[col].lon);
+    for (var c=0;c<cur.length;c++){
+      var cw=cur[c], bestCost=Infinity, bestPrev=null;
+      for (var p=0;p<prev.length;p++){
+        var pw=prev[p]; if(V[col-1][pw.wayId]===undefined) continue;
+        var hc=hopClass(adj, pw.wayId, cw.wayId);
+        if(!isFinite(hc)) continue;
+        var base=(hc===0)?0:(hc===1)?H1:H2;
+        var projStep=haversineM(pw.plat,pw.plon,cw.plat,cw.plon);
+        var jpen=0;
+        if(hc===1 && JW>0){
+          var js=junctions[pw.wayId+'|'+cw.wayId];
+          if(js){ var nd=Infinity;
+            for (var jx=0;jx<js.length;jx++){ var d=haversineM(pw.plat,pw.plon,js[jx][0],js[jx][1]); if(d<nd) nd=d; }
+            jpen=JW*nd;
+          }
+        }
+        var tot=V[col-1][pw.wayId]+base+gamma*Math.abs(projStep-gpsStep)+jpen;
+        if(tot<bestCost){ bestCost=tot; bestPrev=pw.wayId; }
+      }
+      if(bestPrev!==null){ V[col][cw.wayId]=bestCost+cw.emit; back[col][cw.wayId]=bestPrev; }
+    }
+    if(Object.keys(V[col]).length===0){ for(var g2=0;g2<cur.length;g2++){ V[col][cur[g2].wayId]=cur[g2].emit; back[col][cur[g2].wayId]=null; } }
+  }
+  var path=new Array(cols.length).fill(null), last=cols.length-1;
+  while(last>=0 && Object.keys(V[last]).length===0) last--;
+  if(last<0) return { path:path, cols:cols, adj:adj };
+  var bestEnd=null, bestEndCost=Infinity;
+  for (var ww in V[last]) if(V[last][ww]<bestEndCost){ bestEndCost=V[last][ww]; bestEnd=ww; }
+  path[last]=bestEnd;
+  for (var col2=last;col2>0;col2--){ var pv=back[col2][path[col2]]; path[col2-1]=(pv==null)?null:pv; }
+  return { path:path, cols:cols, adj:adj };
+}
+
+// ---- display ----
+function initMap(){
+  map = L.map('map', {zoomControl:true}).setView([52,4.9],13);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:20, attribution:'&copy; OpenStreetMap'}).addTo(map);
+}
+function clearLayers(){
+  if(layers.gps){ map.removeLayer(layers.gps); layers.gps=null; }
+  layers.snap.forEach(function(l){ map.removeLayer(l); }); layers.snap=[];
+  layers.pts.forEach(function(l){ map.removeLayer(l); }); layers.pts=[];
+}
+function showTrace(pts){
+  if(layers.gps) map.removeLayer(layers.gps);
+  layers.gps = L.polyline(pts.map(function(p){return [p.lat,p.lon];}),
+    {color:getComputedStyle(document.documentElement).getPropertyValue('--gps').trim(),
+     weight:1.5, opacity:0.5, dashArray:'4 4'}).addTo(map);
+  try{ map.fitBounds(layers.gps.getBounds().pad(0.15)); }catch(e){}
+}
+function showSnap(fixes, ways, path){
+  layers.snap.forEach(function(l){ map.removeLayer(l); }); layers.snap=[];
+  layers.pts.forEach(function(l){ map.removeLayer(l); }); layers.pts=[];
+  var geomById={}; ways.forEach(function(w){ geomById[w.wayId]=w; });
+  var snapCol=getComputedStyle(document.documentElement).getPropertyValue('--snap').trim();
+  var accCol=getComputedStyle(document.documentElement).getPropertyValue('--acc').trim();
+  // connect each fix to its snapped point on the chosen way
+  for (var i=0;i<fixes.length;i++){
+    var wid=path[i]; if(!wid || !geomById[wid]) continue;
+    var pr=projectFull(fixes[i].lat, fixes[i].lon, geomById[wid].geometry);
+    layers.snap.push(L.polyline([[fixes[i].lat,fixes[i].lon],[pr.lat,pr.lon]],
+      {color:snapCol, weight:2, opacity:0.85}).addTo(map));
+    // mark switch points
+    if (i>0 && path[i-1] && path[i-1]!==wid){
+      var w0=geomById[path[i-1]], w1=geomById[wid];
+      var n0=w0?w0.name||w0.highway:'?', n1=w1?w1.name||w1.highway:'?';
+      layers.pts.push(L.circleMarker([fixes[i].lat,fixes[i].lon],
+        {radius:5,color:accCol,weight:2,fillColor:'#fff',fillOpacity:0.9})
+        .bindTooltip('fix '+i+': '+n0+' \u2192 '+n1, {direction:'top'}).addTo(map));
+    }
+  }
+}
+
+// ---- orchestration ----
+function setStatus(msg, cls){
+  var el=document.getElementById('status');
+  el.className=cls||'';
+  el.innerHTML = (cls==='busy'?'<span class="spin"></span>':'') + msg;
+}
+function onTraceLoaded(pts, srcName){
+  if (pts.length<2){ setStatus('Trace has fewer than 2 points.', 'err'); return; }
+  trace = pts;
+  showTrace(pts);
+  document.getElementById('grp-match').style.display='';
+  document.getElementById('run').disabled=false;
+  var lenKm=0; for(var i=1;i<pts.length;i++) lenKm+=haversineM(pts[i-1].lat,pts[i-1].lon,pts[i].lat,pts[i].lon);
+  setStatus('Loaded <b>'+pts.length+'</b> points from '+srcName+' ('+(lenKm/1000).toFixed(2)+' km). Ready to snap.', '');
+  document.getElementById('grp-result').style.display='none';
+}
+function handleFile(file){
+  var name=file.name.toLowerCase();
+  var reader=new FileReader();
+  reader.onload=function(){
+    try{
+      var pts = (name.indexOf('.gpx')>-1) ? parseGPX(reader.result) : parseCSV(reader.result);
+      onTraceLoaded(pts, file.name);
+    }catch(e){ setStatus('Could not parse: '+e.message, 'err'); }
+  };
+  reader.readAsText(file);
+}
+function runMatch(){
+  if(!trace) return;
+  document.getElementById('run').disabled=true;
+  setStatus('Fetching OSM ways from Overpass\u2026', 'busy');
+  fetchWays(trace, function(ways){
+    osmWays = ways;
+    setStatus('Got <b>'+ways.length+'</b> ways. Matching\u2026', 'busy');
+    setTimeout(function(){    // let the status paint before the (sync) match
+      var method=document.getElementById('method').value;
+      var radius=+document.getElementById('radius').value;
+      var sigma=+document.getElementById('sigma').value;
+      var res=matchTopo(trace, ways, {searchRadius:radius, sigmaMin:sigma, nearestOnly:(method==='nearest')});
+      showSnap(trace, ways, res.path);
+      // stats
+      var nSwitch=0, nNull=0, nSteps=0;
+      var geomById={}; ways.forEach(function(w){ geomById[w.wayId]=w; });
+      for (var i=0;i<res.path.length;i++){
+        if(!res.path[i]){ nNull++; continue; }
+        if(i>0 && res.path[i-1] && res.path[i-1]!==res.path[i]) nSwitch++;
+        if(geomById[res.path[i]] && geomById[res.path[i]].highway==='steps') nSteps++;
+      }
+      document.getElementById('stats').innerHTML =
+        '<b>'+trace.length+'</b> fixes &middot; <b>'+ways.length+'</b> ways<br>'+
+        '<b>'+nSwitch+'</b> way-switches'+(nSteps?' &middot; <b>'+nSteps+'</b> on steps':'')+
+        (nNull?' &middot; <b>'+nNull+'</b> unmatched':'');
+      document.getElementById('grp-result').style.display='';
+      setStatus('Snapped '+trace.length+' fixes against '+ways.length+' OSM ways.', '');
+      document.getElementById('run').disabled=false;
+    }, 30);
+  }, function(err){
+    setStatus(err, 'err');
+    document.getElementById('run').disabled=false;
+  });
+}
+
+// ---- wiring ----
+initMap();
+var fileInput=document.getElementById('file'), drop=document.getElementById('drop');
+drop.addEventListener('click', function(){ fileInput.click(); });
+fileInput.addEventListener('change', function(){ if(this.files[0]) handleFile(this.files[0]); });
+['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('over');}); });
+['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('over');}); });
+drop.addEventListener('drop', function(e){ if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+document.getElementById('run').addEventListener('click', runMatch);
+document.getElementById('reset').addEventListener('click', function(){
+  trace=null; osmWays=null; clearLayers();
+  document.getElementById('grp-match').style.display='none';
+  document.getElementById('grp-result').style.display='none';
+  document.getElementById('run').disabled=true;
+  setStatus('', '');
+});
+</script>
+</body>
+</html>
