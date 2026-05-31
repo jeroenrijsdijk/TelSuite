@@ -436,7 +436,7 @@
   <div class="section-body" style="border-color:#d4007a">
     <div class="file-list">
       <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata including type and icon</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Per tap: timestamp, type, lat/lon, osm_way_id, segment_index (v2.3+), street</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Per tap: timestamp, type, lat/lon, osm_way_id, segment_index (v2.3+), street, snap confidence (v2.8)</span></div>
       <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track with osm_way_id, segment_index (v2.3+) and street per point</span></div>
       <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Optional</span><span class="file-desc">One row per ~40m segment with segment_index, segment_count and sub-LINESTRING (v2.3+)</span></div>
       <div class="file-row"><span class="file-name">_bezocht.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Per visit to a segment: duration, GPS points, count of taps (v2.3: per (way, segment) instead of per way)</span></div>
@@ -450,11 +450,13 @@
       </div>
     </div>
     <div class="csv-block">
-      <div class="csv-title">_telregels.csv (v2.3+)</div>
-      <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat
-20260514_131611_lok_pkt;1;2026-05-14T13:15:52;fiets;51.852540;4.332551;123456;2;Korenmarkt</div>
+      <div class="csv-title">_telregels.csv (v2.3+, conf columns v2.8)</div>
+      <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level
+20260514_131611_lok_pkt;1;2026-05-14T13:15:52;fiets;51.852540;4.332551;123456;2;Korenmarkt;0.87;green</div>
       <div class="csv-notes">
         <div class="csv-note"><code>segment_index</code> (0-based) indicates which ~40m segment of the way was hit. For v2.2 ZIPs without this column, tools interpret it as 0.</div>
+        <div class="csv-note"><strong>v2.8 &mdash; <code>conf</code> / <code>conf_level</code>:</strong> snap confidence appended after the stable columns. <code>conf</code> is a 0&ndash;1 score (weakest link of: margin to the runner-up way, snap distance, GPS accuracy); <code>conf_level</code> is <code>green</code> / <code>amber</code> / <code>red</code>. They are appended at the end so the existing column order is untouched &mdash; tools read by header name and ignore unknown trailing columns, so older readers stay compatible.</div>
+        <div class="csv-note"><strong>v2.8 &mdash; trajectory-corrected:</strong> <code>osm_way_id</code> and <code>segment_index</code> are no longer the live (causal) snap. Just before export, <code>reassignTrajectory()</code> re-solves the whole path topology-first and each tap inherits the (way, segment) of its nearest-in-time GPS fix. Raw <code>lat</code>/<code>lon</code> are untouched. See <code>snap_methodology.html</code> &sect;7.</div>
       </div>
     </div>
     <div class="csv-block">
@@ -463,6 +465,7 @@
 20260514_131611_lok_pkt;2026-05-14T13:15:50;51.852540;4.332551;5;123456;2;Korenmarkt</div>
       <div class="csv-notes">
         <div class="csv-note">Route point at &ge;5m displacement. <code>segment_index</code> comes from the same snap engine as the telregels &mdash; input for deriving <code>_bezocht.csv</code> per segment.</div>
+        <div class="csv-note"><strong>v2.8:</strong> per-point <code>osm_way_id</code> / <code>segment_index</code> are also trajectory-corrected (same <code>reassignTrajectory()</code> pass), so the track, the taps and the visits all reference the same corrected segments. Raw <code>lat</code>/<code>lon</code> and <code>nauwkeurigheid</code> are untouched.</div>
       </div>
     </div>
     <div class="csv-block">
@@ -484,6 +487,7 @@
         <div class="csv-note">KNIME join: <code>(sessie_id, osm_way_id, segment_index)</code> as composite key.</div>
         <div class="csv-note">Flux calculation: <code>n_tellingen &times; 60 / duur_sec = passages/min</code> &mdash; now per segment, more accurate for long streets.</div>
         <div class="csv-note">For old v2.2 pocket ZIPs: <code>python build_bezocht.py FILE_OR_DIR</code> upgrades the ZIP in-place to v2.3 (idempotent &mdash; pass --force to redo).</div>
+        <div class="csv-note"><strong>v2.8:</strong> built from the trajectory-corrected taps and presence, so a visit's <code>(osm_way_id, segment_index)</code> always matches the taps attributed to it &mdash; no orphan segments, no empty week-profile cells. (<code>build_bezocht.py</code> is the older server-side path and is <em>not</em> trajectory-aware; ZIPs it produces keep the live snap.)</div>
       </div>
     </div>
   </div>
