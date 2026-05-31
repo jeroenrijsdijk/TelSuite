@@ -532,6 +532,10 @@
     <div class="legend-bar auto-bar"></div>
     <div class="legend-labels"><span>0%</span><span>100%</span></div>
   </div>
+  <div id="legend-pocket" class="legend-block" style="display:none">
+    <div>Voetganger – drukte (p/m·u)</div>
+    <div id="legend-pocket-classes" class="hm-legend" style="margin-top:6px"></div>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1542,16 +1546,81 @@ function attachPocketSegmentInteraction(k) {
   if (!layer || layer._pktAttached) return;
   layer._pktAttached = true;
   layer.on('click', function() { showWegvakDetail(k); });
-  layer.on('mouseover', function() { this.setStyle({ weight: 6, opacity: 1 }); });
-  layer.on('mouseout',  function() { recolorOne(k); });
+  layer.on('mouseover', function(e) {
+    this.setStyle({ weight: 6, opacity: 1 });
+    const wd = wayData[k];
+    const naam = wd && wd.sessions[0] ? cleanNaam(wd.sessions[0].naam) : k;
+    const visSess = wd ? wd.sessions.filter(s => sessions[s.sid]?.visible && !s.zeroVisited) : [];
+    const totaal  = visSess.reduce((a,s) => a + (s.totaal||0), 0);
+    const pmu     = pmuForKey(k);
+    const cls     = pmu !== null ? intensityClass(pmu) : null;
+    let tip = `<strong>${naam}</strong>`;
+    if (totaal) tip += `<br>${totaal} tikken`;
+    if (cls)    tip += `<br><span style="color:${cls.kleur};font-weight:600">${cls.label}</span>`
+                     + ` (${pmu.toFixed(1)} p/m·u)`;
+    this.bindTooltip(tip, {sticky:true, direction:'top', className:'way-hover-tip'}).openTooltip(e.latlng);
+  });
+  layer.on('mouseout', function() {
+    this.closeTooltip();
+    recolorOne(k);
+  });
 }
 
 // ── HEAT COLOUR ───────────────────────────────────────────────────
+// ── INTENSITEITSKLASSEN (p/m·u) ─────────────────────────────────────────────
+// Eén centrale definitie; alle kleuringen en labels komen hieruit.
+// Drempelwaarden: 0 | 10 | 30 | 60 | 100 | ∞
+// Palet: blauw→geel→rood (kleurenblind-veilig; geen rood-groen).
+const INTENSITEIT = [
+  { max:  10, label: 'Rustig',      kleur: '#4575b4' },  // blauw
+  { max:  30, label: 'Matig',       kleur: '#74add1' },  // lichtblauw
+  { max:  60, label: 'Druk',        kleur: '#fee090' },  // geel
+  { max: 100, label: 'Zeer druk',   kleur: '#f46d43' },  // oranje
+  { max: Infinity, label: 'Extreem druk', kleur: '#d73027' }  // rood
+];
+
+// Geeft { kleur, label, index } voor een p/m·u-waarde.
+function intensityClass(pmu) {
+  if (pmu === null || pmu === undefined) return null;
+  for (let i = 0; i < INTENSITEIT.length; i++) {
+    if (pmu < INTENSITEIT[i].max) return { ...INTENSITEIT[i], index: i, pmu };
+  }
+  return { ...INTENSITEIT[INTENSITEIT.length-1], index: INTENSITEIT.length-1, pmu };
+}
+
+// Berekent de p/m·u voor een pocket-segment over alle zichtbare sessies.
+// Gebruikt dezelfde formule als het weekprofiel en de sessietabel.
+function pmuForKey(key) {
+  const wd = wayData[key]; if (!wd) return null;
+  const pk = parseKey(key);
+  const wid = pk.wid, segIdx = pk.segIdx || 0;
+  const lenM = segmentLengthM(wd.geometry);
+  if (!lenM) return null;
+  let totTel = 0, totSec = 0;
+  Object.keys(visitData).forEach(sid => {
+    if (!sessions[sid]?.visible) return;
+    visitData[sid].forEach(v => {
+      if (v.wid === wid && (v.segIdx||0) === segIdx) {
+        totTel += v.nTel || 0;
+        totSec += v.durSec || 0;
+      }
+    });
+  });
+  // Tikken uit wayData als visitData geen nTel heeft (backward compat)
+  if (totTel === 0) {
+    const visSess = wd.sessions.filter(s => sessions[s.sid]?.visible && !s.zeroVisited);
+    totTel = visSess.reduce((a,s) => a + (s.totaal||0), 0);
+  }
+  if (totTel === 0 || totSec === 0) return null;
+  return totTel / (lenM * (totSec / 3600));
+}
+
+// Kleurcode voor een t-waarde [0..1] — gebruikt door auto/fiets die nog op t werken.
 function heatColor(t) {
-  // t = 0..1 → groen (weinig) via geel naar rood (druk)
-  const r = Math.round(255 * Math.min(2*t, 1));
-  const g = Math.round(255 * Math.min(2*(1-t), 1));
-  return `rgb(${r},${g},0)`;
+  // Vertaal t naar een pseudo-p/m·u (0..100+ range) voor klasconsistentie.
+  const pmu = t * 100;
+  const cls = intensityClass(pmu);
+  return cls ? cls.kleur : '#888';
 }
 
 // Lengte van een polyline [[lat,lon],...] in meters (Cartesisch, WGS84).
@@ -1578,15 +1647,16 @@ function wayHeat(key) {
     const avg = visSessions.reduce((a,s) => a + (s.bezettingsgraad_pct||0), 0) / visSessions.length;
     return { t: avg / 100, appType };
   } else if (appType === 'pocket') {
-    // Kleur op passages per gestrekte meter.
-    // Schaal: 1 passage/m = maximum (t=1). Voldoende onderscheid via √.
-    // Totaal tikken over alle zichtbare sessies, gedeeld door segmentlengte.
+    // Kleur op p/m·u (passages per gestrekte meter per uur aanwezigheid).
+    // Tijdsduur uit visitData; tikken uit wayData als visitData geen nTel heeft.
+    const pmu = pmuForKey(key);
+    if (pmu === null) return null;
+    const cls = intensityClass(pmu);
     const total = visSessions.reduce((a,s) => a + (s.totaal||0), 0);
-    if (!total) return null;
     const lenM = segmentLengthM(wd.geometry);
-    const density = total / lenM;           // passages per meter
-    const t = Math.sqrt(Math.min(1, density));   // √-schaal, 1/m = saturatie
-    return { t, appType, total, density: +density.toFixed(4), lenM: Math.round(lenM) };
+    return { t: cls.index / (INTENSITEIT.length-1), appType, total,
+             pmu: +pmu.toFixed(2), lenM: Math.round(lenM),
+             kleur: cls.kleur, label: cls.label };
   } else {
     // Fiets/transect: √-schaal op totaal t.o.v. sessie-maximum
     const total = visSessions.reduce((a,s) => a + (s.totaal||0), 0);
@@ -1612,7 +1682,8 @@ function recolorOne(key) {
   const line = wayLayers[key]; if (!line) return;
   const heat = wayHeat(key);
   if (heat) {
-    line.setStyle({ color: heatColor(heat.t), opacity:0.9, weight:4, dashArray: null });
+    const kleur = heat.kleur || heatColor(heat.t);
+    line.setStyle({ color: kleur, opacity:0.9, weight:4, dashArray: null });
     return;
   }
   // Geen heat — check voor zichtbare zero-visited sessies
@@ -2176,17 +2247,15 @@ function renderWeeklyHeatmap(hm) {
     if (v >= 10) return Math.round(v).toString();
     return v.toFixed(1);
   }
-  // Hybride kleurschaal: saturatie bij max(100, observed max).
-  // 100 p/m·u is "drukke centrumstoep", boven 100 schaalt mee zodat
-  // extreem drukke segmenten ook nog kleurspreiding behouden.
-  const SAT_MIN = 100;
-  const saturation = Math.max(SAT_MIN, hm.maxVal || 0);
+  // Kleur via de centrale intensiteitsklassen (blauw→geel→rood, p/m·u-drempels).
   function cellStyle(val) {
     if (val === null) return 'background:rgba(255,255,255,0.04);';
-    const t = Math.sqrt(Math.min(1, val / saturation));
-    const r = Math.round(255 * Math.min(2*t, 1));
-    const g = Math.round(255 * Math.min(2*(1-t), 1));
-    return `background:rgb(${r},${g},0);`;
+    const cls = intensityClass(val);
+    return cls ? `background:${cls.kleur};` : 'background:#888;';
+  }
+  function cellLabel(val) {
+    if (val === null) return '';
+    return intensityClass(val)?.label || '';
   }
 
   let html = `<table class="hm-tbl"><thead><tr><th></th>`;
@@ -2198,31 +2267,31 @@ function renderWeeklyHeatmap(hm) {
       const c = hm.cells[d][h];
       const v = c.value;
       const title = (v !== null)
-        ? `${DAGEN[d]} ${h}:00 · ${v.toFixed(2)} p/m·u (${Math.round(c.taps)} tikken in ${(c.secs/60).toFixed(1)} min)`
+        ? `${DAGEN[d]} ${h}:00 · ${v.toFixed(1)} p/m·u · ${cellLabel(v)} (${Math.round(c.taps)} tikken in ${(c.secs/60).toFixed(1)} min)`
         : `${DAGEN[d]} ${h}:00 · niet gemeten`;
       const txt = (v !== null && v >= 0.5) ? fmtVal(v) : '';
       html += `<td style="${cellStyle(v)}" title="${title}">${txt}</td>`;
     }
     const rowVal = valOf(dayTot[d].secs, dayTot[d].taps);
-    html += `<td class="hm-tot" title="${rowVal !== null ? rowVal.toFixed(2) + ' p/m·u' : 'geen data'}">${fmtVal(rowVal)}</td></tr>`;
+    html += `<td class="hm-tot" title="${rowVal !== null ? rowVal.toFixed(1) + ' p/m·u · ' + (intensityClass(rowVal)?.label||'') : 'geen data'}">${fmtVal(rowVal)}</td></tr>`;
   }
   // Footer met uur-totalen
   html += `<tr class="hm-foot"><th>∑</th>`;
   for (let h = 0; h < 24; h++) {
     const colVal = valOf(hourTot[h].secs, hourTot[h].taps);
-    html += `<td title="${colVal !== null ? colVal.toFixed(2) + ' p/m·u' : 'geen data'}">${fmtVal(colVal)}</td>`;
+    html += `<td title="${colVal !== null ? colVal.toFixed(1) + ' p/m·u · ' + (intensityClass(colVal)?.label||'') : 'geen data'}">${fmtVal(colVal)}</td>`;
   }
   const grandVal = valOf(totSec, totTap);
   html += `<td class="hm-tot">${fmtVal(grandVal)}</td></tr>`;
   html += `</tbody></table>`;
-  // Compacte legenda onder de tabel
-  const legSteps = [0, 10, 30, 60, 100, Math.max(saturation, 100)];
+  // Legenda: vaste klassen uit INTENSITEIT met labels en drempelwaarden.
   let legHtml = '<div class="hm-legend">';
-  for (let i = 0; i < legSteps.length - 1; i++) {
-    const mid = (legSteps[i] + legSteps[i+1]) / 2;
-    legHtml += `<span class="hm-leg-sw" style="${cellStyle(mid)}"></span>` +
-               `<span class="hm-leg-lbl">${fmtVal(legSteps[i])}–${fmtVal(legSteps[i+1])}</span>`;
-  }
+  INTENSITEIT.forEach((cls, i) => {
+    const lo = i === 0 ? 0 : INTENSITEIT[i-1].max;
+    const hi = cls.max === Infinity ? '100+' : cls.max;
+    legHtml += `<span class="hm-leg-sw" style="background:${cls.kleur}"></span>` +
+               `<span class="hm-leg-lbl">${cls.label} (${lo}–${hi})</span>`;
+  });
   legHtml += '</div>';
   return html + legHtml;
 }
@@ -2285,16 +2354,18 @@ function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
              'letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">' +
              'Tellingen op dit segment</div>';
   html += '<table class="cmp-table"><tr>' +
-          '<th>datum</th><th>visits</th><th>aanwezig</th><th>tikken</th><th>p/m·u</th>' +
+          '<th>datum</th><th>visits</th><th>aanwezig</th><th>tikken</th><th>p/m·u</th><th>klasse</th>' +
           '</tr>';
   rows.forEach(r => {
     const minStr = (r.secs >= 60) ? (r.secs/60).toFixed(1) + ' min'
                                   : Math.round(r.secs) + ' s';
+    const cls = intensityClass(r.pmh);
     html += `<tr><td>${r.datum}</td>` +
             `<td>${r.visits}</td>` +
             `<td>${minStr}</td>` +
             `<td>${r.tel}</td>` +
-            `<td>${r.pmh.toFixed(2)}</td></tr>`;
+            `<td>${r.pmh.toFixed(1)}</td>` +
+            `<td style="color:${cls?.kleur||'inherit'};font-weight:600">${cls?.label||''}</td></tr>`;
   });
   if (rows.length > 1) {
     const totSec = rows.reduce((a,r) => a + r.secs, 0);
@@ -2303,8 +2374,11 @@ function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
     const grand  = (lenM * (totSec/3600)) > 0 ? totTel / (lenM * (totSec/3600)) : 0;
     const minStr = (totSec >= 60) ? (totSec/60).toFixed(1) + ' min'
                                   : Math.round(totSec) + ' s';
+    const cls = intensityClass(grand);
     html += `<tr class="sum-row"><td>∑</td><td>${totVis}</td>` +
-            `<td>${minStr}</td><td>${totTel}</td><td>${grand.toFixed(2)}</td></tr>`;
+            `<td>${minStr}</td><td>${totTel}</td>` +
+            `<td>${grand.toFixed(1)}</td>` +
+            `<td style="color:${cls?.kleur||'inherit'};font-weight:600">${cls?.label||''}</td></tr>`;
   }
   html += '</table>';
   return html;
@@ -3328,6 +3402,19 @@ function updateUI() {
   document.getElementById('legend').style.display        = hasAny  ?'block':'none';
   document.getElementById('legend-fiets').style.display  = hasFiets?'block':'none';
   document.getElementById('legend-auto').style.display   = hasAuto ?'block':'none';
+  document.getElementById('legend-pocket').style.display = hasPocket?'block':'none';
+  if (hasPocket) {
+    const box = document.getElementById('legend-pocket-classes');
+    if (box && !box.childElementCount) {
+      INTENSITEIT.forEach((cls, i) => {
+        const lo = i === 0 ? 0 : INTENSITEIT[i-1].max;
+        const hi = cls.max === Infinity ? '100+' : cls.max;
+        box.insertAdjacentHTML('beforeend',
+          `<span class="hm-leg-sw" style="background:${cls.kleur}"></span>` +
+          `<span class="hm-leg-lbl">${cls.label} (${lo}–${hi})</span>`);
+      });
+    }
+  }
   document.getElementById('pill-fiets').style.display    = hasFiets?'block':'none';
   document.getElementById('pill-bezet').style.display    = hasAuto ?'block':'none';
 
