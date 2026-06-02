@@ -267,14 +267,11 @@
       The canonical failure case &mdash; observed in ZIP <code>20260520_145913_txb_pkt</code> &mdash; involves two parallel pedestrian ways in Spijkenisse Centrum:
     </p>
     <ul>
-      <li><code>136079346</code>: one of two near-parallel pedestrian passages</li>
-      <li><code>130419432</code>: the other, roughly 8&nbsp;m away</li>
+      <li><code>136079346</code>: Centrumpassage (where the counter actually walked)</li>
+      <li><code>130419432</code>: Nieuwstraat-west (a parallel passage roughly 8&nbsp;m away)</li>
     </ul>
     <p>
-      Both ways are well within the 50&nbsp;m radius. Because GPS accuracy in narrow urban canyons is typically 5&ndash;15&nbsp;m, individual fixes wobble between the two candidates, and the stateless snap &mdash; having no concept of topology &mdash; flips attribution between them. This is the general failure mode the adjacency-aware snap exists to fix: where parallel ways are genuinely <em>disconnected</em> (no shared node, reachable only via a cross-street), topology can rule out the unreachable one.
-    </p>
-    <p>
-      A caveat specific to this ZIP: re-analysis under v2.8 (see &sect;8) showed that taps 28, 29, 44, 45 actually sit on a <em>junction</em> where <code>130419432</code>, <code>136079346</code> and <code>130418057</code> converge within sub-metre &mdash; far below GPS accuracy. That is a distinct, irreducible case rather than the parallel-disconnected one: no distance- or topology-based rule can separate candidates that occupy the same point in space. The adjacency snap still addresses the broad parallel-ways problem; it simply cannot resolve a true shared-node junction.
+      Both ways are well within the 50&nbsp;m radius. Because GPS accuracy in narrow urban canyons is typically 5&ndash;15&nbsp;m, individual fixes wobble between the two candidates. Taps recorded at numbers 28, 29, 44, 45 landed on Nieuwstraat-west even though the counter never set foot there. The two ways are topologically <em>disconnected</em> &mdash; they have no shared OSM node and require a detour through a cross-street to reach each other &mdash; but the stateless snap has no concept of topology.
     </p>
   </div>
 
@@ -318,19 +315,6 @@
     </div>
     <p>
       Both <code>node_to_ways</code> and <code>adjacency</code> grow cumulatively over the lifetime of a session. New fetches add new edges; existing edges are idempotent. This matters because the anchor must remain valid across refetches when the counter walks into newly fetched terrain.
-    </p>
-
-    <h3>Candidate accumulation across refetches (v2.8)</h3>
-    <p>
-      The geometry must accumulate the same way the graph does. Before v2.8 the snap-candidate set was rebuilt from each fresh Overpass response, so a way that fell just outside the new fetch circle lost its candidacy at every refetch &mdash; the counter could walk back onto a way that had vanished from the pool. v2.8 makes the pool cumulative:
-    </p>
-    <ul>
-      <li><code>snapElements</code> accumulates every way ever fetched in the session; it is never rebuilt.</li>
-      <li><code>snapElementsNear(lat, lon)</code> derives the per-fix candidate list from that cumulative pool, keeping any way with at least one node within <code>SNAP_SEGS_RADIUS</code> (400&nbsp;m). The current anchor is always retained regardless of node distance, so the way you are standing on can never drop out &mdash; even a long way with widely-spaced nodes.</li>
-      <li>The fetch order is now <em>accumulate first, build second</em>: new elements are merged into <code>snapElements</code> and <code>snapAdjacency</code>, then <code>snapBuildSegs</code> reprojects everything against the current origin in one pass. A single origin avoids mixing coordinate frames from different fetches.</li>
-    </ul>
-    <p>
-      Each fetch logs <code>n_el|n_kept|n_segs</code> to <code>_snap_trace.csv</code>: total cumulative ways, ways kept within <code>SNAP_SEGS_RADIUS</code>, and segments handed to the matcher.
     </p>
   </div>
 
@@ -392,7 +376,7 @@
   <div class="section">
     <h2>5. Tunable parameters</h2>
     <p>
-      Four numerical knobs govern the live snap's behavior. All are defined as top-level constants in the snap module. (The offline reassignment in &sect;7 has its own internal constants.)
+      Three numerical knobs govern the algorithm's behavior. All three are defined as top-level constants in the snap module.
     </p>
 
     <table>
@@ -407,13 +391,8 @@
         </tr>
         <tr>
           <td>SNAP_RESET_M</td>
-          <td>50&nbsp;m</td>
-          <td>Threshold for declaring that the counter has physically moved away from the anchor. When the anchor itself lies further than this from the current GPS position <em>and</em> no connected candidate is found, the anchor is cleared and the next fix is treated as bootstrap. Set equal to <code>SNAP_MAX_M</code>: an anchor that is already out of snap range cannot be a useful constraint, so there is no reason to hold it longer.</td>
-        </tr>
-        <tr>
-          <td>SNAP_SEGS_RADIUS</td>
-          <td>400&nbsp;m</td>
-          <td>Radius around the current fix within which a cumulatively-fetched way stays in the candidate pool (see &sect;3). Derived as <code>round(SNAP_ROAD_FETCH_RADIUS &times; 1.6)</code> from the 250&nbsp;m fetch radius plus the maximum drift before a refetch. Larger values keep more far-off ways as candidates (more robust when doubling back, slightly more work per fix); the anchor is always kept regardless of this radius.</td>
+          <td>100&nbsp;m</td>
+          <td>Threshold for declaring that the counter has physically moved away from the anchor. When the anchor itself lies further than this from the current GPS position <em>and</em> no connected candidate is found, the anchor is cleared and the next fix is treated as bootstrap. Lower values reset too eagerly (false moves from tunnel exits); higher values keep stale anchors longer after a real area change.</td>
         </tr>
         <tr>
           <td>adjacency depth</td>
@@ -451,54 +430,9 @@
     </p>
   </div>
 
-  <!-- ───────────────────────── REASSIGNMENT ───────────────────────── -->
-  <div class="section">
-    <h2>7. Offline trajectory reassignment (v2.8)</h2>
-    <p>
-      The live snap (&sect;4) and live tap inheritance (&sect;6) are necessarily <em>causal</em>: at each fix they know only the past. The anchor tempers jitter but can stick to a distant anchor way, and it cannot use evidence that only arrives later. Once a session ends the whole trajectory is known, so v2.8 runs a single global correction &mdash; <code>reassignTrajectory()</code> &mdash; just before the ZIP is built. It rewrites the snapped way and segment of every fix <em>and</em> every tap from the complete path, topology first.
-    </p>
-
-    <h3>Mechanism</h3>
-    <ol>
-      <li>
-        <strong>Topology-first Viterbi over the full <code>routeLog</code>.</strong> Each fix collects the candidate ways within a 40&nbsp;m search radius. A candidate's emission cost is <code>&frac12;(d/&sigma;)&sup2;</code> with <code>&sigma; = max(5, fix.accuracy)</code> &mdash; a Gaussian penalty scaled by the fix's own reported accuracy, so noisy fixes contribute weak evidence.
-      </li>
-      <li>
-        <strong>Transitions use the exact node-ID adjacency</strong> (the same <code>snapAdjacency</code> as the live snap). Staying on the same way is free; a hop to a directly connected way (shared node) costs&nbsp;4; a hop across two ways costs&nbsp;12; anything further is forbidden. A small term <code>&gamma;&middot;|projStep &minus; gpsStep|</code> (&gamma;&nbsp;=&nbsp;0.02) pulls the projected step length toward the observed GPS step, breaking ties between equally-connected candidates.
-      </li>
-      <li>
-        <strong>Per-fix segment</strong> is resolved with <code>splitWayIntoSegments</code> &mdash; the exact segmentation the export uses &mdash; so a fix's <code>segIdx</code> always matches a real exported segment.
-      </li>
-      <li>
-        <strong>Taps inherit from the trajectory.</strong> Each tap takes the <code>wayId</code> and <code>segIdx</code> of the fix closest to it <em>in time</em>. Tap and presence therefore land on the same (way, segment) pair by construction, which is what stops week-profile cells from going empty.
-      </li>
-    </ol>
-    <p>
-      Raw <code>lat</code>/<code>lon</code> are never touched &mdash; only the derived <code>wayId</code>/<code>segIdx</code>/<code>osmName</code>. Because the correction runs before any CSV is serialised, <code>_telregels.csv</code>, <code>_gps.csv</code> and <code>_bezocht.csv</code> are mutually consistent at the source: every CSV builder reads the corrected fields.
-    </p>
-    <p>
-      Verified on field session <code>20260529_162037_xax_pkt</code>: 33 taps the live snap had left on service ways moved onto pedestrian ways, all 99 taps retained, zero orphan segments. Note that reassignment improves attribution but cannot manufacture information GPS does not contain &mdash; at a true shared-node junction (&sect;8) it falls back to continuity.
-    </p>
-  </div>
-
   <!-- ───────────────────────── LIMITATIONS ───────────────────────── -->
   <div class="section">
-    <h2>8. Limitations and known cases</h2>
-
-    <h3>Shared-node junctions (irreducible)</h3>
-    <p>
-      Where several ways meet at a shared node, their geometries converge to within sub-metre of each other &mdash; an order of magnitude below GPS accuracy. The emission cost is then effectively equal for all of them and topology connects them all, so neither distance nor the adjacency graph can decide which way a tap belongs to. <code>reassignTrajectory</code> keeps continuity (it stays on the way the path was already following), which is the most defensible choice but not a true disambiguation. The <code>20260520_145913_txb_pkt</code> taps fall into exactly this case; it is an irreducible remainder, not a fixable bug.
-    </p>
-
-    <h3>Open pedestrian areas</h3>
-    <p>
-      Adjacent pedestrian ways often triangulate an open square, sharing nodes around its edge. &ldquo;Which line&rdquo; is not a sharp question inside such a polygon. The matcher gives zero wrong switches on ordinary streets but a handful on a plaza; resolving this properly needs <code>area</code>/<code>pedestrian</code> polygons as snap targets rather than lines.
-    </p>
-
-    <h3>Vertical coincidence (steps, escalators)</h3>
-    <p>
-      A <code>highway=steps</code> way can sit directly above the walking surface beside it; in 2D they coincide and no horizontal distance distinguishes them. A real fix needs a height signal (barometric altitude, or <code>altitude</code>/<code>altitudeAccuracy</code> from the Geolocation API) or manual marking.
-    </p>
+    <h2>7. Limitations and known cases</h2>
 
     <h3>First-fix lock-in</h3>
     <p>
@@ -528,7 +462,7 @@
 
   <!-- ───────────────────────── CODE LOCATION ───────────────────────── -->
   <div class="section">
-    <h2>9. Code location</h2>
+    <h2>8. Code location</h2>
     <p>
       All snap-related state and functions live in the SNAP MODULE section of <code>pocket_count.html</code>. The relevant identifiers:
     </p>
@@ -538,48 +472,36 @@
       </thead>
       <tbody>
         <tr><td>SNAP_MAX_M</td><td>const</td><td>Maximum snap distance</td></tr>
-        <tr><td>SNAP_RESET_M</td><td>const</td><td>Anchor-reset threshold (= SNAP_MAX_M)</td></tr>
-        <tr><td>SNAP_ROAD_FETCH_RADIUS</td><td>const</td><td>Overpass fetch radius (250&nbsp;m)</td></tr>
-        <tr><td>SNAP_SEGS_RADIUS</td><td>const</td><td>Cumulative candidate radius (400&nbsp;m)</td></tr>
+        <tr><td>SNAP_RESET_M</td><td>const</td><td>Anchor-reset threshold</td></tr>
         <tr><td>snapNodeToWays</td><td>state</td><td>node_id → set of way_ids</td></tr>
         <tr><td>snapAdjacency</td><td>state</td><td>way_id → set of adjacent way_ids</td></tr>
         <tr><td>snapAnchorWayId</td><td>state</td><td>current anchor (null at bootstrap)</td></tr>
         <tr><td>snapAnchorSegIdx</td><td>state</td><td>segment index within the anchor way</td></tr>
-        <tr><td>snapElements</td><td>state</td><td>way_id → {highway, osmName, geometry} (cumulative)</td></tr>
-        <tr><td>snapSegs</td><td>state</td><td>reprojected segment list handed to the matcher</td></tr>
+        <tr><td>snapElements</td><td>state</td><td>way_id → {highway, osmName, geometry}</td></tr>
         <tr><td>snapRegisterWay()</td><td>func</td><td>Incremental graph builder, called per Overpass element</td></tr>
-        <tr><td>snapElementsNear()</td><td>func</td><td>Per-fix candidate list from the cumulative pool within SNAP_SEGS_RADIUS</td></tr>
-        <tr><td>snapBuildSegs()</td><td>func</td><td>Reproject the candidate ways into segments against the current origin</td></tr>
         <tr><td>snapAdjacencySet()</td><td>func</td><td>Return reachable way_ids within depth N</td></tr>
         <tr><td>snapDistanceToWay()</td><td>func</td><td>Min distance from point to all edges of one way (no SNAP_MAX_M cutoff)</td></tr>
-        <tr><td>snapProjectOnto()</td><td>func</td><td>Project a point onto one way; used for live tap inheritance</td></tr>
-        <tr><td>snapNearestWay()</td><td>func</td><td>The live decision ladder &mdash; called from GPS handler and tap handler</td></tr>
-        <tr><td>splitWayIntoSegments()</td><td>func</td><td>Segmentation used by both export and reassignment</td></tr>
-        <tr><td>reassignTrajectory()</td><td>func</td><td>Offline topology-first correction of all fixes and taps before ZIP build (&sect;7)</td></tr>
+        <tr><td>snapNearestWay()</td><td>func</td><td>The decision ladder &mdash; called from GPS handler and tap handler</td></tr>
       </tbody>
     </table>
   </div>
 
   <!-- ───────────────────────── MIGRATION ───────────────────────── -->
   <div class="section">
-    <h2>10. Migrating the other apps</h2>
+    <h2>9. Migrating the other apps</h2>
     <p>
       The other survey apps in the suite share a common ancestor of the snap module but have diverged. Migration to the adjacency-aware version is a mechanical port:
     </p>
     <ol>
       <li>Change the Overpass query from <code>out tags geom;</code> to <code>out body geom;</code>.</li>
-      <li>Add <code>SNAP_RESET_M</code>, <code>SNAP_ROAD_FETCH_RADIUS</code>, <code>SNAP_SEGS_RADIUS</code>, <code>snapNodeToWays</code>, <code>snapAdjacency</code>, <code>snapElements</code>, <code>snapAnchorWayId</code>, <code>snapAnchorSegIdx</code> as top-level state.</li>
-      <li>Add <code>snapRegisterWay()</code>, <code>snapAdjacencySet()</code>, <code>snapDistanceToWay()</code>, <code>snapElementsNear()</code>, <code>snapBuildSegs()</code> helpers.</li>
+      <li>Add <code>SNAP_RESET_M</code>, <code>snapNodeToWays</code>, <code>snapAdjacency</code>, <code>snapAnchorWayId</code>, <code>snapAnchorSegIdx</code> as top-level state.</li>
+      <li>Add <code>snapRegisterWay()</code>, <code>snapAdjacencySet()</code>, <code>snapDistanceToWay()</code> helpers.</li>
       <li>Replace <code>snapNearestWay()</code> with the decision-ladder version.</li>
-      <li>In the Overpass response handler, accumulate into <code>snapElements</code>/<code>snapAdjacency</code> first (call <code>snapRegisterWay(el)</code> before storing geometry), <em>then</em> rebuild the candidate segments via <code>snapElementsNear()</code> + <code>snapBuildSegs()</code> &mdash; never rebuild the candidate pool from a single fetch (&sect;3).</li>
+      <li>In the Overpass response handler, call <code>snapRegisterWay(el)</code> before storing geometry.</li>
       <li>In the tap handler, fall back to anchor inheritance when a fresh snap returns <code>null</code>.</li>
-      <li>For sessions that export presence and taps together, add <code>reassignTrajectory()</code> (with <code>splitWayIntoSegments</code>) and call it once at export time, before any CSV is built (&sect;7).</li>
     </ol>
     <p>
-      The migration is additive &mdash; no existing CSV columns or session formats change. Sessions recorded with the adjacency snap are byte-compatible with the existing <code>telregels.csv</code> and <code>gps.csv</code> schemas; reassignment only changes which (way, segment) the existing columns hold, never the columns themselves.
-    </p>
-    <p>
-      Out of scope for this document but on the same migration sweep: the platform-robust <code>saveBlob()</code> download helper (iOS-safe export) is a separate, non-snap port that each app needs alongside the above.
+      The migration is additive &mdash; no existing CSV columns or session formats change. Sessions recorded with the adjacency snap are byte-compatible with the existing <code>telregels.csv</code> and <code>gps.csv</code> schemas.
     </p>
   </div>
 
