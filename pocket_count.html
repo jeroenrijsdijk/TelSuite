@@ -119,27 +119,46 @@
     align-items: center;
     gap: 8px;
     margin-top: 14px;
-    max-width: 80vw;
+    max-width: 88vw;
     pointer-events: none;
   }
   #snap-dot {
-    width: 13px; height: 13px;
+    width: 18px; height: 18px;
     border-radius: 50%;
     background: #888;            /* default/none */
     flex: none;
-    box-shadow: 0 0 8px rgba(0,0,0,0.35);
+    border: 2px solid rgba(255,255,255,0.85);   /* ring keeps the colour readable in bright light */
+    box-shadow: 0 0 6px rgba(0,0,0,0.6);
     transition: background 0.4s ease;
   }
-  #snap-dot.green { background: rgb(0,220,0); }
-  #snap-dot.amber { background: rgb(255,200,0); }
-  #snap-dot.red   { background: rgb(255,60,0); }
+  #snap-dot.green { background: rgb(0,200,0); }
+  #snap-dot.amber { background: rgb(255,176,0); }
+  #snap-dot.red   { background: rgb(240,40,0); }
+
+  /* Tweede stip: GPS-signaalstabiliteit. Ring i.p.v. gevulde schijf, zodat
+     hij visueel niet te verwarren is met de snap-stip ernaast. */
+  .gps-dot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    background: transparent;
+    border: 3px solid #888;          /* default/none */
+    flex: none;
+    box-shadow: 0 0 6px rgba(0,0,0,0.6);
+    transition: border-color 0.4s ease;
+  }
+  .gps-dot.green { border-color: rgb(0,200,0); }
+  .gps-dot.amber { border-color: rgb(255,176,0); }
+  .gps-dot.red   { border-color: rgb(240,40,0); }
   #snap-name {
-    font-size: 4vw;
-    font-weight: 500;
-    color: rgba(255,255,255,0.6);
+    font-size: clamp(17px, 5vw, 26px);
+    font-weight: 600;
+    color: #fff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    /* dark outline keeps the name readable over any background colour in bright sunlight */
+    text-shadow: 0 0 3px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9);
   }
 
   /* Flash on tap */
@@ -391,7 +410,7 @@
 <div id="count-screen">
   <div id="big-count">0</div>
   <div id="type-label"></div>
-  <div id="snap-conf"><span id="snap-dot"></span><span id="snap-name">—</span></div>
+  <div id="snap-conf"><span id="snap-dot"></span><span id="gps-dot" class="gps-dot"></span><span id="snap-name">—</span></div>
 </div>
 
 <div id="undo-bar"><div id="undo-fill"></div><div id="undo-lbl">Undo</div></div>
@@ -538,6 +557,7 @@ function startGps() {
       lastLat = pos.coords.latitude;
       lastLon = pos.coords.longitude;
       var acc = Math.round(pos.coords.accuracy || 0);
+      gpsUpdateStability(lastLat, lastLon, acc, Date.now());
       snapCheckRefresh(lastLat, lastLon);
       // Huidige snap bepalen (kan null zijn als netwerk nog niet geladen is)
       var snapNow = snapNearestWay(lastLat, lastLon, {type:'gps', tijdstip:nowIso(), accuracy:acc});
@@ -622,6 +642,7 @@ function startTelling(type, icon, label) {
   document.getElementById('big-count').textContent = '0';
   document.getElementById('type-label').textContent = label;
   snapConfScore = null; snapConfLevel = 'none'; snapConfName = '';
+  gpsFixWin = []; gpsStabScore = null; gpsStabLevel = 'none';
   renderSnapConf();
   document.getElementById('choose-screen').style.display = 'none';
   document.getElementById('btn-stop').style.display = '';
@@ -721,9 +742,13 @@ function doTap() {
     // Tik erft de live zekerheid van het anker waarop hij landt (voor analyse).
     tapEntry.conf = (snapConfScore === null) ? '' : snapConfScore.toFixed(2);
     tapEntry.confLevel = snapConfLevel;
+    tapEntry.gpsStab = (gpsStabScore === null) ? '' : gpsStabScore.toFixed(2);
+    tapEntry.gpsLevel = gpsStabLevel;
     telHistory.push(tapEntry);
   } else {
     // Snap nog niet beschikbaar — in wachtrij plaatsen
+    tapEntry.gpsStab = (gpsStabScore === null) ? '' : gpsStabScore.toFixed(2);
+    tapEntry.gpsLevel = gpsStabLevel;
     snapPendingQueue.push(tapEntry);
     telHistory.push(tapEntry);
   }
@@ -735,6 +760,81 @@ function doTap() {
 }
 
 // Werk de zekerheidsstip + straatnaam onder de teller bij.
+function _median(arr) {
+  if (!arr.length) return 0;
+  var s = arr.slice().sort(function(a,b){ return a-b; });
+  var m = s.length >> 1;
+  return (s.length % 2) ? s[m] : (s[m-1] + s[m]) / 2;
+}
+
+// Werk de GPS-stabiliteitsscore bij met één nieuwe fix.
+// Zelf-kalibrerend: een "sprong" is een snelheid die ver boven het eigen
+// recente mediaan-tempo ligt (mediaan + K·MAD), niet een vaste m/s-drempel.
+// Retourneert niets; zet gpsStabScore / gpsStabLevel.
+function gpsUpdateStability(lat, lon, acc, tsMs) {
+  var win = gpsFixWin;
+  // Identieke/gecachete fix (maximumAge) overslaan: vervuilt mediaan niet.
+  var last = win.length ? win[win.length - 1] : null;
+  if (last && (tsMs - last.ts) < 200) return;
+  if (last && last.lat === lat && last.lon === lon) return;
+
+  win.push({ ts: tsMs, lat: lat, lon: lon, acc: acc });
+  while (win.length && (tsMs - win[0].ts) > GPS_WIN_MS) win.shift();
+
+  if (win.length < GPS_WIN_MIN) {        // nog te weinig om iets te zeggen
+    gpsStabScore = null; gpsStabLevel = 'none'; return;
+  }
+
+  // Stapsnelheden (m/s) en koerswijzigingen over het venster.
+  var speeds = [], turns = [], prevBrg = null;
+  for (var i = 1; i < win.length; i++) {
+    var a = win[i-1], b = win[i];
+    var dt = (b.ts - a.ts) / 1000;
+    if (dt <= 0) continue;
+    var cos = Math.cos(a.lat * Math.PI / 180);
+    var dx  = (b.lon - a.lon) * 111320 * cos;
+    var dy  = (b.lat - a.lat) * 111320;
+    var dist = Math.sqrt(dx*dx + dy*dy);
+    speeds.push(dist / dt);
+    var brg = Math.atan2(dx, dy) * 180 / Math.PI;
+    if (prevBrg !== null && dist > 1) {  // koers alleen zinvol bij echte stap
+      var d = Math.abs(brg - prevBrg) % 360;
+      turns.push(d > 180 ? 360 - d : d);
+    }
+    if (dist > 1) prevBrg = brg;
+  }
+  if (!speeds.length) { gpsStabScore = null; gpsStabLevel = 'none'; return; }
+
+  // 1. Sprong: robuuste z-score van de laatste stap t.o.v. mediaan + K·MAD.
+  var med  = _median(speeds);
+  var devs = speeds.map(function(v){ return Math.abs(v - med); });
+  var mad  = _median(devs);
+  var band = med + GPS_JUMP_K * (mad > 0.3 ? mad : 0.3);  // vloer tegen 0-MAD
+  var vLast = speeds[speeds.length - 1];
+  var jumpScore = vLast <= band ? 1 : Math.max(0, 1 - (vLast - band) / band);
+
+  // 2. Koers-consistentie: gemiddelde koerswijziging; recht lopen = stabiel.
+  var turnScore = 1;
+  if (turns.length) {
+    var avgTurn = turns.reduce(function(s,v){ return s+v; }, 0) / turns.length;
+    turnScore = Math.max(0, 1 - avgTurn / GPS_TURN_DEG);
+  }
+
+  // 3. Nauwkeurigheid: lineair tussen GOOD en BAD.
+  var accScore = acc <= GPS_ACC_GOOD ? 1
+               : acc >= GPS_ACC_BAD  ? 0
+               : 1 - (acc - GPS_ACC_GOOD) / (GPS_ACC_BAD - GPS_ACC_GOOD);
+
+  // Zwakste schakel — zelfde logica als de snap-stip.
+  var raw = Math.min(jumpScore, turnScore, accScore);
+
+  gpsStabScore = (gpsStabScore === null)
+               ? raw
+               : (GPS_STAB_EMA * raw + (1 - GPS_STAB_EMA) * gpsStabScore);
+  gpsStabLevel = (gpsStabScore >= GPS_STAB_GREEN) ? 'green'
+               : (gpsStabScore >= GPS_STAB_AMBER) ? 'amber' : 'red';
+}
+
 function renderSnapConf() {
   var dot  = document.getElementById('snap-dot');
   var name = document.getElementById('snap-name');
@@ -744,6 +844,14 @@ function renderSnapConf() {
     dot.classList.add(snapConfLevel);
   }
   name.textContent = snapConfName || '—';
+
+  var gdot = document.getElementById('gps-dot');
+  if (gdot) {
+    gdot.className = 'gps-dot';
+    if (gpsStabLevel === 'green' || gpsStabLevel === 'amber' || gpsStabLevel === 'red') {
+      gdot.classList.add(gpsStabLevel);
+    }
+  }
 }
 
 function doUndo() {
@@ -838,13 +946,14 @@ function buildNetwerkCsv(sid) {
 //   null_no_candidate    — geen anker én geen kandidaat in 50m
 //   no_network           — netwerk nog niet geladen
 function buildSnapTraceCsv(sid) {
-  var lines = ['sessie_id;seq;tijdstip;event;lat;lon;accuracy;anchor_before;snap_path;chosen_way;d_anchor;d_chosen;alternatives;anchor_after;tap_nr;conf;conf_level'];
+  var lines = ['sessie_id;seq;tijdstip;event;lat;lon;accuracy;anchor_before;snap_path;chosen_way;d_anchor;d_chosen;alternatives;anchor_after;tap_nr;conf;conf_level;gps_stab;gps_level'];
   snapTrace.forEach(function(r) {
     lines.push([sid, r.seq, r.tijdstip, r.event, r.lat, r.lon, r.accuracy,
                 r.anchor_before, r.snap_path, r.chosen_way,
                 r.d_anchor, r.d_chosen, r.alternatives,
                 r.anchor_after, r.tap_nr,
-                r.conf != null ? r.conf : '', r.conf_level != null ? r.conf_level : ''].join(';'));
+                r.conf != null ? r.conf : '', r.conf_level != null ? r.conf_level : '',
+                r.gps_stab != null ? r.gps_stab : '', r.gps_level != null ? r.gps_level : ''].join(';'));
   });
   return lines.join('\n');
 }
@@ -1127,9 +1236,10 @@ function stopTelling() {
   // Zo zijn telregels, gps én bezocht meteen bij de bron consistent.
   reassignTrajectory();
 
-  // telregels.csv — conf/conf_level achteraan zodat bestaande kolomvolgorde
-  // intact blijft; telrapport leest op header-naam en negeert onbekende kolommen.
-  var telregelsCsv = 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level\n';
+  // telregels.csv — conf/conf_level + gps_stab/gps_level achteraan zodat
+  // bestaande kolomvolgorde intact blijft; telrapport leest op header-naam
+  // en negeert onbekende kolommen.
+  var telregelsCsv = 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level;gps_stab;gps_level\n';
   telHistory.forEach(function(h, i) {
     telregelsCsv += [sid, i+1, h.ts, csvType,
       h.lat !== null ? h.lat.toFixed(6) : '',
@@ -1138,7 +1248,9 @@ function stopTelling() {
       h.wayId  ? (h.segIdx || 0) : '',
       h.osmName|| '',
       h.conf != null ? h.conf : '',
-      h.confLevel || ''
+      h.confLevel || '',
+      h.gpsStab != null ? h.gpsStab : '',
+      h.gpsLevel || ''
     ].join(';') + '\n';
   });
 
@@ -1357,6 +1469,20 @@ var CONF_DIST_LO   = 10, CONF_DIST_HI   = 40;   // m afstand tot gekozen way
 var CONF_ACC_LO    = 10, CONF_ACC_HI    = 30;   // m GPS-accuracy-straal
 var CONF_GREEN     = 0.66, CONF_AMBER = 0.33;   // tier-drempels
 var CONF_EMA       = 0.5;                        // smoothing (1 = geen smoothing)
+
+// ── GPS-stabiliteit ───────────────────────────────────────────────────────────
+// Tweede indicator naast de snap-stip: hoe betrouwbaar het GPS-signaal zélf is,
+// los van welke straat gekozen wordt. Zelf-kalibrerend op het eigen tempo via
+// mediaan + MAD over een tijdvenster, dus geen vaste snelheidsdrempel (een
+// fietser hoort niet als "sprong" gemarkeerd te worden).
+var GPS_WIN_MS     = 15000;   // tijdvenster voor mediaan/MAD
+var GPS_WIN_MIN    = 3;       // minder fixes in venster → nog "onbekend" (grijs)
+var GPS_JUMP_K     = 3.5;     // snelheid > mediaan + K·MAD ⇒ sprong (robuuste z-score)
+var GPS_TURN_DEG   = 90;      // gem. koerswijziging waarboven 't als zigzag telt
+var GPS_ACC_GOOD   = 12;      // m: acc ≤ dit telt als goed
+var GPS_ACC_BAD    = 35;      // m: acc ≥ dit telt als slecht
+var GPS_STAB_EMA   = 0.4;     // smoothing van de stabiliteitsscore
+var GPS_STAB_GREEN = 0.66, GPS_STAB_AMBER = 0.33;
 var SNAP_OVERPASS          = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 
 // Wegvakken worden bij export opgeknipt in segmenten van ~SEGMENT_TARGET_M.
@@ -1394,6 +1520,10 @@ var snapChallenger   = null;   // {wayId, count}
 var snapConfScore = null;      // gesmoothed [0,1], of null = nog onbekend
 var snapConfLevel = 'none';    // 'green' | 'amber' | 'red' | 'none'
 var snapConfName  = '';        // OSM-naam van de huidige gekozen way ('' = onbekend)
+
+var gpsFixWin     = [];        // [{ts(ms), lat, lon, acc}] binnen GPS_WIN_MS
+var gpsStabScore  = null;      // gesmoothed [0,1], of null = nog onbekend
+var gpsStabLevel  = 'none';    // 'green' | 'amber' | 'red' | 'none'
 
 // ── Debug trace ────────────────────────────────────────────────────────────
 // Per GPS-fix en per tap één regel met ruwe data + interne state.
@@ -1876,8 +2006,10 @@ function traceWrite(evt, lat, lon, snapPath, anchorBefore, chosenWay, dAnchor, d
     alternatives:   altStr,
     anchor_after:   snapAnchorWayId != null ? snapAnchorWayId : '',
     tap_nr:         evt.tap_nr != null ? evt.tap_nr : '',
-    conf:           (snapConfScore === null) ? '' : snapConfScore.toFixed(2),
-    conf_level:     snapConfLevel
+    conf:           (snapConfScore === null) ? "" : snapConfScore.toFixed(2),
+    conf_level:     snapConfLevel,
+    gps_stab:       (gpsStabScore === null) ? "" : gpsStabScore.toFixed(2),
+    gps_level:      gpsStabLevel
   });
 }
 
@@ -1933,8 +2065,10 @@ function snapFetchNetwork(lat, lon, attempt) {
         alternatives:   '',
         anchor_after:   snapAnchorWayId||'',
         tap_nr:         '',
-        conf:           (snapConfScore === null) ? '' : snapConfScore.toFixed(2),
-        conf_level:     snapConfLevel
+        conf:           (snapConfScore === null) ? "" : snapConfScore.toFixed(2),
+        conf_level:     snapConfLevel,
+        gps_stab:       (gpsStabScore === null) ? "" : gpsStabScore.toFixed(2),
+        gps_level:      gpsStabLevel
       });
       snapReady=true;
       // Retro-snap tikken die wachtten op het netwerk: dichtstbijzijnde way op
