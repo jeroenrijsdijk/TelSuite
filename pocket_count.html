@@ -150,6 +150,50 @@
   .gps-dot.green { border-color: rgb(0,200,0); }
   .gps-dot.amber { border-color: rgb(255,176,0); }
   .gps-dot.red   { border-color: rgb(240,40,0); }
+
+  /* Derde indicator: batterij. Een klein staafje (andere vorm dan de stippen)
+     zodat het meteen als batterij leesbaar is. Alleen getoond als de Battery
+     API bestaat (niet op iOS Safari). */
+  .batt-ind {
+    position: relative;
+    width: 26px; height: 13px;
+    border: 2px solid rgba(255,255,255,0.85);
+    border-radius: 3px;
+    box-shadow: 0 0 6px rgba(0,0,0,0.6);
+    flex: none;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .batt-ind::after {            /* het plus-nubje rechts */
+    content: '';
+    position: absolute;
+    right: -4px; top: 50%;
+    transform: translateY(-50%);
+    width: 2px; height: 6px;
+    background: rgba(255,255,255,0.85);
+    border-radius: 0 1px 1px 0;
+  }
+  .batt-fill {
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: #888;
+    transition: width 0.4s ease, background 0.4s ease;
+  }
+  .batt-ind.green .batt-fill { background: rgb(0,200,0); }
+  .batt-ind.amber .batt-fill { background: rgb(255,176,0); }
+  .batt-ind.red   .batt-fill { background: rgb(240,40,0); }
+  .batt-ind.charging { border-color: #fff; }
+  .batt-ind.charging::before {  /* bliksempje bij opladen */
+    content: '\26A1';
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 9px;
+    line-height: 1;
+    z-index: 1;
+    text-shadow: 0 0 2px rgba(0,0,0,0.8);
+  }
   #snap-name {
     font-size: clamp(17px, 5vw, 26px);
     font-weight: 600;
@@ -410,7 +454,7 @@
 <div id="count-screen">
   <div id="big-count">0</div>
   <div id="type-label"></div>
-  <div id="snap-conf"><span id="snap-dot"></span><span id="gps-dot" class="gps-dot"></span><span id="snap-name">—</span></div>
+  <div id="snap-conf"><span id="snap-dot"></span><span id="gps-dot" class="gps-dot"></span><span id="batt-ind" class="batt-ind" style="display:none;"><span class="batt-fill"></span></span><span id="snap-name">—</span></div>
 </div>
 
 <div id="undo-bar"><div id="undo-fill"></div><div id="undo-lbl">Undo</div></div>
@@ -644,6 +688,7 @@ function startTelling(type, icon, label) {
   snapConfScore = null; snapConfLevel = 'none'; snapConfName = '';
   gpsFixWin = []; gpsStabScore = null; gpsStabLevel = 'none';
   renderSnapConf();
+  initBattery();
   document.getElementById('choose-screen').style.display = 'none';
   document.getElementById('btn-stop').style.display = '';
   document.getElementById('btn-back').style.display = '';
@@ -852,6 +897,36 @@ function renderSnapConf() {
       gdot.classList.add(gpsStabLevel);
     }
   }
+}
+
+// ── Batterij-indicator ────────────────────────────────────────────────────────
+// Alleen actief als de Battery Status API bestaat (ontbreekt op iOS Safari);
+// daar blijft het element verborgen. Event-gedreven, niet pollend.
+var battMgr = null;
+
+function renderBattery() {
+  var el = document.getElementById('batt-ind');
+  if (!el || !battMgr) return;
+  el.style.display = '';
+  var fill = el.querySelector('.batt-fill');
+  var pct  = Math.round(battMgr.level * 100);
+  if (fill) fill.style.width = Math.max(8, pct) + '%';   // min. zichtbaar streepje
+  el.className = 'batt-ind';
+  // Bij opladen geen rode paniek: toon laadstatus, kleur op niveau maar amber-vloer.
+  if (battMgr.charging) el.classList.add('charging');
+  var level = (pct > 30) ? 'green' : (pct >= 15) ? 'amber' : (battMgr.charging ? 'amber' : 'red');
+  el.classList.add(level);
+  el.title = pct + '%' + (battMgr.charging ? ' (opladen)' : '');
+}
+
+function initBattery() {
+  if (battMgr || !navigator.getBattery) return;   // al gedaan, of niet ondersteund
+  navigator.getBattery().then(function(b) {
+    battMgr = b;
+    b.addEventListener('levelchange',    renderBattery);
+    b.addEventListener('chargingchange', renderBattery);
+    renderBattery();
+  }).catch(function(){ /* geen batterij-info: laat element verborgen */ });
 }
 
 function doUndo() {
