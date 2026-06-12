@@ -266,14 +266,14 @@
     <p> </p>
     <div class="choice-card">
       <div class="choice-label">Uitgangspunt</div>
-      <p>Wees consequent in je tellen, keer op keer. Als je afwijkt, leg dat dan vast.</p>
+      <p>Wees consequent in je manier van tellen, keer op keer. Als je afwijkt, leg dat dan vast.</p>
     </div>
   </div>
   <br>
 
   <div class="method-item">
     <h4>Definieer de eenheid</h4>
-    <p>Wat tel je precies? Een "voetganger" lijkt duidelijk, maar telt een gezin met kinderwagen als één of als meer?</p>
+    <p>Wat tel je precies? Een "voetganger" lijkt duidelijk, maar telt een vader met kinderwagen als één of als meer?</p>
     <div class="choice-card">
       <div class="choice-label">Onze keuze</div>
       <ul>
@@ -292,8 +292,8 @@
     <div class="choice-card">
       <div class="choice-label">Onze keuze</div>
       <ul>
-        <li>Wegvak: van kruising tot kruising, of tot punt waar configuratie wijzigt.</li>
-        <li>Kruising: namen van takken volgens NOZW of richtignummers van VRI.</li>
+        <li>Wegvak: van kruising tot kruising, of tot punt waar configuratie wijzigt. Het systeem gebruikt de straatnaam in Openstreetmap. Als die niet juist, wijzig die dan in OSM.</li>
+        <li>Kruising: namen van takken volgens NOZW of richtingnummers van VRI.</li>
         <li>Richting: oost = richting oost. Of Oost naar Zuid. Of North is 0, East is 90, South is 180, and West is 270</li>
         <li>@MEER...</li>
       </ul>
@@ -309,8 +309,8 @@
         <li>Wegvak: .</li>
         <li>Parkeervak: een vak is "bezet" wanneer de auto duidelijk bij dat vak hoort. Bij twijfel kijken we op het middelpunt van de auto in het vak staat. Voor een losse aanhanger of container geldt hetzelfde.</li>
         <li>Foutparkeren: 
-          <ol>Voertuigen die buiten een vak staan, op de stoep staan, of in een bocht,</ol>
-          <ol>Voertuigen die buiten een vak staan tellen als Fout Parkeerder.</ol>
+          <ol>* Voertuigen die buiten een vak staan, op de stoep staan, of in een bocht,</ol>
+          <ol>* Voertuigen die buiten een vak staan tellen als Fout Parkeerder.</ol>
         </li>
         <li>@MEER</li>
         </li>
@@ -319,52 +319,33 @@
   </div>
 
   <div class="method-item">
-    <h4>Definieer het moment</h4>
-    <p>Een telling is altijd een momentopname, ook als die "een uur duurt". Voor stand-still (momentopname-telling): leg vast hoe lang je over één ronde doet, en houd dat constant. Voor flux (passages over een lijn): leg vast hoe lang je telinterval is. Bij vergelijking tussen dagen of locaties moeten die intervallen identiek zijn — een kwartier op woensdag en een uur op zaterdag levert getallen op die nauwelijks tegen elkaar te zetten zijn.</p>
+    <h4>Definieer het moment en de telduur</h4>
+    <p>Een telling is altijd een momentopname, ook een langdurige telling. .</p>
+    <br>
     <div class="choice-card">
       <div class="choice-label">Onze keuze</div>
       <ul>
-        <li>Flux/passages: telintervallen van 15 minuten, aansluitend op de CROW-standaard.</li>
-        <li>Stand-still: telrondes van vaste duur per studie (meestal 30 min of 60 min), op vaste klokmomenten gestart.</li>
-        <li>Kruispunttellingen: hele uren in blokken van 15 minuten.</li>
-        <li>Is het maandag, maar wel 2e paasdag? Braderie? Wegwerkzaamheden? Alles wat afwijkt opschrijven!</li>
+        <li>Tel ten minste 15 minuten, om tot uur te mogen ophogen.</li>
+        <li>Route: wandel bij voorkeur ongeveer dezelfde snelheid, en veel en vaak dezelfde routes. Neem in elke route een wegvak mee dat je al eerder liep. Dit helpt voor de vergelijkbaarheid. De GPS zorgt voor vastleggen van datum en tijdstip.</li>
       </ul>
     </div>
   </div>
 
   <div class="method-item">
-    <h4>Tel ononderbroken, of registreer de onderbreking</h4>
-    <p>Een teller die even afgeleid wordt en daarna weer mee gaat tellen levert een ondertelling op die niet als zodanig herkenbaar is in de data. Beter: pauzeer expliciet en herstart, dan kun je het interval later corrigeren.</p>
+    <h4>Twee waarnemers? Verdeel het werk.</h4>
+    <p>Spreek van tevoren af  wie welke beweging doet. Verdeel de bewegingen (richtingen, vakken, modaliteiten) expliciet, en zorg dat de scheiding ondubbelzinnig is.</p>
     <div class="choice-card">
       <div class="choice-label">Onze keuze</div>
-      <p>Bij elke onderbreking sluiten we de sessie en starten we een nieuwe. Geen "ik mis dit even"-gedrag binnen een lopende sessie. De sessietoggle in de telapps is hiervoor bedoeld.</p>
-    </div>
-  </div>
-
-  <div class="method-item">
-    <h4>Twee waarnemers ≠ twee keer zo nauwkeurig</h4>
-    <p>Twee mensen die "samen" een drukke kruising tellen, tellen meestal de helft dubbel en de andere helft helemaal niet, tenzij ze van tevoren afspreken wie welke beweging doet. Verdeel de bewegingen (richtingen, vakken, modaliteiten) expliciet, en zorg dat de scheiding ondubbelzinnig is.</p>
-    <div class="choice-card">
-      <div class="choice-label">Onze keuze</div>
-      <p>Eén teller per stroom of per gebied — geen overlappende verantwoordelijkheden. Bij kruispunten volgen we de Nederlandse 1–12 nummering voor bewegingen; per teller hoogstens enkele duidelijk gescheiden nummers. Bij parkeertellingen verdelen we vakken of zones zonder overlap.</p>
-    </div>
-  </div>
-
-  <div class="method-item">
-    <h4>Wat geen meting is, is geen nul</h4>
-    <p>Een ontbrekende waarde is iets anders dan een nul. Als de teller om 14:00 koffie ging halen en er stond niemand toen hij terug kwam, is dat geen "0 passages tussen 14:00 en 14:15" — dat is geen meting op dat moment. Schrijf het zo op. Een nul-meting is een legitieme observatie ("ik keek, er was niemand"); een gat in de telling is dat niet.</p>
-    <div class="choice-card">
-      <div class="choice-label">Onze keuze</div>
-      <p>Niet-gemeten intervallen laten we leeg in de nabewerking. Nullen worden alleen geregistreerd waar daadwerkelijk gekeken is en niemand gepasseerd is. In de ZIP-bestanden is dit het verschil tussen een ontbrekende sessie en een sessie zonder telregels.</p>
+      <p>@volgt</p>
     </div>
   </div>
 
   <div class="method-item">
     <h4>Onverwacht is interessant — schrijf het op</h4>
-    <p>Bouwwerkzaamheden in de straat, een markt om de hoek, schoolvakantie, slechte weersomslag tijdens de telling: dat zijn geen "fouten" in je data, dat zijn contextuele factoren. Niet noteren = later raden waarom dinsdag 18 mei zo afweek van het patroon. Drie regels in een notitie zijn vaak het verschil tussen bruikbare en onverklaarbare uitschieters.</p>
+    <p>Bouwwerkzaamheden in de straat, tijdens de telling?  Niet noteren = later raden waarom de telling zo afweek van het patroon.</p>
     <div class="choice-card">
       <div class="choice-label">Onze keuze</div>
-      <p>Bij elke sessie vullen we het notitieveld in met waarneembare context: weer, wegwerkzaamheden, evenementen, schoolvakantie, of opvallend rustige/drukke omstandigheden. Liever te veel context dan te weinig — een lege notitie betekent achteraf altijd raden.</p>
+      <p>Bij elke sessie vullen we het notitieveld in met waarneembare context: weer, wegwerkzaamheden, evenementen, schoolvakantie, maandag-maar-2e-paasdag, of opvallend rustige/drukke omstandigheden. Liever te veel context dan te weinig — een lege notitie betekent achteraf altijd raden.</p>
     </div>
   </div>
 
