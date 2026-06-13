@@ -1176,15 +1176,15 @@ function reassignTrajectory() {
   // Projecteer punt op way-geometrie (lat/lon-array), geef afstand + snap-punt.
   function project(plat, plon, geom){
     var lm=lonM(geom[0].lat); var px=plon*lm, py=plat*LAT_M;
-    var best=Infinity, bLat=geom[0].lat, bLon=geom[0].lon;
+    var best=Infinity, bLat=geom[0].lat, bLon=geom[0].lon, bBrg=0;
     for (var i=0;i<geom.length-1;i++){
       var ax=geom[i].lon*lm, ay=geom[i].lat*LAT_M, bx=geom[i+1].lon*lm, by=geom[i+1].lat*LAT_M;
       var dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy;
       var t=(l2===0)?0:Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
       var cx=ax+t*dx, cy=ay+t*dy, d=Math.hypot(px-cx,py-cy);
-      if (d<best){ best=d; bLat=cy/LAT_M; bLon=cx/lm; }
+      if (d<best){ best=d; bLat=cy/LAT_M; bLon=cx/lm; bBrg=Math.atan2(dx,dy)*180/Math.PI; }
     }
-    return { dist:best, lat:bLat, lon:bLon };
+    return { dist:best, lat:bLat, lon:bLon, brg:((bBrg%360)+360)%360 };
   }
 
   // hop-klasse via de bestaande, exacte node-ID-adjacency (snapAdjacency)
@@ -1196,7 +1196,9 @@ function reassignTrajectory() {
   }
 
   var wayIds = Object.keys(snapElements);
-  var SR=40, SIG_MIN=5, HOP1=4, HOP2=12, GAMMA=0.02;
+  var SR=40, SIG_MIN=5, HOP1=4, HOP2=12, GAMMA=0.02, BETA=2, HEAD_REF_M=10;
+  // koersverschil mod 180 (een way heeft geen looprichting)
+  function angDiff180(a,b){ var d=Math.abs(a-b)%180; return Math.min(d,180-d); }
 
   // kolommen: per fix de kandidaat-ways binnen SR, met emissiekost
   var cols = [];
@@ -1206,7 +1208,7 @@ function reassignTrajectory() {
     for (var w=0; w<wayIds.length; w++){
       var g=snapElements[wayIds[w]].geometry; if(!g||g.length<2) continue;
       var pr=project(fx.lat, fx.lon, g);
-      if (pr.dist<=SR){ var z=pr.dist/sigma; cands.push({wayId:wayIds[w], plat:pr.lat, plon:pr.lon, emit:0.5*z*z}); }
+      if (pr.dist<=SR){ var z=pr.dist/sigma; cands.push({wayId:wayIds[w], plat:pr.lat, plon:pr.lon, emit:0.5*z*z, brg:pr.brg}); }
     }
     cols.push(cands);
   }
@@ -1219,8 +1221,14 @@ function reassignTrajectory() {
     if (col===0){ for(var a=0;a<cur.length;a++) V[0][cur[a].wayId]=cur[a].emit; continue; }
     var prev=cols[col-1];
     var gpsStep=hav(routeLog[col-1].lat,routeLog[col-1].lon,routeLog[col].lat,routeLog[col].lon);
+    // GPS-stap-koers; gewicht ~ staplengte zodat korte (ruizige) stappen weinig meetellen
+    var _lm=lonM(routeLog[col].lat);
+    var _dx=(routeLog[col].lon-routeLog[col-1].lon)*_lm, _dy=(routeLog[col].lat-routeLog[col-1].lat)*LAT_M;
+    var gpsBrg=((Math.atan2(_dx,_dy)*180/Math.PI)%360+360)%360;
+    var headW=Math.min(1, gpsStep/HEAD_REF_M);
     for (var c=0;c<cur.length;c++){
       var cw=cur[c], bestCost=Infinity, bestPrev=null;
+      var headCost=BETA*headW*(angDiff180(gpsBrg, cw.brg)/90);
       for (var p=0;p<prev.length;p++){
         var pw=prev[p]; if(V[col-1][pw.wayId]===undefined) continue;
         var hc=hopClass(pw.wayId, cw.wayId);
@@ -1230,17 +1238,30 @@ function reassignTrajectory() {
         var tot=V[col-1][pw.wayId]+base+GAMMA*Math.abs(projStep-gpsStep);
         if(tot<bestCost){ bestCost=tot; bestPrev=pw.wayId; }
       }
-      if(bestPrev!==null){ V[col][cw.wayId]=bestCost+cw.emit; back[col][cw.wayId]=bestPrev; }
+      if(bestPrev!==null){ V[col][cw.wayId]=bestCost+cw.emit+headCost; back[col][cw.wayId]=bestPrev; }
     }
     if(Object.keys(V[col]).length===0){ for(var g2=0;g2<cur.length;g2++){ V[col][cur[g2].wayId]=cur[g2].emit; back[col][cur[g2].wayId]=null; } }
   }
+  // Beste staat van één kolom (laagste kost), of null als de kolom leeg is.
+  function bestStateOf(colObj){
+    var bw=null, bc=Infinity;
+    for (var ww in colObj) if(colObj[ww]<bc){ bc=colObj[ww]; bw=ww; }
+    return bw;
+  }
+  // Stuksgewijze backtrack. Een reset-kolom zet back=null als bewuste
+  // segment-grens; daar starten we een NIEUWE backtrack vanaf de beste staat
+  // van de bovenliggende kolom, i.p.v. de hele voorgeschiedenis als null weg te
+  // gooien. Zo behoudt elk verbonden stuk z'n eigen Viterbi-oplossing.
   var path=new Array(cols.length).fill(null), last=cols.length-1;
   while(last>=0 && Object.keys(V[last]).length===0) last--;
   if(last<0) return;
-  var bestEnd=null, bestEndCost=Infinity;
-  for (var ww in V[last]) if(V[last][ww]<bestEndCost){ bestEndCost=V[last][ww]; bestEnd=ww; }
-  path[last]=bestEnd;
-  for (var col2=last;col2>0;col2--){ var pv=back[col2][path[col2]]; path[col2-1]=(pv==null)?null:pv; }
+  path[last]=bestStateOf(V[last]);
+  for (var col2=last;col2>0;col2--){
+    var cw2=path[col2];
+    var pv=(cw2!=null) ? back[col2][cw2] : null;   // cw2 null kan niet meer voorkomen, maar veilig
+    if (pv!=null){ path[col2-1]=pv; }
+    else        { path[col2-1]=bestStateOf(V[col2-1]); }  // segment-grens → nieuw stuk
+  }
 
   // segIdx per fix bepalen via splitWayIntoSegments (zelfde segmentatie als export)
   function segCountOf(wid){
