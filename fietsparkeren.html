@@ -363,7 +363,6 @@ var watchId = null;
 var entries = [];
 var counts = { fiets:{L:0,R:0}, brommer:{L:0,R:0}, breed:{L:0,R:0}, wrak:{L:0,R:0} };
 var currentLat = null, currentLon = null, currentAcc = 999;
-var prevLat = null, prevLon = null;
 var currentBearing = null;
 var currentStreet = '—';
 var lastGeocodeLat = null, lastGeocodeLon = null;
@@ -387,6 +386,7 @@ var GEOCODE_INTERVAL = 60000; // street name refresh ms
 var ROAD_FETCH_RADIUS = 300;  // meters around position to fetch roads
 var ROAD_CACHE_DIST   = 150;  // re-fetch when this far from cache center
 var SNAP_MAX_DIST     = 50;   // ignore snap if road is further than this
+var SNAP_SEGS_RADIUS  = Math.round(ROAD_FETCH_RADIUS * 1.6);  // cumulatieve snap-kandidaten (480m)
 
 var csvDownloaded = false;
 var kaartDownloaded = false;
@@ -491,11 +491,14 @@ function releaseWakeLock() {
   if (wakeLock) { wakeLock.release(); wakeLock=null; }
   document.getElementById('wlBadge').style.display='none';
 }
-/* ── Veiligheidsnet: download bij verlaten pagina ─────── */
+/* ── Veiligheidsnet: borg de herstelkopie (GEEN auto-download) ─────────
+   Auto-downloaden bij scherm-uit/app-switch was schadelijk: het triggerde
+   ongewenste downloads én wiste via exportCSV() de localStorage-herstelkopie.
+   Voor herstel vertrouwen we volledig op saveSession() (draait al bij elke
+   telling); hier borgen we alleen dat de laatste stand is weggeschreven. */
 function safetyDownload() {
   if (!entries.length) return;
-  if (!csvDownloaded) exportCSV();
-  if (!kaartDownloaded) exportMapCanvas();
+  saveSession();
 }
 
 window.addEventListener('beforeunload', function(e) {
@@ -557,7 +560,6 @@ function startSession() {
   entries=[]; totalNr=0;
   counts={fiets:{L:0,R:0},brommer:{L:0,R:0},breed:{L:0,R:0},wrak:{L:0,R:0}};
   trackPoints=[]; currentStreet='—'; currentBearing=null;
-  prevLat=null; prevLon=null;
   if (disableTimer){ clearTimeout(disableTimer); disableTimer=null; }
   roadSegs=[]; roadCacheLat=null; roadCacheLon=null; roadSnapStatus='none'; usedSegIndices={};
   if (roadFetchTimer){ clearTimeout(roadFetchTimer); roadFetchTimer=null; }
@@ -738,11 +740,11 @@ function onPosition(pos) {
   currentAcc=Math.round(pos.coords.accuracy);
 
   // GPS bearing: update on movement >3m, smooth over last 5 readings
-  var moved = prevLat!==null && haversine(prevLat,prevLon,lat,lon)>3;
+  var moved = currentLat!==null && haversine(currentLat,currentLon,lat,lon)>3;
   lastMoved = moved;
   var gpsBearing = null;
   if (moved) {
-    var raw=calcBearing(prevLat,prevLon,lat,lon);
+    var raw=calcBearing(currentLat,currentLon,lat,lon);
     recentBearings.push(raw);
     if (recentBearings.length>5) recentBearings.shift();
     var sinSum=0, cosSum=0;
@@ -773,7 +775,6 @@ function onPosition(pos) {
     document.getElementById('bearingDeg').textContent=Math.round(displayBearing)+'\u00b0';
   }
   drawMiniMap();
-  prevLat=currentLat; prevLon=currentLon;
   currentLat=lat; currentLon=lon;
 
   // Coördinaten met punt als decimaalteken (Excel-compatibel)
@@ -909,6 +910,22 @@ function closestOnSeg(px, py, ax, ay, bx, by) {
 }
 
 /* Build segment list from Overpass way elements */
+// Cumulatieve snap-pool: alle eerder gevonden ways met minstens één knoop
+// binnen 'radius' van (lat,lon). Spiegelt pocket_count's snapElementsNear.
+function elementsNear(lat, lon, radius) {
+  var r2 = radius * radius;
+  var cosLat = Math.cos(lat * Math.PI / 180);
+  return osmNetworkElements.filter(function(el) {
+    if (!el.geometry) return false;
+    for (var i = 0; i < el.geometry.length; i++) {
+      var dx = (el.geometry[i].lon - lon) * 111320 * cosLat;
+      var dy = (el.geometry[i].lat - lat) * 111320;
+      if (dx*dx + dy*dy <= r2) return true;
+    }
+    return false;
+  });
+}
+
 function buildSegments(elements, refLat, refLon) {
   var segs = [];
   elements.forEach(function(el) {
@@ -1026,14 +1043,17 @@ function fetchRoads(lat, lon, endpointIdx) {
       if (!data.elements || !data.elements.length) throw new Error('Geen wegen');
       _roadFetchRetry = 0; // succes — reset teller
       roadCacheLat = lat; roadCacheLon = lon;
-      roadSegs = buildSegments(data.elements, lat, lon);
-      // Cumulatief bijhouden: nieuwe ways toevoegen, bekende overslaan
+      // Cumulatief bijhouden: nieuwe ways toevoegen, bekende overslaan (EERST)
       var knownIds = {};
       osmNetworkElements.forEach(function(el){ knownIds[el.id] = true; });
       data.elements.forEach(function(el){
         if (!knownIds[el.id]) osmNetworkElements.push(el);
       });
       try { localStorage.setItem(LS_KEY+'_netwerk', JSON.stringify(osmNetworkElements)); } catch(e) {}
+      // Snap-kandidaten cumulatief: álle eerder gevonden ways binnen SNAP_SEGS_RADIUS
+      // van dit centrum, herprojecteerd op dit centrum. Een weg die net buiten de
+      // verse fetch-cirkel valt blijft zo een snap-kandidaat (walk-back-geval).
+      roadSegs = buildSegments(elementsNear(lat, lon, SNAP_SEGS_RADIUS), lat, lon);
       roadSnapStatus = roadSegs.length ? 'ok' : 'error';
       setSnapBadge();
       drawMiniMap();
@@ -1189,6 +1209,7 @@ function drawMiniMap() {
 /* ── Tel-acties ───────────────────────────────────────── */
 function addEntry(type, zijde) {
   if (!sessionActive) return;
+  if (!counts[type]) return;  // vangnet: onbekend type mag nooit crashen (geen telling kwijt)
   if (navigator.vibrate) navigator.vibrate(40);
   totalNr++;
   counts[type][zijde]++;
@@ -1451,7 +1472,7 @@ function buildGpxString() {
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<gpx version="1.1" creator="'+creator+'" xmlns="http://www.topografix.com/GPX/1/1">',
     '  <metadata>',
-    '    <n>Fietsparkeren '+d.toISOString().slice(0,10)+'</n>',
+    '    <name>Fietsparkeren '+d.toISOString().slice(0,10)+'</name>',
     '    <time>'+d.toISOString()+'</time>',
     '  </metadata>'
   ];
@@ -1460,7 +1481,7 @@ function buildGpxString() {
     var name = (TYPE_LABELS[e.type]||e.type)+' '+e.zijde+' #'+e.nr;
     var sym = TYPE_SYM[e.type]||'Flag';
     lines.push('  <wpt lat="'+e.lat+'" lon="'+e.lon+'">');
-    lines.push('    <n>'+name+'</n>');
+    lines.push('    <name>'+name+'</name>');
     lines.push('    <desc>'+e.street+' — '+e.ts+'</desc>');
     lines.push('    <sym>'+sym+'</sym>');
     lines.push('    <type>'+e.type+'</type>');
@@ -1468,7 +1489,7 @@ function buildGpxString() {
   });
   if (trackPoints.length) {
     lines.push('  <trk>');
-    lines.push('    <n>Looproute</n>');
+    lines.push('    <name>Looproute</name>');
     lines.push('    <trkseg>');
     trackPoints.forEach(function(tp) {
       lines.push('      <trkpt lat="'+tp.lat+'" lon="'+tp.lon+'">');
@@ -1635,16 +1656,24 @@ function exportZip() {
     zip.generateAsync({type:'blob'}).then(function(zipBlob) {
       var zipName = sid + '_fts.zip';
       var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
+      // Pas ná een bevestigde opslag de herstelkopie wissen — niet optimistisch
+      // vooraf, anders is de back-up al weg terwijl het deelvenster nog open staat.
+      function finalizeExport() {
+        csvDownloaded = true;
+        kaartDownloaded = true;
+        clearSession();
+      }
       if (navigator.canShare && navigator.canShare({files:[zipFile]})) {
-        navigator.share({files:[zipFile], title:zipName}).catch(function(){
-          downloadBlob(zipBlob, zipName);
-        });
+        navigator.share({files:[zipFile], title:zipName})
+          .then(finalizeExport)
+          .catch(function(){
+            downloadBlob(zipBlob, zipName);
+            finalizeExport();
+          });
       } else {
         downloadBlob(zipBlob, zipName);
+        finalizeExport();
       }
-      csvDownloaded = true;
-      kaartDownloaded = true;
-      clearSession();
     });
   });
 }
