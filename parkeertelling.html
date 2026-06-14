@@ -512,7 +512,7 @@ window.addEventListener('beforeunload', function(e) {
 
 // ── Capaciteitslaag laden ─────────────────────────────
 (function loadCapNetwerk() {
-  fetch('/cap_netwerk.csv')
+  fetch('cap_netwerk.csv')  // relatief pad: werkt ook vanuit een submap
     .then(function(r){ return r.ok ? r.text() : Promise.reject(r.status); })
     .then(function(txt) {
       var lines = txt.trim().split('\n');
@@ -550,8 +550,9 @@ window.addEventListener('beforeunload', function(e) {
       });
     })
     .catch(function(e) {
-      console.warn('[capNetwerk] laden mislukt:', e);
-      setStatus('Capaciteitslaag niet beschikbaar (' + e + ')');
+      // Optionele laag — stilletjes overslaan als 'ie er niet is: geen 404-ruis in
+      // de statusbalk tijdens een gewone telling.
+      console.warn('[capNetwerk] laden overgeslagen:', e);
     });
 })();
 
@@ -998,6 +999,9 @@ function buildSegments(elements, refLat, refLon) {
 var SNAP_ROAD_TYPES  = /^(primary|secondary|tertiary|residential|living_street|unclassified|service)$/;
 var SNAP_CYCLE_TYPES = /^(cycleway|path|footway|pedestrian)$/;
 var SNAP_FORCE_DIST  = 8;   // meter: rijweg binnen 8m wint altijd van fietspad
+// Auto's parkeren op de rijweg, fietsen niet: alleen de auto-app duwt een fix
+// die op een fietspad snapt naar een nabije rijweg. Fiets laat 'm op het fietspad.
+var FORCE_CYCLE_TO_ROAD = true;
 
 function snapWeight(hwType, isCycleApp) {
   if (isCycleApp) {
@@ -1027,7 +1031,7 @@ function snapToRoad(lat, lon) {
   }
   // Absolute drempel: als er een rijweg binnen SNAP_FORCE_DIST meter ligt,
   // forceer naar die rijweg als het gekozen segment een fietspad is
-  if (!false && bestSeg && SNAP_CYCLE_TYPES.test(bestSeg.highway) && bestRoadDist <= SNAP_FORCE_DIST) {
+  if (FORCE_CYCLE_TO_ROAD && bestSeg && SNAP_CYCLE_TYPES.test(bestSeg.highway) && bestRoadDist <= SNAP_FORCE_DIST) {
     bestDist = Infinity;
     for (var j = 0; j < roadSegs.length; j++) {
       var sj = roadSegs[j];
@@ -1358,7 +1362,7 @@ function undoLast() {
 var LS_KEY = 'parkeertelling_sessie';
 
 function saveSession() {
-  if (!entries.length) return;
+  if (!entries.length) { try { localStorage.removeItem(LS_KEY); } catch(e) {} return; }  // undo-tot-nul: stale herstelkopie opruimen
   try {
     var data = {
       entries: entries.map(function(e){
@@ -1645,7 +1649,8 @@ function exportCSV() {
   document.body.removeChild(a);
   setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
   csvDownloaded = true;
-  clearSession();
+  // Geen clearSession(): losse CSV is een tussenexport; de herstelkopie blijft
+  // staan tot de volledige ZIP-export (exportZip) klaar is.
 }
 
 /* ── Export GPX ───────────────────────────────────────── */

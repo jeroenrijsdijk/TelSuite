@@ -174,17 +174,44 @@
 <body>
 
 <header>
-  <h1>Help</h1>
-  <div class="back-links">
-    <a class="back" href="traffic_counter.html">Static</a>
-    <a class="back" href="traffic_counter_transect.html">Transect</a>
-    <a class="back" href="parkeertelling.html">Autoparkeren</a>
-    <a class="back" href="fietsparkeren.html">Fietsparkeren</a>
-    <a class="back" href="capaciteitstelling.html">Capaciteitstelling</a>
-    <a class="back" href="telrapport.html">Telrapport</a>
-    <a class="back" href="telplanning.html">Telplanning</a>
-    <a class="back" href="pocket_count.html">Pocket</a>
+  <h1>traffic counter - count and report</h1>
+</header>
+
+
+<!-- 0. Over deze Online TelSuite -->
+<section id="Over">
+  <h2>0 — Online TelSuite</h2>
+  <p>Traffic Counter is a browser-based field tool for counting traffic. All data is stored locally in the browser and exported to a semicolon-delimited CSV ready for Excel or KNIME. No account or internet connection required for counting — internet is only used for map tiles and address lookup.</p>
+  <p>Dit pakket bestaat uit 2 delen: TELLEN en RAPPORTAGE/PLANNING.</p>
+
+  <div class="card mode-static">
+    <div class="card-title">Tellen</div>
+    <p>Er zijn 6 verschillende tel-modi beschikbaar.</p>
+    <div class="back-links">
+      <li><a class="back" href="traffic_counter.html">Static</a></li>
+      <li><a class="back" href="traffic_counter_transect.html">Transect</a></li>
+      <li><a class="back" href="parkeertelling.html">Autoparkeren</a></li>
+      <li><a class="back" href="fietsparkeren.html">Fietsparkeren</a></li>
+      <li><a class="back" href="capaciteitstelling.html">Capaciteitstelling</a></li>
+      <li><a class="back" href="telrapport.html">Telrapport</a></li>
+      <li><a class="back" href="telplanning.html">Telplanning</a></li>
+      <li><a class="back" href="pocket_count.html">Pocket</a></li>
   </div>
+  </div>
+  <div class="card mode-static">
+    <div class="card-title">Planning &amp; Rapportage</div>
+    <p>Na het tellen verwerk je de resultaten. Twee tools:</p>
+    <div class="back-links">
+      <li><a class="back" href="telplanning.html">Telplanning</a> — bepaal vooraf w&aacute;t, w&aacute;&aacute;r en wann&eacute;&eacute;r je telt, en bewaak de dekking.</li>
+      <li><a class="back" href="telrapport.html">Telrapport</a> — laad de ge&euml;xporteerde ZIP's, visualiseer op de kaart en analyseer per type, tijd en wegvak.</li>
+    </div>
+  </div>
+  <p>Traffic Counter is gebouwd op Open Source -  Openstreetmap en Leaflet.</p>
+
+  
+</section>
+<header>
+<h1>Traffic Counter Help</h1> 
 </header>
 
 <!-- Table of contents -->
@@ -263,7 +290,7 @@
 
   <div class="method-item">
     <h4>Eén telprotocol</h4>
-    <p> </p>
+    <p>Het grootste risico voor vergelijkbaarheid is een goedbedoelde aanpassing halverwege. Begin je op de minuut, ga dan niet op dag drie afronden op kwartieren. Tel je in beide richtingen, doe dat ook bij regen en ook als het rustig is. Eén protocol per studie — niet per teller en niet per dag.</p>
     <div class="choice-card">
       <div class="choice-label">Uitgangspunt</div>
       <p>Wees consequent in je manier van tellen, keer op keer. Als je afwijkt, leg dat dan vast.</p>
@@ -295,25 +322,22 @@
         <li>Wegvak: van kruising tot kruising, of tot punt waar configuratie wijzigt. Het systeem gebruikt de straatnaam in Openstreetmap. Als die niet juist, wijzig die dan in OSM.</li>
         <li>Kruising: namen van takken volgens NOZW of richtingnummers van VRI.</li>
         <li>Richting: oost = richting oost. Of Oost naar Zuid. Of North is 0, East is 90, South is 180, and West is 270</li>
-        <li>@MEER...</li>
+        <li>Gebied (parkeren): begrens met herkenbare randen — een straathoek, een poort, het einde van een parkeerstrook. Teken bij twijfel de contour vooraf op de kaart.</li>
+        <li>Transect / Pocket: de GPS legt de route vast; kies een herkenbaar start- en eindpunt zodat een herhaling exact dezelfde route volgt.</li>
       </ul>
     </div>
   </div>
 
     <div class="method-item">
     <h4>Beschrijf keuzes</h4>
-    <p>@VOLGT .</p>
+    <p>Naast w&aacute;t en w&aacute;&aacute;r je telt, leg je vooraf de lastige grensgevallen vast — de gevallen waar twee tellers anders zouden beslissen. Juist die randgevallen bepalen of twee tellingen werkelijk vergelijkbaar zijn.</p>
     <div class="choice-card">
       <div class="choice-label">Onze keuze</div>
       <ul>
-        <li>Wegvak: .</li>
-        <li>Parkeervak: een vak is "bezet" wanneer de auto duidelijk bij dat vak hoort. Bij twijfel kijken we op het middelpunt van de auto in het vak staat. Voor een losse aanhanger of container geldt hetzelfde.</li>
-        <li>Foutparkeren: 
-          <ol>* Voertuigen die buiten een vak staan, op de stoep staan, of in een bocht,</ol>
-          <ol>* Voertuigen die buiten een vak staan tellen als Fout Parkeerder.</ol>
-        </li>
-        <li>@MEER</li>
-        </li>
+        <li>Wegvak: een voertuig hoort bij het wegvak waarop het rijdt op het moment dat het de tellijn passeert.</li>
+        <li>Parkeervak: een vak is "bezet" wanneer de auto duidelijk bij dat vak hoort. Bij twijfel kijken we of het middelpunt van de auto in het vak staat. Voor een losse aanhanger of container geldt hetzelfde.</li>
+        <li>Foutparkeren: voertuigen die buiten een vak, op de stoep of in een bocht staan, tellen als foutparkeerder.</li>
+        <li>Dubbeltelling: een voertuig dat keert of opnieuw langskomt, tel je &eacute;&eacute;n keer per passage — niet per keer dat je het ziet.</li>
       </ul>
     </div>
   </div>
@@ -336,7 +360,7 @@
     <p>Spreek van tevoren af  wie welke beweging doet. Verdeel de bewegingen (richtingen, vakken, modaliteiten) expliciet, en zorg dat de scheiding ondubbelzinnig is.</p>
     <div class="choice-card">
       <div class="choice-label">Onze keuze</div>
-      <p>@volgt</p>
+      <p>We verdelen vooraf op modaliteit of op richting, nooit op "kijk maar wat je ziet". E&eacute;n teller doet bijvoorbeeld al het gemotoriseerde verkeer en de ander alle fietsers en voetgangers; of we splitsen op richting (noord–zuid vs. oost–west). De scheiding moet z&oacute; scherp zijn dat geen enkele beweging door beiden of door niemand wordt geteld.</p>
     </div>
   </div>
 
@@ -537,11 +561,11 @@
   </div>
   <div class="card mode-transect">
     <div class="card-title">Long transect routes</div>
-    <p>For long routes, keep the screen on (turn off screen lock in your phone settings). The GPS and route logging run continuously even if you briefly pocket the phone, as long as the browser tab stays active. Battery usage is higher than normal due to continuous GPS — bring a powerbank for very long sessions.</p>
+    <p>For long routes, keep the screen on (turn off screen lock in your phone settings). The GPS and route logging run continuously even if you briefly pocket the phone, as long as the browser tab stays active. Battery usage is higher than normal due to continuous GPS — bring a powerbank for long sessions.</p>
   </div>
   <div class="card mode-transect">
     <div class="card-title">Poor GPS coverage</div>
-    <p>In areas with poor signal (dense dune vegetation, narrow streets between tall buildings), GPS accuracy may be lower. Each count in the log records the accuracy at that moment, so you can filter out low-confidence points in KNIME later.</p>
+    <p>In areas with poor signal, GPS accuracy may be lower. Each count in the log records the accuracy at that moment, so you can filter out low-confidence points in later.</p>
   </div>
 </section>
 

@@ -458,23 +458,43 @@
       The live snap (&sect;4) and live tap inheritance (&sect;6) are necessarily <em>causal</em>: at each fix they know only the past. The anchor tempers jitter but can stick to a distant anchor way, and it cannot use evidence that only arrives later. Once a session ends the whole trajectory is known, so v2.8 runs a single global correction &mdash; <code>reassignTrajectory()</code> &mdash; just before the ZIP is built. It rewrites the snapped way and segment of every fix <em>and</em> every tap from the complete path, topology first.
     </p>
 
-    <h3>Mechanism</h3>
+    <h3>Hoe het werkt — stap voor stap</h3>
+    <p>
+      Het algoritme kijkt naar alle GPS-punten in je sessie als één compleet plaatje en zoekt het meest waarschijnlijke pad door het wegennet — het pad dat zowel aansluit bij wat je GPS zei, als ook topologisch realistisch is (dus langs echte wegen en hun samenvoeging).
+    </p>
+
     <ol>
       <li>
-        <strong>Topology-first Viterbi over the full <code>routeLog</code>.</strong> Each fix collects the candidate ways within a 40&nbsp;m search radius. A candidate's emission cost is <code>&frac12;(d/&sigma;)&sup2;</code> with <code>&sigma; = max(5, fix.accuracy)</code> &mdash; a Gaussian penalty scaled by the fix's own reported accuracy, so noisy fixes contribute weak evidence.
+        <strong>Stap 1: Verzamelen.</strong> Voor elk GPS-punt zoeken we alle wegen uit het wegennet die in de buurt liggen — binnen 40 meter. Deze kandidaat-wegen zijn de plekken waar je *zou* kunnen zijn. Voor elk kandidaat meten we twee dingen: (a) hoe dicht het GPS-punt daadwerkelijk bij die weg ligt, en (b) hoe goed staat de nauwkeurigheid van het toestel op dat moment.
       </li>
       <li>
-        <strong>Transitions use the exact node-ID adjacency</strong> (the same <code>snapAdjacency</code> as the live snap). Staying on the same way is free; a hop to a directly connected way (shared node) costs&nbsp;4; a hop across two ways costs&nbsp;12; anything further is forbidden. A small term <code>&gamma;&middot;|projStep &minus; gpsStep|</code> (&gamma;&nbsp;=&nbsp;0.02) pulls the projected step length toward the observed GPS step, breaking ties between equally-connected candidates. Since v2.9 a <strong>heading term</strong> is added per candidate: <code>&beta;&middot;w&middot;(&Delta;/90&deg;)</code>, where <code>&Delta;</code> is the angle (mod&nbsp;180&deg;, ways are undirected) between the GPS step bearing and the candidate way's local bearing at the projection point, <code>w&nbsp;=&nbsp;min(1, gpsStep/10&nbsp;m)</code> down-weights short noisy steps, and <code>&beta;&nbsp;=&nbsp;2</code> is deliberately smaller than the single-hop cost&nbsp;(4) so heading can break ties between equally-connected candidates but can never override the topology hierarchy. This matters most during poor-accuracy stretches, where the Gaussian distance evidence is nearly flat but the direction of travel still discriminates between diverging ways.
+        <strong>Stap 2: Afweging per kandidaat.</strong> Kandidaat-wegen die *dicht* bij het GPS-punt liggen krijgen een lagere "strafkost". Kandidaten die *ver* weg liggen krijgen een hogere straf. Maar: als je toestel op dat moment heel slecht werkt (grote onzekerheidscirkel), maken die verschillen niet zoveel uit — dan geeft het algoritme alle kandidaten meer gelijke kans. Dit is fair: een slechte GPS-meting zegt niet veel, dus vertrouwen we er niet blind op.
       </li>
       <li>
-        <strong>Per-fix segment</strong> is resolved with <code>splitWayIntoSegments</code> &mdash; the exact segmentation the export uses &mdash; so a fix's <code>segIdx</code> always matches a real exported segment.
+        <strong>Stap 3: Topologie — de wegenkaart als leidraad.</strong> Nu komt de slimheid: het wegennet zelf zegt iets. Wegen zijn verbonden op kruisingen (een gedeelde knoop in de kaart). Als je vorige GPS-punt je op weg A plaatste, dan is het waarschijnlijker dat je volgende punt ook op weg A ligt, of op een weg die eraan vast zit, dan op een weg die kilometer verderop ligt. Dus: voorblijven op dezelfde weg kost geen extra straf. Naar een direct verbonden weg hopppen kost een kleine straf. Naar een weg die twee hoppen weg is kost meer. Alles verder is niet toegestaan — je loopt niet zomaar door de lucht naar een weg.
       </li>
       <li>
-        <strong>Taps inherit from the trajectory.</strong> Each tap takes the <code>wayId</code> and <code>segIdx</code> of the fix closest to it <em>in time</em>. Tap and presence therefore land on the same (way, segment) pair by construction, which is what stops week-profile cells from going empty.
+        <strong>Stap 4: Staplengtes helpen mee (v2.8 toevoeging).</strong> Naast de afstanden meten we ook de *lengte* van de stap die je GPS-apparaat zegt dat je zette. Als je echte stap op de weg (gemeten langs de geproject punten) overeenkomt met je werkelijke GPS-stap, is dat een extra aanwijzing dat we op de juiste weg zitten. Dit helpt kiezen tussen wegen die even dichtbij liggen.
+      </li>
+      <li>
+        <strong>Stap 5: Koersrichting — waar loop je heen (v2.9 toevoeging).</strong> We kijken ook in welke richting je GPS zegt dat je loopt (bereken uit twee opeenvolgende punten), en in welke richting de kandidaat-weg wijst. Als je noordwaarts loopt en er liggen twee wegen even dicht bij je huidige plek, maar één loopt north-south en de ander oost-west, dan is het waarschijnlijker dat je op de north-south weg bent. Dit helpt vooral wanneer je GPS slecht is (grote onzekerheidscirkel), want dan zegt de richting meer dan de afstand.
+      </li>
+      <li>
+        <strong>Stap 6: Het beste pad vinden.</strong> Met al deze "strafkosten" (afstand, topologie, staplengte, richting) zoekt het algoritme het pad van het begin tot het eind van je session dat de laagste totale straf heeft. Dit pad is het meest waarschijnlijke: het past het beste bij je GPS, de topologie en je beweging.
+      </li>
+      <li>
+        <strong>Stap 7: Segmenten bepalen.</strong> Wegen zijn lang, dus worden ze voor analysedoeleinden opgedeeld in stukken van ongeveer 40 meter (segmenten). We bepalen voor elk GPS-punt in welk segment van zijn gekozen weg het ligt, zodat we later precies kunnen zien waar je telde.
+      </li>
+      <li>
+        <strong>Stap 8: Tikken (telling-momenten) meedenken.</strong> Je had twee gegevensbronnen: GPS-punten en tikken (jij tikt manueel aan wat je ziet). Elk tik-moment wordt gekoppeld aan het GPS-punt dat er het dichtst bij ligt in de tijd. Op die manier zit je tik en je positie op hetzelfde wegsegment — ze horen logisch bij elkaar.
+      </li>
+      <li>
+        <strong>Stap 9: Als het netwerk verbroken is.</strong> Soms springt je GPS naar een plek waar het wegennet niet aansluit op je vorige positie (je loopt bijvoorbeeld door een gat in de kaart, of een zwak GPS-moment). Dan begint het algoritme daar gewoon opnieuw met het beste pad vandaar. Elk "stuk" van de route (van begin tot gat, van gat tot einde) krijgt zijn eigen optimale pad. Dit voorkomt dat één gat de hele route verpest.
       </li>
     </ol>
+
     <p>
-      Raw <code>lat</code>/<code>lon</code> are never touched &mdash; only the derived <code>wayId</code>/<code>segIdx</code>/<code>osmName</code>. Because the correction runs before any CSV is serialised, <code>_telregels.csv</code>, <code>_gps.csv</code> and <code>_bezocht.csv</code> are mutually consistent at the source: every CSV builder reads the corrected fields.
+      <strong>Waarom offline beter is dan real-time.</strong> Tijdens je wandeling werkt de live snap (§4) stap voor stap: elk nieuw GPS-punt probeert onmiddellijk vast te stellen welke weg je op bent. De algoritme kent maar het verleden — wat er straks komt weet hij nog niet. Dat betekent dat hij soms "vast raakt" op een oude weg en niet eenvoudig kan overstappen, ook al wordt later duidelijk dat je eigenlijk naar een andere weg had moeten gaan. Pas nadat je sessie helemaal klaar is, heeft het algoritme alle informatie — je hele pad, je hele richting, alles. Dan kan het achteraf zeggen: "Ik zie nu dat je hier was, en je beweging hierna maakte duidelijk dat je eigenlijk hier had moeten zijn." Dit offline-pad is meestal veel beter dan wat live kon worden geraden.
     </p>
     <p>
       Verified on field session <code>20260529_162037_xax_pkt</code>: 33 taps the live snap had left on service ways moved onto pedestrian ways, all 99 taps retained, zero orphan segments. Note that reassignment improves attribution but cannot manufacture information GPS does not contain &mdash; at a true shared-node junction (&sect;8) it falls back to continuity.

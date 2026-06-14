@@ -674,7 +674,7 @@ function startTelling(type, icon, label) {
   telIcon    = icon;
   telCount    = 0;
   telHistory  = [];
-  snapElements = {};
+  snap.elements = {};
   routeLog    = [];
   lastRouteLat = null; lastRouteLon = null;
   startTime  = new Date();
@@ -685,8 +685,8 @@ function startTelling(type, icon, label) {
   screen.classList.add('active');
   document.getElementById('big-count').textContent = '0';
   document.getElementById('type-label').textContent = label;
-  snapConfScore = null; snapConfLevel = 'none'; snapConfName = '';
-  gpsFixWin = []; gpsStabScore = null; gpsStabLevel = 'none';
+  snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
+  snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
   renderSnapConf();
   initBattery();
   document.getElementById('choose-screen').style.display = 'none';
@@ -752,49 +752,48 @@ function cancelHold() {
   fill.style.width = '0%';
 }
 
-var snapPendingQueue = [];  // tikken die wachten op eerste snap-respons
 
 function doTap() {
   telCount++;
   var tapEntry = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId: '', segIdx: 0, osmName: '' };
-  if (snapReady) {
+  if (snap.ready) {
     if (lastLat !== null) {
       var r = null;
-      if (snapAnchorWayId !== null) {
+      if (snap.anchorWayId !== null) {
         // Tap erft het GPS-anker — één bron van waarheid. Projecteer het huidige
         // GPS-punt loodrecht op de anker-way (read-only: muteert het anker niet).
-        r = snapProjectOnto(lastLat, lastLon, snapAnchorWayId);
+        r = snapProjectOnto(lastLat, lastLon, snap.anchorWayId);
         if (r) {
           traceWrite({type:'tap', tijdstip:tapEntry.ts, tap_nr:telCount}, lastLat, lastLon,
-                     'inherit', snapAnchorWayId, r.wayId, null, r.d, []);
-        } else if (snapElements[snapAnchorWayId]) {
+                     'inherit', snap.anchorWayId, r.wayId, null, r.d, []);
+        } else if (snap.elements[snap.anchorWayId]) {
           // Anker-way valt buiten het huidige fetch-venster: erf metadata,
           // marker blijft op het ruwe GPS-punt.
-          r = { wayId: snapAnchorWayId, segIdx: snapAnchorSegIdx,
-                osmName: snapElements[snapAnchorWayId].osmName || '' };
+          r = { wayId: snap.anchorWayId, segIdx: snap.anchorSegIdx,
+                osmName: snap.elements[snap.anchorWayId].osmName || '' };
           traceWrite({type:'tap', tijdstip:tapEntry.ts, tap_nr:telCount}, lastLat, lastLon,
-                     'inherit_nogeo', snapAnchorWayId, snapAnchorWayId, null, null, []);
+                     'inherit_nogeo', snap.anchorWayId, snap.anchorWayId, null, null, []);
         }
       }
       if (!r) {
         // Cold start: nog geen anker → eenmalig dichtstbijzijnde way (read-only).
         r = snapNearestAny(lastLat, lastLon);
         traceWrite({type:'tap', tijdstip:tapEntry.ts, tap_nr:telCount}, lastLat, lastLon,
-                   r ? 'tap_bootstrap' : 'no_candidate', snapAnchorWayId, r?r.wayId:null, null, r?r.d:null, []);
+                   r ? 'tap_bootstrap' : 'no_candidate', snap.anchorWayId, r?r.wayId:null, null, r?r.d:null, []);
       }
       if (r) { tapEntry.wayId = r.wayId; tapEntry.segIdx = r.segIdx; tapEntry.osmName = r.osmName; }
     }
     // Tik erft de live zekerheid van het anker waarop hij landt (voor analyse).
-    tapEntry.conf = (snapConfScore === null) ? '' : snapConfScore.toFixed(2);
-    tapEntry.confLevel = snapConfLevel;
-    tapEntry.gpsStab = (gpsStabScore === null) ? '' : gpsStabScore.toFixed(2);
-    tapEntry.gpsLevel = gpsStabLevel;
+    tapEntry.conf = (snap.confScore === null) ? '' : snap.confScore.toFixed(2);
+    tapEntry.confLevel = snap.confLevel;
+    tapEntry.gpsStab = (snap.gpsStabScore === null) ? '' : snap.gpsStabScore.toFixed(2);
+    tapEntry.gpsLevel = snap.gpsStabLevel;
     telHistory.push(tapEntry);
   } else {
     // Snap nog niet beschikbaar — in wachtrij plaatsen
-    tapEntry.gpsStab = (gpsStabScore === null) ? '' : gpsStabScore.toFixed(2);
-    tapEntry.gpsLevel = gpsStabLevel;
-    snapPendingQueue.push(tapEntry);
+    tapEntry.gpsStab = (snap.gpsStabScore === null) ? '' : snap.gpsStabScore.toFixed(2);
+    tapEntry.gpsLevel = snap.gpsStabLevel;
+    snap.pendingQueue.push(tapEntry);
     telHistory.push(tapEntry);
   }
   document.getElementById('big-count').textContent = telCount;
@@ -815,9 +814,9 @@ function _median(arr) {
 // Werk de GPS-stabiliteitsscore bij met één nieuwe fix.
 // Zelf-kalibrerend: een "sprong" is een snelheid die ver boven het eigen
 // recente mediaan-tempo ligt (mediaan + K·MAD), niet een vaste m/s-drempel.
-// Retourneert niets; zet gpsStabScore / gpsStabLevel.
+// Retourneert niets; zet snap.gpsStabScore / snap.gpsStabLevel.
 function gpsUpdateStability(lat, lon, acc, tsMs) {
-  var win = gpsFixWin;
+  var win = snap.gpsFixWin;
   // Identieke/gecachete fix (maximumAge) overslaan: vervuilt mediaan niet.
   var last = win.length ? win[win.length - 1] : null;
   if (last && (tsMs - last.ts) < 200) return;
@@ -827,7 +826,7 @@ function gpsUpdateStability(lat, lon, acc, tsMs) {
   while (win.length && (tsMs - win[0].ts) > GPS_WIN_MS) win.shift();
 
   if (win.length < GPS_WIN_MIN) {        // nog te weinig om iets te zeggen
-    gpsStabScore = null; gpsStabLevel = 'none'; return;
+    snap.gpsStabScore = null; snap.gpsStabLevel = 'none'; return;
   }
 
   // Stapsnelheden (m/s) en koerswijzigingen over het venster.
@@ -848,7 +847,7 @@ function gpsUpdateStability(lat, lon, acc, tsMs) {
     }
     if (dist > 1) prevBrg = brg;
   }
-  if (!speeds.length) { gpsStabScore = null; gpsStabLevel = 'none'; return; }
+  if (!speeds.length) { snap.gpsStabScore = null; snap.gpsStabLevel = 'none'; return; }
 
   // 1. Sprong: robuuste z-score van de laatste stap t.o.v. mediaan + K·MAD.
   var med  = _median(speeds);
@@ -873,11 +872,11 @@ function gpsUpdateStability(lat, lon, acc, tsMs) {
   // Zwakste schakel — zelfde logica als de snap-stip.
   var raw = Math.min(jumpScore, turnScore, accScore);
 
-  gpsStabScore = (gpsStabScore === null)
+  snap.gpsStabScore = (snap.gpsStabScore === null)
                ? raw
-               : (GPS_STAB_EMA * raw + (1 - GPS_STAB_EMA) * gpsStabScore);
-  gpsStabLevel = (gpsStabScore >= GPS_STAB_GREEN) ? 'green'
-               : (gpsStabScore >= GPS_STAB_AMBER) ? 'amber' : 'red';
+               : (GPS_STAB_EMA * raw + (1 - GPS_STAB_EMA) * snap.gpsStabScore);
+  snap.gpsStabLevel = (snap.gpsStabScore >= GPS_STAB_GREEN) ? 'green'
+               : (snap.gpsStabScore >= GPS_STAB_AMBER) ? 'amber' : 'red';
 }
 
 function renderSnapConf() {
@@ -885,16 +884,16 @@ function renderSnapConf() {
   var name = document.getElementById('snap-name');
   if (!dot || !name) return;
   dot.className = '';
-  if (snapConfLevel === 'green' || snapConfLevel === 'amber' || snapConfLevel === 'red') {
-    dot.classList.add(snapConfLevel);
+  if (snap.confLevel === 'green' || snap.confLevel === 'amber' || snap.confLevel === 'red') {
+    dot.classList.add(snap.confLevel);
   }
-  name.textContent = snapConfName || '—';
+  name.textContent = snap.confName || '—';
 
   var gdot = document.getElementById('gps-dot');
   if (gdot) {
     gdot.className = 'gps-dot';
-    if (gpsStabLevel === 'green' || gpsStabLevel === 'amber' || gpsStabLevel === 'red') {
-      gdot.classList.add(gpsStabLevel);
+    if (snap.gpsStabLevel === 'green' || snap.gpsStabLevel === 'amber' || snap.gpsStabLevel === 'red') {
+      gdot.classList.add(snap.gpsStabLevel);
     }
   }
 }
@@ -992,8 +991,8 @@ function _normPt(p) {
 
 function buildNetwerkCsv(sid) {
   var lines = ['osm_way_id;segment_index;segment_count;highway;geometrie_wkt'];
-  Object.keys(snapElements).forEach(function(wid) {
-    var el = snapElements[wid];
+  Object.keys(snap.elements).forEach(function(wid) {
+    var el = snap.elements[wid];
     var subs = splitWayIntoSegments(el.geometry);
     subs.forEach(function(sub, idx) {
       var coords = sub.map(function(p){
@@ -1022,7 +1021,7 @@ function buildNetwerkCsv(sid) {
 //   no_network           — netwerk nog niet geladen
 function buildSnapTraceCsv(sid) {
   var lines = ['sessie_id;seq;tijdstip;event;lat;lon;accuracy;anchor_before;snap_path;chosen_way;d_anchor;d_chosen;alternatives;anchor_after;tap_nr;conf;conf_level;gps_stab;gps_level'];
-  snapTrace.forEach(function(r) {
+  snap.trace.forEach(function(r) {
     lines.push([sid, r.seq, r.tijdstip, r.event, r.lat, r.lon, r.accuracy,
                 r.anchor_before, r.snap_path, r.chosen_way,
                 r.d_anchor, r.d_chosen, r.alternatives,
@@ -1095,10 +1094,10 @@ function buildBezochtCsv(sid, telHist) {
     }
   });
 
-  // segment_count per way bepalen via splitWayIntoSegments op snapElements
+  // segment_count per way bepalen via splitWayIntoSegments op snap.elements
   var segCountFor = {};
-  Object.keys(snapElements).forEach(function(wid) {
-    var subs = splitWayIntoSegments(snapElements[wid].geometry);
+  Object.keys(snap.elements).forEach(function(wid) {
+    var subs = splitWayIntoSegments(snap.elements[wid].geometry);
     segCountFor[wid] = subs.length;
   });
 
@@ -1167,7 +1166,7 @@ var lastZipName = '';
 // lat/lon blijven ongemoeid. De live-teller is al afgerond. De originele live-
 // keuze blijft traceerbaar in _snap_trace.csv.
 function reassignTrajectory() {
-  if (!routeLog.length || !Object.keys(snapElements).length) return;
+  if (!routeLog.length || !Object.keys(snap.elements).length) return;
 
   var LAT_M = 111320;
   function lonM(lat){ return LAT_M * Math.cos(lat*Math.PI/180); }
@@ -1187,15 +1186,15 @@ function reassignTrajectory() {
     return { dist:best, lat:bLat, lon:bLon, brg:((bBrg%360)+360)%360 };
   }
 
-  // hop-klasse via de bestaande, exacte node-ID-adjacency (snapAdjacency)
+  // hop-klasse via de bestaande, exacte node-ID-adjacency (snap.adjacency)
   function hopClass(a, b){
     if (a===b) return 0;
-    if (snapAdjacency[a] && snapAdjacency[a][b]) return 1;
-    if (snapAdjacency[a]){ for (var m in snapAdjacency[a]) if (snapAdjacency[m] && snapAdjacency[m][b]) return 2; }
+    if (snap.adjacency[a] && snap.adjacency[a][b]) return 1;
+    if (snap.adjacency[a]){ for (var m in snap.adjacency[a]) if (snap.adjacency[m] && snap.adjacency[m][b]) return 2; }
     return Infinity;
   }
 
-  var wayIds = Object.keys(snapElements);
+  var wayIds = Object.keys(snap.elements);
   var SR=40, SIG_MIN=5, HOP1=4, HOP2=12, GAMMA=0.02, BETA=2, HEAD_REF_M=10;
   // koersverschil mod 180 (een way heeft geen looprichting)
   function angDiff180(a,b){ var d=Math.abs(a-b)%180; return Math.min(d,180-d); }
@@ -1206,7 +1205,7 @@ function reassignTrajectory() {
     var fx=routeLog[f];
     var sigma=Math.max(SIG_MIN, fx.acc||SIG_MIN), cands=[];
     for (var w=0; w<wayIds.length; w++){
-      var g=snapElements[wayIds[w]].geometry; if(!g||g.length<2) continue;
+      var g=snap.elements[wayIds[w]].geometry; if(!g||g.length<2) continue;
       var pr=project(fx.lat, fx.lon, g);
       if (pr.dist<=SR){ var z=pr.dist/sigma; cands.push({wayId:wayIds[w], plat:pr.lat, plon:pr.lon, emit:0.5*z*z, brg:pr.brg}); }
     }
@@ -1265,12 +1264,12 @@ function reassignTrajectory() {
 
   // segIdx per fix bepalen via splitWayIntoSegments (zelfde segmentatie als export)
   function segCountOf(wid){
-    var el=snapElements[wid]; if(!el) return 1;
+    var el=snap.elements[wid]; if(!el) return 1;
     if (el._segCount==null) el._segCount = splitWayIntoSegments(el.geometry).length;
     return el._segCount;
   }
   function segIdxFor(wid, plat, plon){
-    var el=snapElements[wid]; if(!el||!el.geometry) return 0;
+    var el=snap.elements[wid]; if(!el||!el.geometry) return 0;
     var g=el.geometry, lm=lonM(g[0].lat), px=plon*lm, py=plat*LAT_M;
     // cumulatieve afstand tot projectie + totale lengte
     var cum=0, bestCum=0, best=Infinity, total=0;
@@ -1291,11 +1290,11 @@ function reassignTrajectory() {
   var fixWay=new Array(routeLog.length).fill(null), fixSeg=new Array(routeLog.length).fill(0);
   for (var i=0;i<routeLog.length;i++){
     var wid=path[i];
-    if (wid && snapElements[wid]){
-      var pr2=project(routeLog[i].lat, routeLog[i].lon, snapElements[wid].geometry);
+    if (wid && snap.elements[wid]){
+      var pr2=project(routeLog[i].lat, routeLog[i].lon, snap.elements[wid].geometry);
       var seg=segIdxFor(wid, pr2.lat, pr2.lon);
       fixWay[i]=wid; fixSeg[i]=seg;
-      routeLog[i].wayId=wid; routeLog[i].segIdx=seg; routeLog[i].osmName=snapElements[wid].osmName||'';
+      routeLog[i].wayId=wid; routeLog[i].segIdx=seg; routeLog[i].osmName=snap.elements[wid].osmName||'';
     }
   }
 
@@ -1310,7 +1309,7 @@ function reassignTrajectory() {
       if (d<bg){ bg=d; bi=ff; }
     }
     if (bi>=0 && fixWay[bi]){
-      tap.wayId=fixWay[bi]; tap.segIdx=fixSeg[bi]; tap.osmName=snapElements[fixWay[bi]].osmName||'';
+      tap.wayId=fixWay[bi]; tap.segIdx=fixSeg[bi]; tap.osmName=snap.elements[fixWay[bi]].osmName||'';
     }
   }
 }
@@ -1366,10 +1365,10 @@ function stopTelling() {
     zip.file(sid + '_gps.csv', gpsCsv);
     zip.file(sid + '_bezocht.csv', buildBezochtCsv(sid, telHistory));
   }
-  if (Object.keys(snapElements).length) {
+  if (Object.keys(snap.elements).length) {
     zip.file(sid + '_netwerk.csv', buildNetwerkCsv(sid));
   }
-  if (snapTrace.length) {
+  if (snap.trace.length) {
     zip.file(sid + '_snap_trace.csv', buildSnapTraceCsv(sid));
   }
 
@@ -1411,8 +1410,8 @@ function polyLenM(pts) {
 function showPreview() {
   // Segmenten bouwen per (wayId, segIdx) inclusief sub-geometrie en tikken
   var segMap = {};
-  Object.keys(snapElements).forEach(function(wid) {
-    var subs = splitWayIntoSegments(snapElements[wid].geometry);
+  Object.keys(snap.elements).forEach(function(wid) {
+    var subs = splitWayIntoSegments(snap.elements[wid].geometry);
     subs.forEach(function(sub, idx) {
       segMap[wid + ':' + idx] = { geom: sub, taps: 0, lenM: polyLenM(sub) };
     });
@@ -1587,47 +1586,44 @@ var SNAP_OVERPASS          = ['https://overpass-api.de/api/interpreter', 'https:
 var SEGMENT_TARGET_M       = 40;
 var SEGMENT_MIN_M          = 60;
 
-var snapSegs     = [];
-var snapCacheLat = null, snapCacheLon = null;
-var snapElements = {};  // wayId → {highway, osmName, geometry} — voor netwerk.csv en anker-erven
-var snapReady    = false;
+var snap = {
+  // ── Snap-subsysteem state (alle mutable runtime-state in één bag) ──
+  // Constanten blijven gewone globals hierboven; functies houden hun snap*-prefix.
+  segs:         [],
+  cacheLat:     null,
+  cacheLon:     null,
+  elements:     {},      // wayId → {highway, osmName, geometry} — voor netwerk.csv en anker-erven
+  ready:        false,
+  pendingQueue: [],      // tikken die wachten op eerste snap-respons
 
-// ── Adjacency-state ─────────────────────────────────────────────────────────
-// Twee ways zijn topologisch verbonden als ze een OSM-node delen. We bouwen
-// cumulatief (groeit met elke Overpass-fetch) want anker moet over refetches
-// heen blijven werken.
-var snapNodeToWays = {};   // nodeId → {wayId1:true, wayId2:true, ...}
-var snapAdjacency  = {};   // wayId  → {wayId2:true, wayId3:true, ...}
+  // Adjacency: twee ways verbonden als ze een OSM-node delen. Cumulatief
+  // (groeit met elke Overpass-fetch) zodat het anker over refetches blijft werken.
+  nodeToWays:   {},      // nodeId → {wayId:true, ...}
+  adjacency:    {},      // wayId  → {wayId:true, ...}
 
-// Huidige anker — de way waarvan we zeker zijn dat de teller er ‘zit’.
-// Verspringt alleen naar adjacent ways (depth-1 → depth-2). Wordt null bij
-// reset (anker > SNAP_RESET_M weg) of bij sessie-start (eerste fix wint).
-var snapAnchorWayId  = null;
-var snapAnchorSegIdx = 0;
+  // Anker — de way waarvan we zeker zijn dat de teller er ‘zit’. Verspringt
+  // alleen naar adjacent ways; null bij reset (> SNAP_RESET_M) of sessie-start.
+  anchorWayId:  null,
+  anchorSegIdx: 0,
 
-// Uitdager-debounce: de buur die het anker uitdaagt over opeenvolgende GPS-fixes.
-// Het anker klapt pas om als dezelfde buur SWITCH_CONFIRM keer op rij substantieel
-// dichterbij is. Eén jitter-fix laat de count niet vollopen → anker blijft staan.
-// Wordt null bij elke niet-incrementele anker-wijziging (bootstrap/reset/depth-2/hold).
-var snapChallenger   = null;   // {wayId, count}
+  // Uitdager-debounce: de buur die het anker uitdaagt over opeenvolgende fixes.
+  // Klapt pas om na SWITCH_CONFIRM keer; één jitter-fix laat de count niet vollopen.
+  challenger:   null,    // {wayId, count}
 
-// Live zekerheidstoestand. Door de GPS-keten bijgewerkt, gelezen door de UI en
-// geërfd door taps (een tik is zo zeker als het anker waarop hij landt).
-var snapConfScore = null;      // gesmoothed [0,1], of null = nog onbekend
-var snapConfLevel = 'none';    // 'green' | 'amber' | 'red' | 'none'
-var snapConfName  = '';        // OSM-naam van de huidige gekozen way ('' = onbekend)
+  // Live zekerheidstoestand (UI + geërfd door taps).
+  confScore:    null,    // gesmoothed [0,1], of null = nog onbekend
+  confLevel:    'none',  // 'green' | 'amber' | 'red' | 'none'
+  confName:     '',      // OSM-naam van de huidige gekozen way
 
-var gpsFixWin     = [];        // [{ts(ms), lat, lon, acc}] binnen GPS_WIN_MS
-var gpsStabScore  = null;      // gesmoothed [0,1], of null = nog onbekend
-var gpsStabLevel  = 'none';    // 'green' | 'amber' | 'red' | 'none'
+  // GPS-signaalstabiliteit.
+  gpsFixWin:    [],      // [{ts, lat, lon, acc}] binnen GPS_WIN_MS
+  gpsStabScore: null,
+  gpsStabLevel: 'none',
 
-// ── Debug trace ────────────────────────────────────────────────────────────
-// Per GPS-fix en per tap één regel met ruwe data + interne state.
-// Wordt geschreven als <sessieID>_snap_trace.csv in de ZIP. Telrapport
-// kent dit bestand niet en negeert het bij inlezen.
-var snapTrace = [];      // {seq, tijdstip, event, lat, lon, accuracy, anchor_before,
-                         //  snap_path, chosen_way, d_anchor, d_chosen, alternatives, anchor_after, tap_nr}
-var snapTraceSeq = 0;
+  // Debug trace → <sessieID>_snap_trace.csv (telrapport negeert dit bestand).
+  trace:        [],
+  traceSeq:     0
+};
 
 function snapToXY(lat, lon, refLat, refLon) {
   var cos = Math.cos(refLat * Math.PI / 180);
@@ -1680,21 +1676,21 @@ function snapRegisterWay(el) {
   var wid = String(el.id);
   for (var i = 0; i < el.nodes.length; i++) {
     var nid = el.nodes[i];
-    if (!snapNodeToWays[nid]) snapNodeToWays[nid] = {};
-    if (snapNodeToWays[nid][wid]) continue;  // al geregistreerd
-    snapNodeToWays[nid][wid] = true;
-    if (!snapAdjacency[wid]) snapAdjacency[wid] = {};
+    if (!snap.nodeToWays[nid]) snap.nodeToWays[nid] = {};
+    if (snap.nodeToWays[nid][wid]) continue;  // al geregistreerd
+    snap.nodeToWays[nid][wid] = true;
+    if (!snap.adjacency[wid]) snap.adjacency[wid] = {};
     // Verbind wid met alle ways die deze node ook delen
-    Object.keys(snapNodeToWays[nid]).forEach(function(other) {
+    Object.keys(snap.nodeToWays[nid]).forEach(function(other) {
       if (other === wid) return;
-      snapAdjacency[wid][other] = true;
-      if (!snapAdjacency[other]) snapAdjacency[other] = {};
-      snapAdjacency[other][wid] = true;
+      snap.adjacency[wid][other] = true;
+      if (!snap.adjacency[other]) snap.adjacency[other] = {};
+      snap.adjacency[other][wid] = true;
     });
   }
 }
 
-// Bouw een Overpass-achtige elements-lijst uit het CUMULATIEVE snapElements,
+// Bouw een Overpass-achtige elements-lijst uit het CUMULATIEVE snap.elements,
 // beperkt tot ways waarvan minstens één knoop binnen SNAP_SEGS_RADIUS van
 // (lat,lon) ligt. Het huidige anker wordt altijd meegenomen, ongeacht
 // knoopafstand — zo verliest de way waarop je staat nooit z'n segs, ook niet
@@ -1704,12 +1700,12 @@ function snapRegisterWay(el) {
 function snapElementsNear(lat, lon) {
   var cos = Math.cos(lat * Math.PI / 180);
   var R2  = SNAP_SEGS_RADIUS * SNAP_SEGS_RADIUS;
-  var anchorId = (snapAnchorWayId != null) ? String(snapAnchorWayId) : null;
+  var anchorId = (snap.anchorWayId != null) ? String(snap.anchorWayId) : null;
   var out = [];
-  var ids = Object.keys(snapElements);
+  var ids = Object.keys(snap.elements);
   for (var i = 0; i < ids.length; i++) {
     var id = ids[i];
-    var el = snapElements[id];
+    var el = snap.elements[id];
     var keep = (id === anchorId);
     if (!keep) {
       var g = el.geometry;
@@ -1737,7 +1733,7 @@ function snapAdjacencySet(wayId, depth) {
   for (var d = 0; d < depth; d++) {
     var next = [];
     for (var i = 0; i < frontier.length; i++) {
-      var adj = snapAdjacency[frontier[i]];
+      var adj = snap.adjacency[frontier[i]];
       if (!adj) continue;
       var keys = Object.keys(adj);
       for (var j = 0; j < keys.length; j++) {
@@ -1755,8 +1751,8 @@ function snapAdjacencySet(wayId, depth) {
 // of slechts tijdelijk net buiten 50m valt door GPS-jitter (→ anker behouden).
 function snapDistanceToWay(p, wayId) {
   var best = Infinity;
-  for (var i = 0; i < snapSegs.length; i++) {
-    var s = snapSegs[i];
+  for (var i = 0; i < snap.segs.length; i++) {
+    var s = snap.segs[i];
     if (s.wayId !== wayId) continue;
     var dx = s.bx - s.ax, dy = s.by - s.ay, l2 = dx*dx + dy*dy;
     var t = (l2 === 0) ? 0 : Math.max(0, Math.min(1, ((p.x-s.ax)*dx + (p.y-s.ay)*dy) / l2));
@@ -1771,11 +1767,11 @@ function snapDistanceToWay(p, wayId) {
 // {lat, lon, wayId, segIdx, osmName, d} terug (of null). Muteert GEEN anker-state.
 // Gebruikt door taps om het GPS-anker te erven i.p.v. zelf opnieuw te beslissen.
 function snapProjectOnto(lat, lon, wayId) {
-  if (!snapSegs.length || snapCacheLat===null) return null;
-  var p = snapToXY(lat, lon, snapCacheLat, snapCacheLon);
+  if (!snap.segs.length || snap.cacheLat===null) return null;
+  var p = snapToXY(lat, lon, snap.cacheLat, snap.cacheLon);
   var best=null;
-  for (var i=0;i<snapSegs.length;i++) {
-    var s=snapSegs[i];
+  for (var i=0;i<snap.segs.length;i++) {
+    var s=snap.segs[i];
     if (s.wayId!==wayId) continue;
     var dx=s.bx-s.ax, dy=s.by-s.ay, l2=dx*dx+dy*dy;
     var t=(l2===0)?0:Math.max(0,Math.min(1,((p.x-s.ax)*dx+(p.y-s.ay)*dy)/l2));
@@ -1787,10 +1783,10 @@ function snapProjectOnto(lat, lon, wayId) {
   var s=best.seg;
   var snapM=s.cumStart + best.t*s.edgeLen;
   var segIdx=(s.nSeg<=1||s.segLen===0)?0:Math.min(s.nSeg-1,Math.floor(snapM/s.segLen));
-  var cos=Math.cos(snapCacheLat*Math.PI/180);
+  var cos=Math.cos(snap.cacheLat*Math.PI/180);
   return {
-    lat: snapCacheLat + best.cy/111320,
-    lon: snapCacheLon + best.cx/(111320*cos),
+    lat: snap.cacheLat + best.cy/111320,
+    lon: snap.cacheLon + best.cx/(111320*cos),
     wayId: wayId, segIdx: segIdx, osmName: s.osmName, d: best.d
   };
 }
@@ -1798,11 +1794,11 @@ function snapProjectOnto(lat, lon, wayId) {
 // Read-only: dichtstbijzijnde way overall binnen SNAP_MAX_M (geen adjacency, geen
 // anker-mutatie). Voor cold-start taps en retro-snap van wachtrij-tikken.
 function snapNearestAny(lat, lon) {
-  if (!snapSegs.length || snapCacheLat===null) return null;
-  var p=snapToXY(lat, lon, snapCacheLat, snapCacheLon);
+  if (!snap.segs.length || snap.cacheLat===null) return null;
+  var p=snapToXY(lat, lon, snap.cacheLat, snap.cacheLon);
   var bestPerWay={};
-  for (var i=0;i<snapSegs.length;i++) {
-    var s=snapSegs[i];
+  for (var i=0;i<snap.segs.length;i++) {
+    var s=snap.segs[i];
     var dx=s.bx-s.ax, dy=s.by-s.ay, l2=dx*dx+dy*dy;
     var t=(l2===0)?0:Math.max(0,Math.min(1,((p.x-s.ax)*dx+(p.y-s.ay)*dy)/l2));
     var cx=s.ax+t*dx, cy=s.ay+t*dy;
@@ -1852,22 +1848,22 @@ function snapComputeConfidence(bestPerWay, chosenWayId, chosenD, acc, path, pend
   return { score: raw, level: null };  // level wordt na EMA bepaald
 }
 
-// GPS-anker-pad. ENIGE schrijver van snapAnchorWayId / snapChallenger. Alleen de
+// GPS-anker-pad. ENIGE schrijver van snap.anchorWayId / snap.challenger. Alleen de
 // GPS-watcher roept dit aan; taps erven het anker via snapProjectOnto (read-only).
 function snapNearestWay(lat, lon, eventInfo) {
   // eventInfo (optioneel): {type:'gps'|'tap', tijdstip, accuracy, tap_nr}
   //   gebruikt voor _snap_trace.csv schrijven. Zonder eventInfo wordt niet getraced.
-  if (!snapSegs.length || snapCacheLat===null) {
+  if (!snap.segs.length || snap.cacheLat===null) {
     if (eventInfo) traceWrite(eventInfo, lat, lon, 'no_network', null, null, null, []);
     return null;
   }
-  var p = snapToXY(lat, lon, snapCacheLat, snapCacheLon);
-  var anchorBefore = snapAnchorWayId;
+  var p = snapToXY(lat, lon, snap.cacheLat, snap.cacheLon);
+  var anchorBefore = snap.anchorWayId;
 
   // Stap 1: beste edge per way binnen SNAP_MAX_M verzamelen
   var bestPerWay = {};  // wayId → {d, seg, pt:{x,y}, t}
-  for (var i=0;i<snapSegs.length;i++) {
-    var s=snapSegs[i];
+  for (var i=0;i<snap.segs.length;i++) {
+    var s=snap.segs[i];
     var dx=s.bx-s.ax, dy=s.by-s.ay, l2=dx*dx+dy*dy;
     var t = (l2===0) ? 0 : Math.max(0,Math.min(1,((p.x-s.ax)*dx+(p.y-s.ay)*dy)/l2));
     var cx=s.ax+t*dx, cy=s.ay+t*dy;
@@ -1907,12 +1903,12 @@ function snapNearestWay(lat, lon, eventInfo) {
     var segIdx = (s.nSeg <= 1 || s.segLen === 0)
                ? 0
                : Math.min(s.nSeg - 1, Math.floor(snapM / s.segLen));
-    var cos=Math.cos(snapCacheLat*Math.PI/180);
-    snapAnchorWayId  = chosen.wayId;
-    snapAnchorSegIdx = segIdx;
+    var cos=Math.cos(snap.cacheLat*Math.PI/180);
+    snap.anchorWayId  = chosen.wayId;
+    snap.anchorSegIdx = segIdx;
     return {
-      lat: snapCacheLat + chosen.info.pt.y/111320,
-      lon: snapCacheLon + chosen.info.pt.x/(111320*cos),
+      lat: snap.cacheLat + chosen.info.pt.y/111320,
+      lon: snap.cacheLon + chosen.info.pt.x/(111320*cos),
       wayId: chosen.wayId,
       segIdx: segIdx,
       osmName: s.osmName
@@ -1924,7 +1920,7 @@ function snapNearestWay(lat, lon, eventInfo) {
 
   // Stap 2: keuze op basis van anker-state
   // 2a: geen anker → globaal dichtstbijzijnde (initialisatie)
-  if (snapAnchorWayId === null) {
+  if (snap.anchorWayId === null) {
     var all = {};
     var akeys = Object.keys(bestPerWay);
     for (var ak=0;ak<akeys.length;ak++) all[akeys[ak]] = true;
@@ -1932,7 +1928,7 @@ function snapNearestWay(lat, lon, eventInfo) {
     if (chosen) {
       snapPath = 'bootstrap';
       dChosenTrace = chosen.info.d;
-      snapChallenger = null;
+      snap.challenger = null;
       result = buildResult(chosen);
     } else {
       snapPath = 'null_no_candidate';
@@ -1942,11 +1938,11 @@ function snapNearestWay(lat, lon, eventInfo) {
     // Voorheen werd dit gemist als depth-1 toevallig een dichtbije buur vond:
     // een d1-wissel maskeerde dan dat de teller fysiek lang weg is van de
     // anker-way. Direct resetten geeft een schone bootstrap.
-    var preAnchorD = snapDistanceToWay(p, snapAnchorWayId);
+    var preAnchorD = snapDistanceToWay(p, snap.anchorWayId);
     if (preAnchorD > SNAP_RESET_M) {
-      snapAnchorWayId  = null;
-      snapAnchorSegIdx = 0;
-      snapChallenger   = null;
+      snap.anchorWayId  = null;
+      snap.anchorSegIdx = 0;
+      snap.challenger   = null;
       var preAll = {};
       var prekeys = Object.keys(bestPerWay);
       for (var pk=0;pk<prekeys.length;pk++) preAll[prekeys[pk]] = true;
@@ -1960,13 +1956,13 @@ function snapNearestWay(lat, lon, eventInfo) {
       }
     } else {
     // 2b: anker bestaat → depth-1 (anker + directe buren) met hysterese + debounce
-    var depth1Set = snapAdjacencySet(snapAnchorWayId, 1);
+    var depth1Set = snapAdjacencySet(snap.anchorWayId, 1);
     var chosen1   = pickWithin(depth1Set);
     if (chosen1) {
-      var anchorCand = bestPerWay[snapAnchorWayId];
-      if (chosen1.wayId === snapAnchorWayId) {
+      var anchorCand = bestPerWay[snap.anchorWayId];
+      if (chosen1.wayId === snap.anchorWayId) {
         // Anker is zelf de dichtste → geen uitdager
-        snapChallenger = null;
+        snap.challenger = null;
         snapPath = 'd1';
         dChosenTrace = chosen1.info.d;
         result = buildResult(chosen1);
@@ -1987,33 +1983,33 @@ function snapNearestWay(lat, lon, eventInfo) {
         }
         if (holdOnAnchor) {
           // Vasthouden op anker; uitdager vervalt
-          snapChallenger = null;
+          snap.challenger = null;
           snapPath = 'd1_hold';
           dChosenTrace = anchorCand.d;
-          result = buildResult({info: anchorCand, wayId: snapAnchorWayId});
+          result = buildResult({info: anchorCand, wayId: snap.anchorWayId});
         } else {
           // Buur is substantieel dichterbij → confirmatie-debounce vóór omklap.
           // Eén jitter-fix laat de count niet vollopen; bij echte verplaatsing
           // klapt het anker na SWITCH_CONFIRM opeenvolgende fixes om.
-          if (snapChallenger && snapChallenger.wayId === chosen1.wayId) {
-            snapChallenger.count++;
+          if (snap.challenger && snap.challenger.wayId === chosen1.wayId) {
+            snap.challenger.count++;
           } else {
-            snapChallenger = { wayId: chosen1.wayId, count: 1 };
+            snap.challenger = { wayId: chosen1.wayId, count: 1 };
           }
           dChosenTrace = d_other;
-          if (snapChallenger.count >= SWITCH_CONFIRM) {
+          if (snap.challenger.count >= SWITCH_CONFIRM) {
             // Bevestigd → omklap
-            snapChallenger = null;
+            snap.challenger = null;
             snapPath = 'd1_switch';
             result = buildResult(chosen1);
           } else if (anchorCand) {
             // Nog niet bevestigd → blijf op anker (debounce)
             snapPath = 'd1_pending';
-            result = buildResult({info: anchorCand, wayId: snapAnchorWayId});
+            result = buildResult({info: anchorCand, wayId: snap.anchorWayId});
           } else {
             // Randgeval: anker niet binnen SNAP_MAX_M maar nog niet ge-reset →
             // klap toch om (er is geen anker-punt om op te blijven)
-            snapChallenger = null;
+            snap.challenger = null;
             snapPath = 'd1_switch_noanchor';
             result = buildResult(chosen1);
           }
@@ -2021,20 +2017,20 @@ function snapNearestWay(lat, lon, eventInfo) {
       }
     } else {
       // 2c: depth-2 (genuine sprong over een korte tussen-way; debounce n.v.t.)
-      var chosen2 = pickWithin(snapAdjacencySet(snapAnchorWayId, 2));
+      var chosen2 = pickWithin(snapAdjacencySet(snap.anchorWayId, 2));
       if (chosen2) {
         snapPath = 'd2';
         dChosenTrace = chosen2.info.d;
-        snapChallenger = null;
+        snap.challenger = null;
         result = buildResult(chosen2);
       } else {
         // 2d/2e: geen verbonden kandidaat. Anker écht te ver weg?
-        var anchorD = snapDistanceToWay(p, snapAnchorWayId);
+        var anchorD = snapDistanceToWay(p, snap.anchorWayId);
         dAnchorTrace = anchorD;
         if (anchorD > SNAP_RESET_M) {
-          snapAnchorWayId  = null;
-          snapAnchorSegIdx = 0;
-          snapChallenger   = null;
+          snap.anchorWayId  = null;
+          snap.anchorSegIdx = 0;
+          snap.challenger   = null;
           var all2 = {};
           var bkeys = Object.keys(bestPerWay);
           for (var bk=0;bk<bkeys.length;bk++) all2[bkeys[bk]] = true;
@@ -2060,17 +2056,17 @@ function snapNearestWay(lat, lon, eventInfo) {
   if (eventInfo && eventInfo.type === 'gps') {
     var chosenD  = (chosenWay && bestPerWay[chosenWay]) ? bestPerWay[chosenWay].d
                  : (result ? snapDistanceToWay(p, chosenWay) : null);
-    var pending  = !!(snapChallenger && snapChallenger.count < SWITCH_CONFIRM);
+    var pending  = !!(snap.challenger && snap.challenger.count < SWITCH_CONFIRM);
     var conf     = snapComputeConfidence(bestPerWay, chosenWay, chosenD,
                                          eventInfo.accuracy, snapPath, pending);
     // EMA-smoothing: een enkele uitschieter trekt de stip niet meteen om
-    snapConfScore = (snapConfScore === null)
+    snap.confScore = (snap.confScore === null)
                   ? conf.score
-                  : (CONF_EMA * conf.score + (1 - CONF_EMA) * snapConfScore);
-    snapConfLevel = (conf.level === 'red') ? 'red'
-                  : (snapConfScore >= CONF_GREEN) ? 'green'
-                  : (snapConfScore >= CONF_AMBER) ? 'amber' : 'red';
-    snapConfName  = result ? (result.osmName || '') : '';
+                  : (CONF_EMA * conf.score + (1 - CONF_EMA) * snap.confScore);
+    snap.confLevel = (conf.level === 'red') ? 'red'
+                  : (snap.confScore >= CONF_GREEN) ? 'green'
+                  : (snap.confScore >= CONF_AMBER) ? 'amber' : 'red';
+    snap.confName  = result ? (result.osmName || '') : '';
   }
 
   // Trace schrijven (alleen als event-info meegegeven)
@@ -2082,13 +2078,13 @@ function snapNearestWay(lat, lon, eventInfo) {
   return result;
 }
 
-// Schrijf één regel naar de snap-trace. anchor_after = snapAnchorWayId nú,
+// Schrijf één regel naar de snap-trace. anchor_after = snap.anchorWayId nú,
 // na alle eventuele wijzigingen in deze snap-aanroep.
 function traceWrite(evt, lat, lon, snapPath, anchorBefore, chosenWay, dAnchor, dChosen, alts) {
-  snapTraceSeq++;
+  snap.traceSeq++;
   var altStr = alts.map(function(a){ return a.wayId + ':' + a.d.toFixed(1); }).join('|');
-  snapTrace.push({
-    seq:            snapTraceSeq,
+  snap.trace.push({
+    seq:            snap.traceSeq,
     tijdstip:       evt.tijdstip,
     event:          evt.type,
     lat:            lat.toFixed(6),
@@ -2100,12 +2096,12 @@ function traceWrite(evt, lat, lon, snapPath, anchorBefore, chosenWay, dAnchor, d
     d_anchor:       dAnchor != null ? dAnchor.toFixed(1) : '',
     d_chosen:       dChosen != null ? dChosen.toFixed(1) : '',
     alternatives:   altStr,
-    anchor_after:   snapAnchorWayId != null ? snapAnchorWayId : '',
+    anchor_after:   snap.anchorWayId != null ? snap.anchorWayId : '',
     tap_nr:         evt.tap_nr != null ? evt.tap_nr : '',
-    conf:           (snapConfScore === null) ? "" : snapConfScore.toFixed(2),
-    conf_level:     snapConfLevel,
-    gps_stab:       (gpsStabScore === null) ? "" : gpsStabScore.toFixed(2),
-    gps_level:      gpsStabLevel
+    conf:           (snap.confScore === null) ? "" : snap.confScore.toFixed(2),
+    conf_level:     snap.confLevel,
+    gps_stab:       (snap.gpsStabScore === null) ? "" : snap.gpsStabScore.toFixed(2),
+    gps_level:      snap.gpsStabLevel
   });
 }
 
@@ -2120,64 +2116,64 @@ function snapFetchNetwork(lat, lon, attempt) {
     .then(function(r){ return r.ok?r.json():Promise.reject(r.status); })
     .then(function(data) {
       if (!data.elements||!data.elements.length) throw new Error('geen wegen');
-      snapCacheLat=lat; snapCacheLon=lon;
-      // Stap 1 — accumuleer de verse fetch in snapElements + adjacency ZODAT de
+      snap.cacheLat=lat; snap.cacheLon=lon;
+      // Stap 1 — accumuleer de verse fetch in snap.elements + adjacency ZODAT de
       // segs-herbouw hieronder de nieuwe ways al meeneemt. (Volgorde t.o.v. <2.8:
       // dit blok stond na de segs-bouw; nu ervóór.)
       data.elements.forEach(function(el) {
         if (el.type!=='way'||!el.geometry||el.geometry.length<2) return;
         snapRegisterWay(el);  // adjacency cumulatief bijwerken
-        if (!snapElements[String(el.id)]) {
-          snapElements[String(el.id)] = {
+        if (!snap.elements[String(el.id)]) {
+          snap.elements[String(el.id)] = {
             highway: (el.tags&&el.tags.highway)||'',
             osmName: (el.tags&&el.tags.name)||'',
             geometry: el.geometry
           };
         }
       });
-      // Stap 2 — herbouw snapSegs uit het CUMULATIEVE netwerk (niet alleen deze
+      // Stap 2 — herbouw snap.segs uit het CUMULATIEVE netwerk (niet alleen deze
       // fetch), beperkt tot SNAP_SEGS_RADIUS rond de huidige positie. snapBuildSegs
       // herprojecteert alles tegen (lat,lon) → geen frame-menging. Hiermee verliest
       // een way die net buiten de verse 250m-cirkel valt z'n snap-kandidatuur niet.
       var segElems = snapElementsNear(lat, lon);
-      snapSegs = snapBuildSegs(segElems, lat, lon);
+      snap.segs = snapBuildSegs(segElems, lat, lon);
       // Log fetch-event in snap_trace zodat de segs-herbouw traceerbaar is.
       // n_el  = ways uit deze Overpass-fetch
       // n_kept = cumulatieve ways binnen SNAP_SEGS_RADIUS (input voor segs)
       // n_segs = resulterende segmenten
-      snapTraceSeq++;
-      snapTrace.push({
-        seq:            snapTraceSeq,
+      snap.traceSeq++;
+      snap.trace.push({
+        seq:            snap.traceSeq,
         tijdstip:       new Date().toISOString().slice(0,19),
         event:          'fetch',
         lat:            lat.toFixed(7),
         lon:            lon.toFixed(7),
         accuracy:       '',
-        anchor_before:  snapAnchorWayId||'',
-        snap_path:      'n_el:'+data.elements.length+'|n_kept:'+segElems.length+'|n_segs:'+snapSegs.length,
+        anchor_before:  snap.anchorWayId||'',
+        snap_path:      'n_el:'+data.elements.length+'|n_kept:'+segElems.length+'|n_segs:'+snap.segs.length,
         chosen_way:     '',
         d_anchor:       '',
         d_chosen:       '',
         alternatives:   '',
-        anchor_after:   snapAnchorWayId||'',
+        anchor_after:   snap.anchorWayId||'',
         tap_nr:         '',
-        conf:           (snapConfScore === null) ? "" : snapConfScore.toFixed(2),
-        conf_level:     snapConfLevel,
-        gps_stab:       (gpsStabScore === null) ? "" : gpsStabScore.toFixed(2),
-        gps_level:      gpsStabLevel
+        conf:           (snap.confScore === null) ? "" : snap.confScore.toFixed(2),
+        conf_level:     snap.confLevel,
+        gps_stab:       (snap.gpsStabScore === null) ? "" : snap.gpsStabScore.toFixed(2),
+        gps_level:      snap.gpsStabLevel
       });
-      snapReady=true;
+      snap.ready=true;
       // Retro-snap tikken die wachtten op het netwerk: dichtstbijzijnde way op
       // hun eigen historische positie (read-only, muteert het anker niet).
-      if (snapPendingQueue.length) {
-        snapPendingQueue.forEach(function(entry) {
+      if (snap.pendingQueue.length) {
+        snap.pendingQueue.forEach(function(entry) {
           if (entry.lat===null) return;
           var s = snapNearestAny(entry.lat, entry.lon);
           if (s) { entry.wayId = s.wayId; entry.segIdx = s.segIdx; entry.osmName = s.osmName; }
           traceWrite({type:'tap_retro', tijdstip:entry.ts}, entry.lat, entry.lon,
-                     s ? 'retro_nearest' : 'no_candidate', snapAnchorWayId, s?s.wayId:null, null, s?s.d:null, []);
+                     s ? 'retro_nearest' : 'no_candidate', snap.anchorWayId, s?s.wayId:null, null, s?s.d:null, []);
         });
-        snapPendingQueue = [];
+        snap.pendingQueue = [];
       }
     })
     .catch(function(){ snapFetchNetwork(lat,lon,attempt+1); });
@@ -2185,9 +2181,9 @@ function snapFetchNetwork(lat, lon, attempt) {
 
 var _snapRefreshTimer = null;
 function snapCheckRefresh(lat, lon) {
-  if (snapCacheLat===null) { snapFetchNetwork(lat,lon); return; }
-  var cos=Math.cos(snapCacheLat*Math.PI/180);
-  var dx=(lon-snapCacheLon)*111320*cos, dy=(lat-snapCacheLat)*111320;
+  if (snap.cacheLat===null) { snapFetchNetwork(lat,lon); return; }
+  var cos=Math.cos(snap.cacheLat*Math.PI/180);
+  var dx=(lon-snap.cacheLon)*111320*cos, dy=(lat-snap.cacheLat)*111320;
   if (Math.sqrt(dx*dx+dy*dy) > SNAP_ROAD_FETCH_RADIUS*0.6) {
     if (_snapRefreshTimer) clearTimeout(_snapRefreshTimer);
     _snapRefreshTimer = setTimeout(function(){ snapFetchNetwork(lat,lon); }, 600);
