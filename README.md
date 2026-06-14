@@ -11,7 +11,6 @@ Verzameling standalone veldonderzoek-tools voor mobiliteit en infrastructuur in 
 | `index.html` | Startscherm — overzicht van alle tools |
 | `traffic_counter.html` | Verkeerstelling vanaf vaste locatie |
 | `traffic_counter_transect.html` | Verkeerstelling wandelend met live kaart |
-| `kruispunttelling.html` | Kruispunttelling — 1–12 nummeringschema, hourly extrapolation |
 | `parkeertelling.html` | Parkeerbezetting wandelend — auto, links/rechts per zijde |
 | `fietsparkeren.html` | Fietsparkeerbezetting wandelend — fiets, wrak, brommer, breed |
 | `capaciteitstelling.html` | Parkeercapaciteit per vak en terrein |

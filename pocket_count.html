@@ -991,14 +991,14 @@ function _normPt(p) {
 
 function buildNetwerkCsv(sid) {
   var lines = ['osm_way_id;segment_index;segment_count;highway;geometrie_wkt'];
-  Object.keys(snap.elements).forEach(function(wid) {
-    var el = snap.elements[wid];
+  Object.keys(snap.elements).forEach(function(wayId) {
+    var el = snap.elements[wayId];
     var subs = splitWayIntoSegments(el.geometry);
     subs.forEach(function(sub, idx) {
       var coords = sub.map(function(p){
         return p[1].toFixed(6)+' '+p[0].toFixed(6);
       }).join(', ');
-      lines.push([wid, idx, subs.length, el.highway,
+      lines.push([wayId, idx, subs.length, el.highway,
                   'LINESTRING ('+coords+')'].join(';'));
     });
   });
@@ -1045,11 +1045,11 @@ function buildBezochtCsv(sid, telHist) {
   var MIN_VISIT_PTS = 3;
 
   function tsParse(s) { return new Date(s).getTime(); }
-  function keyOf(wid, segIdx) { return wid + ':' + (segIdx || 0); }
+  function keyOf(wayId, segIdx) { return wayId + ':' + (segIdx || 0); }
 
   // Tellingen sorteren op timestamp voor snelle range-toewijzing
   var taps = telHist.filter(function(h){ return h.wayId; })
-                    .map(function(h){ return { wid:h.wayId, segIdx:h.segIdx||0, t:tsParse(h.ts) }; })
+                    .map(function(h){ return { wayId:h.wayId, segIdx:h.segIdx||0, t:tsParse(h.ts) }; })
                     .sort(function(a,b){ return a.t - b.t; });
 
   var visits = [];
@@ -1057,16 +1057,16 @@ function buildBezochtCsv(sid, telHist) {
   for (var i = 0; i < routeLog.length; i++) {
     var p   = routeLog[i];
     var t   = tsParse(p.ts);
-    var wid = p.wayId || '';
+    var wayId = p.wayId || '';
     var seg = p.segIdx || 0;
-    if (!wid) {                       // geen snap → breek
+    if (!wayId) {                       // geen snap → breek
       if (cur) { visits.push(cur); cur = null; }
       continue;
     }
-    var sameKey = cur && cur.wayId === wid && cur.segIdx === seg;
+    var sameKey = cur && cur.wayId === wayId && cur.segIdx === seg;
     if (!sameKey || (t - cur.tEnd) > MAX_GAP_SEC*1000) {
       if (cur) visits.push(cur);
-      cur = { wayId: wid, segIdx: seg, osmName: p.osmName || '',
+      cur = { wayId: wayId, segIdx: seg, osmName: p.osmName || '',
               tStart: t, tEnd: t, nPts: 1 };
     } else {
       cur.tEnd = t;
@@ -1089,16 +1089,16 @@ function buildBezochtCsv(sid, telHist) {
     while (ti < taps.length && taps[ti].t < v.tStart) ti++;
     var j = ti;
     while (j < taps.length && taps[j].t <= v.tEnd) {
-      if (taps[j].wid === v.wayId && taps[j].segIdx === v.segIdx) v.nTel++;
+      if (taps[j].wayId === v.wayId && taps[j].segIdx === v.segIdx) v.nTel++;
       j++;
     }
   });
 
   // segment_count per way bepalen via splitWayIntoSegments op snap.elements
   var segCountFor = {};
-  Object.keys(snap.elements).forEach(function(wid) {
-    var subs = splitWayIntoSegments(snap.elements[wid].geometry);
-    segCountFor[wid] = subs.length;
+  Object.keys(snap.elements).forEach(function(wayId) {
+    var subs = splitWayIntoSegments(snap.elements[wayId].geometry);
+    segCountFor[wayId] = subs.length;
   });
 
   function fmtTs(ms) {
@@ -1263,13 +1263,13 @@ function reassignTrajectory() {
   }
 
   // segIdx per fix bepalen via splitWayIntoSegments (zelfde segmentatie als export)
-  function segCountOf(wid){
-    var el=snap.elements[wid]; if(!el) return 1;
+  function segCountOf(wayId){
+    var el=snap.elements[wayId]; if(!el) return 1;
     if (el._segCount==null) el._segCount = splitWayIntoSegments(el.geometry).length;
     return el._segCount;
   }
-  function segIdxFor(wid, plat, plon){
-    var el=snap.elements[wid]; if(!el||!el.geometry) return 0;
+  function segIdxFor(wayId, plat, plon){
+    var el=snap.elements[wayId]; if(!el||!el.geometry) return 0;
     var g=el.geometry, lm=lonM(g[0].lat), px=plon*lm, py=plat*LAT_M;
     // cumulatieve afstand tot projectie + totale lengte
     var cum=0, bestCum=0, best=Infinity, total=0;
@@ -1282,19 +1282,19 @@ function reassignTrajectory() {
       cum+=segLen;
     }
     total=cum;
-    var n=segCountOf(wid); if(n<=1||total===0) return 0;
+    var n=segCountOf(wayId); if(n<=1||total===0) return 0;
     return Math.min(n-1, Math.floor(bestCum / (total/n)));
   }
 
   // 1. routeLog corrigeren: way + segment per fix uit de trajectorie
   var fixWay=new Array(routeLog.length).fill(null), fixSeg=new Array(routeLog.length).fill(0);
   for (var i=0;i<routeLog.length;i++){
-    var wid=path[i];
-    if (wid && snap.elements[wid]){
-      var pr2=project(routeLog[i].lat, routeLog[i].lon, snap.elements[wid].geometry);
-      var seg=segIdxFor(wid, pr2.lat, pr2.lon);
-      fixWay[i]=wid; fixSeg[i]=seg;
-      routeLog[i].wayId=wid; routeLog[i].segIdx=seg; routeLog[i].osmName=snap.elements[wid].osmName||'';
+    var wayId=path[i];
+    if (wayId && snap.elements[wayId]){
+      var pr2=project(routeLog[i].lat, routeLog[i].lon, snap.elements[wayId].geometry);
+      var seg=segIdxFor(wayId, pr2.lat, pr2.lon);
+      fixWay[i]=wayId; fixSeg[i]=seg;
+      routeLog[i].wayId=wayId; routeLog[i].segIdx=seg; routeLog[i].osmName=snap.elements[wayId].osmName||'';
     }
   }
 
@@ -1410,10 +1410,10 @@ function polyLenM(pts) {
 function showPreview() {
   // Segmenten bouwen per (wayId, segIdx) inclusief sub-geometrie en tikken
   var segMap = {};
-  Object.keys(snap.elements).forEach(function(wid) {
-    var subs = splitWayIntoSegments(snap.elements[wid].geometry);
+  Object.keys(snap.elements).forEach(function(wayId) {
+    var subs = splitWayIntoSegments(snap.elements[wayId].geometry);
     subs.forEach(function(sub, idx) {
-      segMap[wid + ':' + idx] = { geom: sub, taps: 0, lenM: polyLenM(sub) };
+      segMap[wayId + ':' + idx] = { geom: sub, taps: 0, lenM: polyLenM(sub) };
     });
   });
 
@@ -1673,19 +1673,19 @@ function snapBuildSegs(elements, refLat, refLon) {
 // op deze nodes’ als ‘deze ways zijn nu aan elkaar verbonden’ toe.
 function snapRegisterWay(el) {
   if (!el.nodes || el.nodes.length < 2) return;
-  var wid = String(el.id);
+  var wayId = String(el.id);
   for (var i = 0; i < el.nodes.length; i++) {
     var nid = el.nodes[i];
     if (!snap.nodeToWays[nid]) snap.nodeToWays[nid] = {};
-    if (snap.nodeToWays[nid][wid]) continue;  // al geregistreerd
-    snap.nodeToWays[nid][wid] = true;
-    if (!snap.adjacency[wid]) snap.adjacency[wid] = {};
-    // Verbind wid met alle ways die deze node ook delen
+    if (snap.nodeToWays[nid][wayId]) continue;  // al geregistreerd
+    snap.nodeToWays[nid][wayId] = true;
+    if (!snap.adjacency[wayId]) snap.adjacency[wayId] = {};
+    // Verbind wayId met alle ways die deze node ook delen
     Object.keys(snap.nodeToWays[nid]).forEach(function(other) {
-      if (other === wid) return;
-      snap.adjacency[wid][other] = true;
+      if (other === wayId) return;
+      snap.adjacency[wayId][other] = true;
       if (!snap.adjacency[other]) snap.adjacency[other] = {};
-      snap.adjacency[other][wid] = true;
+      snap.adjacency[other][wayId] = true;
     });
   }
 }
