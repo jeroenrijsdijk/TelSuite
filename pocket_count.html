@@ -404,6 +404,105 @@
     color: rgba(240,240,236,0.45);
   }
   .pleg-swatch { width: 20px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+  /* ── Transect-modus (v2.11) ── */
+  #transect-screen {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: #1a1a1a; color: #fff; flex-direction: column; align-items: center;
+    padding: 14px 12px calc(70px + env(safe-area-inset-bottom)); gap: 10px;
+    overflow-y: auto; box-sizing: border-box;
+  }
+  #tc-dir-config { width: 100%; max-width: 520px; display: flex; gap: 8px; align-items: center; }
+  #tc-dir-config input {
+    flex: 1; min-width: 0; padding: 10px; border: 1px solid #444; border-radius: 5px;
+    background: #2a2a2a; color: #fff; font-family: var(--font); font-size: 0.85rem;
+    font-weight: 600; text-align: center; box-sizing: border-box;
+  }
+  #btn-compass {
+    padding: 9px 12px; border: 1px solid #666; border-radius: 5px; background: #2a2a2a;
+    color: rgba(255,255,255,0.75); font-family: var(--font); font-size: 0.7rem;
+    font-weight: 700; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap;
+    cursor: pointer; flex-shrink: 0;
+  }
+  #btn-compass.active { color: #6fcf7f; border-color: #6fcf7f; }
+  #tc-total {
+    width: 100%; max-width: 520px; background: #000; border-radius: 6px;
+    padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box;
+  }
+  #tc-total .lbl { font-size: 0.7rem; letter-spacing: 2px; color: #888; text-transform: uppercase; }
+  #tc-total .val { font-family: monospace; font-size: 1.8rem; font-weight: 700; }
+  #tc-counters { width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 7px; }
+  .tc-card {
+    background: #262626; border: 1px solid #3a3a3a; border-radius: 8px;
+    display: flex; align-items: stretch; overflow: hidden; height: 68px;
+  }
+  .tc-dir {
+    width: 78px; min-width: 78px; border: none; background: #3a7d44; color: #fff;
+    font-family: var(--font); font-weight: 700; cursor: pointer; flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  .tc-dir:active { filter: brightness(0.8); }
+  .tc-dir .tc-sym  { font-size: 0.7rem; font-family: monospace; opacity: 0.85; letter-spacing: -1px; }
+  .tc-dir .tc-plus { font-size: 1.5rem; line-height: 1; }
+  .tc-cnt {
+    flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0;
+    font-family: monospace; font-size: 2rem; font-weight: 700; color: #fff; transition: transform 0.1s ease;
+  }
+  .tc-cnt.bump { transform: scale(1.25); }
+  .tc-min {
+    width: 32px; min-width: 32px; border: none; background: #333;
+    color: rgba(255,255,255,0.55); font-size: 1.1rem; font-weight: 700; cursor: pointer;
+    flex-shrink: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  .tc-min:active { background: #444; }
+  .tc-mid {
+    width: 40px; min-width: 40px; display: flex; align-items: center; justify-content: center;
+    background: #1e1e1e; border-left: 1px solid #3a3a3a; border-right: 1px solid #3a3a3a;
+    border-top: 3px solid #b07d2b; font-size: 1.3rem; flex-shrink: 0;
+  }
+  #tc-stop, #tc-back {
+    position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 60;
+    padding: 12px 18px; border: none; border-radius: 6px; font-family: var(--font);
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+  }
+  #tc-stop { right: 14px; background: #c0392b; color: #fff; }
+  #tc-back { left: 14px; background: #333; color: rgba(255,255,255,0.8); }
+  /* ── Winkelstraat-modus (v2.11) ── */
+  #winkel-screen {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: #1a1a1a; color: #fff; flex-direction: column;
+    padding: 14px 12px calc(70px + env(safe-area-inset-bottom)); gap: 10px; box-sizing: border-box;
+  }
+  #ws-total {
+    width: 100%; background: #000; border-radius: 6px; padding: 8px 16px;
+    display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; box-sizing: border-box;
+  }
+  #ws-total .lbl { font-size: 0.7rem; letter-spacing: 2px; color: #888; text-transform: uppercase; }
+  #ws-total .val { font-family: monospace; font-size: 1.8rem; font-weight: 700; }
+  #ws-cards { flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .ws-card {
+    flex: 1; position: relative; border-radius: 12px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; overflow: hidden;
+  }
+  .ws-card:active { filter: brightness(0.85); }
+  .ws-icon  { font-size: 2.4rem; line-height: 1; }
+  .ws-label { font-family: var(--font); font-size: 1rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  .ws-count { font-family: monospace; font-size: 3.5rem; font-weight: 700; line-height: 1; transition: transform 0.1s ease; }
+  .ws-count.bump { transform: scale(1.2); }
+  .ws-undo {
+    position: absolute; top: 10px; right: 10px; width: 44px; height: 44px;
+    background: rgba(0,0,0,0.3); border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem; font-weight: 700; color: rgba(255,255,255,0.85); -webkit-tap-highlight-color: transparent;
+  }
+  .ws-undo:active { background: rgba(0,0,0,0.5); }
+  #ws-stop, #ws-back {
+    position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 60;
+    padding: 12px 18px; border: none; border-radius: 6px; font-family: var(--font);
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+  }
+  #ws-stop { right: 14px; background: #c0392b; color: #fff; }
+  #ws-back { left: 14px; background: #333; color: rgba(255,255,255,0.8); }
 </style>
 </head>
 <body>
@@ -417,7 +516,30 @@
            text-transform:uppercase;padding:7px 13px;border-radius:20px;
            cursor:pointer;touch-action:manipulation;">EN</button>
   <h1 id="choose-heading">Wat tel je?</h1>
-  <div class="type-btns">
+  <div id="restore-banner" style="display:none;max-width:340px;width:100%;background:#5a3a1a;border:1px solid #b07d2b;border-radius:6px;padding:12px 14px;margin-bottom:10px;font-family:var(--font);box-sizing:border-box;">
+    <p id="restore-text" style="margin:0 0 10px;font-size:0.85rem;font-weight:600;color:#fff;line-height:1.35;"></p>
+    <div style="display:flex;gap:8px;">
+      <button onclick="restoreDownload()" style="flex:1;padding:10px;background:#3a7d44;border:none;border-radius:5px;font-family:var(--font);font-size:0.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;cursor:pointer;">&#x2913; Download</button>
+      <button onclick="restoreDiscard()" style="flex:1;padding:10px;background:#444;border:none;border-radius:5px;font-family:var(--font);font-size:0.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.7);cursor:pointer;">&#x2715; Verwijder</button>
+    </div>
+  </div>
+  <!-- Moduskiezer (v2.11): Simpel · Transect · Winkelstraat -->
+  <div class="type-btns" id="mode-btns">
+    <button class="type-btn" style="background:#3a7d44" onclick="chooseSimpel()">
+      <span class="icon">&#x1F446;</span><span class="lbl">Simpel</span>
+    </button>
+    <button class="type-btn" style="background:#b07d2b" onclick="chooseTransect()">
+      <span class="icon">&#x2194;&#xFE0F;</span><span class="lbl">Transect</span>
+    </button>
+    <button class="type-btn" style="background:#6a4c93" onclick="chooseWinkelstraat()">
+      <span class="icon">&#x1F6CD;&#xFE0F;</span><span class="lbl">Winkelstraat</span>
+    </button>
+    <p id="mode-note" style="margin:4px 2px 0;min-height:1.1em;font-family:var(--font);font-size:0.8rem;font-weight:600;letter-spacing:1px;color:rgba(255,255,255,0.55);text-align:center;"></p>
+  </div>
+
+  <!-- Simpel \u2192 object-keuze (ongewijzigd gedrag, modus=simpel) -->
+  <div class="type-btns" id="simpel-panel" style="display:none;">
+    <button onclick="backToModes()" style="background:none;border:none;align-self:flex-start;font-family:var(--font);font-size:0.8rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.5);cursor:pointer;padding:2px 0;">&#8249; Terug</button>
     <button class="type-btn" style="background:var(--c-car)"   onclick="startTelling('car',  '&#x1F697;', t('car'))">
       <span class="icon">&#x1F697;</span><span class="lbl" id="lbl-car">Auto</span>
     </button>
@@ -556,6 +678,9 @@ function applyLang() {
 var telType     = null;
 var telLabel    = null;
 var telIcon     = null;
+var lastHeading = null;
+var lastAcc     = null;
+var lastSpeed   = null;
 var telCount    = 0;
 var telHistory  = [];   // [{ts, lat, lon}]
 var startTime   = null;
@@ -600,7 +725,10 @@ function startGps() {
   watching = navigator.geolocation.watchPosition(    function(pos) {
       lastLat = pos.coords.latitude;
       lastLon = pos.coords.longitude;
+      if (pos.coords.heading != null && !isNaN(pos.coords.heading)) lastHeading = pos.coords.heading;
+      if (pos.coords.speed != null && !isNaN(pos.coords.speed)) lastSpeed = pos.coords.speed;
       var acc = Math.round(pos.coords.accuracy || 0);
+      lastAcc = acc;
       gpsUpdateStability(lastLat, lastLon, acc, Date.now());
       snapCheckRefresh(lastLat, lastLon);
       // Huidige snap bepalen (kan null zijn als netwerk nog niet geladen is)
@@ -643,6 +771,380 @@ function releaseWakeLock() {
 }
 
 // ── Scherm-beheer ─────────────────────────────────────────────────────────────
+// Modus-keuze (v2.11): simpel | transect | winkelstraat \u2014 gaat als 'modus' mee in sessie.csv.
+// app_type blijft 'pocket' (telrapport blijft de familie herkennen); modus is de sub-discriminator.
+var currentModus = 'simpel';
+function chooseSimpel() {
+  currentModus = 'simpel';
+  document.getElementById('mode-note').textContent = '';
+  document.getElementById('mode-btns').style.display = 'none';
+  document.getElementById('simpel-panel').style.display = 'flex';
+}
+function backToModes() {
+  document.getElementById('other-row').style.display = 'none';
+  document.getElementById('simpel-panel').style.display = 'none';
+  document.getElementById('mode-btns').style.display = 'flex';
+}
+// ── Transect-modus (v2.11) ────────────────────────────────────────────────────
+// Moving-observer richtingstelling op pocket's snap-core. Een tik = telHistory-
+// entry met type + richting (a/b); snap, export, herstel en reassignTrajectory
+// erven zo mee. Géén live kaart (consistent met pocket) — visualisatie via de
+// bestaande preview-canvas.
+var TC_TYPES = [
+  { id:'car',   icon:'\uD83D\uDE97' },
+  { id:'truck', icon:'\uD83D\uDE9B' },
+  { id:'moto',  icon:'\uD83C\uDFCD\uFE0F' },
+  { id:'bike',  icon:'\uD83D\uDEB2' },
+  { id:'ped',   icon:'\uD83D\uDEB6' }
+];
+var tcCounts = {};
+var tcRichtingA = 'Richting A', tcRichtingB = 'Richting B';
+
+function chooseTransect() { startTransect(); }
+
+function startTransect() {
+  clearSession();
+  currentModus = 'transect';
+  telType = 'transect'; telLabel = 'Transect'; telIcon = '\u2194\uFE0F';
+  telCount = 0; telHistory = []; routeLog = [];
+  lastRouteLat = null; lastRouteLon = null;
+  snap.elements = {};
+  snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
+  snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
+  startTime = new Date();
+  tcCounts = {};
+  TC_TYPES.forEach(function(t){ tcCounts[t.id] = { a:0, b:0 }; });
+  tcRichtingA = 'Richting A'; tcRichtingB = 'Richting B';
+
+  document.getElementById('choose-screen').style.display = 'none';
+  document.getElementById('transect-screen').style.display = 'flex';
+  document.getElementById('grand-total').textContent = '0';
+  document.getElementById('lbl-a').value = tcRichtingA;
+  document.getElementById('lbl-b').value = tcRichtingB;
+  var btn = document.getElementById('btn-compass');
+  btn.textContent = 'Kompas'; btn.classList.remove('active');
+  buildTransectCards();
+  document.getElementById('tc-stop').style.display = '';
+  document.getElementById('tc-back').style.display = '';
+  initBattery();
+  acquireWakeLock();
+  startGps();
+}
+
+function buildTransectCards() {
+  var c = document.getElementById('tc-counters');
+  c.innerHTML = '';
+  TC_TYPES.forEach(function(t){
+    var card = document.createElement('div');
+    card.className = 'tc-card';
+    card.innerHTML =
+      '<button class="tc-dir" onclick="adjustTransect(\'' + t.id + '\',\'a\',1)"><span class="tc-sym">&gt;&lt;</span><span class="tc-plus">+1</span></button>' +
+      '<div class="tc-cnt" id="tc-' + t.id + '-a">0</div>' +
+      '<button class="tc-min" onclick="adjustTransect(\'' + t.id + '\',\'a\',-1)">\u2212</button>' +
+      '<div class="tc-mid">' + t.icon + '</div>' +
+      '<button class="tc-min" onclick="adjustTransect(\'' + t.id + '\',\'b\',-1)">\u2212</button>' +
+      '<div class="tc-cnt" id="tc-' + t.id + '-b">0</div>' +
+      '<button class="tc-dir" onclick="adjustTransect(\'' + t.id + '\',\'b\',1)"><span class="tc-sym">&gt;&gt;</span><span class="tc-plus">+1</span></button>';
+    c.appendChild(card);
+  });
+}
+
+function adjustTransect(type, dir, delta) {
+  if (!tcCounts[type]) return;
+  tcCounts[type][dir] = Math.max(0, tcCounts[type][dir] + delta);
+  var cel = document.getElementById('tc-' + type + '-' + dir);
+  cel.textContent = tcCounts[type][dir];
+  cel.classList.remove('bump'); void cel.offsetWidth; cel.classList.add('bump');
+
+  if (delta > 0) {
+    telCount++;
+    var e = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId:'', segIdx:0, osmName:'',
+              type: type, richting: dir };
+    snapResolveTap(e);
+    if (navigator.vibrate) navigator.vibrate(25);
+  } else {
+    for (var i = telHistory.length - 1; i >= 0; i--) {
+      if (telHistory[i].type === type && telHistory[i].richting === dir) {
+        var rem = telHistory.splice(i, 1)[0];
+        var qi = snap.pendingQueue.indexOf(rem);
+        if (qi >= 0) snap.pendingQueue.splice(qi, 1);
+        telCount = Math.max(0, telCount - 1);
+        break;
+      }
+    }
+  }
+  var total = 0;
+  TC_TYPES.forEach(function(t){ total += tcCounts[t.id].a + tcCounts[t.id].b; });
+  document.getElementById('grand-total').textContent = total;
+  saveSession();
+}
+
+function tcSetLabelA(v){ tcRichtingA = v; }
+function tcSetLabelB(v){ tcRichtingB = v; }
+
+function closeTransectScreen() {
+  document.getElementById('transect-screen').style.display = 'none';
+  document.getElementById('tc-stop').style.display = 'none';
+  document.getElementById('tc-back').style.display = 'none';
+  releaseWakeLock();
+  stopGps();
+}
+
+function tcBack() {
+  if (telCount > 0 && !confirm('Terug? ' + telCount + ' tikken gaan verloren als je niet eerst downloadt.')) return;
+  closeTransectScreen();
+  backToModes();
+  document.getElementById('choose-screen').style.display = '';
+}
+
+// ── Richting-inferentie (uit transect-tool, op pocket's GPS) ───────────────────
+function tcDestinationPoint(lat, lon, bearingDeg, distanceKm) {
+  var R = 6371, d = distanceKm / R;
+  var lat1 = lat*Math.PI/180, lon1 = lon*Math.PI/180, brng = bearingDeg*Math.PI/180;
+  var lat2 = Math.asin(Math.sin(lat1)*Math.cos(d) + Math.cos(lat1)*Math.sin(d)*Math.cos(brng));
+  var lon2 = lon1 + Math.atan2(Math.sin(brng)*Math.sin(d)*Math.cos(lat1), Math.cos(d)-Math.sin(lat1)*Math.sin(lat2));
+  return { lat: lat2*180/Math.PI, lon: ((lon2*180/Math.PI)+540)%360-180 };
+}
+function tcCardinalNL(deg) {
+  var dirs = ['Noord','Noordoost','Oost','Zuidoost','Zuid','Zuidwest','West','Noordwest'];
+  return dirs[Math.round(((deg%360)+360)%360/45)%8];
+}
+function tcPlaceNameAt(lat, lon) {
+  var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=10&addressdetails=1';
+  return fetch(url, { headers: { 'Accept-Language': 'nl' } })
+    .then(function(r){ return r.json(); })
+    .then(function(data){ var a = data.address || {};
+      return a.city || a.town || a.village || a.hamlet || a.municipality || a.suburb || null; })
+    .catch(function(){ return null; });
+}
+function tcApplyHeading(heading, lat, lon) {
+  var btn = document.getElementById('btn-compass');
+  var ahead = (heading + 360) % 360, behind = (heading + 180) % 360;
+  var cardA = tcCardinalNL(ahead), cardB = tcCardinalNL(behind);
+  function setLabels(pa, pb) {
+    var a = pa || cardA, b = pb || cardB;
+    tcRichtingA = 'Van ' + b + ' naar ' + a;
+    tcRichtingB = 'Van ' + a + ' naar ' + b;
+    document.getElementById('lbl-a').value = tcRichtingA;
+    document.getElementById('lbl-b').value = tcRichtingB;
+    btn.textContent = a + ' / ' + b;
+    btn.classList.add('active');
+  }
+  if (lat != null && lon != null) {
+    btn.textContent = 'Zoeken\u2026';
+    var pa = tcDestinationPoint(lat, lon, ahead, 5), pb = tcDestinationPoint(lat, lon, behind, 5);
+    Promise.all([tcPlaceNameAt(pa.lat, pa.lon), tcPlaceNameAt(pb.lat, pb.lon)])
+      .then(function(res){ var a=res[0], b=res[1]; setLabels(a!==b?a:null, a!==b?b:null); });
+  } else { setLabels(null, null); }
+}
+function tcListenCompass(lat, lon) {
+  var btn = document.getElementById('btn-compass');
+  var readings = [], done = false;
+  function onOri(e) {
+    if (done) return;
+    var h = null;
+    if (e.webkitCompassHeading != null && !isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading;
+    else if (e.alpha != null) h = (360 - e.alpha) % 360;
+    if (h == null) return;
+    readings.push(h);
+    if (readings.length >= 5) {
+      done = true;
+      window.removeEventListener('deviceorientation', onOri, true);
+      window.removeEventListener('deviceorientationabsolute', onOri, true);
+      var sinS = readings.reduce(function(s,v){ return s + Math.sin(v*Math.PI/180); }, 0);
+      var cosS = readings.reduce(function(s,v){ return s + Math.cos(v*Math.PI/180); }, 0);
+      tcApplyHeading((Math.atan2(sinS, cosS)*180/Math.PI+360)%360, lat, lon);
+    }
+  }
+  window.addEventListener('deviceorientationabsolute', onOri, true);
+  window.addEventListener('deviceorientation', onOri, true);
+  setTimeout(function(){
+    if (!done) { done = true;
+      window.removeEventListener('deviceorientation', onOri, true);
+      window.removeEventListener('deviceorientationabsolute', onOri, true);
+      btn.textContent = 'Kompas';
+      alert('Geen kompasdata beschikbaar.');
+    }
+  }, 3000);
+}
+function autoDirections() {
+  var btn = document.getElementById('btn-compass');
+  btn.textContent = 'Lezen\u2026'; btn.classList.remove('active');
+  if (lastHeading != null && !isNaN(lastHeading)) { tcApplyHeading(lastHeading, lastLat, lastLon); return; }
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(function(p){ if (p === 'granted') tcListenCompass(lastLat, lastLon); else { btn.textContent = 'Kompas'; alert('Geen toestemming.'); } })
+      .catch(function(){ btn.textContent = 'Kompas'; });
+  } else { tcListenCompass(lastLat, lastLon); }
+}
+// ── Winkelstraat-modus (v2.11) ────────────────────────────────────────────────
+// Moving-observer voetgangerstelling: twee categorieën — Tegemoet (oncoming) en
+// Stilstaand (stationary) — die met GPS-lengte en -snelheid schoon decomponeren
+// (Wardrop & Charlesworth). App tikt + logt snelheid per tik; KNIME decomponeert.
+// Eén tik = telHistory-entry met type=categorie + snelheid; snap/herstel erven mee.
+var WS_CATS = [
+  { id:'tegemoet',   label:'Tegemoet',  icon:'\uD83D\uDEB6', col:'#16a085' },
+  { id:'stilstaand', label:'Stilstaand', icon:'\uD83E\uDDCD', col:'#d35400' }
+];
+var wsCounts = {};
+
+function chooseWinkelstraat() { startWinkelstraat(); }
+
+function startWinkelstraat() {
+  clearSession();
+  currentModus = 'winkelstraat';
+  telType = 'winkelstraat'; telLabel = 'Winkelstraat'; telIcon = '\uD83D\uDED2';
+  telCount = 0; telHistory = []; routeLog = [];
+  lastRouteLat = null; lastRouteLon = null;
+  snap.elements = {};
+  snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
+  snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
+  startTime = new Date();
+  wsCounts = {}; WS_CATS.forEach(function(c){ wsCounts[c.id] = 0; });
+
+  document.getElementById('choose-screen').style.display = 'none';
+  document.getElementById('winkel-screen').style.display = 'flex';
+  buildWinkelCards();
+  updateWinkelDisplay();
+  document.getElementById('ws-stop').style.display = '';
+  document.getElementById('ws-back').style.display = '';
+  initBattery();
+  acquireWakeLock();
+  startGps();
+}
+
+function buildWinkelCards() {
+  var c = document.getElementById('ws-cards');
+  c.innerHTML = '';
+  WS_CATS.forEach(function(cat){
+    var card = document.createElement('div');
+    card.className = 'ws-card';
+    card.style.background = cat.col;
+    card.setAttribute('onclick', "adjustWinkel('" + cat.id + "',1)");
+    card.innerHTML =
+      '<div class="ws-icon">' + cat.icon + '</div>' +
+      '<div class="ws-label">' + cat.label + '</div>' +
+      '<div class="ws-count" id="ws-' + cat.id + '">0</div>' +
+      '<div class="ws-undo" onclick="event.stopPropagation(); adjustWinkel(\'' + cat.id + '\',-1)">\u2212</div>';
+    c.appendChild(card);
+  });
+}
+
+function adjustWinkel(cat, delta) {
+  if (!(cat in wsCounts)) return;
+  if (delta > 0) {
+    wsCounts[cat]++;
+    telCount++;
+    var e = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId:'', segIdx:0, osmName:'',
+              type: cat, richting:'',
+              snelheid: (lastSpeed != null && !isNaN(lastSpeed)) ? lastSpeed.toFixed(2) : '' };
+    snapResolveTap(e);
+    if (navigator.vibrate) navigator.vibrate(25);
+  } else {
+    if (wsCounts[cat] <= 0) return;
+    for (var i = telHistory.length - 1; i >= 0; i--) {
+      if (telHistory[i].type === cat) {
+        var rem = telHistory.splice(i, 1)[0];
+        var qi = snap.pendingQueue.indexOf(rem);
+        if (qi >= 0) snap.pendingQueue.splice(qi, 1);
+        telCount = Math.max(0, telCount - 1);
+        wsCounts[cat]--;
+        break;
+      }
+    }
+  }
+  updateWinkelDisplay();
+  saveSession();
+}
+
+function updateWinkelDisplay() {
+  var total = 0;
+  WS_CATS.forEach(function(c){
+    var el = document.getElementById('ws-' + c.id);
+    if (el) {
+      el.textContent = wsCounts[c.id] || 0;
+      el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+    }
+    total += wsCounts[c.id] || 0;
+  });
+  document.getElementById('ws-total-val').textContent = total;
+}
+
+function closeWinkelScreen() {
+  document.getElementById('winkel-screen').style.display = 'none';
+  document.getElementById('ws-stop').style.display = 'none';
+  document.getElementById('ws-back').style.display = 'none';
+  releaseWakeLock();
+  stopGps();
+}
+
+function wsBack() {
+  if (telCount > 0 && !confirm('Terug? ' + telCount + ' tikken gaan verloren als je niet eerst downloadt.')) return;
+  closeWinkelScreen();
+  backToModes();
+  document.getElementById('choose-screen').style.display = '';
+}
+
+// ── Sessieherstel (v2.11) ─────────────────────────────────────────────────────
+// localStorage-vangnet: telt élke tik door zodat crash/scherm-uit geen
+// veldgegevens kost. Bewust géén snap.elements (te groot + secundair); de tikken
+// dragen hun eigen wayId, dus de export blijft volledig. Wissen pas ná bevestigd
+// klaar (preview sluiten) of bij een nieuwe sessie \u2014 nooit blind na generateAsync.
+var LS_KEY_POCKET = 'pocket_sessie';
+
+function saveSession() {
+  if (!telHistory.length) return;
+  try {
+    localStorage.setItem(LS_KEY_POCKET, JSON.stringify({
+      modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
+      telCount: telCount, telHistory: telHistory, routeLog: routeLog,
+      tcCounts: tcCounts, richtingA: tcRichtingA, richtingB: tcRichtingB,
+      startTime: startTime ? startTime.toISOString() : null, savedAt: nowIso()
+    }));
+  } catch (e) {}
+}
+
+function clearSession() {
+  try { localStorage.removeItem(LS_KEY_POCKET); } catch (e) {}
+}
+
+function restoreSession() {
+  var raw;
+  try { raw = localStorage.getItem(LS_KEY_POCKET); } catch (e) { return; }
+  if (!raw) return;
+  var data;
+  try { data = JSON.parse(raw); } catch (e) { clearSession(); return; }
+  if (!data.telHistory || !data.telHistory.length) { clearSession(); return; }
+
+  currentModus = data.modus || 'simpel';
+  telType = data.telType; telLabel = data.telLabel; telIcon = data.telIcon;
+  telCount = (data.telCount != null) ? data.telCount : data.telHistory.length;
+  telHistory = data.telHistory;
+  routeLog = data.routeLog || [];
+  tcRichtingA = data.richtingA || 'Richting A';
+  tcRichtingB = data.richtingB || 'Richting B';
+  tcCounts = data.tcCounts || {};
+  startTime = data.startTime ? new Date(data.startTime) : new Date();
+
+  document.getElementById('restore-text').textContent = '\u26A0\uFE0F ' + telCount +
+    ' tikken hersteld van ' + (data.savedAt || '?') +
+    ' (' + (data.telLabel || data.telType || currentModus) + ').';
+  document.getElementById('restore-banner').style.display = '';
+}
+
+function restoreDownload() {
+  document.getElementById('restore-banner').style.display = 'none';
+  stopTelling();   // bouwt + biedt de ZIP aan uit de herstelde state
+}
+
+function restoreDiscard() {
+  if (!confirm('Herstelde telling verwijderen? Dit kan niet ongedaan worden gemaakt.')) return;
+  clearSession();
+  telCount = 0; telHistory = []; routeLog = [];
+  document.getElementById('restore-banner').style.display = 'none';
+}
+
 function chooseOther() {
   var row = document.getElementById('other-row');
   row.style.display = row.style.display === 'none' ? 'flex' : 'none';
@@ -669,6 +1171,7 @@ function confirmOther() {
 }
 
 function startTelling(type, icon, label) {
+  clearSession();
   telType    = type;
   telLabel   = label;
   telIcon    = icon;
@@ -707,6 +1210,7 @@ function startTelling(type, icon, label) {
 function backToChoose() {
   if (telCount > 0 && !confirm(t('confirmBack')(telCount))) return;
   closeTelScreen();
+  backToModes();
   document.getElementById('choose-screen').style.display = '';
 }
 
@@ -753,22 +1257,19 @@ function cancelHold() {
 }
 
 
-function doTap() {
-  telCount++;
-  var tapEntry = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId: '', segIdx: 0, osmName: '' };
+// Gedeelde snap-resolutie voor één tik (simpel én transect): erft het GPS-anker,
+// projecteert read-only, valt terug op dichtstbijzijnde way, en duwt de entry in
+// telHistory (of de wachtrij als snap nog niet klaar is). Eén bron van waarheid.
+function snapResolveTap(tapEntry) {
   if (snap.ready) {
     if (lastLat !== null) {
       var r = null;
       if (snap.anchorWayId !== null) {
-        // Tap erft het GPS-anker — één bron van waarheid. Projecteer het huidige
-        // GPS-punt loodrecht op de anker-way (read-only: muteert het anker niet).
         r = snapProjectOnto(lastLat, lastLon, snap.anchorWayId);
         if (r) {
           traceWrite({type:'tap', tijdstip:tapEntry.ts, tap_nr:telCount}, lastLat, lastLon,
                      'inherit', snap.anchorWayId, r.wayId, null, r.d, []);
         } else if (snap.elements[snap.anchorWayId]) {
-          // Anker-way valt buiten het huidige fetch-venster: erf metadata,
-          // marker blijft op het ruwe GPS-punt.
           r = { wayId: snap.anchorWayId, segIdx: snap.anchorSegIdx,
                 osmName: snap.elements[snap.anchorWayId].osmName || '' };
           traceWrite({type:'tap', tijdstip:tapEntry.ts, tap_nr:telCount}, lastLat, lastLon,
@@ -776,31 +1277,35 @@ function doTap() {
         }
       }
       if (!r) {
-        // Cold start: nog geen anker → eenmalig dichtstbijzijnde way (read-only).
         r = snapNearestAny(lastLat, lastLon);
         traceWrite({type:'tap', tijdstip:tapEntry.ts, tap_nr:telCount}, lastLat, lastLon,
                    r ? 'tap_bootstrap' : 'no_candidate', snap.anchorWayId, r?r.wayId:null, null, r?r.d:null, []);
       }
       if (r) { tapEntry.wayId = r.wayId; tapEntry.segIdx = r.segIdx; tapEntry.osmName = r.osmName; }
     }
-    // Tik erft de live zekerheid van het anker waarop hij landt (voor analyse).
     tapEntry.conf = (snap.confScore === null) ? '' : snap.confScore.toFixed(2);
     tapEntry.confLevel = snap.confLevel;
     tapEntry.gpsStab = (snap.gpsStabScore === null) ? '' : snap.gpsStabScore.toFixed(2);
     tapEntry.gpsLevel = snap.gpsStabLevel;
     telHistory.push(tapEntry);
   } else {
-    // Snap nog niet beschikbaar — in wachtrij plaatsen
     tapEntry.gpsStab = (snap.gpsStabScore === null) ? '' : snap.gpsStabScore.toFixed(2);
     tapEntry.gpsLevel = snap.gpsStabLevel;
     snap.pendingQueue.push(tapEntry);
     telHistory.push(tapEntry);
   }
+}
+
+function doTap() {
+  telCount++;
+  var tapEntry = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId: '', segIdx: 0, osmName: '' };
+  snapResolveTap(tapEntry);
   document.getElementById('big-count').textContent = telCount;
   if (navigator.vibrate) navigator.vibrate(25);
   var s = document.getElementById('count-screen');
   s.classList.add('flash');
   setTimeout(function(){ s.classList.remove('flash'); }, 80);
+  saveSession();
 }
 
 // Werk de zekerheidsstip + straatnaam onder de teller bij.
@@ -938,6 +1443,7 @@ function doUndo() {
   s.classList.add('shake');
   setTimeout(function(){ s.classList.remove('shake'); }, 200);
   cancelHold();
+  saveSession();
 }
 
 // ── Export ZIP ────────────────────────────────────────────────────────────────
@@ -1323,20 +1829,24 @@ function stopTelling() {
 
   // sessie.csv
   var csvType = (telType === 'other') ? telLabel : telType;
-  var sessieCsv = 'sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen\n'
-    + [sid, datum, start, eind, 'pocket', csvType, telCount].join(';');
+  var sessieCsv = 'sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen;modus;richting_a;richting_b\n'
+    + [sid, datum, start, eind, 'pocket', csvType, telCount, currentModus,
+       currentModus === 'transect' ? tcRichtingA : '',
+       currentModus === 'transect' ? tcRichtingB : ''].join(';');
 
   // Trajectorie-hertoekenning: corrigeer way+segment van fixes en tikken op basis
   // van de volledige trajectorie (topologie-eerst), vóór alle CSV's worden gebouwd.
   // Zo zijn telregels, gps én bezocht meteen bij de bron consistent.
-  reassignTrajectory();
+  // Guard: zonder live netwerk (bv. na sessieherstel) overslaan — de tikken
+  // behouden dan hun reeds-gesnapte wayId i.p.v. te worden leeggemaakt.
+  if (Object.keys(snap.elements).length) reassignTrajectory();
 
   // telregels.csv — conf/conf_level + gps_stab/gps_level achteraan zodat
   // bestaande kolomvolgorde intact blijft; telrapport leest op header-naam
   // en negeert onbekende kolommen.
-  var telregelsCsv = 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level;gps_stab;gps_level\n';
+  var telregelsCsv = 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level;gps_stab;gps_level;richting;snelheid\n';
   telHistory.forEach(function(h, i) {
-    telregelsCsv += [sid, i+1, h.ts, csvType,
+    telregelsCsv += [sid, i+1, h.ts, h.type || csvType,
       h.lat !== null ? h.lat.toFixed(6) : '',
       h.lon !== null ? h.lon.toFixed(6) : '',
       h.wayId  || '',
@@ -1345,7 +1855,9 @@ function stopTelling() {
       h.conf != null ? h.conf : '',
       h.confLevel || '',
       h.gpsStab != null ? h.gpsStab : '',
-      h.gpsLevel || ''
+      h.gpsLevel || '',
+      h.richting || '',
+      h.snelheid || ''
     ].join(';') + '\n';
   });
 
@@ -1383,7 +1895,10 @@ function stopTelling() {
     showPreview();
   });
 
-  closeTelScreen();
+  if (currentModus === 'transect') closeTransectScreen();
+  else if (currentModus === 'winkelstraat') closeWinkelScreen();
+  else closeTelScreen();
+  backToModes();
   document.getElementById('choose-screen').style.display = '';
 }
 
@@ -1527,6 +2042,7 @@ function showPreview() {
 
 function closePreview() {
   document.getElementById('preview-overlay').classList.remove('visible');
+  clearSession();   // export bevestigd gezien \u2192 herstelkopie mag weg
 }
 
 // Vangnet: biedt de laatst gegenereerde ZIP opnieuw aan. Deze tik is een verse
@@ -2195,8 +2711,39 @@ function snapCheckRefresh(lat, lon) {
 // waarheid is (ook de HTML-defaults lopen er dan doorheen).
 applyLang();
 
+// Sessieherstel (v2.11): veiligheids-opslag bij scherm-uit/wegnavigeren, en
+// bij het laden een eventuele niet-afgeronde telling terugbieden.
+document.addEventListener('visibilitychange', function(){ if (document.hidden) saveSession(); });
+window.addEventListener('pagehide', saveSession);
+restoreSession();
+
 </script>
 <!-- Preview overlay — verschijnt na opslaan ZIP -->
+<div id="transect-screen">
+  <div id="tc-dir-config">
+    <input id="lbl-a" value="Richting A" oninput="tcSetLabelA(this.value)">
+    <input id="lbl-b" value="Richting B" oninput="tcSetLabelB(this.value)">
+    <button id="btn-compass" onclick="autoDirections()">Kompas</button>
+  </div>
+  <div id="tc-total">
+    <span class="lbl">Totaal</span>
+    <span class="val" id="grand-total">0</span>
+  </div>
+  <div id="tc-counters"></div>
+</div>
+<button id="tc-back" style="display:none" onclick="tcBack()">&#8249; Terug</button>
+<button id="tc-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
+
+<div id="winkel-screen">
+  <div id="ws-total">
+    <span class="lbl">Totaal</span>
+    <span class="val" id="ws-total-val">0</span>
+  </div>
+  <div id="ws-cards"></div>
+</div>
+<button id="ws-back" style="display:none" onclick="wsBack()">&#8249; Terug</button>
+<button id="ws-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
+
 <div id="preview-overlay">
   <div id="preview-header">
     <span id="preview-title">Telling afgerond</span>

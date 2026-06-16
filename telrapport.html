@@ -565,9 +565,9 @@ const APP_CONFIG = {
                      bezet:'c-tot', vrij:'c-muted', bezettingsgraad_pct:'c-tot' },
   },
   pocket: {
-    types:  ['car','bike','ped','other'],
-    colors: { car:'#c0392b', bike:'#2980b9', ped:'#8e44ad', other:'#555555' },
-    labels: { car:'auto', bike:'fiets', ped:'voetg.', other:'anders' },
+    types:  ['car','truck','moto','bike','ped','tegemoet','stilstaand','other'],
+    colors: { car:'#c0392b', truck:'#e07800', moto:'#e6b800', bike:'#2980b9', ped:'#8e44ad', tegemoet:'#16a085', stilstaand:'#d35400', other:'#555555' },
+    labels: { car:'auto', truck:'vracht', moto:'motor', bike:'fiets', ped:'voetg.', tegemoet:'tegemoet', stilstaand:'stilstaand', other:'anders' },
     heatVal: function(s) { return Math.sqrt((s.totaal||0)) / Math.sqrt(30); },
     detailCols: ['totaal', 'p_per_m'],
     detailLabels: { totaal:'tikken', p_per_m:'p/m' },
@@ -1372,13 +1372,22 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
   }
 
   const ptype = sm.type || 'other';
+  const modus = (sm.modus || '').trim();
+  const isTransect = modus === 'transect';
+  const perRowType = isTransect || modus === 'winkelstraat';  // tik draagt eigen type
+  const richtingLabel = function(d){
+    return d === 'a' ? (sm.richting_a || 'Richting A')
+         : d === 'b' ? (sm.richting_b || 'Richting B') : '';
+  };
   const datum = fmtDatum(sm.datum, sm.start_tijd);
   const rows  = parseCSV(telCSV);
   const hasSnap = rows.some(function(r){ return r.osm_way_id && r.osm_way_id.trim(); });
 
-  // telData vullen zodat drawClusters werkt — segIdx onthouden voor segment-projectie
+  // telData vullen zodat drawClusters werkt — segIdx onthouden voor segment-projectie.
+  // Transect/winkelstraat: per-rij type i.p.v. de sessie-type, zodat clusters splitsen.
   telData[sid] = rows.filter(function(r){ return r.osm_way_id && r.osm_way_id.trim(); })
-    .map(function(r){ return { type:ptype, lat_marker:r.lat, lon_marker:r.lon,
+    .map(function(r){ return { type: perRowType ? (r.type || 'other') : ptype,
+      lat_marker:r.lat, lon_marker:r.lon,
       straat:r.straat||'', osm_way_id:r.osm_way_id,
       segment_index: +(r.segment_index || 0) || 0,
       snapped:'1' }; });
@@ -1386,17 +1395,20 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
   rows.forEach(function(r) {
     const la = parseFloat(r.lat), lo = parseFloat(r.lon);
     if (isNaN(la)||isNaN(lo)) return;
-    const kleur = APP_CONFIG.pocket.colors[ptype] || '#555';
+    const rowType = perRowType ? (r.type || 'other') : ptype;
+    const kleur = APP_CONFIG.pocket.colors[rowType] || '#555';
     const opts = { radius:5, color:'#fff', weight:1.5,
       fillColor:kleur, fillOpacity:0.85, pane:'clusters' };
     const cb = confBorder(r);
     if (cb) { opts.color = cb.color; opts.weight = cb.weight; }
     const m = L.circleMarker([la,lo], opts)
-      .bindTooltip((APP_CONFIG.pocket.labels[ptype]||ptype)+' · '+datum
+      .bindTooltip((APP_CONFIG.pocket.labels[rowType]||rowType)
+        + (r.richting ? ' \u2192 '+richtingLabel(r.richting) : '')
+        + ' · '+datum
         + (cb ? ' · snap '+r.conf_level : ''), {direction:'top'});
     m.addTo(map);
-    if (!dotLayers[sid][ptype]) dotLayers[sid][ptype] = [];
-    dotLayers[sid][ptype].push(m);
+    if (!dotLayers[sid][rowType]) dotLayers[sid][rowType] = [];
+    dotLayers[sid][rowType].push(m);
 
     // wayData vullen voor getelde segmenten — composite key
     const wid    = r.osm_way_id ? r.osm_way_id.trim() : null;
@@ -1411,10 +1423,10 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
       let ws = wayData[k].sessions.find(function(s){ return s.sid===sid; });
       if (!ws) {
         ws = { sid:sid, appType:'pocket', naam:naam, totaal:0 };
-        ws[ptype] = 0;
+        ws[rowType] = 0;
         wayData[k].sessions.push(ws);
       }
-      ws[ptype] = (ws[ptype]||0)+1;
+      ws[rowType] = (ws[rowType]||0)+1;
       ws.totaal  = (ws.totaal ||0)+1;
     }
   });
@@ -2530,12 +2542,12 @@ document.getElementById('detail-close').addEventListener('click',()=>
 
 
 /* ── Capaciteitssessies ──────────────────────────────────── */
-function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV) {
+function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
   if (telCSV) capTelData[sid] = parseCSV(telCSV);
   sessions[sid] = { meta:sm, visible:true, appType:'capaciteit' };
   capLayers[sid] = [];
 
-  if (!capCSV) { renderSessions(); updateUI(); return; }
+  if (!capCSV && !terCSV) { renderSessions(); updateUI(); return; }
 
   // Lees parkeer-polygonen uit netwerk.csv (highway='parking', WKT=POLYGON)
   const polyMap = {};
@@ -2555,7 +2567,11 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV) {
 
   // Auto-detectie column-offset: in oudere exports staat osmType als 3e kolom
   const SOORTEN = ['regulier','gehandicapt','laadpaal','gereserveerd'];
-  const rows = parseCSV(capCSV);
+  // _capaciteit.csv (straten) en _terrein.csv hebben sinds v2.11 een
+  // identiek schema, dus beide door dezelfde parser; terrein-rijen
+  // voegen we gewoon toe aan dezelfde groups-structuur.
+  const rows = (capCSV ? parseCSV(capCSV) : [])
+    .concat(terCSV ? parseCSV(terCSV) : []);
   const groups = {};
   rows.forEach(r => {
     let naam, soort, cap;
@@ -2764,7 +2780,7 @@ async function loadZip(file) {
   const sessieCSV=get('_sessie.csv'), stratenCSV=get('_straten.csv'),
         netCSV=get('_netwerk.csv'), gpsCSV=get('_gps.csv'), telCSV=get('_telregels.csv'),
         bezCSV=get('_bezocht.csv'),
-        capCSV=get('_capaciteit.csv');
+        capCSV=get('_capaciteit.csv'), terCSV=get('_terrein.csv');
 
   if (!sessieCSV) { alert(`Geen sessie.csv gevonden in ${file.name}`); return; }
 
@@ -2783,7 +2799,7 @@ async function loadZip(file) {
 
   // Capaciteitssessie: apart pad
   if (appType === 'capaciteit') {
-    loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV);
+    loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV);
     return;
   }
 
@@ -2954,10 +2970,11 @@ function renderSessions() {
   sids.forEach(sid => {
     const s = sessions[sid];
     const datum = fmtDatum(s.meta.datum, s.meta.start_tijd);
+    const modus = (s.meta.modus||'').trim();   // v2.11: simpel|transect|winkelstraat binnen app_type=pocket
     const typeIcon = s.appType==='auto'?'🚗'
                    : s.appType==='capaciteit'?'🅿'
                    : s.appType==='transect'?'🚶'
-                   : s.appType==='pocket'?'📷'
+                   : s.appType==='pocket'? (modus==='transect'?'↔️' : modus==='winkelstraat'?'🛍️' : '📷')
                    : s.appType==='standstill'?'📍'
                    : '🚲';
     const color = SESSION_COLORS[sid] || '#888';

@@ -2529,12 +2529,12 @@ document.getElementById('detail-close').addEventListener('click',()=>
 
 
 /* ── Capaciteitssessies ──────────────────────────────────── */
-function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV) {
+function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
   if (telCSV) capTelData[sid] = parseCSV(telCSV);
   sessions[sid] = { meta:sm, visible:true, appType:'capaciteit' };
   capLayers[sid] = [];
 
-  if (!capCSV) { renderSessions(); updateUI(); return; }
+  if (!capCSV && !terCSV) { renderSessions(); updateUI(); return; }
 
   // Lees parkeer-polygonen uit netwerk.csv (highway='parking', WKT=POLYGON)
   const polyMap = {};
@@ -2554,7 +2554,11 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV) {
 
   // Auto-detectie column-offset: in oudere exports staat osmType als 3e kolom
   const SOORTEN = ['regulier','gehandicapt','laadpaal','gereserveerd'];
-  const rows = parseCSV(capCSV);
+  // _capaciteit.csv (straten) en _terrein.csv hebben sinds v2.11 een
+  // identiek schema, dus beide door dezelfde parser; terrein-rijen
+  // voegen we gewoon toe aan dezelfde groups-structuur.
+  const rows = (capCSV ? parseCSV(capCSV) : [])
+    .concat(terCSV ? parseCSV(terCSV) : []);
   const groups = {};
   rows.forEach(r => {
     let naam, soort, cap;
@@ -2763,7 +2767,7 @@ async function loadZip(file) {
   const sessieCSV=get('_sessie.csv'), stratenCSV=get('_straten.csv'),
         netCSV=get('_netwerk.csv'), gpsCSV=get('_gps.csv'), telCSV=get('_telregels.csv'),
         bezCSV=get('_bezocht.csv'),
-        capCSV=get('_capaciteit.csv');
+        capCSV=get('_capaciteit.csv'), terCSV=get('_terrein.csv');
 
   if (!sessieCSV) { alert(`Geen sessie.csv gevonden in ${file.name}`); return; }
 
@@ -2782,7 +2786,7 @@ async function loadZip(file) {
 
   // Capaciteitssessie: apart pad
   if (appType === 'capaciteit') {
-    loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV);
+    loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV);
     return;
   }
 

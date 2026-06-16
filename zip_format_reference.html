@@ -368,7 +368,8 @@
   <div class="section-body" style="border-color:#8e44ad">
     <div class="file-list">
       <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata</span></div>
-      <div class="file-row"><span class="file-name">_capaciteit.csv</span><span class="file-req required">Required</span><span class="file-desc">Capacity counts per type per way</span></div>
+      <div class="file-row"><span class="file-name">_capaciteit.csv</span><span class="file-req required">Required</span><span class="file-desc">Capacity counts per type per way (streets)</span></div>
+      <div class="file-row"><span class="file-name">_terrein.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Capacity counts on parking areas &mdash; same schema as _capaciteit.csv (zijde = nvt)</span></div>
       <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Recommended</span><span class="file-desc">POLYGON WKT for parking areas &mdash; otherwise Overpass call</span></div>
       <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Individual dots when clicking on an area</span></div>
       <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track</span></div>
@@ -381,6 +382,18 @@
       <div class="csv-notes">
         <div class="csv-note"><code>soort</code>: <code>regulier</code> / <code>gehandicapt</code> / <code>laadpaal</code> / <code>gereserveerd</code></div>
         <div class="csv-note">Multiple rows per <code>osm_way_id</code> &mdash; one per <code>soort</code></div>
+      </div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_terrein.csv</div>
+      <div class="csv-sample">sessie_id;osm_way_id;naam;zijde;soort;capaciteit;eerste_waarneming;laatste_waarneming
+20260429_094659_mat;130419432;P Centrum;nvt;regulier;50;2026-04-29T07:46:42;2026-04-29T07:54:30
+20260429_094659_mat;556677;P Markt;nvt;laadpaal;2;2026-04-29T07:55:00;2026-04-29T07:55:00</div>
+      <div class="csv-notes">
+        <div class="csv-note">Parking <em>areas</em> (polygons), not streets &mdash; <strong>identical schema</strong> to <code>_capaciteit.csv</code>, so one reader fits both</div>
+        <div class="csv-note">Never merged under the <code>_capaciteit.csv</code> rows &mdash; two clean files, one schema</div>
+        <div class="csv-note"><code>zijde</code> is always <code>nvt</code> (an area has no side)</div>
+        <div class="csv-note">Aggregated per (<code>osm_way_id</code> &times; <code>soort</code>); only present when areas were counted</div>
       </div>
     </div>
     <div class="csv-block">

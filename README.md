@@ -156,4 +156,4 @@ Kleurcodering app-types:
 
 ## Versie
 
-Huidige release: **v2.5** — zie `overdracht_v2_5.md` voor de technische overdracht. Telrapport ondersteunt nu Stand-Still CSVs naast ZIPs (inline pin + tijdreeks-popup). Tijdfilter heeft dag-keuze (Alle/Werkdagen/Za/Zo). Voorpagina is tweetalig (NL/EN). Pocket wegvakken zijn sinds v2.3 opgeknipt in ~40m segmenten; oude v2.2 ZIPs upgraden via `build_bezocht.py`.
+Huidige release: **v2.11** — zie `overdracht_v2_11.md` voor de technische overdracht. Pocket is een multi-modus moving-observer-platform geworden: één snap-core met drie telmodi (Simpel, Transect, Winkelstraat), plus een localStorage-vangnet. Capaciteit krijgt een los `_terrein.csv` (eigen bestand, identiek schema) en een terrein-datasafety-fix. Telrapport rendert de transect-richting en de winkelstraat-categorieën. Eerdere overdrachten (`overdracht_v2_5.md` … `overdracht_v2_10.md`) blijven als historie staan.
