@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Wat is rvmk.nl? — Online verkeerstellingen | TelSuite</title>
+<meta name="description" content="rvmk.nl (TelSuite) is een gratis, browser-gebaseerde set tools om verkeer, fietsen, voetgangers en parkeren te tellen — van veldwaarneming tot kaartrapportage.">
+<link rel="canonical" href="https://rvmk.nl/over.html">
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg:      #f0f0ec;
+    --panel:   #ffffff;
+    --border:  #b0b0a8;
+    --text:    #111111;
+    --dim:     #555555;
+    --subdim:  #888880;
+    --green:   #0a8a30;
+    --amber:   #c07800;
+    --blue:    #2471a3;
+    --purple:  #8e44ad;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Oswald', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 48px;
+  }
+
+  .wrap { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ── Terug-link ── */
+  .back-link { font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  .back-link a { color: var(--subdim); text-decoration: none; }
+  .back-link a:hover { color: var(--text); }
+
+  /* ── Titel ── */
+  .title-block { text-align: center; padding-bottom: 20px; border-bottom: 3px solid var(--text); margin-bottom: 8px; }
+  .title-block h1 { font-size: 1.5rem; letter-spacing: 3px; text-transform: uppercase; font-weight: 700; line-height: 1.25; }
+  .title-block .sub { font-size: 1.05rem; letter-spacing: 1px; color: var(--subdim); margin-top: 10px; font-weight: 500; }
+
+  /* ── Lopende tekst ── */
+  p.body-text { font-size: 0.92rem; line-height: 1.7; color: var(--dim); }
+  p.body-text strong { color: var(--text); }
+  h2.section-h { font-size: 0.68rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--subdim); margin: 6px 0 2px; }
+
+  /* ── Stap-kaarten ── */
+  .step-card {
+    background: var(--panel);
+    border: 3px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .step-card::before { content: ''; position: absolute; top: 0; left: 0; width: 8px; height: 100%; background: var(--accent); }
+  .step-card.s1 { --accent: var(--green); }
+  .step-card.s2 { --accent: var(--amber); }
+  .step-card.s3 { --accent: var(--blue); }
+
+  .step-num {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .step-title { font-size: 1.3rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+  .step-desc { font-size: 0.86rem; line-height: 1.65; color: var(--dim); margin-bottom: 14px; }
+  .step-desc code {
+    font-family: 'Share Tech Mono', monospace;
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.85em;
+  }
+  .step-links { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+  .step-links a {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--accent); text-decoration: none; border-bottom: 2px solid transparent;
+  }
+  .step-links a:hover { border-bottom-color: var(--accent); }
+  .step-optional {
+    display: inline-block; font-size: 0.62rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--accent); border: 1.5px solid var(--accent); border-radius: 20px; padding: 2px 10px; margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  /* ── Screenshot-plek (zelf-documenterend: toont bestandsnaam als het plaatje ontbreekt) ── */
+  .shot {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fafaf8;
+    margin-top: 4px;
+  }
+  .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .shot-placeholder {
+    display: none;
+    position: absolute; inset: 0;
+    flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    color: var(--subdim); text-align: center; padding: 12px;
+  }
+  .shot-ph-icon { font-size: 1.6rem; opacity: 0.5; }
+  .shot-ph-text {
+    font-family: 'Share Tech Mono', monospace; font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 1px; color: var(--dim);
+  }
+  .shot-ph-hint { font-size: 0.62rem; letter-spacing: 0.5px; }
+
+  /* ── Kader-blok (wie/doelgroep) ── */
+  .info-block {
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .info-block ul { margin: 8px 0 0 18px; }
+  .info-block li { font-size: 0.86rem; line-height: 1.7; color: var(--dim); }
+  .info-block li strong { color: var(--text); }
+
+  /* ── CTA ── */
+  .cta {
+    display: block; text-align: center; text-decoration: none;
+    background: var(--text); color: var(--bg);
+    border-radius: 10px; padding: 16px;
+    font-size: 0.85rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    margin-top: 6px;
+  }
+  .cta:hover { opacity: 0.88; }
+
+  .more-links { text-align: center; font-size: 0.72rem; color: var(--subdim); line-height: 2; padding-top: 4px; }
+  .more-links a { color: var(--dim); text-decoration: none; border-bottom: 2px solid var(--border); padding-bottom: 1px; }
+  .more-links a:hover { color: var(--text); border-color: var(--text); }
+
+  /* ── Branding (zelfde als index.html) ── */
+  .branding { display: flex; align-items: center; justify-content: center; gap: 8px; padding-top: 20px; margin-top: 8px; border-top: 1px solid var(--border); }
+  .branding-logo { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #cc785c, #a05a3c); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; box-shadow: 0 0 8px rgba(160,90,60,0.3); }
+  .branding-text .built { font-size: 0.55rem; letter-spacing: 2px; text-transform: uppercase; color: var(--subdim); display: block; }
+  .branding-text .name { font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; background: linear-gradient(90deg, #a05a3c, #cc785c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="back-link"><a href="index.html">&#8249; Terug naar alle tellingen</a></div>
+
+  <div class="title-block">
+    <h1>Wat is rvmk.nl?</h1>
+    <div class="sub">Online verkeerstellingen — van veldwaarneming tot kaartrapportage</div>
+  </div>
+
+  <p class="body-text">rvmk.nl is <strong>TelSuite</strong>: een gratis set browser-tools om verkeer te tellen — auto's, fietsen, voetgangers, geparkeerde voertuigen en parkeercapaciteit. Alles draait in je eigen browser, er is niets te installeren en geen account nodig. De apps zijn GPS-bewust en snappen je waarnemingen automatisch op het OpenStreetMap-wegennet, zodat elke telling direct een bruikbare, plaatsgebonden dataset oplevert.</p>
+
+  <div class="info-block">
+    <p class="body-text" style="margin:0"><strong>Voor wie is dit?</strong></p>
+    <ul>
+      <li><strong>Verkeerskundigen</strong> bij gemeenten, provincies en adviesbureaus die snel en gestructureerd veldtellingen willen uitvoeren zonder dure software.</li>
+      <li><strong>Studenten en onderzoekers</strong> die verkeers- of mobiliteitsdata verzamelen voor een studie of scriptie.</li>
+      <li><strong>Iedereen die geïnteresseerd is</strong> in hoe druk een straat, winkelgebied of parkeerzone werkelijk is — de tools zijn vrij te gebruiken, zonder drempel.</li>
+    </ul>
+  </div>
+
+  <h2 class="section-h">De werkwijze — drie stappen</h2>
+
+  <div class="step-card s1">
+    <div class="step-num">Stap 1</div>
+    <div class="step-title">Tellen</div>
+    <p class="step-desc">Kies een veldapp die past bij wat je wilt weten: <strong>Pocket</strong> voor tellen met de telefoon in je zak, <strong>Parkeertelling</strong> of <strong>Fietsparkeren</strong> voor lopend parkeerbezetting registreren, <strong>Capaciteitstelling</strong> voor het in kaart brengen van parkeerplaatsen, of <strong>Static</strong> voor een vaste telpost. Elke telling wordt onderweg gesnapt op het wegennet. Aan het eind van de sessie exporteert de app het resultaat als één <code>.zip</code>-bestand met de tellingen en de GPS-route — bij de apps met een live kaart (parkeertelling, fietsparkeren, capaciteitstelling) zit er ook een kaartafbeelding in.</p>
+    <div class="shot">
+      <img src="screenshot-tellen.jpg" alt="Screenshot van een veldapp tijdens het tellen" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+      <div class="shot-placeholder">
+        <span class="shot-ph-icon">&#128247;</span>
+        <span class="shot-ph-text">screenshot-tellen.jpg</span>
+        <span class="shot-ph-hint">Plaats dit bestand naast over.html</span>
+      </div>
+    </div>
+    <div class="step-links"><a href="index.html">Bekijk alle teltools &gt;</a></div>
+  </div>
+
+  <div class="step-card s2">
+    <div class="step-num">Stap 2</div>
+    <div class="step-title">ZIP nabewerken <span class="step-optional">optioneel</span></div>
+    <p class="step-desc">De <strong>Parkeer-reconstructie</strong>-tool herberekent een ZIP route-consistent: tikken die in het veld per ongeluk op de verkeerde straat snapten (bijvoorbeeld bij een kruising) worden opnieuw uitgelijnd op de daadwerkelijk gelopen route, er wordt een richting toegevoegd aan elke waarneming, en je kunt eventuele resterende missers handmatig corrigeren op de kaart. Deze stap is niet verplicht — een rauwe ZIP is prima bruikbaar — maar levert een schonere dataset op vóór de presentatie.</p>
+    <div class="shot">
+      <img src="screenshot-nabewerken.jpg" alt="Screenshot van de parkeer-reconstructie kaartinterface" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+      <div class="shot-placeholder">
+        <span class="shot-ph-icon">&#128247;</span>
+        <span class="shot-ph-text">screenshot-nabewerken.jpg</span>
+        <span class="shot-ph-hint">Plaats dit bestand naast over.html</span>
+      </div>
+    </div>
+    <div class="step-links"><a href="parkeer_reconstructie.html">Open de reconstructie-tool &gt;</a></div>
+  </div>
+
+  <div class="step-card s3">
+    <div class="step-num">Stap 3</div>
+    <div class="step-title">Presentatie in Telrapport</div>
+    <p class="step-desc">Sleep één of meerdere ZIP's (rauw of nabewerkt) in <strong>Telrapport</strong> voor een gecombineerde kaartvisualisatie: warmtekaarten per wegvak, een dag&times;uur-weekprofiel dat laat zien wanneer het structureel druk is, intensiteitsklassen, en filters op tijd en sessie. Precies waar de eerdere twee stappen naartoe werken — van los veldwerk naar één leesbaar beeld van de drukte.</p>
+    <div class="shot">
+      <img src="screenshot-telrapport.jpg" alt="Screenshot van een kaartvisualisatie in telrapport" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+      <div class="shot-placeholder">
+        <span class="shot-ph-icon">&#128247;</span>
+        <span class="shot-ph-text">screenshot-telrapport.jpg</span>
+        <span class="shot-ph-hint">Plaats dit bestand naast over.html</span>
+      </div>
+    </div>
+    <div class="step-links"><a href="telrapport.html">Open Telrapport &gt;</a></div>
+  </div>
+
+  <p class="body-text" style="text-align:center;font-size:0.8rem;margin-top:-4px">Werk je liever in GIS-software? De ZIP's — rauw of nabewerkt — zijn ook rechtstreeks in <strong>QGIS</strong> te laden, per telpunttype op een eigen laag.</p>
+
+  <a class="cta" href="index.html">Ga direct aan de slag &gt;</a>
+
+  <div class="more-links">
+    <a href="traffic_counter_help.html">Volledige handleiding</a> &middot;
+    <a href="zip_format_reference.html">Technische ZIP-documentatie</a>
+  </div>
+
+  <div class="branding">
+    <div class="branding-logo">*</div>
+    <div class="branding-text">
+      <span class="built">Built with AI by</span>
+      <span class="name">Claude - Anthropic</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

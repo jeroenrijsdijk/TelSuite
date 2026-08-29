@@ -10,7 +10,6 @@ Verzameling standalone veldonderzoek-tools voor mobiliteit en infrastructuur in 
 |---|---|
 | `index.html` | Startscherm — overzicht van alle tools |
 | `traffic_counter.html` | Verkeerstelling vanaf vaste locatie |
-| `traffic_counter_transect.html` | Verkeerstelling wandelend met live kaart |
 | `parkeertelling.html` | Parkeerbezetting wandelend — auto, links/rechts per zijde |
 | `fietsparkeren.html` | Fietsparkeerbezetting wandelend — fiets, wrak, brommer, breed |
 | `capaciteitstelling.html` | Parkeercapaciteit per vak en terrein |
@@ -20,7 +19,7 @@ Verzameling standalone veldonderzoek-tools voor mobiliteit en infrastructuur in 
 
 | Bestand | Functie |
 |---|---|
-| `telrapport.html` | Kaartvisualisatie voor alle teltypen — sleep ZIPs |
+| `telrapport.html` | Kaartvisualisatie voor alle teltypen — sleep ZIPs; sessielijst gegroepeerd per soort met kop-toggle |
 | `telplanning.html` | Telplanning aanmaken én dekkings-analyse |
 | `zip_format_reference.html` | Technische documentatie ZIP-formaten per app-type |
 | `traffic_counter_help.html` | Helpcentrum voor alle tools |
@@ -109,6 +108,7 @@ Voor het opslaan van planningen op de server zijn PHP 5.6+ en een schrijfbare `/
 ### Telplanning
 
 - **Maken**-modus: gebied tekenen, wegen selecteren, planning naar server
+- **Hertelling uit ZIP**: sleep een eerdere parkeer- of fietsZIP en reconstrueer er een planning uit — dezelfde straten (uit `_straten.csv`, geometrie uit `_netwerk.csv`), met datum/tijd voorgesteld op het eerstvolgende vergelijkbare moment (zelfde weekdag + tijd)
 - **Dekking**-modus: pocket-ZIPs laden, dagdeel-matrix (6×3 cellen), kleur per dekking
 - Wegtype-filters (8 categorieën)
 - Opdrachten direct starten in de juiste telapp
@@ -156,4 +156,4 @@ Kleurcodering app-types:
 
 ## Versie
 
-Huidige release: **v2.11** — zie `overdracht_v2_11.md` voor de technische overdracht. Pocket is een multi-modus moving-observer-platform geworden: één snap-core met drie telmodi (Simpel, Transect, Winkelstraat), plus een localStorage-vangnet. Capaciteit krijgt een los `_terrein.csv` (eigen bestand, identiek schema) en een terrein-datasafety-fix. Telrapport rendert de transect-richting en de winkelstraat-categorieën. Eerdere overdrachten (`overdracht_v2_5.md` … `overdracht_v2_10.md`) blijven als historie staan.
+Huidige release: **v2.18** — zie `overdracht_v2_18.md` voor de technische overdracht. Nieuw is **`parkeer_reconstructie.html`**: een standalone desktop-reconstructor die een parkeer-ZIP inleest, het wegennet vers ophaalt uit OSM (mét node-topologie), de hele route Viterbi-hersnapt, de looprichting reconstrueert en de tikken links/rechts 4 m uit de wegas plaatst — resultaat is een herschreven `_recon.zip`. De tool is **multi-teltype**: pocket-parkeren, auto (parkeertelling) en fiets (fietsparkeren) draaien op één gedeelde snap-motor met een dun profiel per teltype (o.a. een highway-voorkeur zodat fiets-tikken op het fietspad blijven). Kaart met grijs/luchtfoto-schakelaar en diep inzoomen op de parkeervakken. **Pocket** kreeg fetch-discipline (de storm bij slechte dekking is getemd, −78 %) en een **eerste-fetch-garantie**: de allereerste netwerk-fetch geeft nooit meer definitief op. **Static** (`traffic_counter.html`) exporteert nu een ZIP i.p.v. een losse CSV, zodat de export op iPhone werkt. De **richtingslaag** is tegen rig-data gevalideerd en de parameters zijn vastgelegd. Schema-signalen voor KNIME: Static levert een ZIP, en de `_recon.zip` bevat nieuwe kolommen (`lat_marker`/`lon_marker`/`zijde`/`recon_status`) — sign-off vereist vóór de recon-ZIP de pijplijn in gaat. Eerdere overdrachten (`overdracht_v2_10.md` … `overdracht_v2_17.md`) blijven als historie staan (v2.17 in `_archief/`).

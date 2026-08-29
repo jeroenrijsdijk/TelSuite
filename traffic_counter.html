@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Traffic Counter</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
 
@@ -396,7 +397,6 @@
   <h1>Traffic Counter <a href="traffic_counter_help.html" target="_blank" style="font-size:0.85rem;font-weight:700;color:var(--dim);text-decoration:none;border:2px solid var(--border);border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-left:6px;letter-spacing:0;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='#111';this.style.borderColor='#111'" onmouseout="this.style.color='';this.style.borderColor=''" title="Help">?</a></h1>
   <div style="display:flex;gap:8px;align-items:center;">
     <a href="index.html" style="font-size:0.68rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:2px solid var(--border);border-radius:4px;padding:4px 8px;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='#111';this.style.borderColor='#111'" onmouseout="this.style.color='';this.style.borderColor=''">&#8592; Menu</a>
-    <a href="traffic_counter_transect.html" style="font-size:0.68rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:2px solid var(--border);border-radius:4px;padding:4px 8px;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='#111';this.style.borderColor='#111'" onmouseout="this.style.color='';this.style.borderColor=''">Transect</a>
     <div id="session-time">00:00:00</div>
   </div>
 </header>
@@ -480,8 +480,14 @@
   }
 
   // ── GPS ──
-  const GPS_ACCURACY_THRESHOLD = 25; // meters
-  const GPS_TIMEOUT_MS = 30000;       // give up after 30s
+  // Wait for the fix to settle: the first sub-threshold fix is often still tens of
+  // metres off and can yield the wrong street name. So we enforce a minimum settle
+  // window + convergence detection instead of locking on the first acceptable hit.
+  const GPS_LOCK_ACC      = 8;     // m — excellent fix: lock immediately (after brief confirm)
+  const GPS_ACCEPT_ACC    = 20;    // m — after the settle window, best fix under this is good enough
+  const GPS_MIN_SETTLE_MS = 8000;  // give the GPS at least this long to converge
+  const GPS_CONVERGE_MS   = 4000;  // ...or until accuracy stops improving for this long
+  const GPS_TIMEOUT_MS    = 30000; // hard cap
   let gpsWatchId = null;
 
   function requestGPS() {
@@ -493,11 +499,23 @@
     if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
     updateGPSDisplay('Waiting for GPS fix...');
     const started = Date.now();
+    let lastImprove = started;   // when accuracy last got better
+
+    function lockIn() {
+      if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+      if (gpsLocation && gpsLocation.lat) {
+        gpsLocation.reliable = (gpsLocation.accuracy <= GPS_ACCEPT_ACC);
+        updateGPSDisplay();
+        reverseGeocode(gpsLocation.lat, gpsLocation.lon);
+      } else {
+        updateGPSDisplay();
+      }
+    }
 
     gpsWatchId = navigator.geolocation.watchPosition(
       pos => {
         const acc = Math.round(pos.coords.accuracy);
-        const age = Date.now() - started;
+        const elapsed = Date.now() - started;
         // Always keep the best (most accurate) fix seen so far
         if (!gpsLocation || gpsLocation.error || acc < (gpsLocation.accuracy || Infinity)) {
           gpsLocation = {
@@ -505,18 +523,20 @@
             accuracy: acc, heading: pos.coords.heading,
             timestamp: new Date(), street: null, city: null, country: null, reliable: false
           };
-          updateGPSDisplay('GPS: +/-' + acc + 'm, improving...');
+          lastImprove = Date.now();
         }
-        if (acc <= GPS_ACCURACY_THRESHOLD) {
-          // Good enough — lock in
-          gpsLocation.reliable = true;
-          navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null;
-          reverseGeocode(gpsLocation.lat, gpsLocation.lon);
-        } else if (age > GPS_TIMEOUT_MS) {
-          // Timed out — use best we got
-          navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null;
-          updateGPSDisplay();
-          reverseGeocode(gpsLocation.lat, gpsLocation.lon);
+        const best = gpsLocation ? gpsLocation.accuracy : Infinity;
+        updateGPSDisplay('GPS: +/-' + best + 'm, settling... (' + Math.round(elapsed / 1000) + 's)');
+
+        // Lock-in criteria, in order of preference:
+        if (acc <= GPS_LOCK_ACC && elapsed >= 2500) {
+          lockIn();                                                          // already excellent
+        } else if (elapsed >= GPS_MIN_SETTLE_MS && best <= GPS_ACCEPT_ACC) {
+          lockIn();                                                          // settled long enough AND good enough
+        } else if (elapsed >= GPS_MIN_SETTLE_MS && (Date.now() - lastImprove) >= GPS_CONVERGE_MS) {
+          lockIn();                                                          // no longer improving — take the best
+        } else if (elapsed >= GPS_TIMEOUT_MS) {
+          lockIn();                                                          // hard cap
         }
       },
       err => {
@@ -528,13 +548,13 @@
       { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_TIMEOUT_MS }
     );
 
-    // Safety net
+    // Safety net — stop shortly after the hard cap no matter what
     setTimeout(() => {
       if (gpsWatchId !== null) {
         navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null;
         if (!gpsLocation || gpsLocation.error) gpsLocation = { error: 'GPS timed out' };
         updateGPSDisplay();
-        if (gpsLocation.lat) reverseGeocode(gpsLocation.lat, gpsLocation.lon);
+        if (gpsLocation && gpsLocation.lat) reverseGeocode(gpsLocation.lat, gpsLocation.lon);
       }
     }, GPS_TIMEOUT_MS + 2000);
   }
@@ -835,6 +855,7 @@
     if (!confirm('Reset everything and start over?')) return;
     clearInterval(timerInterval);
     state = 'idle'; startTime = null; endTime = null; history = []; gpsLocation = null;
+    lastZipBlob = null; lastZipName = ''; lastZipCount = -1;   // vangnet vrijgeven — nieuwe telling
     if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
     TYPES.forEach(t => {
       counts[t.id] = { a: 0, b: 0 };
@@ -858,7 +879,58 @@
     badge.textContent = 'Press Start to begin counting';
   }
 
+  // --- Downloaden (overgenomen uit pocket_count.html, v2.18) ---------------
+  // LET OP: navigator.share vereist net als <a>.click() een verse user-gesture.
+  // Wordt saveBlob aangeroepen ná een async (zoals zip.generateAsync), dan kan dat
+  // gebaar verlopen zijn en faalt de poging stil — daarvoor is de expliciete
+  // exportknop het vangnet (elke knoptik is vers en biedt lastZipBlob opnieuw aan).
+  function saveBlob(blob, filename, mime) {
+    mime = mime || 'application/octet-stream';
+    // Alleen iOS via het deelblad (daar slaat een download-link slecht op).
+    // Android kent navigator.share OOK, maar wil juist een echte download — en
+    // share eist een levende user-gesture die na het comprimeren verlopen kan zijn.
+    var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+             || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIOS) {
+      try {
+        if (navigator.canShare) {
+          var file = new File([blob], filename, { type: mime });
+          if (navigator.canShare({ files: [file] })) {
+            navigator.share({ files: [file] }).catch(function(){
+              // gebruiker annuleerde of gebaar verlopen — vangnet is de exportknop
+            });
+            return;
+          }
+        }
+      } catch (e) { /* val door naar de download-link */ }
+    }
+    // desktop/Android: klassieke download-link. Het anker MOET in de DOM hangen,
+    // anders negeert Android de programmatische click().
+    var url = URL.createObjectURL(blob);
+    var a   = document.createElement('a');
+    a.href  = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
+  }
+
+  // Bewaart de laatst gegenereerde ZIP zodat een tweede tik op Export 'm opnieuw
+  // kan aanbieden zonder hercompressie — het vangnet als het iOS-deelblad
+  // weggeveegd is. Leeft tot de volgende export 'm overschrijft.
+  var lastZipBlob = null;
+  var lastZipName = '';
+  var lastZipCount = -1;   // history.length op het moment van genereren
+
   function exportCSV() {
+    // Vangnet: is er al een ZIP van déze telstand, bied 'm dan opnieuw aan (verse
+    // gesture) zonder hercompressie. Is er intussen door- of teruggeteld, dan is
+    // de bewaarde ZIP verlopen en bouwen we hem opnieuw. Reset() wist alles.
+    if (lastZipBlob && lastZipCount === history.length) {
+      saveBlob(lastZipBlob, lastZipName, 'application/zip');
+      return;
+    }
     const D = SEP;
     const dirA = document.getElementById('lbl-a').value || 'Direction A';
     const dirB = document.getElementById('lbl-b').value || 'Direction B';
@@ -911,10 +983,19 @@
         csv += row(h.ts, TYPES.find(t => t.id === h.type).label, h.dir === 'a' ? dirA : dirB);
       });
     }
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = 'traffic_count_' + exportTs.replace(/[: ]/g,'-') + '.csv';
-    a.click();
+    // ZIP met de CSV erin — zelfde deel-/downloadpad als pocket, zodat het ook
+    // op iOS Safari werkt (data:-download-link werkte daar niet).
+    const stamp = exportTs.replace(/[: ]/g, '-');
+    const base  = 'traffic_count_' + stamp;
+    const zip   = new JSZip();
+    zip.file(base + '.csv', csv);
+    zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 9 } })
+       .then(function(blob) {
+         lastZipBlob = blob;
+         lastZipName = base + '.zip';
+         lastZipCount = history.length;
+         saveBlob(lastZipBlob, lastZipName, 'application/zip');
+       });
   }
 
   const keyMap = {

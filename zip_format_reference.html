@@ -444,7 +444,7 @@
   <div class="section-header" style="border-color:#d4007a">
     <span class="app-tag" style="background:var(--c-pocket)">pocket</span>
     <h2>Move and Count Simple</h2>
-    <span class="filename-hint">*_pkt.zip</span>
+    <span class="filename-hint">*_pkt_s.zip</span>
   </div>
   <div class="section-body" style="border-color:#d4007a">
     <div class="file-list">
@@ -457,7 +457,7 @@
     <div class="csv-block">
       <div class="csv-title">_sessie.csv</div>
       <div class="csv-sample">sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen
-20260514_131611_lok_pkt;2026-05-14;13:15:44;13:16:11;pocket;fiets;42</div>
+20260514_131611_lok_pkt_s;2026-05-14;13:15:44;13:16:11;pocket;fiets;42</div>
       <div class="csv-notes">
         <div class="csv-note"><code>type</code>: <code>car</code> / <code>bike</code> / <code>ped</code> / or free text when "Iets Anders" is chosen</div>
       </div>
@@ -465,7 +465,7 @@
     <div class="csv-block">
       <div class="csv-title">_telregels.csv (v2.3+, conf columns v2.8, gps columns v2.9)</div>
       <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level;gps_stab;gps_level
-20260514_131611_lok_pkt;1;2026-05-14T13:15:52;fiets;51.852540;4.332551;123456;2;Korenmarkt;0.87;green;0.91;green</div>
+20260514_131611_lok_pkt_s;1;2026-05-14T13:15:52;fiets;51.852540;4.332551;123456;2;Korenmarkt;0.87;green;0.91;green</div>
       <div class="csv-notes">
         <div class="csv-note"><code>segment_index</code> (0-based) indicates which ~40m segment of the way was hit. For v2.2 ZIPs without this column, tools interpret it as 0.</div>
         <div class="csv-note"><strong>v2.8 &mdash; <code>conf</code> / <code>conf_level</code>:</strong> snap confidence appended after the stable columns. <code>conf</code> is a 0&ndash;1 score (weakest link of: margin to the runner-up way, snap distance, GPS accuracy); <code>conf_level</code> is <code>green</code> / <code>amber</code> / <code>red</code>. They are appended at the end so the existing column order is untouched &mdash; tools read by header name and ignore unknown trailing columns, so older readers stay compatible.</div>
@@ -476,7 +476,7 @@
     <div class="csv-block">
       <div class="csv-title">_gps.csv (v2.3+)</div>
       <div class="csv-sample">sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;segment_index;straat
-20260514_131611_lok_pkt;2026-05-14T13:15:50;51.852540;4.332551;5;123456;2;Korenmarkt</div>
+20260514_131611_lok_pkt_s;2026-05-14T13:15:50;51.852540;4.332551;5;123456;2;Korenmarkt</div>
       <div class="csv-notes">
         <div class="csv-note">Route point at &ge;5m displacement. <code>segment_index</code> comes from the same snap engine as the telregels &mdash; input for deriving <code>_bezocht.csv</code> per segment.</div>
         <div class="csv-note"><strong>v2.8:</strong> per-point <code>osm_way_id</code> / <code>segment_index</code> are also trajectory-corrected (same <code>reassignTrajectory()</code> pass), so the track, the taps and the visits all reference the same corrected segments. Raw <code>lat</code>/<code>lon</code> and <code>nauwkeurigheid</code> are untouched.</div>
@@ -495,7 +495,7 @@
     <div class="csv-block">
       <div class="csv-title">_bezocht.csv (v2.3+)</div>
       <div class="csv-sample">sessie_id;datum;osm_way_id;segment_index;segment_count;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen
-20260514_131611_lok_pkt;2026-05-14;123456;2;3;Korenmarkt;13:15:50;13:16:05;15;14;3</div>
+20260514_131611_lok_pkt_s;2026-05-14;123456;2;3;Korenmarkt;13:15:50;13:16:05;15;14;3</div>
       <div class="csv-notes">
         <div class="csv-note">One row per <strong>visit</strong> (a contiguous stay on one segment). Visits shorter than 5s or with fewer than 3 GPS points are filtered out. A gap of &gt;30s breaks a visit. The date is in every row &mdash; self-contained for day-part classification in telplanning.</div>
         <div class="csv-note">KNIME join: <code>(sessie_id, osm_way_id, segment_index)</code> as composite key.</div>
@@ -556,6 +556,56 @@ Time;Vehicle;Direction
       </div>
     </div>
   </div>
+</div>
+
+<!-- ── Naming & coding ── -->
+<div class="summary-section">
+  <h2>Filename markers &amp; survey-type coding</h2>
+  <p style="color:var(--dim);max-width:72ch">A session's survey type is fixed three ways, in order of authority: the marker embedded in the filename, the <code>app_type</code> field in <code>_sessie.csv</code>, and &mdash; for reconstructed or legacy sessions whose <code>modus</code> is missing or wrong &mdash; the vocabulary of the tap <code>type</code>s. <code>relabel_modus.py</code> and the reconstructor (<code>parkeer_reconstructie.html</code>, v2.24+) apply exactly these rules.</p>
+  <table>
+    <thead><tr><th>filename marker</th><th>app_type</th><th>modus</th><th>tap types</th></tr></thead>
+    <tbody>
+      <tr><td><code>_car</code></td><td>auto</td><td>parkeren</td><td>goed / fout / leeg / spec</td></tr>
+      <tr><td><code>_fts</code></td><td>fiets</td><td>parkeren</td><td>fiets / brommer / breed / wrak</td></tr>
+      <tr><td><code>_cap</code></td><td>capaciteit</td><td>&mdash;</td><td>parking areas (polygons)</td></tr>
+      <tr><td><code>_trn</code></td><td>transect</td><td>&mdash;</td><td>car / truck / moto / bike / ped</td></tr>
+      <tr><td><code>_pkt_s</code></td><td>pocket</td><td>simpel</td><td>free-text objects</td></tr>
+      <tr><td><code>_pkt_t</code></td><td>pocket</td><td>transect</td><td>car / truck / moto / bike / ped</td></tr>
+      <tr><td><code>_pkt_w</code></td><td>pocket</td><td>winkelstraat</td><td>stilstaand / tegemoet</td></tr>
+      <tr><td><code>_pkt_p</code></td><td>pocket</td><td>parkeren</td><td>bezet / leeg</td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Pocket modus letter.</strong> Since pocket_count v2.30 the modus letter (<code>s</code>/<code>t</code>/<code>w</code>/<code>p</code>) is part of the pocket <code>sessie_id</code> itself &mdash; not just the filename &mdash; so it survives reconstruction (<code>&hellip;_pkt_w.zip</code> &rarr; <code>&hellip;_pkt_w_recon.zip</code>). Older pocket ZIPs may still be a bare <code>_pkt</code>; the standalone <code>voeg_modusletter_toe.py</code> retrofits them (renames the ZIP + internal files and rewrites the <code>sessie_id</code> value).</p>
+  <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Type vocabulary &rarr; modus</strong> &mdash; how a session with an absent or wrong <code>modus</code> is recovered from its tap <code>type</code>s:</p>
+  <table>
+    <thead><tr><th>tap types present</th><th>resolves to</th></tr></thead>
+    <tbody>
+      <tr><td>fiets / brommer / breed / wrak</td><td>app_type <code>fiets</code>, modus <code>parkeren</code> (bike parking)</td></tr>
+      <tr><td>car / truck / moto / bike / ped</td><td>modus <code>transect</code></td></tr>
+      <tr><td>stilstaand / tegemoet / meelopend</td><td>modus <code>winkelstraat</code></td></tr>
+      <tr><td>bezet / leeg / vrij / goed / fout / spec</td><td>modus <code>parkeren</code></td></tr>
+      <tr><td>free-text objects</td><td>modus <code>simpel</code></td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Special cases.</strong> A single occurrence of a bike-parking type (<code>fiets</code>/<code>brommer</code>/<code>breed</code>/<code>wrak</code>) marks the whole session as bike parking. A <code>_pkt</code> (pocket) session whose taps are <em>only</em> <code>ped</code> under <code>modus=parkeren</code> is a simple pedestrian count &rarr; <code>modus=simpel</code>. A session already tagged <code>simpel</code> always stays <code>simpel</code>. Filename markers win over content.</p>
+</div>
+
+<!-- ── Reconstructed ZIPs ── -->
+<div class="summary-section">
+  <h2>Reconstructed ZIPs</h2>
+  <p style="color:var(--dim);max-width:72ch"><code>parkeer_reconstructie.html</code> rewrites a raw field ZIP into a route-consistent one, keeping the originals alongside the corrected files.</p>
+  <table>
+    <thead><tr><th>file</th><th>state</th><th>what changes</th></tr></thead>
+    <tbody>
+      <tr><td><code>_sessie.csv</code></td><td>changed</td><td>gains <code>modus</code> (resolved from the chosen profile) and a <code>reconstructie</code> version stamp, e.g. <code>v2.24</code></td></tr>
+      <tr><td><code>_netwerk.csv</code></td><td>changed</td><td>snapped geometry with <code>segment_index</code> / <code>segment_count</code></td></tr>
+      <tr><td><code>_netwerk_origineel.csv</code></td><td>added</td><td>the network before snapping</td></tr>
+      <tr><td><code>_straten.csv</code></td><td>rebuilt</td><td>auto/parking only: re-aggregated from the reconstructed links (v2.23+); <code>_straten_origineel.csv</code> keeps the original</td></tr>
+      <tr><td><code>_segmentsamenvatting.csv</code></td><td>added</td><td>walk reconstructions: tidy-long per-segment category counts (v2.20+)</td></tr>
+      <tr><td><code>_telregels.csv</code></td><td>changed</td><td>gains <code>lat_marker</code> / <code>lon_marker</code>, <code>zijde</code>, <code>richting</code>, <code>recon_status</code></td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Legacy note.</strong> Reconstructions before v2.24 defaulted an empty <code>modus</code> to <code>parkeren</code>, mislabelling e.g. pedestrian counts as parking. The v2.24 reconstructor derives the modus from the profile / type vocabulary instead; <code>relabel_modus.py</code> repairs already-exported legacy ZIPs (non-destructively, via the rules above).</p>
 </div>
 
 <!-- ── Overview ── -->

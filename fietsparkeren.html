@@ -383,6 +383,8 @@ var GPS_THRESHOLD = 25;   // meters accuracy required
 var SIDE_OFFSET_M = 4;    // meters offset left/right from road centerline
 var GEOCODE_INTERVAL = 60000; // street name refresh ms
 var ROAD_FETCH_RADIUS = 300;  // meters around position to fetch roads
+// Snap-netwerk highway-filter — HOUD GELIJK over alle tools (grep HIGHWAY_RE).
+var HIGHWAY_RE = 'residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path|track|bridleway|steps|corridor';
 var ROAD_CACHE_DIST   = 150;  // re-fetch when this far from cache center
 var SNAP_MAX_DIST     = 50;   // ignore snap if road is further than this
 var SNAP_SEGS_RADIUS  = Math.round(ROAD_FETCH_RADIUS * 1.6);  // cumulatieve snap-kandidaten (480m)
@@ -671,6 +673,16 @@ function setButtonsEnabled(en) {
 
 /* ── GPS ──────────────────────────────────────────────── */
 var recentBearings = []; // rolling window for bearing smoothing
+
+// ── Richting langs de link: netto looprichting over de laatste ~12 m pad ──
+// Vervangt de fragiele momentane koers als referentie voor θ-vs-θ+180.
+// Pauzes en jitter middelen uit; een ommekeer telt pas mee na ~6-9 m terug
+// (hysterese zit in de venster-lengte).
+var trail = [];              // {lat, lon, cum} recente posities + cumulatief pad (m)
+var trailCum = 0;
+var travelRefBearing = null; // netto looprichting, of null bij te weinig beweging
+var TRAVEL_WINDOW_M = 12;    // padlengte-venster voor de netto-richting
+var TRAVEL_MIN_M    = 6;     // minimaal netto pad voordat we de richting vertrouwen
 var segVisitBuffer = {}; // segIdx -> consecutive hit count
 var displayBearing = null; // gedempt voor mini-kaart weergave
 var lastMoved = false;    // laatste GPS-update: bewogen of stilstaand
@@ -783,6 +795,22 @@ function onPosition(pos) {
     document.getElementById('bearingDeg').textContent=Math.round(displayBearing)+'\u00b0';
   }
   drawMiniMap();
+
+  // Pad-trail -> netto looprichting (richting langs de link), robuust tegen
+  // pauzes en jitter. Draait vóór currentLat wordt bijgewerkt (prev = current).
+  if (currentLat !== null) {
+    var stepM = haversine(currentLat, currentLon, lat, lon);
+    if (stepM > 50) {                    // GPS-sprong -> trail resetten
+      trail = []; trailCum = 0;
+    } else if (stepM > 0.5) {            // negeer sub-halve-meter ruis
+      trailCum += stepM;
+      trail.push({ lat: lat, lon: lon, cum: trailCum });
+      while (trail.length > 2 && trail[1].cum < trailCum - TRAVEL_WINDOW_M) trail.shift();
+      if (trailCum - trail[0].cum >= TRAVEL_MIN_M)
+        travelRefBearing = calcBearing(trail[0].lat, trail[0].lon, lat, lon);
+    }
+  }
+
   currentLat=lat; currentLon=lon;
 
   // Coördinaten met punt als decimaalteken (Excel-compatibel)
@@ -1038,7 +1066,7 @@ function fetchRoads(lat, lon, endpointIdx) {
   snap.status = 'fetching';
   setSnapBadge();
 
-  var query = '[out:json][timeout:8];way["highway"~"residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path"]["area"!="yes"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out tags geom;';
+  var query = '[out:json][timeout:8];way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out tags geom;';
   var url = OVERPASS_ENDPOINTS[endpointIdx] + '?data=' + encodeURIComponent(query);
 
   var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -1081,9 +1109,10 @@ function scheduleRoadFetch(lat, lon) {
 }
 
 /* Kies de beste OSM-richting: snapBrg of snapBrg+180, gebaseerd op referentie-bearing.
-   Referentie: currentBearing → compassHeading → geen flip (geef snapBrg terug). */
+   Referentie: netto looprichting (trail) -> currentBearing -> kompas -> geen flip. */
 function bestOsmBearing(snapBrg) {
-  var ref = currentBearing !== null ? currentBearing
+  var ref = travelRefBearing !== null ? travelRefBearing
+          : currentBearing !== null ? currentBearing
           : (compassActive && compassHeading !== null) ? compassHeading
           : null;
   if (ref === null) return snapBrg; // geen referentie, gebruik as-is
@@ -1606,25 +1635,34 @@ function buildMapBlob(cb) {
    desktop/Android: klassieke download-link. Signatuur identiek aan pocket. */
 function saveBlob(blob, filename, mime) {
   mime = mime || 'application/octet-stream';
-  // iOS-pad: deel als bestand wanneer dat kan
-  try {
-    if (navigator.canShare) {
-      var file = new File([blob], filename, { type: mime });
-      if (navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file] }).catch(function(){
-          // gebruiker annuleerde of gebaar verlopen
-        });
-        return;
+  // Alleen iOS via het deelblad (daar slaat een download-link slecht op).
+  // Android kent navigator.share OOK, maar wil juist een echte download — en
+  // share eist een levende user-gesture die na het comprimeren verlopen kan zijn.
+  var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+           || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) {
+    try {
+      if (navigator.canShare) {
+        var file = new File([blob], filename, { type: mime });
+        if (navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file] }).catch(function(){
+            // gebruiker annuleerde of gebaar verlopen — vangnet is de preview-knop
+          });
+          return;
+        }
       }
-    }
-  } catch (e) { /* val door naar de download-link */ }
-  // desktop/Android-pad: klassieke download-link
+    } catch (e) { /* val door naar de download-link */ }
+  }
+  // desktop/Android: klassieke download-link. Het anker MOET in de DOM hangen,
+  // anders negeert Android de programmatische click().
   var url = URL.createObjectURL(blob);
   var a   = document.createElement('a');
   a.href  = url;
   a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  setTimeout(function(){ try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
 }
 
 function exportCSV() {
@@ -1672,7 +1710,7 @@ function exportZip() {
     if (netwerkStr.split('\n').length > 1) zip.file(sid + '_netwerk.csv', netwerkStr);
     zip.file(sid + '.gpx',           gpxStr);
     if (pngBlob) zip.file(sid + '_kaart.png', pngBlob);
-    zip.generateAsync({type:'blob'}).then(function(zipBlob) {
+    zip.generateAsync({type:'blob', compression:'DEFLATE', compressionOptions:{level:9}}).then(function(zipBlob) {
       var zipName = sid + '_fts.zip';
       var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
       // Pas ná een bevestigde opslag de herstelkopie wissen — niet optimistisch

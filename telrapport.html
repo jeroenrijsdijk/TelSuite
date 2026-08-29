@@ -35,6 +35,16 @@
   #dropzone input { display: none; }
   #dropzone .dz-icon { font-size: 22px; margin-bottom: 4px; }
   #dropzone .dz-text { font-size: 11px; }
+  #dropzone .dz-sub { font-size: 10px; margin-top: 5px; color: var(--muted);
+    text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  #dropzone .dz-sub:hover { color: var(--accent); }
+
+  /* Opt-in: alleen tellingen binnen het huidige kaartbeeld laden (bbox-filter) */
+  #bbox-filter { display: flex; align-items: center; gap: 7px; margin: -2px 12px 10px;
+    font-size: 10.5px; color: var(--muted); cursor: pointer; user-select: none; line-height: 1.3; }
+  #bbox-filter input { accent-color: var(--accent); width: 13px; height: 13px;
+    flex: 0 0 auto; cursor: pointer; margin: 0; }
+  #bbox-filter:hover { color: var(--text); }
 
   #statsbar { margin: 0 12px 10px; display: flex; gap: 8px; flex-shrink: 0; }
   .stat-pill { flex: 1; background: var(--bg); border-radius: 4px; padding: 6px 8px; text-align: center; }
@@ -104,6 +114,30 @@
   .session-color { width: 5px; flex-shrink: 0;
     background: var(--sc, #888); transition: opacity 0.15s; }
   .session-row.off .session-color { opacity: 0.5; }
+
+  /* ── v2.15: type-groepen met kop-toggle ──────────────────────── */
+  .session-group { border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .session-group-head { display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px 6px 8px; cursor: pointer; user-select: none;
+    background: rgba(255,255,255,0.025);
+    border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .session-group-head:hover { background: rgba(255,255,255,0.05); }
+  .sg-caret { font-size: 9px; width: 11px; flex-shrink: 0; color: var(--muted);
+    transition: transform 0.15s; text-align: center; }
+  .session-group.collapsed .sg-caret { transform: rotate(-90deg); }
+  .session-group.collapsed .session-row { display: none; }
+  .sg-icon { font-size: 12px; flex-shrink: 0; }
+  .sg-label { flex: 1; min-width: 0; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.02em; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sg-count { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+  .sg-eye { font-size: 13px; line-height: 1; flex-shrink: 0;
+    width: 28px; height: 26px; display: flex; align-items: center;
+    justify-content: center; border-radius: 5px; color: var(--accent); }
+  .sg-eye:hover { background: rgba(255,255,255,0.10); }
+  .sg-eye[data-state="off"]   { color: var(--muted); }
+  .sg-eye[data-state="mixed"] { color: var(--accent); opacity: 0.7; }
+  .session-group.grp-off .sg-label { color: var(--muted); }
   .session-content { flex: 1; min-width: 0;
     padding: 7px 12px 7px 10px;
     display: flex; align-items: center; gap: 8px; }
@@ -136,6 +170,18 @@
   #detail-panel::-webkit-scrollbar { width: 4px; }
   #detail-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   #detail-panel.hidden { display: none; }
+
+  /* Weer bij een telling (Open-Meteo, lazy bij openen) */
+  .wx { margin: 8px 0; padding: 7px 9px; background: var(--bg); border-radius: 5px;
+    font-size: 11px; line-height: 1.5; color: var(--text);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .wx-ico { font-size: 15px; line-height: 1; }
+  .wx-main { font-weight: bold; }
+  .wx-bits { color: var(--muted); }
+  .wx-na, .wx-load { color: var(--muted); font-style: italic; }
+  .wx-src { margin-left: auto; font-size: 9px; color: var(--muted);
+    text-decoration: none; opacity: 0.7; }
+  .wx-src:hover { color: var(--accent); text-decoration: underline; }
   #detail-close { float: right; cursor: pointer; color: var(--muted); line-height: 1; }
   #detail-close:hover { color: var(--text); }
   #detail-title { font-size: 13px; font-weight: bold; color: var(--accent); margin-bottom: 2px; }
@@ -350,6 +396,41 @@
   .legend-bar.fiets-bar { background: linear-gradient(to right, #22c55e, #eab308, #ef4444); }
   .legend-bar.auto-bar  { background: linear-gradient(to right, #22c55e, #eab308, #ef4444); }
   .legend-labels { display: flex; justify-content: space-between; }
+
+  /* ── Smal scherm (telefoon): sidebar wordt een inschuif-lade ──────────── */
+  #panel-toggle, #drawer-backdrop { display: none; }   /* desktop: onzichtbaar */
+
+  @media (max-width: 720px) {
+    /* sidebar uit de flex-flow, als lade over de kaart */
+    #sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 1200;
+      width: 86%; max-width: 340px; min-width: 0;
+      transform: translateX(-100%); transition: transform 0.25s ease;
+      box-shadow: 2px 0 16px rgba(0,0,0,0.5);
+    }
+    #sidebar.open { transform: translateX(0); }
+
+    /* ☰-knop linksboven, alleen op smal scherm; boven de lade zodat 'ie ook sluit */
+    #panel-toggle {
+      display: block; position: fixed; top: 10px; left: 10px; z-index: 1250;
+      width: 38px; height: 38px; padding: 0; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--panel); color: var(--text);
+      font-size: 18px; line-height: 1; text-align: center; cursor: pointer;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.5);
+    }
+
+    /* titel niet onder de knop */
+    #sidebar-header { padding-left: 56px; }
+
+    /* duw Leaflet's zoom-stack onder de ☰-knop */
+    .leaflet-top.leaflet-left { top: 56px; }
+
+    /* backdrop wanneer de lade open is */
+    #drawer-backdrop {
+      position: fixed; inset: 0; z-index: 1150; background: rgba(0,0,0,0.45);
+    }
+    #drawer-backdrop.show { display: block; }
+  }
 </style>
 </head>
 <body>
@@ -361,9 +442,16 @@
 
     <div id="dropzone">
       <div class="dz-icon">📂</div>
-      <div class="dz-text">Sleep ZIP- of CSV-bestanden hier<br>of klik om te kiezen</div>
+      <div class="dz-text">Sleep ZIP/CSV — of een hele map — hier<br>of klik om bestanden te kiezen</div>
       <input type="file" id="file-input" multiple accept=".zip,.csv">
+      <input type="file" id="dir-input" webkitdirectory>
+      <div class="dz-sub" id="dz-pickdir">of kies een map…</div>
     </div>
+
+    <label id="bbox-filter" title="Bij het laden van meerdere bestanden of een map: sla tellingen over die buiten het huidige kaartbeeld vallen. Gemeten op de netwerk-bbox, met 12% marge rondom; deels-in-beeld telt mee.">
+      <input type="checkbox" id="bbox-filter-cb">
+      <span>alleen binnen huidig kaartbeeld laden</span>
+    </label>
 
     <div id="statsbar" style="display:none">
       <div class="stat-pill"><div class="n" id="s-sessies">0</div><div class="l">sessies</div></div>
@@ -394,6 +482,10 @@
             <button class="dot-btn active" data-apptype="auto" data-type="spec" style="color:#c084fc"><span class="dot" style="background:#c084fc"></span>spec</button>
           </div>
         </div>
+        <div id="toggles-modus" style="display:none;margin-top:8px">
+          <div class="toggle-label">pocket · modus</div>
+          <div class="toggle-row" id="modus-btn-row"></div>
+        </div>
       </div>
     </details>
 
@@ -409,6 +501,14 @@
             onclick="this.classList.toggle('active'); toggleTimeFilter(this.classList.contains('active'));">
             <span class="dot" style="background:#fff;border:1px solid #888"></span>tijdfilter
           </button>
+        </div>
+        <div class="toggle-row" style="margin-top:6px">
+          <button class="dot-btn" id="polygon-toggle" style="color:#fff;flex:1" onclick="togglePolygonMode()">
+            <span class="dot" style="background:#f39c12;border:1px solid #888"></span>polygoon
+          </button>
+        </div>
+        <div id="polygon-hint" style="display:none;font-size:10px;color:var(--muted);padding:4px 0 0;line-height:1.4">
+          Klik om punten te plaatsen, dubbelklik om af te sluiten. <span id="polygon-cancel" style="color:#e74c3c;cursor:pointer;text-decoration:underline">annuleren</span>
         </div>
         <div class="slider-row" style="margin-top:6px">
           <label>gap</label>
@@ -484,6 +584,10 @@
   </div>
 
   <div id="map"></div>
+
+  <!-- Smal scherm: lade-knop + backdrop (verborgen op desktop via CSS) -->
+  <button id="panel-toggle" aria-label="Paneel tonen/verbergen" title="Paneel">☰</button>
+  <div id="drawer-backdrop"></div>
 
   <!-- Weekprofiel-popup voor pocket-segmenten -->
   <div id="weekprofile-modal" class="hidden" onclick="if(event.target===this) closeWeekprofile()">
@@ -565,9 +669,9 @@ const APP_CONFIG = {
                      bezet:'c-tot', vrij:'c-muted', bezettingsgraad_pct:'c-tot' },
   },
   pocket: {
-    types:  ['car','truck','moto','bike','ped','tegemoet','stilstaand','other'],
-    colors: { car:'#c0392b', truck:'#e07800', moto:'#e6b800', bike:'#2980b9', ped:'#8e44ad', tegemoet:'#16a085', stilstaand:'#d35400', other:'#555555' },
-    labels: { car:'auto', truck:'vracht', moto:'motor', bike:'fiets', ped:'voetg.', tegemoet:'tegemoet', stilstaand:'stilstaand', other:'anders' },
+    types:  ['car','truck','moto','bike','ped','tegemoet','stilstaand','leeg','bezet','other'],
+    colors: { car:'#c0392b', truck:'#e07800', moto:'#e6b800', bike:'#2980b9', ped:'#8e44ad', tegemoet:'#16a085', stilstaand:'#d35400', leeg:'#3a7d44', bezet:'#b0342b', other:'#555555' },
+    labels: { car:'auto', truck:'vracht', moto:'motor', bike:'fiets', ped:'voetg.', tegemoet:'tegemoet', stilstaand:'stilstaand', leeg:'leeg vak', bezet:'bezet vak', other:'anders' },
     heatVal: function(s) { return Math.sqrt((s.totaal||0)) / Math.sqrt(30); },
     detailCols: ['totaal', 'p_per_m'],
     detailLabels: { totaal:'tikken', p_per_m:'p/m' },
@@ -595,6 +699,10 @@ map.getPane('capaciteit').style.zIndex = 350;
 map.getPane('capaciteit').style.pointerEvents = 'auto';
 map.createPane('capnetwerk');
 map.getPane('capnetwerk').style.zIndex = 210; // net boven tiles (200), onder alles
+// Straatlijnen + brede kliklijnen: boven de dot-wolk (clusters=550) zodat een
+// straat klikbaar blijft, maar onder de cluster-badges (620) zodat totalen winnen.
+map.createPane('wayhit');
+map.getPane('wayhit').style.zIndex = 560;
 const capNetwerkLayers = [];  // voor toggle
 
 // ── Capaciteitsreferentielaag ─────────────────────────────────────────────
@@ -746,11 +854,13 @@ setBasemap('osm');
 
 // ── STATE ─────────────────────────────────────────────────────────
 const sessions      = {};
+const collapsedGroups = new Set();   // v2.15: ingeklapte type-groepen in de sessielijst
 // wayData en wayLayers keyen op composite key "wayId:segIdx".
 // Voor pocket v2.3 zijn dit echte sub-segmenten; voor andere app-types
 // en oude v2.2 pocket-ZIPs is segIdx altijd 0 (de hele way).
 const wayData       = {};   // key → { geometry, highway, sessions:[], osmName, wayId, segIdx, segCount }
 const wayLayers     = {};   // key → L.polyline
+const wayHitLayers  = {};   // key → onzichtbare brede kliklijn (boven de dots)
 const gpsLayers     = {};
 const dotLayers     = {};   // sid → { type → [marker] }
 const clusterLayers    = {};   // sid → [marker]
@@ -758,6 +868,7 @@ const capLayers      = {};   // sid → [marker] voor capaciteitssessies
 const capTelData    = {};   // sid → [telregels] voor capaciteitssessies
 const telData       = {};   // sid → filtered snapped telregels
 const visitData     = {};   // sid → [{ wid, segIdx, tStart, tEnd, durSec, nGps, nTel }]
+const segSummary    = {};   // sid → key(wid,segIdx) → [{ richting, categorie, aantal }]  (wandel-recon)
 const standStillData    = {};  // sid → { lat, lon, accuracy, gpsReliable, street, city,
                                 //         start, end, durSec, factor, dirA, dirB,
                                 //         summary:{type→{a,b}}, log:[{ts,type,dir}] }
@@ -1064,6 +1175,7 @@ function openStandStillPopup(sid) {
         (data.accuracy ? ' · GPS ±' + Math.round(data.accuracy) + 'm' + (data.gpsReliable ? '' : ' ⚠') : '') +
       '</div>' +
       (data.notes && data.notes !== 'n/a' ? '<div class="ss-notes">' + escapeHtml(data.notes) + '</div>' : '') +
+      weatherBlock(sid) +
       tableHtml +
       '<div class="ss-tl-title">Tijdreeks · passages per minuut</div>' +
       timelineSvg +
@@ -1076,6 +1188,138 @@ function openStandStillPopup(sid) {
 // Kleine HTML-escape voor user-input (street names, notes, richting-namen)
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ── Weer bij een telling (Open-Meteo) ────────────────────────────────────────
+// Lazy: pas opgehaald wanneer je een sessie-detail opent. Geen schemawijziging —
+// puur view-laag. Data CC BY 4.0 (bronregel in beeld). Geen API-key, CORS-ok.
+const WX_CACHE = {};                 // dedup-sleutel "lat,lon,datum" → (gedeelde) Promise
+const sessionCenterCache = {};
+let wxSeq = 0;
+
+function wxRound(x){ return Math.round(x*10)/10; }                 // ~0,1°-raster voor dedup
+function wxDateStr(d){ const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function wxDir(deg){ return ['N','NO','O','ZO','Z','ZW','W','NW'][Math.round(((+deg||0)%360)/45)%8]; }
+
+// WMO weather_code → [icoon, NL-label]; codes kun je niet middelen, dus per dominant uur.
+const WMO = {0:['☀️','onbewolkt'],1:['🌤️','overwegend helder'],2:['⛅','half bewolkt'],3:['☁️','bewolkt'],
+  45:['🌫️','mist'],48:['🌫️','ijzelmist'],51:['🌦️','lichte motregen'],53:['🌦️','motregen'],55:['🌦️','dichte motregen'],
+  56:['🌧️','ijzelmotregen'],57:['🌧️','ijzelmotregen'],61:['🌦️','lichte regen'],63:['🌧️','regen'],65:['🌧️','zware regen'],
+  66:['🌧️','ijzelregen'],67:['🌧️','ijzelregen'],71:['🌨️','lichte sneeuw'],73:['🌨️','sneeuw'],75:['❄️','zware sneeuw'],
+  77:['🌨️','sneeuwkorrels'],80:['🌦️','lichte buien'],81:['🌧️','buien'],82:['⛈️','zware buien'],
+  85:['🌨️','sneeuwbuien'],86:['🌨️','sneeuwbuien'],95:['⛈️','onweer'],96:['⛈️','onweer met hagel'],99:['⛈️','zwaar onweer met hagel']};
+function wmoLabel(c){ return WMO[c] || ['•','code '+c]; }
+
+// Endpoint op leeftijd: recent → live forecast; 2022→ → historical-forecast; ouder → ERA5-archive.
+function wxEndpoint(start){
+  const daysAgo = (Date.now() - start.getTime()) / 86400000;
+  if (daysAgo <= 90) return 'https://api.open-meteo.com/v1/forecast';
+  if (start.getFullYear() >= 2022) return 'https://historical-forecast-api.open-meteo.com/v1/forecast';
+  return 'https://archive-api.open-meteo.com/v1/archive';
+}
+
+function wxFetch(lat, lon, start, end){
+  const dS = wxDateStr(start), dE = wxDateStr(end);
+  const key = wxRound(lat)+','+wxRound(lon)+','+dS;
+  if (WX_CACHE[key]) return WX_CACHE[key];                          // zelfde gebied+dag = 1 call
+  const u = new URL(wxEndpoint(start));
+  u.searchParams.set('latitude',  lat.toFixed(4));
+  u.searchParams.set('longitude', lon.toFixed(4));
+  u.searchParams.set('hourly', 'temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m,weather_code');
+  u.searchParams.set('wind_speed_unit', 'kmh');
+  u.searchParams.set('timezone', 'Europe/Amsterdam');
+  u.searchParams.set('start_date', dS);
+  u.searchParams.set('end_date', dE);
+  const p = fetch(u).then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+                    .then(j => { if(j && j.error) throw new Error(j.reason||'open-meteo'); return j; });
+  WX_CACHE[key] = p;
+  return p;
+}
+
+// Tijdvenster van de telling (lokale tijd).
+function wxWindow(sid){
+  const s = sessions[sid]; if(!s) return null;
+  if (s.appType==='standstill' && standStillData[sid] && standStillData[sid].start){
+    const d=standStillData[sid];
+    return { start:d.start, end:d.end || new Date(d.start.getTime()+(d.durSec||1800)*1000) };
+  }
+  const m=s.meta||{};
+  const start=parseLocalDateTime(m.datum, m.start_tijd); if(!start) return null;
+  let end=parseLocalDateTime(m.datum, m.eind_tijd);
+  if(!end || end<=start) end=new Date(start.getTime()+3600000);    // terugval: 1 uur
+  return { start, end };
+}
+
+// Zwaartepunt van de telling (weer-grid is grof, dus centroïde volstaat ruim).
+function sessionCenter(sid){
+  if (sessionCenterCache[sid]) return sessionCenterCache[sid];
+  const s=sessions[sid];
+  if (s && s.appType==='standstill' && standStillData[sid]){
+    const d=standStillData[sid];
+    if (isFinite(d.lat)&&isFinite(d.lon)) return (sessionCenterCache[sid]=[d.lat,d.lon]);
+  }
+  let sumLat=0,sumLon=0,n=0;
+  for (const k in wayData){
+    const w=wayData[k];
+    if (!w.geometry || !w.sessions || !w.sessions.some(e=>e.sid===sid)) continue;
+    for (const p of w.geometry){ if(isFinite(p[0])&&isFinite(p[1])){ sumLat+=p[0]; sumLon+=p[1]; n++; } }
+  }
+  if (!n && typeof capTelData!=='undefined' && capTelData[sid]){   // capaciteit: vak-markers
+    capTelData[sid].forEach(r=>{ const la=+r.lat_marker, lo=+r.lon_marker;
+      if(isFinite(la)&&isFinite(lo)){ sumLat+=la; sumLon+=lo; n++; } });
+  }
+  if (!n) return null;
+  return (sessionCenterCache[sid]=[sumLat/n, sumLon/n]);
+}
+
+// Duur-gewogen aggregatie over de overlapte uren — elk getal op z'n eerlijke manier.
+function wxAggregate(j, start, end){
+  const h=j&&j.hourly; if(!h||!h.time) return null;
+  const t=h.time, T=h.temperature_2m||[], P=h.precipitation||[], W=h.wind_speed_10m||[],
+        G=h.wind_gusts_10m||[], D=h.wind_direction_10m||[], C=h.weather_code||[];
+  const s=start.getTime(), e=end.getTime();
+  let wSum=0, tW=0, wW=0, precip=0, gust=-Infinity, tMin=Infinity, tMax=-Infinity, bestW=-1, bestDir=0, bestCode=0;
+  for (let i=0;i<t.length;i++){
+    const h0=new Date(t[i]).getTime(), h1=h0+3600000;
+    const ov=Math.min(e,h1)-Math.max(s,h0); if(ov<=0) continue;    // overlap in ms
+    const w=ov/3600000; wSum+=w;
+    if(isFinite(T[i])){ tW+=T[i]*w; if(T[i]<tMin)tMin=T[i]; if(T[i]>tMax)tMax=T[i]; }
+    if(isFinite(P[i])) precip+=P[i]*w;                              // neerslag → som naar rato overlap
+    if(isFinite(W[i])) wW+=W[i]*w;
+    if(isFinite(G[i])) gust=Math.max(gust,G[i]);                   // wind → gem. + max vlaag
+    if(w>bestW){ bestW=w; bestDir=D[i]||0; bestCode=C[i]||0; }     // richting/code → dominant uur
+  }
+  if(wSum<=0) return null;
+  const temp=tW/wSum, wind=wW/wSum;
+  const tempStr=(isFinite(tMin)&&isFinite(tMax)&&tMax-tMin>=2)
+    ? Math.round(tMin)+'–'+Math.round(tMax)+'°C' : Math.round(temp)+'°C';
+  return { tempStr, precip, wind, gust:isFinite(gust)?gust:wind, dir:bestDir, code:bestCode };
+}
+
+// Placeholder + ingeplande async-vulling; geeft een HTML-string terug voor de detailview.
+function weatherBlock(sid){
+  const win=wxWindow(sid), ctr=sessionCenter(sid);
+  if(!win || !ctr) return '<div class="wx"><span class="wx-na">weer: geen tijd/locatie bekend</span></div>';
+  const id='wx'+(++wxSeq);
+  setTimeout(()=>fillWeather(id, ctr[0], ctr[1], win.start, win.end), 0);
+  return '<div class="wx" id="'+id+'"><span class="wx-load">⏳ weer laden…</span></div>';
+}
+async function fillWeather(id, lat, lon, start, end){
+  const el=document.getElementById(id); if(!el) return;
+  try{
+    const a=wxAggregate(await wxFetch(lat,lon,start,end), start, end);
+    if(!a){ el.innerHTML='<span class="wx-na">weer onbekend</span>'; return; }
+    const lbl=wmoLabel(a.code);
+    el.innerHTML =
+      '<span class="wx-ico" title="'+escapeHtml(lbl[1])+'">'+lbl[0]+'</span>'+
+      '<span class="wx-main">'+escapeHtml(lbl[1])+'</span>'+
+      '<span class="wx-bits">🌡️ '+a.tempStr+' · 💧 '+a.precip.toFixed(1)+' mm · 💨 '+
+        Math.round(a.wind)+' km/u'+(a.gust>a.wind+1?' (vlaag '+Math.round(a.gust)+')':'')+' '+wxDir(a.dir)+'</span>'+
+      '<a class="wx-src" href="https://open-meteo.com/" target="_blank" rel="noopener">weer: Open-Meteo</a>';
+  }catch(e){
+    el.innerHTML='<span class="wx-na">weer onbekend</span>';
+  }
 }
 
 // SVG-timeline: stacked bars per minuut, kleur per type.
@@ -1263,7 +1507,8 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
               var k = wkey(String(el.id), 0);
               if (wayData[k]&&el.geometry) {
                 wayData[k].geometry = el.geometry.map(function(p){return[p.lat,p.lon];});
-                wayLayers[k] = L.polyline(wayData[k].geometry, {color:'#5500cc',weight:3,opacity:0.6}).addTo(map);
+                makeWayLine(k, wayData[k].geometry, {color:'#5500cc',weight:3,opacity:0.6});
+                attachPocketSegmentInteraction(k);
               }
             });
             drawClusters(sid);
@@ -1280,7 +1525,7 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
   }
 }
 
-function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
+function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
   sessions[sid] = { meta:sm, visible:true, appType:'pocket' };
   getSessionColor(sid);
   clusterLayers[sid] = [];
@@ -1307,6 +1552,22 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
       });
     });
     if (visits.length) visitData[sid] = visits;
+  }
+
+  // _segmentsamenvatting.csv (wandel-recon, v2.20) — tellingen per (link × richting ×
+  // categorie). Gekoppeld aan het weekprofiel: de tik-uitsplitsing naast de presence-p/m·u.
+  if (segCSV) {
+    const bykey = {};
+    parseCSV(segCSV).forEach(function(r) {
+      const wid = (r.osm_way_id || '').trim(); if (!wid) return;
+      const k = wkey(wid, +(r.segment_index || 0) || 0);
+      (bykey[k] = bykey[k] || []).push({
+        richting:  (r.richting || '').trim(),
+        categorie: (r.categorie || '').trim(),
+        aantal:    +r.aantal || 0
+      });
+    });
+    if (Object.keys(bykey).length) segSummary[sid] = bykey;
   }
 
   // GPS-spoor (zelfde dashed-stijl als transect, in sessiekleur)
@@ -1350,9 +1611,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
   // Teken alle netwerk-ways als grijze achtergrondlaag (ook niet-getelde)
   netKeys.forEach(function(k) {
     if (!wayLayers[k] && wayData[k] && wayData[k].geometry && wayData[k].geometry.length >= 2) {
-      wayLayers[k] = L.polyline(wayData[k].geometry, {color:'#3a3d42', weight:2, opacity:0.5})
-        .on('click', function(){ showWegvakDetail(k); })
-        .addTo(map);
+      makeWayLine(k, wayData[k].geometry, {color:'#3a3d42', weight:2, opacity:0.5});
       attachPocketSegmentInteraction(k);
     }
   });
@@ -1374,10 +1633,12 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
   const ptype = sm.type || 'other';
   const modus = (sm.modus || '').trim();
   const isTransect = modus === 'transect';
-  const perRowType = isTransect || modus === 'winkelstraat';  // tik draagt eigen type
+  // tik draagt eigen type: winkelstraat (tegemoet/stilstaand) én parkeren (leeg/bezet)
+  const perRowType = isTransect || modus === 'winkelstraat' || modus === 'parkeren';
   const richtingLabel = function(d){
     return d === 'a' ? (sm.richting_a || 'Richting A')
-         : d === 'b' ? (sm.richting_b || 'Richting B') : '';
+         : d === 'b' ? (sm.richting_b || 'Richting B')
+         : d || '';   // parkeren: letterlijk 'links'/'rechts'
   };
   const datum = fmtDatum(sm.datum, sm.start_tijd);
   const rows  = parseCSV(telCSV);
@@ -1431,8 +1692,16 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
     }
   });
 
-  // Zero-visited detectie op composite keys
-  if (gpsCSV && netKeys.length) {
+  // Zero-visited detectie. Voor GERECONSTRUEERDE ZIP's is _bezocht.csv herbouwd uit de
+  // Viterbi-route: visits met n_tellingen=0 zijn de écht belopen-maar-lege segmenten. Die
+  // vertrouwen we, i.p.v. detectZeroVisited — dat GPS-punten geometrisch snapt en door
+  // GPS-ruis spook-'gelopen' segmenten oplevert. Rauwe ZIP's houden het oude gedrag.
+  const isRecon = !!(sm.reconstructie && String(sm.reconstructie).trim());
+  if (isRecon) {
+    (visitData[sid] || []).forEach(function(v){
+      if (v.nTel === 0) addPocketZero(sid, sm, wkey(v.wid, v.segIdx));
+    });
+  } else if (gpsCSV && netKeys.length) {
     const counted = new Set(rows.map(function(r){
       const wid = (r.osm_way_id||'').trim();
       return wid ? wkey(wid, +(r.segment_index || 0) || 0) : '';
@@ -1465,8 +1734,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
             if (wayData[k]&&el.geometry) {
               wayData[k].geometry=el.geometry.map(function(p){return[p.lat,p.lon];});
               if (!wayLayers[k]) {
-                wayLayers[k]=L.polyline(wayData[k].geometry,
-                  {color:'#3a3d42',weight:2,opacity:0.5}).addTo(map);
+                makeWayLine(k, wayData[k].geometry, {color:'#3a3d42',weight:2,opacity:0.5});
                 attachPocketSegmentInteraction(k);
               }
             }
@@ -1482,7 +1750,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV) {
         wayData[k].sessions.some(function(s){ return s.sid === sid; })) {
       const g = wayData[k].geometry;
       if (!(g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) {
-        wayLayers[k] = L.polyline(g, {color:'#3a3d42', weight:2, opacity:0.5}).addTo(map);
+        makeWayLine(k, g, {color:'#3a3d42', weight:2, opacity:0.5});
         attachPocketSegmentInteraction(k);
       }
     }
@@ -1551,15 +1819,30 @@ function parseLocalDateTime(datum, tijd) {
   return new Date(y, mo-1, da, +m[1], +m[2], +(m[3]||0));
 }
 
-// Voegt click- en hover-gedrag toe aan een pocket-segment-polylijn.
+// Maakt de zichtbare straatlijn (wayhit-pane, boven de dots, niet-interactief)
+// plus een onzichtbare brede kliklijn in dezelfde pane die taps opvangt — zodat
+// een straat klikbaar blijft ondanks de dot-wolk eroverheen. De zichtbare lijn
+// blijft in wayLayers[k] (recolor/hover/cleanup ongewijzigd); de kliklijn in
+// wayHitLayers[k]. Idempotent: bestaande lijnen worden niet gedupliceerd.
+function makeWayLine(k, geometry, style) {
+  if (wayLayers[k]) return wayHitLayers[k];
+  const vis = L.polyline(geometry, Object.assign({}, style, { pane:'wayhit', interactive:false })).addTo(map);
+  const hit = L.polyline(geometry, { pane:'wayhit', color:'#000', weight:16, opacity:0 }).addTo(map);
+  wayLayers[k]    = vis;
+  wayHitLayers[k] = hit;
+  return hit;
+}
+
+// Voegt click- en hover-gedrag toe aan de kliklijn van een pocket-segment.
+// Stuurt de tap naar showWegvakDetail en verdikt de zíchtbare lijn bij hover.
 // Idempotent — kan veilig meermaals worden aangeroepen op dezelfde key.
 function attachPocketSegmentInteraction(k) {
-  const layer = wayLayers[k];
-  if (!layer || layer._pktAttached) return;
-  layer._pktAttached = true;
-  layer.on('click', function() { showWegvakDetail(k); });
-  layer.on('mouseover', function(e) {
-    this.setStyle({ weight: 6, opacity: 1 });
+  const hit = wayHitLayers[k];
+  if (!hit || hit._pktAttached) return;
+  hit._pktAttached = true;
+  hit.on('click', function() { showWegvakDetail(k); });
+  hit.on('mouseover', function(e) {
+    const vis = wayLayers[k]; if (vis) vis.setStyle({ weight: 6, opacity: 1 });
     const wd = wayData[k];
     const naam = wd && wd.sessions[0] ? cleanNaam(wd.sessions[0].naam) : k;
     const visSess = wd ? wd.sessions.filter(s => sessions[s.sid]?.visible && !s.zeroVisited) : [];
@@ -1572,7 +1855,39 @@ function attachPocketSegmentInteraction(k) {
                      + ` (${pmu.toFixed(1)} p/m·u)`;
     this.bindTooltip(tip, {sticky:true, direction:'top', className:'way-hover-tip'}).openTooltip(e.latlng);
   });
-  layer.on('mouseout', function() {
+  hit.on('mouseout', function() {
+    this.closeTooltip();
+    recolorOne(k);
+  });
+}
+
+// Tweede interactie-smaak (sessie-lijst-tooltip i.p.v. p/m·u) — zelfde patroon:
+// klik/hover op de kliklijn, styling op de zichtbare lijn.
+function attachSessionSegmentInteraction(k) {
+  const hit = wayHitLayers[k];
+  if (!hit || hit._sessAttached) return;
+  hit._sessAttached = true;
+  hit.on('click', function(){ showWegvakDetail(k); });
+  hit.on('mouseover', function(e) {
+    const vis = wayLayers[k]; if (vis) vis.setStyle({weight:6,opacity:1});
+    const wd2 = wayData[k];
+    const naam = wd2.sessions[0] ? cleanNaam(wd2.sessions[0].naam) : (wd2.wayId || k);
+    const visSess = wd2.sessions.filter(s=>sessions[s.sid]?.visible);
+    const tellijnen = visSess.map(function(s) {
+      const sm = sessions[s.sid].meta;
+      const datum = fmtDatum(sm.datum, sm.start_tijd);
+      const teller = sm.teller ? ' · ' + sm.teller : '';
+      if (s.appType === 'fiets') {
+        return datum + teller + ' — ' + (s.totaal||0) + ' fietsen';
+      } else {
+        const pct = s.bezettingsgraad_pct ? ' (' + Math.round(s.bezettingsgraad_pct) + '%)' : '';
+        return datum + teller + ' — ' + (s.bezet||0) + ' bezet' + pct;
+      }
+    });
+    const tip = '<strong>' + naam + '</strong><br>' + (tellijnen.length ? tellijnen.join('<br>') : 'geen zichtbare tellingen');
+    this.bindTooltip(tip, {sticky:true, direction:'top', className:'way-hover-tip'}).openTooltip(e.latlng);
+  });
+  hit.on('mouseout', function() {
     this.closeTooltip();
     recolorOne(k);
   });
@@ -1610,7 +1925,7 @@ function pmuForKey(key) {
   if (!lenM) return null;
   let totTel = 0, totSec = 0;
   Object.keys(visitData).forEach(sid => {
-    if (!sessions[sid]?.visible) return;
+    if (!pocketZichtbaar(sid)) return;
     visitData[sid].forEach(v => {
       if (v.wid === wid && (v.segIdx||0) === segIdx) {
         totTel += v.nTel || 0;
@@ -1620,7 +1935,7 @@ function pmuForKey(key) {
   });
   // Tikken uit wayData als visitData geen nTel heeft (backward compat)
   if (totTel === 0) {
-    const visSess = wd.sessions.filter(s => sessions[s.sid]?.visible && !s.zeroVisited);
+    const visSess = wd.sessions.filter(s => pocketZichtbaar(s.sid) && !s.zeroVisited);
     totTel = visSess.reduce((a,s) => a + (s.totaal||0), 0);
   }
   if (totTel === 0 || totSec === 0) return null;
@@ -1649,10 +1964,35 @@ function segmentLengthM(geom) {
   return total || 40;
 }
 
+// ── v2.22: globaal modusfilter ─────────────────────────────────────────────
+// Het weekprofiel toont p/m·u (passages per meter per uur) voor álle pocket-modi.
+// Een tempo-maat pool't vanzelf goed: teller (tikken) en noemer (aanwezigheids-
+// tijd) schalen samen, dus herhaalde bezoeken tellen niet dubbel — dezelfde
+// tijd-gewogen formule voor élke modus. Het filter hieronder laat kaart, popups
+// én stats één of meer modi tonen (analoog aan de fiets/auto-toggles, maar op
+// sessie-niveau i.p.v. per tik-categorie).
+const MODUS_META = {
+  transect:     { label: 'Transect',     kleur: '#4a9eff' },
+  parkeren:     { label: 'Parkeren',     kleur: '#f59e0b' },
+  winkelstraat: { label: 'Winkelstraat', kleur: '#a855f7' },
+  simpel:       { label: 'Simpel',       kleur: '#10b981' }
+};
+const actieveModi = {};                              // modus → bool; ontbrekend = actief
+function modusVan(sid)   { return (sessions[sid]?.meta?.modus || '').trim(); }
+function modusLabel(m)   { return (MODUS_META[m] && MODUS_META[m].label) || (m || 'onbekend'); }
+function modusKleur(m)   { return (MODUS_META[m] && MODUS_META[m].kleur) || '#9ca3af'; }
+function modusActief(m)  { return actieveModi[m] !== false; }
+// Effectieve zichtbaarheid: sessie zichtbaar én (niet-pocket óf modus actief).
+function pocketZichtbaar(sid) {
+  const s = sessions[sid]; if (!s || !s.visible) return false;
+  if (s.appType !== 'pocket') return true;
+  return modusActief((s.meta?.modus || '').trim());
+}
+
 function wayHeat(key) {
   const wd = wayData[key]; if (!wd || !wd.sessions.length) return null;
   // Zero-visited sessies tellen niet mee voor heat — die krijgen een eigen render
-  const visSessions = wd.sessions.filter(s => sessions[s.sid]?.visible && !s.zeroVisited);
+  const visSessions = wd.sessions.filter(s => pocketZichtbaar(s.sid) && !s.zeroVisited);
   if (!visSessions.length) return null;
   const appType = visSessions[0].appType;
   if (appType === 'auto') {
@@ -2175,7 +2515,7 @@ function buildWeeklyHeatmap(key) {
 
   let anyVisit = false;
   Object.keys(visitData).forEach(function(sid) {
-    if (!sessions[sid]?.visible) return;
+    if (!pocketZichtbaar(sid)) return;
     visitData[sid].forEach(function(v) {
       if (v.wid !== wid || (v.segIdx||0) !== segIdx) return;
       anyVisit = true;
@@ -2309,10 +2649,12 @@ function renderWeeklyHeatmap(hm) {
 }
 
 // ── WEEKPROFIEL POPUP ─────────────────────────────────────────────────────
+let laatsteWegvakKey = null;
 function openWeekprofile(key) {
-  const wd = wayData[key]; if (!wd) return;
+  const wd = wayData[key]; if (!wd) return false;
   const hm = buildWeeklyHeatmap(key);
-  if (!hm) return;
+  if (!hm) return false;
+  laatsteWegvakKey = key;
   const wid = wd.wayId || parseKey(key).wid;
   const segIdx = wd.segIdx || 0;
   const namen = [...new Set(wd.sessions.map(s => s.naam).filter(s => s && s !== '—'))];
@@ -2326,13 +2668,15 @@ function openWeekprofile(key) {
     'Cellen: <strong>passages per meter per uur</strong> ' +
     '(<code>tikken ÷ segmentlengte ÷ aanwezigheidstijd</code>). ' +
     'Visits over uurgrenzen worden proportioneel gesplitst. ' +
-    'Lege cel = niet gemeten. Alleen zichtbare sessies tellen mee.' +
+    'Lege cel = niet gemeten. Alleen zichtbare modi/sessies tellen mee.' +
     '</div>';
   body += renderWeeklyHeatmap(hm);
   body += renderSegmentSessionTable(wd, wid, segIdx, hm.lenM);
+  body += renderSegmentBreakdown(key, hm.lenM);   // wandel-recon: categorie × richting
 
   document.getElementById('weekprofile-body').innerHTML = body;
   document.getElementById('weekprofile-modal').classList.remove('hidden');
+  return true;
 }
 
 // Compacte sessie-tabel: per sessie de bijdrage aan dit segment.
@@ -2340,7 +2684,7 @@ function openWeekprofile(key) {
 function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
   const rows = [];
   Object.keys(visitData).forEach(function(sid) {
-    if (!sessions[sid]?.visible) return;
+    if (!pocketZichtbaar(sid)) return;
     const matches = visitData[sid].filter(function(v) {
       return v.wid === wid && (v.segIdx||0) === segIdx;
     });
@@ -2396,6 +2740,73 @@ function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
   return html;
 }
 
+// Categorie × richting-uitsplitsing voor wandel-recon-ZIP's (uit _segmentsamenvatting.csv).
+// Pool over zichtbare sessies; p/m·u per categorie deelt de segment-p/m·u op met dezelfde
+// presence als het weekprofiel. richting-kolom alleen als er echt richtingen zijn (transect).
+function renderSegmentBreakdown(key, lenM) {
+  const pk = parseKey(key), wid = pk.wid, segIdx = pk.segIdx || 0;
+  const agg = {};   // "cat|rich" -> { cat, rich, aantal }
+  let anyRich = false;
+  Object.keys(segSummary).forEach(function(sid) {
+    if (!pocketZichtbaar(sid)) return;
+    const rows = segSummary[sid][key]; if (!rows) return;
+    rows.forEach(function(r) {
+      const kk = r.categorie + '|' + r.richting;
+      if (!agg[kk]) agg[kk] = { cat: r.categorie, rich: r.richting, aantal: 0 };
+      agg[kk].aantal += r.aantal;
+      if (r.richting) anyRich = true;
+    });
+  });
+  const items = Object.keys(agg).map(function(k){ return agg[k]; });
+  if (!items.length) return '';
+  // presence over zichtbare sessies voor dit segment — zelfde bron als het weekprofiel
+  let totSec = 0;
+  Object.keys(visitData).forEach(function(sid) {
+    if (!pocketZichtbaar(sid)) return;
+    visitData[sid].forEach(function(v) {
+      if (v.wid === wid && (v.segIdx||0) === segIdx) totSec += v.durSec || 0;
+    });
+  });
+  const meterHours = (lenM > 0 && totSec > 0) ? lenM * (totSec / 3600) : 0;
+  const pmu = function(n) { return meterHours > 0 ? n / meterHours : null; };
+  items.sort(function(a,b){ return b.aantal - a.aantal || a.cat.localeCompare(b.cat) || a.rich.localeCompare(b.rich); });
+
+  let html = '<div style="margin-top:18px;font-size:10px;color:var(--muted);' +
+             'letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">' +
+             'Categorie' + (anyRich ? ' &times; richting' : '') + ' (tikken)</div>';
+  html += '<table class="cmp-table"><tr><th>categorie</th>' +
+          (anyRich ? '<th>richting</th>' : '') + '<th>tikken</th><th>p/m·u</th></tr>';
+  let totAantal = 0;
+  items.forEach(function(it) {
+    totAantal += it.aantal;
+    const p = pmu(it.aantal), cls = p !== null ? intensityClass(p) : null;
+    html += '<tr><td>' + (it.cat || '—') + '</td>' +
+            (anyRich ? '<td>' + (it.rich || '') + '</td>' : '') +
+            '<td>' + it.aantal + '</td>' +
+            '<td' + (cls ? ' style="color:' + cls.kleur + ';font-weight:600"' : '') + '>' +
+            (p !== null ? p.toFixed(1) : '—') + '</td></tr>';
+  });
+  if (items.length > 1) {
+    const pt = pmu(totAantal);
+    html += '<tr class="sum-row"><td>&sum;</td>' + (anyRich ? '<td></td>' : '') +
+            '<td>' + totAantal + '</td><td>' + (pt !== null ? pt.toFixed(1) : '—') + '</td></tr>';
+  }
+  html += '</table>';
+  // Bezettingsgraad wanneer de categorieën een bezet/leeg-toestand dragen (parkeren).
+  const nBezet = items.filter(it => /bezet/.test(it.cat.toLowerCase())).reduce((a,it) => a + it.aantal, 0);
+  const nLeeg  = items.filter(it => /leeg|vrij/.test(it.cat.toLowerCase())).reduce((a,it) => a + it.aantal, 0);
+  if (nBezet + nLeeg > 0 && nBezet > 0) {
+    const pct = Math.round(nBezet / (nBezet + nLeeg) * 100);
+    html += `<div class="hm-meta" style="margin-top:6px"><strong>Bezettingsgraad:</strong> ${pct}% ` +
+            `(${nBezet} bezet / ${nBezet + nLeeg} plekken) — de eerlijke bezettingsmaat, ` +
+            `los van de per-uur-normalisatie.</div>`;
+  }
+  html += '<div class="hm-meta" style="margin-top:6px">Uitsplitsing van de gereconstrueerde ' +
+          'tikken op dit segment. p/m·u per categorie deelt de segment-p/m·u op; ' +
+          'presence uit <code>_bezocht.csv</code>.</div>';
+  return html;
+}
+
 function closeWeekprofile() {
   document.getElementById('weekprofile-modal').classList.add('hidden');
 }
@@ -2412,7 +2823,7 @@ document.addEventListener('keydown', function(e) {
 function showWegvakDetail(key) {
   const wd=wayData[key]; if (!wd) return;
   const wid = wd.wayId || parseKey(key).wid;
-  const visSessions = wd.sessions.filter(s => sessions[s.sid]?.visible);
+  const visSessions = wd.sessions.filter(s => pocketZichtbaar(s.sid));
 
   // Pocket-only segment met visit-data: sla het kleine paneel over,
   // open de popup direct. Gemengde of niet-pocket segmenten: zie hieronder.
@@ -2499,6 +2910,145 @@ function showWegvakDetail(key) {
   document.getElementById('detail-panel').classList.remove('hidden');
 }
 
+// ── POLYGOON-SELECTIE ────────────────────────────────────────────────
+// Teken een gebied op de kaart; vat de tellingen erbinnen samen per sessie
+// én per wegsegment (niet één plat totaal). Werkt op telData, dat elke
+// gesnapte tik al met sid/type/wayId/segIdx bijhoudt — geen nieuwe databron.
+var polyDrawing = false;
+var polyVerts = [];              // [{lat,lng}, ...] van de nog te sluiten polygoon
+var polyVertexMarkers = [];
+var polyPreviewLine = null;
+var polyShape = null;            // afgeronde L.polygon, blijft zichtbaar tot een nieuwe start
+
+function togglePolygonMode() {
+  if (polyDrawing) { cancelPolygonDraw(); return; }
+  clearPolygonShape();           // eventuele vorige polygoon wissen, nieuwe sessie
+  polyDrawing = true;
+  polyVerts = [];
+  document.getElementById('polygon-toggle').classList.add('active');
+  document.getElementById('polygon-hint').style.display = '';
+  map.doubleClickZoom.disable();
+  map.getContainer().style.cursor = 'crosshair';
+}
+
+function cancelPolygonDraw() {
+  polyDrawing = false;
+  polyVerts.forEach(function(){});
+  polyVertexMarkers.forEach(function(m){ map.removeLayer(m); });
+  polyVertexMarkers = [];
+  if (polyPreviewLine) { map.removeLayer(polyPreviewLine); polyPreviewLine = null; }
+  document.getElementById('polygon-toggle').classList.remove('active');
+  document.getElementById('polygon-hint').style.display = 'none';
+  map.doubleClickZoom.enable();
+  map.getContainer().style.cursor = '';
+}
+
+function clearPolygonShape() {
+  if (polyShape) { map.removeLayer(polyShape); polyShape = null; }
+}
+
+function onMapClickForPolygon(e) {
+  if (!polyDrawing) return;
+  polyVerts.push(e.latlng);
+  var vm = L.circleMarker(e.latlng, { radius:4, color:'#f39c12', weight:2,
+              fillColor:'#f39c12', fillOpacity:1, pane:'clusters' }).addTo(map);
+  polyVertexMarkers.push(vm);
+  if (polyPreviewLine) map.removeLayer(polyPreviewLine);
+  if (polyVerts.length > 1) {
+    polyPreviewLine = L.polyline(polyVerts, { color:'#f39c12', weight:2, dashArray:'4,4' }).addTo(map);
+  }
+}
+
+function onMapDblClickForPolygon(e) {
+  if (!polyDrawing) return;
+  L.DomEvent.stopPropagation(e);
+  if (polyVerts.length < 3) { cancelPolygonDraw(); return; }
+  polyVertexMarkers.forEach(function(m){ map.removeLayer(m); });
+  polyVertexMarkers = [];
+  if (polyPreviewLine) { map.removeLayer(polyPreviewLine); polyPreviewLine = null; }
+  polyShape = L.polygon(polyVerts, { color:'#f39c12', weight:2, fillColor:'#f39c12', fillOpacity:0.12 }).addTo(map);
+  polyDrawing = false;
+  document.getElementById('polygon-toggle').classList.remove('active');
+  document.getElementById('polygon-hint').style.display = 'none';
+  map.doubleClickZoom.enable();
+  map.getContainer().style.cursor = '';
+  showPolygonSummary(polyVerts);
+}
+
+// Punt-in-polygoon: hergebruikt de bestaande pointInPolygon (regel ~1750,
+// al in gebruik voor de capaciteits-parkeerpolygonen) — geen duplicaat-logica.
+// Die verwacht poly als [lat,lon]-paren; polyVerts zijn Leaflet-latlngs.
+function polyVertsToPairs(verts) {
+  return verts.map(function(v){ return [v.lat, v.lng]; });
+}
+
+function showPolygonSummary(verts) {
+  var polyPairs = polyVertsToPairs(verts);
+  // Per sessie, per (wayId,segIdx): totaal + per-type. Alleen zichtbare sessies,
+  // consistent met hoe de rest van het paneel (showWegvakDetail) al filtert.
+  var perSession = {};   // sid -> { naam, appType, total, segs: { segKey: {straat,total,byType:{}} } }
+  var grandTotal = 0;
+
+  Object.keys(telData).forEach(function(sid) {
+    if (!(sessions[sid] && sessions[sid].visible)) return;
+    var rows = telData[sid]; if (!rows || !rows.length) return;
+    var hit = null;
+    rows.forEach(function(r) {
+      var la = parseFloat(r.lat_marker), lo = parseFloat(r.lon_marker);
+      if (isNaN(la) || isNaN(lo)) return;
+      if (!pointInPolygon(la, lo, polyPairs)) return;
+      if (!hit) {
+        var sm = sessions[sid].meta || {};
+        hit = perSession[sid] = { naam: sm.teller || sessions[sid].appType || sid,
+          appType: sessions[sid].appType, datum: fmtDatum(sm.datum, sm.start_tijd),
+          total: 0, segs: {} };
+      }
+      var segKey = (r.osm_way_id||'?') + '|' + (r.segment_index||0);
+      if (!hit.segs[segKey]) {
+        hit.segs[segKey] = { straat: r.straat || ('OSM '+(r.osm_way_id||'?')),
+          segIdx: r.segment_index||0, total: 0, byType: {} };
+      }
+      var seg = hit.segs[segKey];
+      var t = r.type || 'other';
+      seg.byType[t] = (seg.byType[t]||0) + 1;
+      seg.total++; hit.total++; grandTotal++;
+    });
+  });
+
+  document.getElementById('detail-title').textContent = 'Polygoon-selectie · ' + grandTotal + ' tellingen';
+  document.getElementById('detail-sub').textContent = Object.keys(perSession).length
+    + ' sessie(s) · ' + Object.values(perSession).reduce(function(a,s){return a+Object.keys(s.segs).length;},0) + ' segment(en)';
+
+  var html = '';
+  if (!grandTotal) {
+    html = '<div style="color:var(--muted);font-size:11px">Geen tellingen binnen dit gebied (of de sessies zijn uitgevinkt).</div>';
+  } else {
+    Object.keys(perSession).sort().forEach(function(sid) {
+      var s = perSession[sid];
+      html += '<div style="font-size:11px;font-weight:bold;color:var(--accent);margin:8px 0 2px">'
+            + s.naam + (s.datum ? ' · '+s.datum : '') + ' — ' + s.total + '×</div>';
+      html += '<table class="cmp-table"><tr><th>segment</th><th>aantal</th><th>per type</th></tr>';
+      Object.keys(s.segs).sort(function(a,b){ return s.segs[b].total - s.segs[a].total; }).forEach(function(segKey) {
+        var seg = s.segs[segKey];
+        var cfg = APP_CONFIG[s.appType] || APP_CONFIG.pocket;
+        var typeStr = Object.keys(seg.byType).sort().map(function(t) {
+          return (cfg.labels && cfg.labels[t] ? cfg.labels[t] : t) + ' ' + seg.byType[t];
+        }).join(', ');
+        html += '<tr><td>' + seg.straat + (seg.segIdx ? ' · seg '+(seg.segIdx+1) : '') + '</td>'
+              + '<td style="text-align:right;font-weight:bold">' + seg.total + '</td>'
+              + '<td style="color:var(--muted)">' + typeStr + '</td></tr>';
+      });
+      html += '<tr class="sum-row"><td>subtotaal</td><td style="text-align:right">' + s.total + '</td><td></td></tr></table>';
+    });
+    html += '<div style="font-size:11px;font-weight:bold;margin-top:10px">Totaal alle sessies: ' + grandTotal + '</div>';
+  }
+  document.getElementById('detail-body').innerHTML = html;
+  document.getElementById('detail-panel').classList.remove('hidden');
+}
+
+document.getElementById('polygon-cancel').addEventListener('click', cancelPolygonDraw);
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && polyDrawing) cancelPolygonDraw(); });
+
 function showClusterDetail(counts, total, sid, appType) {
   if (appType === 'transect') {
     const sm = (sessions[sid] && sessions[sid].meta) ? sessions[sid].meta : {};
@@ -2517,7 +3067,7 @@ function showClusterDetail(counts, total, sid, appType) {
              + '<td style="text-align:right;font-weight:bold">'+(a+b)+'</td></tr>';
     });
     html2 += '<tr class="sum-row"><td>totaal</td><td style="text-align:right">'+totA+'</td><td style="text-align:right">'+totB+'</td><td style="text-align:right">'+(totA+totB)+'</td></tr></table>';
-    document.getElementById('detail-body').innerHTML = html2;
+    document.getElementById('detail-body').innerHTML = html2 + weatherBlock(sid);
     document.getElementById('detail-panel').classList.remove('hidden');
     return;
   }
@@ -2533,7 +3083,7 @@ function showClusterDetail(counts, total, sid, appType) {
       <td style="color:var(--muted)">${Math.round(100*counts[t]/total)}%</td></tr>`;
   });
   html+=`<tr class="sum-row"><td>totaal</td><td>${total}</td><td></td></tr></table>`;
-  document.getElementById('detail-body').innerHTML=html;
+  document.getElementById('detail-body').innerHTML=html + weatherBlock(sid);
   document.getElementById('detail-panel').classList.remove('hidden');
 }
 
@@ -2735,7 +3285,7 @@ function showCapDetail(g, datum, teller, sid) {
     html += '<tr><td style="color:'+kleur+';font-weight:bold">'+soort+'</td><td style="text-align:right">'+n+'</td><td style="text-align:right;color:var(--muted)">'+Math.round(n/total*100)+'%</td></tr>';
   });
   html += '<tr class="sum-row"><td>totaal</td><td style="text-align:right">'+total+'</td><td></td></tr></table>';
-  document.getElementById('detail-body').innerHTML = html;
+  document.getElementById('detail-body').innerHTML = html + weatherBlock(sid);
   document.getElementById('detail-panel').classList.remove('hidden');
 
   // Ruim vorige spot-markers op
@@ -2779,7 +3329,7 @@ async function loadZip(file) {
   const get=suf=>{ const k=Object.keys(F).find(k=>k.endsWith(suf)); return k?F[k]:null; };
   const sessieCSV=get('_sessie.csv'), stratenCSV=get('_straten.csv'),
         netCSV=get('_netwerk.csv'), gpsCSV=get('_gps.csv'), telCSV=get('_telregels.csv'),
-        bezCSV=get('_bezocht.csv'),
+        bezCSV=get('_bezocht.csv'), segCSV=get('_segmentsamenvatting.csv'),
         capCSV=get('_capaciteit.csv'), terCSV=get('_terrein.csv');
 
   if (!sessieCSV) { alert(`Geen sessie.csv gevonden in ${file.name}`); return; }
@@ -2811,7 +3361,7 @@ async function loadZip(file) {
 
   // Pocket-sessie: apart pad
   if (appType === 'pocket') {
-    loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV);
+    loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV);
     return;
   }
 
@@ -2859,32 +3409,8 @@ async function loadZip(file) {
   // Wegvak-polylijnen
   Object.entries(wayData).forEach(([k,wd])=>{
     if (!wayLayers[k]) {
-      wayLayers[k]=L.polyline(wd.geometry,{color:'#3a3d42',weight:2,opacity:0.5})
-        .on('click',()=>showWegvakDetail(k))
-        .on('mouseover', function(e) {
-          this.setStyle({weight:6,opacity:1});
-          const wd2 = wayData[k];
-          const naam = wd2.sessions[0] ? cleanNaam(wd2.sessions[0].naam) : (wd2.wayId || k);
-          const visSess = wd2.sessions.filter(s=>sessions[s.sid]?.visible);
-          const tellijnen = visSess.map(function(s) {
-            const sm = sessions[s.sid].meta;
-            const datum = fmtDatum(sm.datum, sm.start_tijd);
-            const teller = sm.teller ? ' · ' + sm.teller : '';
-            if (s.appType === 'fiets') {
-              return datum + teller + ' — ' + (s.totaal||0) + ' fietsen';
-            } else {
-              const pct = s.bezettingsgraad_pct ? ' (' + Math.round(s.bezettingsgraad_pct) + '%)' : '';
-              return datum + teller + ' — ' + (s.bezet||0) + ' bezet' + pct;
-            }
-          });
-          const tip = '<strong>' + naam + '</strong><br>' + (tellijnen.length ? tellijnen.join('<br>') : 'geen zichtbare tellingen');
-          this.bindTooltip(tip, {sticky:true, direction:'top', className:'way-hover-tip'}).openTooltip(e.latlng);
-        })
-        .on('mouseout', function() {
-          this.closeTooltip();
-          recolorOne(k);
-        })
-        .addTo(map);
+      makeWayLine(k, wd.geometry, {color:'#3a3d42',weight:2,opacity:0.5});
+      attachSessionSegmentInteraction(k);
     }
   });
 
@@ -2963,46 +3489,137 @@ async function loadZip(file) {
 }
 
 // ── SESSIONS UI ───────────────────────────────────────────────────
+// v2.15: één bron voor "soort telling" — icoon, label én groepssleutel.
+// pocket splitst op modus (winkelstraat/transect/simpel); de rest is appType.
+// Niets anders dan parkeertelling schrijft 'auto', niets anders dan
+// fietsparkeren schrijft 'fiets', dus elke sleutel is schoon één soort.
+function sessionGroup(s) {
+  const at = s.appType;
+  const modus = (s.meta.modus || '').trim();
+  if (at === 'pocket') {
+    if (modus === 'winkelstraat') return { key:'pocket:winkelstraat', icon:'🛍️', label:'Winkelstraat' };
+    if (modus === 'transect')     return { key:'pocket:transect',     icon:'↔️', label:'Transect (pocket)' };
+    return { key:'pocket:simpel', icon:'📷', label:'Pocket' };
+  }
+  if (at === 'auto')       return { key:'auto',       icon:'🚗', label:'Autoparkeren' };
+  if (at === 'capaciteit') return { key:'capaciteit', icon:'🅿', label:'Capaciteit' };
+  if (at === 'transect')   return { key:'transect',   icon:'🚶', label:'Transect' };
+  if (at === 'standstill') return { key:'standstill', icon:'📍', label:'Stilstaand' };
+  return { key:'fiets', icon:'🚲', label:'Fietsparkeren' };
+}
+
+const GROUP_ORDER = ['auto','fiets','capaciteit','pocket:winkelstraat',
+                     'pocket:transect','pocket:simpel','transect','standstill'];
+
+// Bouwt één sessie-rij (ongewijzigde markup; klik/shift/solo blijven via delegatie werken).
+function makeSessionRow(sid) {
+  const s = sessions[sid];
+  const datum = fmtDatum(s.meta.datum, s.meta.start_tijd);
+  const typeIcon = sessionGroup(s).icon;
+  const color = SESSION_COLORS[sid] || '#888';
+  const teller = s.meta.teller ? s.meta.teller : '';
+  const n = s.meta.n_waarnemingen || '';
+  const row = document.createElement('div');
+  row.className = 'session-row' + (s.visible ? '' : ' off');
+  row.dataset.sid = sid;
+  row.title = 'klik: aan/uit  ·  shift-klik: alles aan/uit  ·  rechtsklik: solo';
+  row.style.setProperty('--sc', color);
+  row.innerHTML =
+    '<div class="session-color"></div>' +
+    '<div class="session-content">' +
+      '<div class="session-meta">' +
+        '<div class="session-line1">' +
+          '<span class="stype">' + typeIcon + '</span>' +
+          '<span>' + datum + '</span>' +
+          (teller ? '<span class="stell">' + teller + '</span>' : '') +
+        '</div>' +
+        '<div class="session-id">' + sid + '</div>' +
+      '</div>' +
+      (n ? '<div class="session-n">' + n + '</div>' : '') +
+    '</div>';
+  return row;
+}
+
 function renderSessions() {
   const list = document.getElementById('sessions-list');
   list.innerHTML = '';
   const sids = Object.keys(sessions).sort().reverse();
+
+  // Groepeer per soort
+  const groups = {};
   sids.forEach(sid => {
-    const s = sessions[sid];
-    const datum = fmtDatum(s.meta.datum, s.meta.start_tijd);
-    const modus = (s.meta.modus||'').trim();   // v2.11: simpel|transect|winkelstraat binnen app_type=pocket
-    const typeIcon = s.appType==='auto'?'🚗'
-                   : s.appType==='capaciteit'?'🅿'
-                   : s.appType==='transect'?'🚶'
-                   : s.appType==='pocket'? (modus==='transect'?'↔️' : modus==='winkelstraat'?'🛍️' : '📷')
-                   : s.appType==='standstill'?'📍'
-                   : '🚲';
-    const color = SESSION_COLORS[sid] || '#888';
-    const teller = s.meta.teller ? s.meta.teller : '';
-    const n = s.meta.n_waarnemingen || '';
-    const row = document.createElement('div');
-    row.className = 'session-row' + (s.visible ? '' : ' off');
-    row.dataset.sid = sid;
-    row.title = 'klik: aan/uit  ·  shift-klik: alles aan/uit  ·  rechtsklik: solo';
-    row.style.setProperty('--sc', color);
-    row.innerHTML =
-      '<div class="session-color"></div>' +
-      '<div class="session-content">' +
-        '<div class="session-meta">' +
-          '<div class="session-line1">' +
-            '<span class="stype">' + typeIcon + '</span>' +
-            '<span>' + datum + '</span>' +
-            (teller ? '<span class="stell">' + teller + '</span>' : '') +
-          '</div>' +
-          '<div class="session-id">' + sid + '</div>' +
-        '</div>' +
-        (n ? '<div class="session-n">' + n + '</div>' : '') +
-      '</div>';
-    list.appendChild(row);
+    const g = sessionGroup(sessions[sid]);
+    (groups[g.key] = groups[g.key] || { info:g, sids:[] }).sids.push(sid);
   });
+
+  // Vaste volgorde; onbekende soorten achteraan
+  const keys = Object.keys(groups).sort((a,b) => {
+    const ia = GROUP_ORDER.indexOf(a), ib = GROUP_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
+  keys.forEach(key => {
+    const grp = groups[key];
+    const wrap = document.createElement('div');
+    wrap.className = 'session-group' + (collapsedGroups.has(key) ? ' collapsed' : '');
+    wrap.dataset.gkey = key;
+
+    const head = document.createElement('div');
+    head.className = 'session-group-head';
+    head.innerHTML =
+      '<span class="sg-caret">▾</span>' +
+      '<span class="sg-icon">' + grp.info.icon + '</span>' +
+      '<span class="sg-label">' + grp.info.label + '</span>' +
+      '<span class="sg-count">' + grp.sids.length + '</span>' +
+      '<span class="sg-eye" title="groep tonen/verbergen">●</span>';
+    wrap.appendChild(head);
+
+    grp.sids.forEach(sid => wrap.appendChild(makeSessionRow(sid)));
+    list.appendChild(wrap);
+  });
+
   const has = sids.length > 0;
   document.getElementById('section-title').style.display = has ? 'flex' : 'none';
   document.getElementById('sessies-count').textContent = has ? sids.length : '';
+  syncGroupHeads();
+}
+
+// Herberekent de oog-status van elke groepskop uit de data (aan/uit/gemengd).
+function syncGroupHeads() {
+  const byKey = {};
+  Object.keys(sessions).forEach(sid => {
+    const k = sessionGroup(sessions[sid]).key;
+    (byKey[k] = byKey[k] || []).push(sid);
+  });
+  document.querySelectorAll('.session-group').forEach(wrap => {
+    const list = byKey[wrap.dataset.gkey] || [];
+    const on = list.filter(sid => sessions[sid] && sessions[sid].visible).length;
+    const eye = wrap.querySelector('.sg-eye');
+    let state, glyph, t;
+    if (on === 0)                  { state='off';   glyph='○'; t='groep tonen'; }
+    else if (on === list.length)   { state='on';    glyph='●'; t='groep verbergen'; }
+    else                           { state='mixed'; glyph='◐'; t=on + '/' + list.length + ' aan'; }
+    if (eye) { eye.textContent = glyph; eye.title = t; eye.dataset.state = state; }
+    wrap.classList.toggle('grp-off', on === 0);
+  });
+}
+
+// Groep-oog: alles aan als er nog iets uit staat, anders alles uit.
+function toggleGroupVisibility(key) {
+  const sids = Object.keys(sessions).filter(sid => sessionGroup(sessions[sid]).key === key);
+  const target = !sids.some(sid => sessions[sid].visible);
+  sids.forEach(sid => { sessions[sid].visible = target; applySessionVisibility(sid); });
+  recolorAll();
+  updateStats();
+  syncGroupHeads();
+}
+
+// Groepskop inklappen/uitklappen (puur visueel; raakt visible niet aan).
+function toggleGroupCollapse(key) {
+  if (collapsedGroups.has(key)) collapsedGroups.delete(key);
+  else collapsedGroups.add(key);
+  const wrap = document.querySelector('.session-group[data-gkey="' + key + '"]');
+  if (wrap) wrap.classList.toggle('collapsed', collapsedGroups.has(key));
 }
 
 // Past de visibility van één sessie toe op alle bijbehorende kaartlagen.
@@ -3057,6 +3674,7 @@ document.getElementById('sessions-list').addEventListener('click', e => {
   }
   recolorAll();
   updateStats();
+  syncGroupHeads();
   // Clear eventuele hangende hover-emphasis na actie
   setSessionEmphasis(null);
 });
@@ -3075,6 +3693,7 @@ document.getElementById('sessions-list').addEventListener('contextmenu', e => {
   });
   recolorAll();
   updateStats();
+  syncGroupHeads();
   setSessionEmphasis(null);
 });
 
@@ -3121,6 +3740,23 @@ document.getElementById('sessions-list').addEventListener('mouseleave', () => {
   setSessionEmphasis(null);
 });
 
+// v2.15: groep-besturing. Oog = hele soort tonen/verbergen; kop = in-/uitklappen.
+// Staat los van de session-row-handler (die vindt geen .session-row in een kop → returnt).
+document.getElementById('sessions-list').addEventListener('click', e => {
+  const eye = e.target.closest('.sg-eye');
+  if (eye) {
+    e.stopPropagation();
+    const wrap = eye.closest('.session-group');
+    if (wrap) toggleGroupVisibility(wrap.dataset.gkey);
+    return;
+  }
+  const head = e.target.closest('.session-group-head');
+  if (head) {
+    const wrap = head.closest('.session-group');
+    if (wrap) toggleGroupCollapse(wrap.dataset.gkey);
+  }
+});
+
 // ── TOGGLES ───────────────────────────────────────────────────────
 document.querySelectorAll('.dot-btn[data-type]').forEach(btn=>{
   btn.addEventListener('click',function(){
@@ -3137,6 +3773,56 @@ document.getElementById('cluster-toggle').addEventListener('click',function(){
   redrawAllClusters();
 });
 
+// ── Modusfilter (pocket) ───────────────────────────────────────────────────
+// Bouwt één knop per aanwezige pocket-modus in de 'Tonen'-groep. Idempotent:
+// herbouwt de rij alleen als de set modi verandert, en zet elke knop op zijn
+// bewaarde actief-status. Toggle → kaart, popup én stats volgen.
+function aanwezigeModi() {
+  const set = new Set();
+  Object.keys(sessions).forEach(sid => {
+    if (sessions[sid].appType === 'pocket') set.add(modusVan(sid));
+  });
+  // vaste volgorde: bekende modi eerst (MODUS_META), daarna de rest
+  const orde = Object.keys(MODUS_META);
+  return [...set].sort((a,b) => {
+    const ia = orde.indexOf(a), ib = orde.indexOf(b);
+    return (ia<0?99:ia) - (ib<0?99:ib) || a.localeCompare(b);
+  });
+}
+function buildModusToggles() {
+  const row = document.getElementById('modus-btn-row');
+  const modi = aanwezigeModi();
+  const sig = modi.join('|');
+  if (row.dataset.sig !== sig) {
+    row.innerHTML = modi.map(m => {
+      const kl = modusKleur(m);
+      return `<button class="dot-btn modus-btn${modusActief(m)?' active':''}" data-modus="${m}" ` +
+             `style="color:${kl}"><span class="dot" style="background:${kl}"></span>${modusLabel(m)}</button>`;
+    }).join('');
+    row.dataset.sig = sig;
+    row.querySelectorAll('.modus-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        actieveModi[this.dataset.modus] = this.classList.toggle('active');
+        onModusFilterChange();
+      });
+    });
+  } else {
+    // set behouden: synchroniseer active-status met de state
+    row.querySelectorAll('.modus-btn').forEach(btn => {
+      btn.classList.toggle('active', modusActief(btn.dataset.modus));
+    });
+  }
+}
+function onModusFilterChange() {
+  recolorAll();
+  updateStats();
+  // open weekprofiel meteen verversen zodat het rooster het filter volgt
+  const modal = document.getElementById('weekprofile-modal');
+  if (modal && !modal.classList.contains('hidden') && laatsteWegvakKey) {
+    if (!openWeekprofile(laatsteWegvakKey)) closeWeekprofile();
+  }
+}
+
 function toggleCapNetwerk(btn) {
   const on = btn.classList.toggle('active');
   capNetwerkLayers.forEach(function(l) { on ? l.addTo(map) : map.removeLayer(l); });
@@ -3151,6 +3837,7 @@ function resetAll() {
   if (!confirm('Alle geladen sessies verwijderen?')) return;
   // Verwijder alle kaartlagen
   Object.keys(wayLayers).forEach(function(k){ map.removeLayer(wayLayers[k]); });
+  Object.keys(wayHitLayers).forEach(function(k){ map.removeLayer(wayHitLayers[k]); });
   Object.keys(gpsLayers).forEach(function(sid){ map.removeLayer(gpsLayers[sid]); });
   Object.keys(clusterLayers).forEach(function(sid){
     (clusterLayers[sid]||[]).forEach(function(m){ map.removeLayer(m); });
@@ -3169,12 +3856,14 @@ function resetAll() {
   Object.keys(sessions).forEach(function(k){ delete sessions[k]; });
   Object.keys(wayData).forEach(function(k){ delete wayData[k]; });
   Object.keys(wayLayers).forEach(function(k){ delete wayLayers[k]; });
+  Object.keys(wayHitLayers).forEach(function(k){ delete wayHitLayers[k]; });
   Object.keys(gpsLayers).forEach(function(k){ delete gpsLayers[k]; });
   Object.keys(clusterLayers).forEach(function(k){ delete clusterLayers[k]; });
   Object.keys(capLayers).forEach(function(k){ delete capLayers[k]; });
   Object.keys(dotLayers).forEach(function(k){ delete dotLayers[k]; });
   Object.keys(telData).forEach(function(k){ delete telData[k]; });
   Object.keys(visitData).forEach(function(k){ delete visitData[k]; });
+  Object.keys(segSummary).forEach(function(k){ delete segSummary[k]; });
   Object.keys(capTelData).forEach(function(k){ delete capTelData[k]; });
   Object.keys(globalPolyMap).forEach(function(k){ delete globalPolyMap[k]; });
   Object.keys(SESSION_COLORS).forEach(function(k){ delete SESSION_COLORS[k]; });
@@ -3399,6 +4088,8 @@ function toggleTimeFilter(active) {
 }
 
 map.on('moveend', function() { if (timeFilterActive) drawTimeDots(); });
+map.on('click', onMapClickForPolygon);
+map.on('dblclick', onMapDblClickForPolygon);
 
 // ── UI ZICHTBAARHEID ─────────────────────────────────────────────
 function updateUI() {
@@ -3410,10 +4101,12 @@ function updateUI() {
   const hasAny  =hasFiets||hasAuto||hasCap||hasTransect||hasPocket;
 
   document.getElementById('statsbar').style.display      = hasAny  ?'flex':'none';
-  // Tonen-groep: alleen relevant bij fiets/auto (die hebben type-toggles)
-  document.getElementById('grp-tonen').style.display     = (hasFiets||hasAuto) ?'':'none';
+  // Tonen-groep: fiets/auto (type-toggles) én pocket (modus-filter)
+  document.getElementById('grp-tonen').style.display     = (hasFiets||hasAuto||hasPocket) ?'':'none';
   document.getElementById('toggles-fiets').style.display = hasFiets?'block':'none';
   document.getElementById('toggles-auto').style.display  = hasAuto ?'block':'none';
+  document.getElementById('toggles-modus').style.display = hasPocket?'block':'none';
+  if (hasPocket) buildModusToggles();
   // Weergave-groep: zinvol zodra er iéts geladen is
   document.getElementById('grp-weergave').style.display  = hasAny  ?'':'none';
   document.getElementById('legend').style.display        = hasAny  ?'block':'none';
@@ -3441,7 +4134,7 @@ function updateUI() {
 
 // ── STATS ─────────────────────────────────────────────────────────
 function updateStats() {
-  const visSids=Object.keys(sessions).filter(s=>sessions[s].visible);
+  const visSids=Object.keys(sessions).filter(s=>pocketZichtbaar(s));
   document.getElementById('s-sessies').textContent=visSids.length;
   const totL=Object.values(clusterLayers).reduce((a,arr)=>a+arr.length,0);
   document.getElementById('s-locaties').textContent=totL;
@@ -3788,6 +4481,10 @@ function exitEditMode() {
 
 // ── Drag handler + way-keuze popup ──────────────────────────────────
 
+// Aantal wegvak-keuzes in de correctie-popup (sleep- én klik-modus): de
+// huidige link plus alternatieven. Eén plek zodat het niet weer wegdrift.
+const WAY_CHOICE_N = 5;
+
 // Tijdelijke polyline om de way onder de muis te highlighten in de popup.
 let _hoverHL = null;
 function clearHoverHL() {
@@ -3798,13 +4495,13 @@ function showHoverHL(geometry) {
   if (!geometry || geometry.length < 2) return;
   _hoverHL = L.polyline(geometry, {
     color: '#ff9933', weight: 6, opacity: 0.85,
-    interactive: false, pane: 'overlayPane'
+    interactive: false, pane: 'wayhit'
   }).addTo(map);
 }
 
 function handleDragEnd(marker) {
   const dragLL = marker.getLatLng();
-  const candidates = findNearestWays(dragLL.lat, dragLL.lng, 3, 100);
+  const candidates = findNearestWays(dragLL.lat, dragLL.lng, WAY_CHOICE_N, 100);
   if (!candidates.length) {
     // Niets binnen 100m → terugzetten
     marker.setLatLng(marker._origLatLng);
@@ -3824,7 +4521,7 @@ function showWayChoicePopup(marker, anchorLL, candidates) {
   const isDragMode = !!candidates;
 
   if (!candidates) {
-    candidates = findNearestWays(anchorLL.lat, anchorLL.lng, 3, 100);
+    candidates = findNearestWays(anchorLL.lat, anchorLL.lng, WAY_CHOICE_N, 100);
     // Zorg dat de huidige way altijd bovenaan staat, ook als 'ie buiten 100m valt
     const curWid = r.osm_way_id;
     const idx = candidates.findIndex(function(c){ return String(c.wayId) === String(curWid); });
@@ -3840,7 +4537,7 @@ function showWayChoicePopup(marker, anchorLL, candidates) {
           geometry: wd.geometry,
           dist: nearestWayDist(anchorLL.lat, anchorLL.lng, wd.geometry)
         });
-        candidates = candidates.slice(0, 3);
+        candidates = candidates.slice(0, WAY_CHOICE_N);
       }
     }
   }
@@ -4168,17 +4865,221 @@ function loadFile(file) {
 }
 
 const dz=document.getElementById('dropzone'), fi=document.getElementById('file-input');
+const di=document.getElementById('dir-input');
+const bboxFilterCb=document.getElementById('bbox-filter-cb');
+const dzText=dz.querySelector('.dz-text');
+const dzTextHTML=dzText ? dzText.innerHTML : '';
+
+function isLoadable(file){
+  const n=(file.name||'').toLowerCase();
+  return n.endsWith('.zip') || n.endsWith('.csv');
+}
+
+// ── bbox-filter: alleen tellingen binnen het huidige kaartbeeld laden ────────
+// Opt-in (vinkje). Een bestand wordt geprobed op zijn geografische bbox uit
+// _netwerk.csv (terugval _gps.csv; losse stilstaand-CSV = één punt) zónder een
+// volledige laadbeurt; alleen treffers gaan daarna door de normale loadFile.
+function emptyBB(){ return {minLat:Infinity,maxLat:-Infinity,minLon:Infinity,maxLon:-Infinity}; }
+function validBB(b){ return b.minLat<=b.maxLat && b.minLon<=b.maxLon; }
+function bboxesOverlap(a,b){               // rechthoek-overlap; deel-overlap telt mee
+  return a.minLat<=b.maxLat && a.maxLat>=b.minLat &&
+         a.minLon<=b.maxLon && a.maxLon>=b.minLon;
+}
+function accWKTBounds(wkt,b){              // pak alle "lon lat"-paren (LINESTRING én POLYGON)
+  if(!wkt) return;
+  const re=/(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g; let m;
+  while((m=re.exec(String(wkt)))){
+    const lon=+m[1], lat=+m[2];
+    if(!isFinite(lat)||!isFinite(lon)) continue;
+    if(lat<b.minLat)b.minLat=lat; if(lat>b.maxLat)b.maxLat=lat;
+    if(lon<b.minLon)b.minLon=lon; if(lon>b.maxLon)b.maxLon=lon;
+  }
+}
+// → {minLat,maxLat,minLon,maxLon} of null als de bbox niet te bepalen is (dan: meenemen).
+async function probeBbox(file){
+  const n=(file.name||'').toLowerCase();
+  if(n.endsWith('.csv')){                 // losse stilstaand-telling: één punt
+    try{
+      const d=parseStandStillCsv(await file.text());
+      if(d && isFinite(d.lat) && isFinite(d.lon))
+        return {minLat:d.lat,maxLat:d.lat,minLon:d.lon,maxLon:d.lon};
+    }catch(e){}
+    return null;
+  }
+  if(!n.endsWith('.zip')) return null;
+  let zip;
+  try{ zip=await JSZip.loadAsync(file); }catch(e){ return null; }
+  const pick=suf=>{ const k=Object.keys(zip.files)
+        .find(k=>!zip.files[k].dir && k.toLowerCase().endsWith(suf)); return k?zip.files[k]:null; };
+  const net=pick('_netwerk.csv');         // voorkeursbron: gesnapte netwerk-geometrie
+  if(net){
+    try{
+      const b=emptyBB();
+      parseCSV(await net.async('text')).forEach(r=>accWKTBounds(r.geometrie_wkt,b));
+      if(validBB(b)) return b;
+    }catch(e){}
+  }
+  const gps=pick('_gps.csv');             // terugval: rauwe gps-punten
+  if(gps){
+    try{
+      const b=emptyBB();
+      parseCSV(await gps.async('text')).forEach(r=>{
+        const la=+r.lat, lo=+r.lon;
+        if(isFinite(la)&&isFinite(lo)){
+          if(la<b.minLat)b.minLat=la; if(la>b.maxLat)b.maxLat=la;
+          if(lo<b.minLon)b.minLon=lo; if(lo>b.maxLon)b.maxLon=lo;
+        }
+      });
+      if(validBB(b)) return b;
+    }catch(e){}
+  }
+  return null;
+}
+
+// Laadt de aangeleverde bestanden ÉÉN VOOR ÉÉN (sequentieel), op naam gesorteerd
+// voor een voorspelbare volgorde. loadFile geeft de zip/csv-promise terug, dus
+// await serialiseert echt — geen tientallen gelijktijdige JSZip-loads bij een map.
+// Staat het bbox-vinkje aan, dan worden bestanden buiten het (bevroren, 12%
+// gepadde) kaartbeeld eerst weggefilterd; een telling wordt nooit stil weggelaten.
+async function ingestFiles(files){
+  const ok=[...files].filter(isLoadable)
+                     .sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  if(!ok.length){
+    if(dzText) dzText.innerHTML=dzTextHTML;
+    alert('Geen ZIP- of CSV-bestanden gevonden.');
+    return 0;
+  }
+
+  const filterOn = !!(bboxFilterCb && bboxFilterCb.checked);
+  let toLoad=ok, skipped=0, frozenCenter=null, frozenZoom=null;
+
+  if(filterOn){
+    // Bevries het huidige beeld vóór de eerste (per-telling) fitBounds 'm verspringt.
+    frozenCenter=map.getCenter(); frozenZoom=map.getZoom();
+    const p=map.getBounds().pad(0.12);
+    const view={ minLat:p.getSouth(), maxLat:p.getNorth(), minLon:p.getWest(), maxLon:p.getEast() };
+    const keep=[];
+    for(let i=0;i<ok.length;i++){
+      if(dzText) dzText.innerHTML='⏳ filteren… '+(i+1)+'/'+ok.length;
+      let bb=null;
+      try{ bb=await probeBbox(ok[i]); }catch(e){ bb=null; }
+      // fail-open: een bestand waarvan we de bbox niet kunnen lezen, laden we toch.
+      if(bb===null || bboxesOverlap(bb,view)) keep.push(ok[i]);
+      else skipped++;
+    }
+    toLoad=keep;
+  }
+
+  for(let i=0;i<toLoad.length;i++){
+    if(dzText) dzText.innerHTML='⏳ laden… '+(i+1)+'/'+toLoad.length;
+    try{ await loadFile(toLoad[i]); }
+    catch(err){ console.error('Laden mislukt:', toLoad[i].name, err); }
+  }
+
+  if(filterOn){
+    // Terug naar het kader dat je bewust koos (de per-telling-fits negeren).
+    try{ map.setView(frozenCenter, frozenZoom, {animate:false}); }catch(e){}
+    if(dzText) dzText.innerHTML='✓ '+toLoad.length+'/'+ok.length+' binnen beeld geladen'+
+                                 (skipped?' · '+skipped+' overgeslagen':'');
+  }else{
+    if(dzText) dzText.innerHTML=dzTextHTML;
+  }
+  return toLoad.length;
+}
+
+// ── Map-drop: recursief alle bestanden uit gesleepte mappen verzamelen ──────
+// File-and-Directory-Entries-API (webkitGetAsEntry, desktop). De entries moeten
+// SYNCHROON uit het drop-event komen; daarna mogen we async doorlezen.
+function readAllEntries(reader){
+  // readEntries levert in batches (max ~100); doorlezen tot leeg.
+  return new Promise((resolve,reject)=>{
+    const all=[];
+    const next=()=>reader.readEntries(batch=>{
+      if(!batch.length) return resolve(all);
+      all.push(...batch); next();
+    }, reject);
+    next();
+  });
+}
+function walkEntry(entry){
+  if(entry.isFile)      return new Promise(res=>entry.file(f=>res([f]), ()=>res([])));
+  if(entry.isDirectory) return readAllEntries(entry.createReader())
+                          .then(kids=>Promise.all(kids.map(walkEntry)))
+                          .then(arrs=>arrs.flat());
+  return Promise.resolve([]);
+}
+function gatherFiles(entries){
+  return Promise.all(entries.map(walkEntry)).then(arrs=>arrs.flat());
+}
+
 dz.addEventListener('click',()=>fi.click());
-fi.addEventListener('change',e=>{ [...e.target.files].forEach(loadFile); fi.value=''; });
+fi.addEventListener('change',e=>{ ingestFiles(e.target.files); fi.value=''; });
+
+// Map kiezen via bestandskiezer (desktop-fallback). webkitdirectory levert een
+// platte FileList van álle bestanden in de map — geen recursie nodig op dit pad.
+if(di){
+  const pick=document.getElementById('dz-pickdir');
+  if(pick) pick.addEventListener('click',ev=>{ ev.stopPropagation(); di.click(); });
+  di.addEventListener('change',e=>{ ingestFiles(e.target.files); di.value=''; });
+}
+
 document.addEventListener('dragover',e=>{ e.preventDefault(); dz.classList.add('over'); });
 document.addEventListener('dragleave',e=>{ if(!e.relatedTarget) dz.classList.remove('over'); });
 document.addEventListener('drop',e=>{
   e.preventDefault(); dz.classList.remove('over');
-  [...e.dataTransfer.files].filter(f=>{
-    const n = f.name.toLowerCase();
-    return n.endsWith('.zip') || n.endsWith('.csv');
-  }).forEach(loadFile);
+  const dt=e.dataTransfer;
+  // Synchroon snapshotten — items/entries verlopen na de event-tick.
+  let entries=null;
+  if(dt.items && dt.items.length && dt.items[0].webkitGetAsEntry){
+    entries=[...dt.items].map(it=>it.webkitGetAsEntry()).filter(Boolean);
+  }
+  const plainFiles=[...dt.files];
+  if(entries && entries.length){
+    gatherFiles(entries).then(files=>ingestFiles(files));   // mappen + losse bestanden
+  }else{
+    ingestFiles(plainFiles);                                // browser zonder entries-API
+  }
 });
+
+// ── Smal scherm: sidebar als inschuif-lade ───────────────────────────
+(function(){
+  const NARROW = 720;
+  const sb = document.getElementById('sidebar');
+  const tg = document.getElementById('panel-toggle');
+  const bd = document.getElementById('drawer-backdrop');
+  if (!sb || !tg || !bd) return;
+  const isNarrow = () => window.innerWidth <= NARROW;
+  function drawer(open){
+    if (open && !isNarrow()) return;
+    sb.classList.toggle('open', open);
+    bd.classList.toggle('show', open);
+    tg.textContent = open ? '✕' : '☰';
+  }
+  tg.addEventListener('click', () => drawer(!sb.classList.contains('open')));
+  bd.addEventListener('click', () => drawer(false));
+
+  // sessie-/oog-tik → lade dicht, dan zie je het resultaat op de kaart
+  const sl = document.getElementById('sessions-list');
+  if (sl) sl.addEventListener('click', e => {
+    if (e.target.closest('.session-row') || e.target.closest('.sg-eye')) drawer(false);
+  });
+
+  // detailpaneel verschijnt (kaart-tik) → lade open zodat je 'm ziet
+  const dp = document.getElementById('detail-panel');
+  if (dp) new MutationObserver(() => {
+    if (isNarrow() && !dp.classList.contains('hidden')) drawer(true);
+  }).observe(dp, { attributes: true, attributeFilter: ['class'] });
+
+  // breekpunt kruisen → Leaflet hertekenen op nieuwe kaartbreedte; op desktop lade resetten
+  let t;
+  window.addEventListener('resize', () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      if (!isNarrow()) { sb.classList.remove('open'); bd.classList.remove('show'); }
+      try { map.invalidateSize(); } catch(e) {}
+    }, 150);
+  });
+})();
 </script>
 </body>
 </html>

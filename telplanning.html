@@ -72,6 +72,11 @@
     opacity: 0.7;
     font-family: var(--mono);
     white-space: nowrap;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
   }
 
   /* ── Layout ── */
@@ -113,7 +118,7 @@
   body.mode-dekking .maken-only { display: none !important; }
   body.mode-maken   .dekking-only { display: none !important; }
 
-  #dz-bezocht {
+  .dropzone {
     border: 1.5px dashed var(--border);
     border-radius: 4px;
     padding: 14px 10px;
@@ -123,11 +128,11 @@
     font-size: 0.75rem;
     transition: border-color 0.15s, color 0.15s;
   }
-  #dz-bezocht:hover, #dz-bezocht.over {
+  .dropzone:hover, .dropzone.over {
     border-color: var(--text); color: var(--text);
   }
-  #dz-bezocht input { display: none; }
-  #dz-bezocht .dz-icon { font-size: 1.4rem; margin-bottom: 4px; }
+  .dropzone input { display: none; }
+  .dropzone .dz-icon { font-size: 1.4rem; margin-bottom: 4px; }
 
   .matrix {
     display: grid;
@@ -190,6 +195,22 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+  /* Scrollende inhoud: alles behalve de vaste export-voet.
+     min-height:0 is nodig zodat een flex-kind écht mag scrollen i.p.v.
+     de container op te rekken (oorzaak van de afgekapte linkerkolom). */
+  #sidebar-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Vaste voet onderaan de sidebar — export blijft altijd bereikbaar. */
+  #sidebar-foot {
+    flex: 0 0 auto;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
   }
 
   .panel-section {
@@ -391,7 +412,6 @@
     text-transform: uppercase;
     cursor: pointer;
     transition: opacity 0.15s;
-    margin-top: auto;
   }
   #btn-export:hover { opacity: 0.85; }
   #btn-export:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -571,11 +591,23 @@
 
   <div id="sidebar">
 
+    <div id="sidebar-scroll">
+
     <!-- Tekenen — gedeeld tussen beide modi -->
     <div class="panel-section">
       <div class="section-title">Gebied</div>
       <button id="btn-draw" onclick="toggleDraw()">&#9998; Teken contour</button>
       <button id="btn-clear" onclick="clearAll()" style="display:none">&#10005; Wis alles</button>
+    </div>
+
+    <!-- Hertelling — planning reconstrueren uit een eerdere parkeer-/fietsZIP -->
+    <div class="panel-section maken-only">
+      <div class="section-title">Of: uit eerdere telling</div>
+      <label id="dz-hertelling" class="dropzone">
+        <div class="dz-icon">&#128260;</div>
+        <div>Sleep een parkeer- of fiets-ZIP hier<br>voor een hertelling</div>
+        <input type="file" id="hertelling-input" accept=".zip">
+      </label>
     </div>
 
     <!-- Highway-type toggles — gedeeld (filter werkt in beide modi) -->
@@ -672,7 +704,7 @@
     <!-- Dekkings-modus: ZIPs inladen -->
     <div class="panel-section dekking-only">
       <div class="section-title">Tellingen laden</div>
-      <label id="dz-bezocht">
+      <label id="dz-bezocht" class="dropzone">
         <div class="dz-icon">📂</div>
         <div>Sleep pocket-ZIPs hier<br>of klik om te kiezen</div>
         <input type="file" id="bezocht-input" multiple accept=".zip">
@@ -690,22 +722,6 @@
       </div>
     </div>
 
-    <!-- Opdrachten + Export — alleen in Maken -->
-    <div class="panel-section maken-only" style="margin-top:auto">
-      <button id="btn-opdrachten" onclick="openOpdrachten()"
-        style="width:100%;padding:9px;background:none;border:1px solid var(--border);
-               border-radius:3px;font-family:var(--font);font-size:0.7rem;font-weight:700;
-               letter-spacing:2px;text-transform:uppercase;color:var(--dim);cursor:pointer;
-               margin-bottom:8px;transition:border-color 0.1s,color 0.1s;"
-        onmouseover="this.style.borderColor='var(--text)';this.style.color='var(--text)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--dim)'">
-        &#9776; Opdrachten
-      </button>
-      <button id="btn-export" disabled onclick="exportPlanning()">
-        &#8595; Maak Telling
-      </button>
-    </div>
-
     <!-- Achtergrondkaart — beschikbaar in beide modi -->
     <div class="panel-section">
       <div class="section-title">Achtergrond</div>
@@ -721,6 +737,24 @@
                oninput="setBasemapOpacity(this.value)">
         <span class="pct" id="basemap-pct">100%</span>
       </div>
+    </div>
+
+    </div><!-- /#sidebar-scroll -->
+
+    <!-- Opdrachten + Export — vaste voet, alleen in Maken -->
+    <div id="sidebar-foot" class="maken-only">
+      <button id="btn-opdrachten" onclick="openOpdrachten()"
+        style="width:100%;padding:9px;background:none;border:1px solid var(--border);
+               border-radius:3px;font-family:var(--font);font-size:0.7rem;font-weight:700;
+               letter-spacing:2px;text-transform:uppercase;color:var(--dim);cursor:pointer;
+               margin-bottom:8px;transition:border-color 0.1s,color 0.1s;"
+        onmouseover="this.style.borderColor='var(--text)';this.style.color='var(--text)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--dim)'">
+        &#9776; Opdrachten
+      </button>
+      <button id="btn-export" disabled onclick="exportPlanning()">
+        &#8595; Maak Telling
+      </button>
     </div>
 
   </div>
@@ -1190,7 +1224,8 @@ function processWays(elements, geojsonPoly) {
   applyVisibility();
   updateCounts();
   updateStats();
-  document.getElementById('btn-export').disabled = (ways.filter(function(w){return w.selected;}).length === 0);
+  document.getElementById('btn-export').disabled =
+    (ways.filter(function(w){ return w.visible && w.selected; }).length === 0);
 
   var nIn  = ways.filter(function(w){ return w.selected; }).length;
   var nBuf = ways.filter(function(w){ return !w.selected; }).length;
@@ -1293,9 +1328,17 @@ function applyWayStyle(way) {
       if (map.hasLayer(way.segHits[i])) map.removeLayer(way.segHits[i]);
     });
   }
-  if (way.visible && !map.hasLayer(way.layer)) way.layer.addTo(map);
-  if (way.visible && way.layer._hitLayer && !map.hasLayer(way.layer._hitLayer))
-    way.layer._hitLayer.addTo(map);
+  if (way.visible) {
+    if (!map.hasLayer(way.layer)) way.layer.addTo(map);
+    if (way.layer._hitLayer && !map.hasLayer(way.layer._hitLayer))
+      way.layer._hitLayer.addTo(map);
+  } else {
+    // Wegtype uitgezet → laag van de kaart halen (was eerder blijven staan)
+    if (map.hasLayer(way.layer)) map.removeLayer(way.layer);
+    if (way.layer._hitLayer && map.hasLayer(way.layer._hitLayer))
+      map.removeLayer(way.layer._hitLayer);
+    return;
+  }
 
   var sel = way.selected;
   way.layer.setStyle({
@@ -1378,7 +1421,9 @@ function updateStats() {
 
 // ── Status ────────────────────────────────────────────────────────────────────
 function setStatus(msg) {
-  document.getElementById('status-bar').textContent = msg;
+  var el = document.getElementById('status-bar');
+  el.textContent = msg;
+  el.title = msg;   // volledige tekst bereikbaar als de regel inkort (ellipsis)
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
@@ -1606,7 +1651,11 @@ function updateCoverageStats() {
     return;
   }
   var header = loadedZips + ' ZIP\u00b7' + loadedVisits + ' bezoeken';
-  if (!selectedCell || !ways.length) {
+  if (!ways.length) {
+    el.innerHTML = header + '<br><span style="opacity:0.7">Teken een contour om de dekking op de kaart te kleuren.</span>';
+    return;
+  }
+  if (!selectedCell) {
     el.innerHTML = header;
     return;
   }
@@ -1672,6 +1721,20 @@ function extractSessieId(csv) {
   return null;
 }
 
+// Bouwt een Date uit aparte datum- en tijdvelden zónder string-parsing,
+// zodat het op Safari identiek werkt aan Chrome (Safari's Date(string)-parser
+// is strenger: een tijd zonder seconden of met spatie faalt daar stil).
+// datum = 'YYYY-MM-DD', tijd = 'HH:MM' of 'HH:MM:SS' (evt. met overige rommel).
+function parseDatumTijd(datumStr, tijdStr) {
+  var dm = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(datumStr).trim());
+  if (!dm) return null;
+  var tm = /(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(String(tijdStr).trim());
+  if (!tm) return null;
+  var y = +dm[1], mo = +dm[2] - 1, day = +dm[3];
+  var hh = +tm[1], mi = +tm[2], ss = tm[3] ? +tm[3] : 0;
+  return new Date(y, mo, day, hh, mi, ss);
+}
+
 function ingestBezochtCsv(csv) {
   var lines = csv.split(/\r?\n/).filter(function(l){ return l.trim(); });
   if (lines.length < 2) return;
@@ -1692,8 +1755,8 @@ function ingestBezochtCsv(csv) {
     if (!datumStr || !widStr || !startStr) continue;
     var segIdx = (idxSeg >= 0 && cols[idxSeg]) ? parseInt(cols[idxSeg], 10) : 0;
     if (isNaN(segIdx)) segIdx = 0;
-    var d = new Date(datumStr + 'T' + startStr);
-    if (isNaN(d.getTime())) continue;
+    var d = parseDatumTijd(datumStr, startStr);
+    if (!d || isNaN(d.getTime())) continue;
     var dt = dagtypeForDate(d);
     var hh = d.getHours() + d.getMinutes()/60;
     var dd = dagdeelForTime(hh);
@@ -1703,6 +1766,161 @@ function ingestBezochtCsv(csv) {
     coverage[sk][key] = (coverage[sk][key] || 0) + 1;
     loadedVisits++;
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Hertelling — planning reconstrueren uit een eerder gelopen parkeer-/fietsZIP.
+// Wegenset = de straten uit _straten.csv (set B), geometrie gejoind uit
+// _netwerk.csv. De ways gaan als pseudo-Overpass-elementen door de bestaande
+// processWays()-pijplijn: zelfde way-objecten, lagen, selectie, stats en zoom.
+// ════════════════════════════════════════════════════════════════════════════
+
+// WKT 'LINESTRING (lon lat, lon lat, …)' → [[lat,lon], …] voor Leaflet.
+function parseWktLine(wkt) {
+  if (!wkt) return [];
+  var inner = wkt.replace(/^\s*LINESTRING\s*\(/i, '').replace(/\)\s*$/, '');
+  return inner.split(',').map(function(p) {
+    var xy = p.trim().split(/\s+/).map(Number);
+    return [xy[1], xy[0]];   // lat, lon
+  }).filter(function(c){ return !isNaN(c[0]) && !isNaN(c[1]); });
+}
+
+// Eerstvolgend moment met dezelfde weekdag én klokstijd, strikt in de toekomst.
+// Bron di 15:00 → komende dinsdag 15:00 (vandaag mag, als die tijd nog komt).
+function nextComparableMoment(datumStr, tijdStr) {
+  var src = parseDatumTijd(datumStr, tijdStr);
+  if (!src) return null;
+  var now = new Date();
+  var dow = src.getDay(), hh = src.getHours(), mi = src.getMinutes();
+  var delta = (dow - now.getDay() + 7) % 7;
+  var cand = new Date(now.getFullYear(), now.getMonth(), now.getDate() + delta, hh, mi, 0);
+  if (cand <= now) cand = new Date(cand.getFullYear(), cand.getMonth(), cand.getDate() + 7, hh, mi, 0);
+  return cand;
+}
+
+// Mini CSV-parser: header → {idx:{kolom→i}, rows:[[cols],…]}.
+function parseCsvSimple(text) {
+  var lines = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  if (!lines.length) return { idx:{}, rows:[] };
+  var header = lines[0].split(';').map(function(h){ return h.trim(); });
+  var idx = {};
+  header.forEach(function(h,i){ idx[h] = i; });
+  return { idx: idx, rows: lines.slice(1).map(function(l){ return l.split(';'); }) };
+}
+
+function makenUitZip(file) {
+  if (!file) return;
+  setStatus('Hertelling: ' + file.name + ' inlezen\u2026');
+  JSZip.loadAsync(file).then(function(zip) {
+    function find(suffix) {
+      var n = Object.keys(zip.files).find(function(k){ return new RegExp(suffix + '$').test(k); });
+      return n ? zip.files[n].async('string') : Promise.resolve(null);
+    }
+    return Promise.all([ find('_straten\\.csv'), find('_netwerk\\.csv'), find('_sessie\\.csv') ]);
+  }).then(function(t) {
+    var stratenTxt = t[0], netwerkTxt = t[1], sessieTxt = t[2];
+    if (!stratenTxt) { setStatus('Geen _straten.csv in ZIP \u2014 kies een parkeer- of fietsZIP.'); return; }
+    if (!netwerkTxt) { setStatus('Geen _netwerk.csv in ZIP \u2014 geometrie ontbreekt.'); return; }
+
+    // 1. Geometrie + highway per way-id uit netwerk (stitch bij segment-variant).
+    var net = parseCsvSimple(netwerkTxt);
+    var iWid = net.idx['osm_way_id'], iHw = net.idx['highway'], iWkt = net.idx['geometrie_wkt'];
+    var iSeg = ('segment_index' in net.idx) ? net.idx['segment_index'] : -1;
+    if (iWid === undefined || iWkt === undefined) { setStatus('netwerk.csv mist verplichte kolommen.'); return; }
+    var geom = {};   // way-id → { highway, segs:[{idx,coords}] }
+    net.rows.forEach(function(c) {
+      var wid = (c[iWid]||'').trim(); if (!wid) return;
+      var coords = parseWktLine(c.slice(iWkt).join(';').trim());   // WKT kan ; bevatten
+      if (coords.length < 2) return;
+      if (!geom[wid]) geom[wid] = { highway: (iHw>=0 ? (c[iHw]||'').trim() : ''), segs: [] };
+      var sidx = (iSeg >= 0 && c[iSeg]) ? parseInt(c[iSeg],10) : 0;
+      geom[wid].segs.push({ idx: isNaN(sidx)?0:sidx, coords: coords });
+    });
+    function fullCoords(wid) {
+      var g = geom[wid]; if (!g) return null;
+      if (g.segs.length === 1) return g.segs[0].coords;
+      var out = [];
+      g.segs.slice().sort(function(a,b){ return a.idx - b.idx; }).forEach(function(s) {
+        s.coords.forEach(function(pt) {
+          var last = out[out.length-1];
+          if (!last || last[0] !== pt[0] || last[1] !== pt[1]) out.push(pt);
+        });
+      });
+      return out.length >= 2 ? out : null;
+    }
+
+    // 2. Straatnaam per way-id uit straten (set B: precies deze wegen tellen mee).
+    var str = parseCsvSimple(stratenTxt);
+    var iNaam = ('naam' in str.idx) ? str.idx['naam'] : -1;
+    var iWids = ('osm_way_ids' in str.idx) ? str.idx['osm_way_ids'] : -1;
+    if (iWids < 0) { setStatus('straten.csv mist osm_way_ids.'); return; }
+    var wantName = {};
+    str.rows.forEach(function(c) {
+      var naam = (iNaam>=0 ? (c[iNaam]||'').trim() : '');
+      (c[iWids]||'').split('|').forEach(function(w){ w = w.trim(); if (w) wantName[w] = naam; });
+    });
+
+    // 3. Pseudo-Overpass-elementen → bestaande processWays-pijplijn.
+    var elements = [], gemist = 0;
+    Object.keys(wantName).forEach(function(wid) {
+      var coords = fullCoords(wid);
+      if (!coords) { gemist++; return; }
+      var hw = (geom[wid] && geom[wid].highway) || '';
+      elements.push({
+        type: 'way', id: wid,
+        tags: { highway: hw, name: wantName[wid] || ('(' + hw + ')') },
+        geometry: coords.map(function(p){ return { lat: p[0], lon: p[1] }; })
+      });
+    });
+    if (!elements.length) { setStatus('Geen koppelbare wegen (straten \u2229 netwerk leeg).'); return; }
+
+    clearAll();                  // schone lei: geen contour, geen oude wegen
+    setMode('maken');
+    processWays(elements, null); // null poly → alles binnen → alles geselecteerd
+    prefillUitSessie(sessieTxt, gemist);
+  }).catch(function(err) {
+    setStatus('Hertelling-fout: ' + (err && err.message ? err.message : err));
+  });
+}
+
+function prefillUitSessie(sessieTxt, gemist) {
+  var teller = '', appType = 'auto', srcDatum = '', srcTijd = '';
+  if (sessieTxt) {
+    var s = parseCsvSimple(sessieTxt);
+    if (s.rows.length) {
+      var r = s.rows[0];
+      if ('teller'     in s.idx) teller   = (r[s.idx['teller']]    ||'').trim();
+      if ('app_type'   in s.idx) appType  = (r[s.idx['app_type']]  ||'').trim() || 'auto';
+      if ('datum'      in s.idx) srcDatum = (r[s.idx['datum']]     ||'').trim();
+      if ('start_tijd' in s.idx) srcTijd  = (r[s.idx['start_tijd']]||'').trim();
+    }
+  }
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+
+  // Naam: het gebied staat NIET in de ZIP (alleen de planning-JSON had 'm, en
+  // die reist niet mee). Daarom een herkenbaar anker op brondatum + 'hertelling'.
+  var bronLabel = srcDatum ? srcDatum.split('-').reverse().join('-') : '';   // YYYY-MM-DD → DD-MM-YYYY
+  var naamEl = document.getElementById('meta-naam');
+  naamEl.value = 'hertelling' + (bronLabel ? ' ' + bronLabel : '');
+
+  if (teller) document.getElementById('meta-teller').value = teller;
+  document.getElementById('meta-teltype').value = (appType === 'fiets') ? 'fiets' : 'auto';
+
+  var when = nextComparableMoment(srcDatum, srcTijd);
+  if (when) {
+    document.getElementById('meta-datum').value =
+      when.getFullYear()+'-'+pad(when.getMonth()+1)+'-'+pad(when.getDate());
+    document.getElementById('meta-tijd').value = pad(when.getHours())+':'+pad(when.getMinutes());
+  }
+
+  naamEl.focus(); naamEl.select();   // naam alvast geselecteerd om over te typen
+
+  var DAGEN = ['zo','ma','di','wo','do','vr','za'];
+  var extra = gemist ? ' \u00b7 ' + gemist + ' zonder geometrie overgeslagen' : '';
+  var wanneer = when ? (' \u2014 voorstel: ' + DAGEN[when.getDay()] + ' '
+     + pad(when.getDate())+'-'+pad(when.getMonth()+1)+' '
+     + pad(when.getHours())+':'+pad(when.getMinutes())) : '';
+  setStatus('Hertelling klaar: ' + ways.length + ' wegen' + extra + wanneer);
 }
 
 // Dropzone-koppeling
@@ -1716,6 +1934,23 @@ function ingestBezochtCsv(csv) {
   dz.addEventListener('drop', function(e) {
     e.preventDefault(); dz.classList.remove('over');
     handleBezochtFiles(e.dataTransfer.files);
+  });
+})();
+
+// Hertelling-dropzone — één ZIP → planning reconstrueren.
+(function() {
+  var dz = document.getElementById('dz-hertelling');
+  var inp = document.getElementById('hertelling-input');
+  if (!dz || !inp) return;
+  function firstZip(files) {
+    return Array.from(files).filter(function(f){ return f.name.endsWith('.zip'); })[0] || null;
+  }
+  inp.addEventListener('change', function(){ makenUitZip(firstZip(this.files)); });
+  dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function(){ dz.classList.remove('over'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault(); dz.classList.remove('over');
+    makenUitZip(firstZip(e.dataTransfer.files));
   });
 })();
 

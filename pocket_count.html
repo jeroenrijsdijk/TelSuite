@@ -473,13 +473,23 @@
     background: #1a1a1a; color: #fff; flex-direction: column;
     padding: 14px 12px calc(70px + env(safe-area-inset-bottom)); gap: 10px; box-sizing: border-box;
   }
-  #ws-total {
+  #ws-total, #pk-total {
     width: 100%; background: #000; border-radius: 6px; padding: 8px 16px;
     display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; box-sizing: border-box;
   }
-  #ws-total .lbl { font-size: 0.7rem; letter-spacing: 2px; color: #888; text-transform: uppercase; }
-  #ws-total .val { font-family: monospace; font-size: 1.8rem; font-weight: 700; }
+  #ws-total .lbl, #pk-total .lbl { font-size: 0.7rem; letter-spacing: 2px; color: #888; text-transform: uppercase; }
+  #ws-total .val, #pk-total .val { font-family: monospace; font-size: 1.8rem; font-weight: 700; }
   #ws-cards { flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  /* Parkeren-modus (v2.17): zelfde kaartstijl, 2×2-grid — alle vier even groot. */
+  #parkeer-screen {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: #1a1a1a; color: #fff; flex-direction: column;
+    padding: 14px 12px calc(70px + env(safe-area-inset-bottom)); gap: 10px; box-sizing: border-box;
+  }
+  #pk-cards {
+    flex: 1; min-height: 0;
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px;
+  }
   .ws-card {
     flex: 1; position: relative; border-radius: 12px; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
@@ -496,13 +506,13 @@
     font-size: 1.6rem; font-weight: 700; color: rgba(255,255,255,0.85); -webkit-tap-highlight-color: transparent;
   }
   .ws-undo:active { background: rgba(0,0,0,0.5); }
-  #ws-stop, #ws-back {
+  #ws-stop, #ws-back, #pk-stop, #pk-back {
     position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 60;
     padding: 12px 18px; border: none; border-radius: 6px; font-family: var(--font);
     font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
   }
-  #ws-stop { right: 14px; background: #c0392b; color: #fff; }
-  #ws-back { left: 14px; background: #333; color: rgba(255,255,255,0.8); }
+  #ws-stop, #pk-stop { right: 14px; background: #c0392b; color: #fff; }
+  #ws-back, #pk-back { left: 14px; background: #333; color: rgba(255,255,255,0.8); }
 </style>
 </head>
 <body>
@@ -533,6 +543,9 @@
     </button>
     <button class="type-btn" style="background:#6a4c93" onclick="chooseWinkelstraat()">
       <span class="icon">&#x1F6CD;&#xFE0F;</span><span class="lbl">Winkelstraat</span>
+    </button>
+    <button class="type-btn" style="background:#2e6b8a" onclick="chooseParkeren()">
+      <span class="icon">&#x1F17F;&#xFE0F;</span><span class="lbl">Parkeren</span>
     </button>
     <p id="mode-note" style="margin:4px 2px 0;min-height:1.1em;font-family:var(--font);font-size:0.8rem;font-weight:600;letter-spacing:1px;color:rgba(255,255,255,0.55);text-align:center;"></p>
   </div>
@@ -689,6 +702,7 @@ var holdStart   = null;
 var wakeLock    = null;
 var watching    = null;
 var lastLat     = null, lastLon = null;
+var lastFixMs   = null;  // v2.17 tijdspoort: wandkloktijd van de vorige GPS-fix
 var routeLog    = [];   // [{ts, lat, lon, acc, wayId, osmName}]
 var lastRouteLat = null, lastRouteLon = null;
 var ROUTE_MIN_DIST = 5; // meter
@@ -729,6 +743,18 @@ function startGps() {
       if (pos.coords.speed != null && !isNaN(pos.coords.speed)) lastSpeed = pos.coords.speed;
       var acc = Math.round(pos.coords.accuracy || 0);
       lastAcc = acc;
+      // v2.17 tijdspoort: GPS-stilte langer dan TIME_GAP_RESET_S (gebouw-
+      // passage) verbreekt de continuïteit net zo hard als een teleport.
+      // Afstands-poorten zien dit niet (222s-gat met 25m verplaatsing gemeten).
+      var nowMs = Date.now();
+      if (lastFixMs !== null && (nowMs - lastFixMs) > TIME_GAP_RESET_S * 1000) {
+        var gapAnchor = snap.anchorWayId;
+        snap.anchorWayId = null; snap.anchorSegIdx = 0; snap.challenger = null;
+        snap.stallCount = 0; snap.stallPrev = null;
+        traceWrite({ type:'gps', tijdstip:nowIso(), accuracy:acc },
+                   lastLat, lastLon, 'time_gap_reset', gapAnchor, null, null, null, []);
+      }
+      lastFixMs = nowMs;
       gpsUpdateStability(lastLat, lastLon, acc, Date.now());
       snapCheckRefresh(lastLat, lastLon);
       // Huidige snap bepalen (kan null zijn als netwerk nog niet geladen is)
@@ -745,7 +771,15 @@ function startGps() {
         var cos = Math.cos(lastRouteLat * Math.PI / 180);
         var dx = (lastLon - lastRouteLon) * 111320 * cos;
         var dy = (lastLat - lastRouteLat) * 111320;
-        if (Math.sqrt(dx*dx + dy*dy) >= ROUTE_MIN_DIST) {
+        var routeStep = Math.sqrt(dx*dx + dy*dy);
+        if (routeStep >= ROUTE_MIN_DIST) {
+          // v2.17 stall-check op routepunt-cadans (≈5m, identiek aan de
+          // gevalideerde replay). Kan snapNow vervangen na een stall-reset.
+          snapNow = snapStallCheck(lastLat, lastLon, snapNow, routeStep,
+                                   {type:'gps', tijdstip:nowIso(), accuracy:acc});
+          widNow  = snapNow ? snapNow.wayId   : '';
+          nameNow = snapNow ? snapNow.osmName : '';
+          segNow  = snapNow ? snapNow.segIdx  : 0;
           routeLog.push({ ts: nowIso(), lat: lastLat, lon: lastLon, acc: acc, wayId: widNow, segIdx: segNow, osmName: nameNow });
           lastRouteLat = lastLat; lastRouteLon = lastLon;
         }
@@ -1082,6 +1116,124 @@ function closeWinkelScreen() {
 function wsBack() {
   if (telCount > 0 && !confirm('Terug? ' + telCount + ' tikken gaan verloren als je niet eerst downloadt.')) return;
   closeWinkelScreen();
+  backToModes();
+  document.getElementById('choose-screen').style.display = '';
+}
+
+// ── Parkeren-modus (v2.17) ────────────────────────────────────────────────────
+// Rijdende/lopende parkeertelling op pocket's snap-core, methodiek = simpel
+// tellen: één tik = één telHistory-regel met GPS + snap, verder niets. Vier
+// vaste categorieën in een 2×2-grid (kolom = zijde, rij = status). type/richting
+// passen in de bestáánde telregels.csv-kolommen — geen schemawijziging, wel
+// nieuwe waarden (type: leeg|bezet, richting: links|rechts) → KNIME gemeld.
+var PK_CATS = [
+  { side:'links',  status:'bezet', row:'top',    label:'Links · Bezet',  icon:'\uD83D\uDE97', col:'#b0342b' },
+  { side:'rechts', status:'bezet', row:'top',    label:'Rechts · Bezet', icon:'\uD83D\uDE97', col:'#b0342b' },
+  { side:'links',  status:'leeg',  row:'bottom', label:'Links · Leeg',   icon:'\u25FB\uFE0F',  col:'#3a7d44' },
+  { side:'rechts', status:'leeg',  row:'bottom', label:'Rechts · Leeg',  icon:'\u25FB\uFE0F',  col:'#3a7d44' }
+];
+function pkKey(c){ return c.side + '_' + c.status; }
+var pkCounts = {};
+
+function chooseParkeren() { startParkeren(); }
+
+function startParkeren() {
+  clearSession();
+  currentModus = 'parkeren';
+  telType = 'parkeren'; telLabel = 'Parkeren'; telIcon = '\uD83C\uDD7F\uFE0F';
+  telCount = 0; telHistory = []; routeLog = [];
+  lastRouteLat = null; lastRouteLon = null;
+  snap.elements = {};
+  snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
+  snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
+  startTime = new Date();
+  pkCounts = {}; PK_CATS.forEach(function(c){ pkCounts[pkKey(c)] = 0; });
+
+  document.getElementById('choose-screen').style.display = 'none';
+  document.getElementById('parkeer-screen').style.display = 'flex';
+  buildParkeerCards();
+  updateParkeerDisplay();
+  document.getElementById('pk-stop').style.display = '';
+  document.getElementById('pk-back').style.display = '';
+  initBattery();
+  acquireWakeLock();
+  startGps();
+}
+
+function buildParkeerCards() {
+  var c = document.getElementById('pk-cards');
+  c.innerHTML = '';
+  PK_CATS.forEach(function(cat){
+    var key = pkKey(cat);
+    var card = document.createElement('div');
+    card.className = 'ws-card';
+    card.style.background = cat.col;
+    card.setAttribute('onclick', "adjustParkeer('" + key + "',1)");
+    // Min-knop naar de binnenhoek van elke kaart — alle vier convergeren zo
+    // naar het midden van het 2×2-grid i.p.v. elk in hun eigen buitenhoek.
+    var vPos = (cat.row === 'top') ? 'bottom:10px;top:auto;' : 'top:10px;bottom:auto;';
+    var hPos = (cat.side === 'links') ? 'right:10px;left:auto;' : 'left:10px;right:auto;';
+    card.innerHTML =
+      '<div class="ws-icon">' + cat.icon + '</div>' +
+      '<div class="ws-label">' + cat.label + '</div>' +
+      '<div class="ws-count" id="pk-' + key + '">0</div>' +
+      '<div class="ws-undo" style="' + vPos + hPos + '" onclick="event.stopPropagation(); adjustParkeer(\'' + key + '\',-1)">\u2212</div>';
+    c.appendChild(card);
+  });
+}
+
+function adjustParkeer(key, delta) {
+  if (!(key in pkCounts)) return;
+  var parts = key.split('_');            // side_status
+  if (delta > 0) {
+    pkCounts[key]++;
+    telCount++;
+    var e = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId:'', segIdx:0, osmName:'',
+              type: parts[1], richting: parts[0] };
+    snapResolveTap(e);
+    if (navigator.vibrate) navigator.vibrate(25);
+  } else {
+    if (pkCounts[key] <= 0) return;
+    for (var i = telHistory.length - 1; i >= 0; i--) {
+      if (telHistory[i].type === parts[1] && telHistory[i].richting === parts[0]) {
+        var rem = telHistory.splice(i, 1)[0];
+        var qi = snap.pendingQueue.indexOf(rem);
+        if (qi >= 0) snap.pendingQueue.splice(qi, 1);
+        telCount = Math.max(0, telCount - 1);
+        pkCounts[key]--;
+        break;
+      }
+    }
+  }
+  updateParkeerDisplay();
+  saveSession();
+}
+
+function updateParkeerDisplay() {
+  var total = 0;
+  PK_CATS.forEach(function(c){
+    var key = pkKey(c);
+    var el = document.getElementById('pk-' + key);
+    if (el) {
+      el.textContent = pkCounts[key] || 0;
+      el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+    }
+    total += pkCounts[key] || 0;
+  });
+  document.getElementById('pk-total-val').textContent = total;
+}
+
+function closeParkeerScreen() {
+  document.getElementById('parkeer-screen').style.display = 'none';
+  document.getElementById('pk-stop').style.display = 'none';
+  document.getElementById('pk-back').style.display = 'none';
+  releaseWakeLock();
+  stopGps();
+}
+
+function pkBack() {
+  if (telCount > 0 && !confirm('Terug? ' + telCount + ' tikken gaan verloren als je niet eerst downloadt.')) return;
+  closeParkeerScreen();
   backToModes();
   document.getElementById('choose-screen').style.display = '';
 }
@@ -1636,25 +1788,34 @@ function buildBezochtCsv(sid, telHist) {
 // Generiek gehouden zodat de andere tools 'm 1-op-1 kunnen overnemen (2.8-migratie).
 function saveBlob(blob, filename, mime) {
   mime = mime || 'application/octet-stream';
-  // iOS-pad: deel als bestand wanneer dat kan
-  try {
-    if (navigator.canShare) {
-      var file = new File([blob], filename, { type: mime });
-      if (navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file] }).catch(function(){
-          // gebruiker annuleerde of gebaar verlopen — vangnet is de preview-knop
-        });
-        return;
+  // Alleen iOS via het deelblad (daar slaat een download-link slecht op).
+  // Android kent navigator.share OOK, maar wil juist een echte download — en
+  // share eist een levende user-gesture die na het comprimeren verlopen kan zijn.
+  var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+           || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) {
+    try {
+      if (navigator.canShare) {
+        var file = new File([blob], filename, { type: mime });
+        if (navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file] }).catch(function(){
+            // gebruiker annuleerde of gebaar verlopen — vangnet is de preview-knop
+          });
+          return;
+        }
       }
-    }
-  } catch (e) { /* val door naar de download-link */ }
-  // desktop/Android-pad: klassieke download-link
+    } catch (e) { /* val door naar de download-link */ }
+  }
+  // desktop/Android: klassieke download-link. Het anker MOET in de DOM hangen,
+  // anders negeert Android de programmatische click().
   var url = URL.createObjectURL(blob);
   var a   = document.createElement('a');
   a.href  = url;
   a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  setTimeout(function(){ try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
 }
 
 // Bewaart de laatst gegenereerde ZIP zodat de preview-knop 'm opnieuw kan
@@ -1822,7 +1983,10 @@ function reassignTrajectory() {
 
 function stopTelling() {
   var endTime = new Date();
-  var sid     = genSid() + '_pkt';
+  // modus-code in de sid → zichtbaar in de bestandsnaam én de sessie_id, zodat de
+  // reconstructor (die op sessie_id naamt) de code vanzelf behoudt.
+  var modusCode = ({ simpel: 's', transect: 't', winkelstraat: 'w', parkeren: 'p' })[currentModus] || 's';
+  var sid     = genSid() + '_pkt_' + modusCode;
   var datum   = fmtDate(startTime);
   var start   = fmtTime(startTime);
   var eind    = fmtTime(endTime);
@@ -1884,7 +2048,7 @@ function stopTelling() {
     zip.file(sid + '_snap_trace.csv', buildSnapTraceCsv(sid));
   }
 
-  zip.generateAsync({ type: 'blob' }).then(function(blob) {
+  zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 9 } }).then(function(blob) {
     // Bewaar voor het preview-vangnet (geen hercompressie nodig)
     lastZipBlob = blob;
     lastZipName = sid + '.zip';
@@ -1897,6 +2061,7 @@ function stopTelling() {
 
   if (currentModus === 'transect') closeTransectScreen();
   else if (currentModus === 'winkelstraat') closeWinkelScreen();
+  else if (currentModus === 'parkeren') closeParkeerScreen();
   else closeTelScreen();
   backToModes();
   document.getElementById('choose-screen').style.display = '';
@@ -2057,6 +2222,8 @@ function savePreviewZip() {
 // geen kompas-fusie. Graceful degradeert als Overpass niet bereikbaar is.
 
 var SNAP_ROAD_FETCH_RADIUS = 250;
+// Snap-netwerk highway-filter — HOUD GELIJK over alle tools (grep HIGHWAY_RE).
+var HIGHWAY_RE = 'residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path|track|bridleway|steps|corridor';
 // Een way blijft snap-kandidaat zolang z'n geometrie binnen deze straal van de
 // huidige fetch-positie ligt. Afgeleid: fetch-radius + de max. drift vóór een
 // re-fetch (re-fetch triggert bij 0.6×fetch-radius = 150m), dus precies het
@@ -2102,6 +2269,19 @@ var SNAP_OVERPASS          = ['https://overpass-api.de/api/interpreter', 'https:
 var SEGMENT_TARGET_M       = 40;
 var SEGMENT_MIN_M          = 60;
 
+// ── v2.17 fase 1: stall-detector + tijdspoort ────────────────────────────────
+// Stall: 'ik verplaats me, maar mijn positie-langs-de-link (snapM) vordert
+// niet' — het anker volgt de beweging niet meer (haaks kruisen, of vastgeklemd
+// op een way-uiteinde). Drempels veldgevalideerd via replay op 4 rig-sessies
+// (juli 2026): raak op alle echte stalls, nul valse triggers, robuust over
+// S_MIN 3–4 / RATIO 0.3–0.5 / K 2–3. Zie overdracht v2.17.
+var STALL_S_MIN      = 3;    // m verplaatsing per routepunt vóór de meting meetelt
+var STALL_RATIO      = 0.3;  // |ΔsnapM| < ratio·stap ⇒ beweging projecteert niet op de link
+var STALL_K          = 3;    // opeenvolgende stall-metingen → volledige anker-reset
+// Tijdspoort: GPS-stilte (gebouwpassage; 222s waargenomen) is onzichtbaar voor
+// alle afstands-poorten. Langer dan dit = teleport: continuïteit is verbroken.
+var TIME_GAP_RESET_S = 25;
+
 var snap = {
   // ── Snap-subsysteem state (alle mutable runtime-state in één bag) ──
   // Constanten blijven gewone globals hierboven; functies houden hun snap*-prefix.
@@ -2125,6 +2305,23 @@ var snap = {
   // Uitdager-debounce: de buur die het anker uitdaagt over opeenvolgende fixes.
   // Klapt pas om na SWITCH_CONFIRM keer; één jitter-fix laat de count niet vollopen.
   challenger:   null,    // {wayId, count}
+
+  // Stall-detector (v2.17): teller + vorige-routepunt-referentie op ~5m-cadans.
+  stallCount:   0,
+  stallPrev:    null,    // {wayId, snapM} van het vorige routepunt
+
+  // Fetch-volgorde-guard (v2.17): een trage, voorbijgestreefde Overpass-respons
+  // mag cacheLat/Lon niet met een verouderde positie overschrijven.
+  fetchSeq:     0,       // oplopend id per logische fetch-aanvraag
+  fetchApplied: 0,       // hoogste id waarvan de respons is toegepast
+
+  // Fetch-discipline (v2.18): voorkom de fetch-storm die ontstond wanneer het
+  // netwerk aanhoudend onbereikbaar was (bv. slechte dekking of iOS-achtergrond-
+  // onderdrukking). Zonder rem vuurde snapCheckRefresh bij ELKE GPS-fix een verse
+  // fetch zolang cacheLat null bleef — in één veldsessie 610 pogingen.
+  fetchInFlight: false,  // true zolang er een fetch loopt (één tegelijk)
+  fetchCooldownUntil: 0, // ms-timestamp: vóór dit moment geen nieuwe fetch starten
+  fetchFailStreak: 0,    // opeenvolgende mislukte logische aanvragen (voedt backoff)
 
   // Live zekerheidstoestand (UI + geërfd door taps).
   confScore:    null,    // gesmoothed [0,1], of null = nog onbekend
@@ -2427,7 +2624,8 @@ function snapNearestWay(lat, lon, eventInfo) {
       lon: snap.cacheLon + chosen.info.pt.x/(111320*cos),
       wayId: chosen.wayId,
       segIdx: segIdx,
-      osmName: s.osmName
+      osmName: s.osmName,
+      snapM: snapM   // v2.17: positie langs de link, input voor de stall-detector
     };
   }
 
@@ -2594,6 +2792,41 @@ function snapNearestWay(lat, lon, eventInfo) {
   return result;
 }
 
+// ── v2.17: stall-detector ────────────────────────────────────────────────────
+// Pure tellerstap op de ~5m-routepunt-cadans (identiek aan de rig/replay):
+// zelfde way ∧ stap ≥ STALL_S_MIN ∧ |ΔsnapM| < STALL_RATIO·stap → teller +1;
+// anders teller = 0. Stilstand (stap < S_MIN) is geen bewijs: geen decay.
+function snapStallStep(count, sameWay, stepM, dSnapAbs) {
+  if (!sameWay) return 0;
+  if (stepM < STALL_S_MIN) return count;
+  return (dSnapAbs < STALL_RATIO * stepM) ? count + 1 : 0;
+}
+
+// Wrapper om de snap-aanroep, ná snapNearestWay op routepunt-cadans. Bij
+// STALL_K opeenvolgende stalls: volledige anker-reset (hergebruik van het
+// bestaande reset-pad) + herbootstrap binnen dezelfde fix. De herbootstrap mag
+// dezelfde way herkiezen — dan vuurt de detector desnoods opnieuw; de trace
+// maakt dat zichtbaar (snap_path 'stall_reset', anchor_before → chosen_way).
+function snapStallCheck(lat, lon, res, stepM, evt) {
+  if (!res) { snap.stallCount = 0; snap.stallPrev = null; return res; }
+  var sameWay = !!(snap.stallPrev && snap.stallPrev.wayId === res.wayId);
+  var dAbs = sameWay ? Math.abs(res.snapM - snap.stallPrev.snapM) : 0;
+  snap.stallCount = snapStallStep(snap.stallCount, sameWay, stepM, dAbs);
+  if (snap.stallCount >= STALL_K) {
+    var oldWay = res.wayId;
+    snap.anchorWayId = null; snap.anchorSegIdx = 0; snap.challenger = null;
+    snap.stallCount = 0; snap.stallPrev = null;
+    var res2 = snapNearestWay(lat, lon, null);  // herbootstrap, eigen trace hieronder
+    traceWrite({ type:'stall', tijdstip:(evt && evt.tijdstip) || nowIso(),
+                 accuracy:(evt && evt.accuracy != null) ? evt.accuracy : '' },
+               lat, lon, 'stall_reset', oldWay, res2 ? res2.wayId : null,
+               null, null, []);
+    if (res2) res = res2;
+  }
+  snap.stallPrev = { wayId: res.wayId, snapM: res.snapM };
+  return res;
+}
+
 // Schrijf één regel naar de snap-trace. anchor_after = snap.anchorWayId nú,
 // na alle eventuele wijzigingen in deze snap-aanroep.
 function traceWrite(evt, lat, lon, snapPath, anchorBefore, chosenWay, dAnchor, dChosen, alts) {
@@ -2621,17 +2854,70 @@ function traceWrite(evt, lat, lon, snapPath, anchorBefore, chosenWay, dAnchor, d
   });
 }
 
-function snapFetchNetwork(lat, lon, attempt) {
+// Compacte trace-regel voor fetch-lifecycle-events (fail/stale/giveup) —
+// v2.17: mislukkingen waren voorheen volledig stil (autorit 13 juli: ~80
+// stille misses onvindbaar in de export). snap_path draagt de details.
+function traceFetchEvent(event, lat, lon, detail) {
+  snap.traceSeq++;
+  snap.trace.push({
+    seq: snap.traceSeq, tijdstip: new Date().toISOString().slice(0,19),
+    event: event, lat: lat.toFixed(7), lon: lon.toFixed(7), accuracy: '',
+    anchor_before: snap.anchorWayId||'', snap_path: detail,
+    chosen_way: '', d_anchor: '', d_chosen: '', alternatives: '',
+    anchor_after: snap.anchorWayId||'', tap_nr: '',
+    conf: (snap.confScore === null) ? "" : snap.confScore.toFixed(2),
+    conf_level: snap.confLevel,
+    gps_stab: (snap.gpsStabScore === null) ? "" : snap.gpsStabScore.toFixed(2),
+    gps_level: snap.gpsStabLevel
+  });
+}
+
+function snapFetchNetwork(lat, lon, attempt, fid) {
   if (attempt===undefined) attempt=0;
-  if (attempt>=SNAP_OVERPASS.length*2) return;
+  // v2.18 fetch-discipline — alleen bij een VERSE aanvraag (attempt 0), niet bij
+  // een interne retry (die heeft z'n plek in de rij al).
+  if (attempt===0) {
+    if (snap.fetchInFlight) return;                 // één fetch tegelijk
+    if (Date.now() < snap.fetchCooldownUntil) return; // nog in cooldown na fout
+    snap.fetchInFlight = true;
+  }
+  if (fid===undefined) fid = ++snap.fetchSeq;   // v2.17: id per logische aanvraag
+  if (attempt>=SNAP_OVERPASS.length*2) {
+    snap.fetchInFlight = false;
+    snap.fetchFailStreak++;
+    // v2.18: zolang er nog NOOIT een netwerk binnenkwam (cacheLat===null) is dit
+    // fataal — zonder netwerk snapt niets. Dan NIET opgeven maar blijven proberen
+    // met oplopende backoff (tot 8s). Pas als er ooit een netwerk was, geldt de
+    // normale giveup: een mislukte refresh is dan niet fataal (oud netwerk blijft).
+    if (snap.cacheLat===null) {
+      traceFetchEvent('fetch_retry_first', lat, lon, 'fid:'+fid+'|streak:'+snap.fetchFailStreak);
+      setTimeout(function(){ snapFetchNetwork(lat,lon); }, snapBackoffMs(snap.fetchFailStreak));
+      return;
+    }
+    traceFetchEvent('fetch_giveup', lat, lon, 'fid:'+fid+'|attempts:'+attempt);
+    snap.fetchCooldownUntil = Date.now() + snapBackoffMs(snap.fetchFailStreak);
+    return;
+  }
   var epIdx=attempt%SNAP_OVERPASS.length;
   // body geom: levert tags + node-IDs (el.nodes) + geometrie. Node-IDs zijn nodig
   // voor adjacency-detectie (twee ways grenzen aan elkaar via gedeelde node-ID).
-  var query='[out:json][timeout:8];way["highway"~"residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path|steps|corridor"]["area"!="yes"](around:'+SNAP_ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out body geom;';
+  var query='[out:json][timeout:8];way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"](around:'+SNAP_ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out body geom;';
   fetch(SNAP_OVERPASS[epIdx]+'?data='+encodeURIComponent(query))
     .then(function(r){ return r.ok?r.json():Promise.reject(r.status); })
     .then(function(data) {
       if (!data.elements||!data.elements.length) throw new Error('geen wegen');
+      // v2.17 volgorde-guard: is er intussen een níéuwere fetch toegepast, dan
+      // is deze respons verouderd — cacheLat/Lon en segs niet overschrijven.
+      if (fid <= snap.fetchApplied) {
+        traceFetchEvent('fetch_stale', lat, lon, 'fid:'+fid+'|applied:'+snap.fetchApplied);
+        snap.fetchInFlight = false;   // v2.18: verouderde respons, maar guard wel vrij
+        return;
+      }
+      snap.fetchApplied = fid;
+      // v2.18: geslaagd — guard vrij, backoff-teller terug naar nul.
+      snap.fetchInFlight = false;
+      snap.fetchFailStreak = 0;
+      snap.fetchCooldownUntil = 0;
       snap.cacheLat=lat; snap.cacheLon=lon;
       // Stap 1 — accumuleer de verse fetch in snap.elements + adjacency ZODAT de
       // segs-herbouw hieronder de nieuwe ways al meeneemt. (Volgorde t.o.v. <2.8:
@@ -2692,12 +2978,37 @@ function snapFetchNetwork(lat, lon, attempt) {
         snap.pendingQueue = [];
       }
     })
-    .catch(function(){ snapFetchNetwork(lat,lon,attempt+1); });
+    .catch(function(err){
+      // v2.17: elke mislukte poging zichtbaar in de trace (was volledig stil).
+      traceFetchEvent('fetch_fail', lat, lon,
+        'fid:'+fid+'|ep:'+epIdx+'|attempt:'+attempt+'|err:'+String(err).slice(0,60));
+      // v2.18: wacht vóór de volgende poging (exponentieel) i.p.v. onmiddellijk
+      // opnieuw vuren. De in-flight guard blijft aan: dit is dezelfde logische
+      // aanvraag die z'n volgende poging afwacht.
+      setTimeout(function(){ snapFetchNetwork(lat,lon,attempt+1,fid); },
+                 snapBackoffMs(attempt+1));
+    });
+}
+
+// v2.18: exponentiële backoff met plafond. 500·2^(n-1), gemaximeerd op 8s, zodat
+// een aanhoudend onbereikbaar netwerk de tool niet laat malen maar ook niet te
+// lang blind blijft zodra de dekking terugkeert.
+function snapBackoffMs(n) {
+  return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000);
 }
 
 var _snapRefreshTimer = null;
 function snapCheckRefresh(lat, lon) {
-  if (snap.cacheLat===null) { snapFetchNetwork(lat,lon); return; }
+  if (snap.cacheLat===null) {
+    // v2.18: eerste netwerk nog niet binnen. snapFetchNetwork weigert zelf nieuwe
+    // aanvragen tijdens in-flight of cooldown, dus deze poort veroorzaakt geen
+    // storm meer. We debouncen 'm bovendien, zodat een tros GPS-fixes samenvalt
+    // tot één poging i.p.v. één per fix.
+    if (snap.fetchInFlight || Date.now() < snap.fetchCooldownUntil) return;
+    if (_snapRefreshTimer) clearTimeout(_snapRefreshTimer);
+    _snapRefreshTimer = setTimeout(function(){ snapFetchNetwork(lat,lon); }, 600);
+    return;
+  }
   var cos=Math.cos(snap.cacheLat*Math.PI/180);
   var dx=(lon-snap.cacheLon)*111320*cos, dy=(lat-snap.cacheLat)*111320;
   if (Math.sqrt(dx*dx+dy*dy) > SNAP_ROAD_FETCH_RADIUS*0.6) {
@@ -2743,6 +3054,17 @@ restoreSession();
 </div>
 <button id="ws-back" style="display:none" onclick="wsBack()">&#8249; Terug</button>
 <button id="ws-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
+
+<!-- Parkeren-modus (v2.17): 2×2 vaste kaarten, links/rechts × leeg/bezet -->
+<div id="parkeer-screen">
+  <div id="pk-total">
+    <span class="lbl">Totaal</span>
+    <span class="val" id="pk-total-val">0</span>
+  </div>
+  <div id="pk-cards"></div>
+</div>
+<button id="pk-back" style="display:none" onclick="pkBack()">&#8249; Terug</button>
+<button id="pk-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
 
 <div id="preview-overlay">
   <div id="preview-header">
