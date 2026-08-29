@@ -745,6 +745,7 @@ const capNetwerkLayers = [];  // voor toggle
 })();
 
 // ── BASEMAPS ──────────────────────────────────────────────────────
+const CARTO_API_KEY = 'cb1_2a2n_1_3583b21ab7073b803a894288';
 const BASEMAPS = {
   osm: {
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -752,7 +753,7 @@ const BASEMAPS = {
     maxZoom: 19, subdomains: 'abc'
   },
   positron: {
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?api_key=' + CARTO_API_KEY,
     attribution: '© CARTO · © OpenStreetMap',
     maxZoom: 20, subdomains: 'abcd'
   },
