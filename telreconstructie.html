@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telreconstructie — Telonline Verkeerstellingen</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root{
+  --bg:#eceae4; --ink:#1b1b19; --muted:#6d6d66; --line:#c7c7bf;
+  --paper:#f6f5f1; --accent:#2f5d62; --bezet:#b0342b; --leeg:#3a7d44; --onzeker:#8a7a2b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:Oswald,system-ui,sans-serif;
+     font-weight:300;font-size:14px;line-height:1.45;display:flex;flex-direction:column;height:100vh}
+header{padding:14px 20px 12px;border-bottom:1px solid var(--line);flex-shrink:0}
+h1{margin:0;font-size:18px;font-weight:500;letter-spacing:.03em;text-transform:uppercase}
+.sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+main{display:flex;flex:1;min-height:0}
+#panel{width:330px;flex-shrink:0;border-right:1px solid var(--line);padding:16px;overflow:auto}
+#map{flex:1;min-width:0;height:100%}
+#drop{border:1.5px dashed var(--line);background:var(--paper);border-radius:3px;
+      padding:22px 14px;text-align:center;cursor:pointer;color:var(--muted);font-size:13px}
+#drop.over{border-color:var(--accent);color:var(--accent)}
+.sect{margin-top:18px}
+.sect h2{font-size:11px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);
+         margin:0 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+.step{display:flex;gap:9px;align-items:baseline;padding:4px 0;font-size:13px}
+.step .dot{width:8px;height:8px;border-radius:50%;background:var(--line);flex-shrink:0;position:relative;top:1px}
+.step.busy .dot{background:var(--onzeker);animation:pulse 1s infinite}
+.step.done .dot{background:var(--leeg)}
+.step.fail .dot{background:var(--bezet)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.step .detail{color:var(--muted);font-size:11.5px}
+.kpi{display:flex;gap:20px;flex-wrap:wrap;margin:8px 0}
+.kpi div span{display:block;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.kpi div b{font-size:22px;font-weight:400}
+.legend{font-size:12px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;margin-right:5px;border:1px solid rgba(0,0,0,.3)}
+button{font-family:inherit;font-size:12.5px;font-weight:400;padding:7px 14px;cursor:pointer;
+       background:var(--accent);border:none;border-radius:3px;color:#fff;margin-top:6px}
+button:disabled{background:var(--line);color:var(--muted);cursor:default}
+button.ghost{background:var(--paper);color:var(--ink);border:1px solid var(--line)}
+.note{background:var(--paper);border-left:2px solid var(--accent);padding:8px 11px;margin-top:12px;
+      font-size:12px;color:#3a3a35}
+.note.warn{border-left-color:var(--onzeker)}
+.hide{display:none}
+.bmrow{display:flex;gap:6px}
+.bm-btn{flex:1;font-family:inherit;font-size:12px;padding:6px 8px;cursor:pointer;
+        background:var(--paper);border:1px solid var(--line);border-radius:3px;color:var(--ink);margin:0}
+.bm-btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.leaflet-container{background:#dcdcd4}
+</style>
+</head>
+<body>
+<header>
+  <h1>Telreconstructie</h1>
+  <div class="sub">Herfetch &middot; hersnap &middot; richtingslaag &middot; links/rechts 4&nbsp;m uit de wegas &middot; link-correctie link-correctie &middot; v2.23middot; modus-fix link-correctie &middot; v2.23middot; v2.24</div>
+</header>
+<main>
+  <div id="panel">
+    <div id="drop">Sleep hier een parkeer-pocket-ZIP<br><span style="color:var(--muted)">of klik om te kiezen</span></div>
+    <input type="file" id="file" accept=".zip" multiple class="hide">
+
+    <div class="sect hide" id="stapblok">
+      <h2>Pijplijn</h2>
+      <div id="stappen"></div>
+      <div style="margin-top:10px;font-size:12px;color:var(--muted)">
+        Snap-afstand tik&rarr;weg:
+        <input type="range" id="snapmax" min="20" max="80" value="50" step="5" style="vertical-align:middle;width:110px">
+        <span id="snapmaxval">50</span> m
+      </div>
+    </div>
+
+    <div class="sect hide" id="statblok">
+      <h2>Resultaat</h2>
+      <div class="kpi" id="kpi"></div>
+      <div class="legend" id="legenda"></div>
+      <div class="sect" style="margin-top:14px">
+        <h2>Achtergrond</h2>
+        <div class="bmrow">
+          <button class="bm-btn on" data-bm="grijs" onclick="zetBasemap('grijs')">Grijs</button>
+          <button class="bm-btn" data-bm="luchtfoto" onclick="zetBasemap('luchtfoto')">Luchtfoto</button>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+          Transparantie
+          <input type="range" id="bmOpacity" min="20" max="100" value="100" step="5"
+                 style="vertical-align:middle;width:120px" oninput="zetBasemapOpacity()">
+        </div>
+      </div>
+      <div class="sect" style="margin-top:14px" id="corrSect">
+        <h2>Link-correctie</h2>
+        <button id="corrToggle" onclick="toggleCorrModus()">Correctiemodus aan</button>
+        <div id="corrPaneel" class="note hide" style="margin-top:8px">
+          <div id="corrUitleg" style="font-size:12px;color:var(--muted)"></div>
+          <div id="corrStatus" style="margin-top:6px;font-size:13px">0 tik(ken) gemarkeerd — kies nog een doellink</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+            <button id="corrHerbereken" onclick="herberekenSelectie()" disabled>Herbereken</button>
+            <button id="corrWis" class="bm-btn" onclick="wisCorrectie()">Wis selectie</button>
+          </div>
+        </div>
+      </div>
+      <button id="exportBtn" disabled>Herschreven ZIP downloaden</button>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:6px">
+        <input type="checkbox" id="autoDl" checked> automatisch downloaden na verversen
+      </label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+        <button id="fetchBtn" class="ghost hide" style="margin-top:0">Ontbrekend netwerk ophalen (Overpass)</button>
+        <button id="cacheBtn" class="ghost" style="margin-top:0" onclick="legOsmCacheLeeg()" title="Wis de opgeslagen OSM-tegels; de volgende verversing haalt alles opnieuw op">OSM-cache legen</button>
+      </div>
+      <div id="melding"></div>
+    </div>
+  </div>
+  <div id="map"></div>
+</main>
+
+<script>
+/* ===================== INGEBEDDE REKENKERN (recon_core.js) ================= */
+/* ============================================================================
+   recon_core.js — rekenkern telreconstructie (v2.18, stap 3)
+   ----------------------------------------------------------------------------
+   Zuiver rekenwerk, geen DOM, geen fetch. Zo testbaar in Node én herbruikbaar
+   in de browser-tool. De browser levert het netwerk (evt. na herfetch) aan;
+   deze kern snapt, reconstrueert richting en plaatst links/rechts.
+
+   Gevalideerde richtingslaag-parameters (stap 2, rig-replay, breed plateau):
+     HALF_S=12  MIN_RANGE_M=3  HYST=1  GAP_S=25
+   ========================================================================== */
+
+var RECON = (function () {
+
+  // ---- geodesie (lokaal ENU in meters; cos(lat)-correctie is cruciaal) ----
+  function meterScale(lat0) {
+    return { mlat: 111320.0, mlon: 111320.0 * Math.cos(lat0 * Math.PI / 180), lat0: lat0 };
+  }
+  function toM(lon, lat, sc, lon0) { return [ (lon - lon0) * sc.mlon, (lat - sc.lat0) * sc.mlat ]; }
+  function toLL(x, y, sc, lon0) { return [ lon0 + x / sc.mlon, sc.lat0 + y / sc.mlat ]; }
+
+  // ---- polyline-projectie: dichtstbijzijnde sub-edge, lokale richting -------
+  // Geeft {d, segIdx, along, q:[x,y], u:[ux,uy], left:[lx,ly]} in meters.
+  // 'left' = eenheidsvector 90° links van de lokale edge-richting A->B.
+  function projectOnWay(px, py, edges) {
+    var best = null;
+    for (var s = 0; s < edges.length; s++) {
+      var pts = edges[s].pts, cum = 0;
+      for (var i = 0; i < pts.length - 1; i++) {
+        var ax = pts[i][0], ay = pts[i][1], bx = pts[i+1][0], by = pts[i+1][1];
+        var dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy);
+        if (L < 1e-9) { cum += L; continue; }
+        var t = ((px - ax) * dx + (py - ay) * dy) / (L * L);
+        if (t < 0) t = 0; else if (t > 1) t = 1;
+        var qx = ax + t * dx, qy = ay + t * dy;
+        var d = Math.hypot(px - qx, py - qy);
+        if (best === null || d < best.d) {
+          var ux = dx / L, uy = dy / L;
+          best = { d: d, segIdx: edges[s].segIdx, along: cumBefore(edges[s], i) + t * L,
+                   q: [qx, qy], u: [ux, uy], left: [-uy, ux] };
+        }
+        cum += L;
+      }
+    }
+    return best;
+  }
+  function cumBefore(edge, i) {
+    if (!edge._cum) {
+      var c = [0], p = edge.pts;
+      for (var k = 0; k < p.length - 1; k++) c.push(c[k] + Math.hypot(p[k+1][0]-p[k][0], p[k+1][1]-p[k][1]));
+      edge._cum = c;
+    }
+    return edge._cum[i];
+  }
+
+  // Globale snapM langs een way (segIdx-volgorde × grote schaal + along-binnen-edge),
+  // zodat oplopende segIdx == oplopende snapM, monotoon over de hele way.
+  function globalSnapM(segIdx, along) { return (parseInt(segIdx, 10) || 0) * 1e6 + along; }
+
+  // ---- hersnap: kies per punt de dichtstbijzijnde way over het hele netwerk --
+  // net = { wayId: [ {segIdx, pts:[[x,y],...]}, ... ] }  (meters)
+  function nearestAny(px, py, net, maxD) {
+    var best = null;
+    for (var wid in net) {
+      var r = projectOnWay(px, py, net[wid]);
+      if (r && (best === null || r.d < best.d)) { best = r; best.wayId = wid; }
+    }
+    if (best && (maxD == null || best.d <= maxD)) return best;
+    return null;
+  }
+
+  // ---- richtingslaag: teken van d(snapM)/dt via gewogen venster-regressie ----
+  // fixes: [{t:sec, wayId, snapM}]  (chronologisch)
+  // Geeft parallel array van +1 / -1 / 0 (0 = onzeker).
+  var DIR = { HALF_S: 12, MIN_RANGE_M: 3, HYST: 1, GAP_S: 25, SLOPE_EPS: 0.02 };
+  function reconstructDirection(fixes, cfg) {
+    cfg = cfg || DIR;
+    var n = fixes.length, out = new Array(n).fill ? new Array(n).fill(0) : zeros(n);
+    // stretch-grenzen: wayId-wissel of tijdgat
+    var bounds = [0];
+    for (var i = 1; i < n; i++) {
+      var dt = fixes[i].t - fixes[i-1].t;
+      if (fixes[i].wayId !== fixes[i-1].wayId || dt > cfg.GAP_S) bounds.push(i);
+    }
+    bounds.push(n);
+    for (var b = 0; b < bounds.length - 1; b++) {
+      var s = bounds[b], e = bounds[b+1], raw = [];
+      for (i = s; i < e; i++) raw.push(windowSlopeSign(fixes, s, e, i, cfg));
+      // hysterese binnen de stretch — draagt de laatst bekende richting VOORUIT
+      // (stilstaande tik ná beweging erft automatisch).
+      var cur = 0, run = 0;
+      for (i = s; i < e; i++) {
+        var r = raw[i - s];
+        if (r === 0) { out[i] = cur; continue; }
+        if (r === cur) { out[i] = cur; run = 0; }
+        else { run++; if (run >= cfg.HYST) { cur = r; out[i] = cur; run = 0; } else out[i] = cur; }
+      }
+      // TERUGVULLEN: leidende nullen (stilstand aan het begin van de stretch,
+      // vóór de eerste bewogen fix) erven de eerste bekende richting van de
+      // stretch. Grens is de stretch zelf (wayId + tijdgat<=GAP_S), dus dit
+      // erft nooit over een way-wissel of een echte onderbreking heen.
+      var firstDir = 0;
+      for (i = s; i < e; i++) { if (out[i] !== 0) { firstDir = out[i]; break; } }
+      if (firstDir !== 0) for (i = s; i < e && out[i] === 0; i++) out[i] = firstDir;
+    }
+    return out;
+  }
+  function windowSlopeSign(fixes, s, e, i, cfg) {
+    var t0 = fixes[i].t, W = [], T = [], M = [];
+    for (var j = s; j < e; j++) {
+      var dt = fixes[j].t - t0;
+      if (Math.abs(dt) <= cfg.HALF_S) { W.push(1 - Math.abs(dt) / (cfg.HALF_S + 1e-9)); T.push(dt); M.push(fixes[j].snapM); }
+    }
+    if (T.length < 3) return 0;
+    var mn = Math.min.apply(null, M), mx = Math.max.apply(null, M);
+    if (mx - mn < cfg.MIN_RANGE_M) return 0;
+    var sw = 0, swt = 0, swm = 0, swtt = 0, swtm = 0;
+    for (var k = 0; k < T.length; k++) { sw += W[k]; swt += W[k]*T[k]; swm += W[k]*M[k]; swtt += W[k]*T[k]*T[k]; swtm += W[k]*T[k]*M[k]; }
+    var den = sw * swtt - swt * swt;
+    if (Math.abs(den) < 1e-9) return 0;
+    var slope = (sw * swtm - swt * swm) / den;
+    return slope > cfg.SLOPE_EPS ? 1 : slope < -cfg.SLOPE_EPS ? -1 : 0;
+  }
+  function zeros(n){ var a=[]; for(var i=0;i<n;i++) a.push(0); return a; }
+
+  // ---- links/rechts-offset ---------------------------------------------------
+  // travelSign: +1 als beweging langs oplopende snapM (A->B), -1 anders, 0 onzeker.
+  // label: 'links' | 'rechts'.  Geeft geoffsete [x,y] of null (onzeker).
+  // Fysieke offset-richting = travelSign * labelSign * left(A->B).
+  function offsetPoint(q, left, travelSign, label, offM) {
+    if (travelSign === 0) return null;
+    var ls = (label === 'links') ? 1 : -1;
+    var f = travelSign * ls;
+    return [ q[0] + offM * f * left[0], q[1] + offM * f * left[1] ];
+  }
+
+  return {
+    meterScale: meterScale, toM: toM, toLL: toLL,
+    projectOnWay: projectOnWay, globalSnapM: globalSnapM, nearestAny: nearestAny,
+    reconstructDirection: reconstructDirection, offsetPoint: offsetPoint,
+    DIR: DIR
+  };
+})();
+
+
+
+/* =========================================================================== */
+
+/* ===================== VITERBI MAP-MATCHER (recon_matcher.js) ============== */
+/* ============================================================================
+   recon_matcher.js — Viterbi map-matcher (v2.18, stap A)
+   ----------------------------------------------------------------------------
+   Overgezet uit reassignTrajectory() in pocket_count.html. Wiskunde en
+   constanten BYTE-IDENTIEK; enige verschil is de ontkoppeling van live-state:
+   netwerk (met geometrie én node-adjacency), fixes en taps komen als parameter
+   binnen i.p.v. uit snap.elements / snap.adjacency / routeLog / telHistory.
+
+   Emissie  = afstand tik→way (Gaussisch, sigma uit GPS-accuracy).
+   Transitie= topologie-eerst: gedeelde-node-hop wint (hopClass via adjacency),
+              plus GPS↔projectie-staplengteverschil.
+   Koers    = GPS-stapkoers vs way-koers, mod 180 (way heeft geen looprichting).
+   ========================================================================== */
+
+var MATCHER = (function () {
+
+  var LAT_M = 111320;
+  function lonM(lat) { return LAT_M * Math.cos(lat * Math.PI / 180); }
+  function hav(la1, lo1, la2, lo2) { var lm = lonM((la1 + la2) / 2); return Math.hypot((lo2 - lo1) * lm, (la2 - la1) * LAT_M); }
+
+  // Projecteer punt op way-geometrie (array van {lat,lon}); afstand + snap-punt + koers.
+  function project(plat, plon, geom) {
+    var lm = lonM(geom[0].lat), px = plon * lm, py = plat * LAT_M;
+    var best = Infinity, bLat = geom[0].lat, bLon = geom[0].lon, bBrg = 0;
+    for (var i = 0; i < geom.length - 1; i++) {
+      var ax = geom[i].lon * lm, ay = geom[i].lat * LAT_M, bx = geom[i+1].lon * lm, by = geom[i+1].lat * LAT_M;
+      var dx = bx - ax, dy = by - ay, l2 = dx*dx + dy*dy;
+      var t = (l2 === 0) ? 0 : Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / l2));
+      var cx = ax + t*dx, cy = ay + t*dy, d = Math.hypot(px-cx, py-cy);
+      if (d < best) { best = d; bLat = cy / LAT_M; bLon = cx / lm; bBrg = Math.atan2(dx, dy) * 180 / Math.PI; }
+    }
+    return { dist: best, lat: bLat, lon: bLon, brg: ((bBrg % 360) + 360) % 360 };
+  }
+
+  function angDiff180(a, b) { var d = Math.abs(a - b) % 180; return Math.min(d, 180 - d); }
+
+  // hop-klasse via node-ID-adjacency (adj[wayA][wayB] === true bij gedeelde node)
+  function hopClass(adj, a, b) {
+    if (a === b) return 0;
+    if (adj[a] && adj[a][b]) return 1;
+    if (adj[a]) { for (var m in adj[a]) if (adj[m] && adj[m][b]) return 2; }
+    return Infinity;
+  }
+
+  /* Map-match de fixes op het netwerk.
+     net  = { wayId: {geometry:[{lat,lon}], osmName, _segCount?} }
+     adj  = { wayId: {otherWayId:true} }   (node-adjacency)
+     fixes= [{lat, lon, acc}]              (chronologisch)
+     Geeft parallel array van {wayId, segIdx, plat, plon} of null per fix. */
+  var SR = 40, SIG_MIN = 5, HOP1 = 4, HOP2 = 12, GAMMA = 0.02, BETA = 2, HEAD_REF_M = 10;
+
+  function matchTrajectory(net, adj, fixes, segCounter) {
+    var wayIds = Object.keys(net);
+    if (!wayIds.length || !fixes.length) return fixes.map(function () { return null; });
+
+    // kolommen: per fix kandidaat-ways binnen SR met emissiekost
+    var cols = [];
+    for (var f = 0; f < fixes.length; f++) {
+      var fx = fixes[f], sigma = Math.max(SIG_MIN, fx.acc || SIG_MIN), cands = [];
+      for (var w = 0; w < wayIds.length; w++) {
+        var g = net[wayIds[w]].geometry; if (!g || g.length < 2) continue;
+        var pr = project(fx.lat, fx.lon, g);
+        if (pr.dist <= SR) { var z = pr.dist / sigma; cands.push({ wayId: wayIds[w], plat: pr.lat, plon: pr.lon, emit: 0.5*z*z, brg: pr.brg }); }
+      }
+      cols.push(cands);
+    }
+
+    // Viterbi forward
+    var V = [], back = [];
+    for (var col = 0; col < cols.length; col++) {
+      V[col] = {}; back[col] = {};
+      var cur = cols[col];
+      if (col === 0) { for (var a = 0; a < cur.length; a++) V[0][cur[a].wayId] = cur[a].emit; continue; }
+      var prev = cols[col-1];
+      var gpsStep = hav(fixes[col-1].lat, fixes[col-1].lon, fixes[col].lat, fixes[col].lon);
+      var _lm = lonM(fixes[col].lat);
+      var _dx = (fixes[col].lon - fixes[col-1].lon) * _lm, _dy = (fixes[col].lat - fixes[col-1].lat) * LAT_M;
+      var gpsBrg = ((Math.atan2(_dx, _dy) * 180 / Math.PI) % 360 + 360) % 360;
+      var headW = Math.min(1, gpsStep / HEAD_REF_M);
+      for (var c = 0; c < cur.length; c++) {
+        var cw = cur[c], bestCost = Infinity, bestPrev = null;
+        var headCost = BETA * headW * (angDiff180(gpsBrg, cw.brg) / 90);
+        for (var p = 0; p < prev.length; p++) {
+          var pw = prev[p]; if (V[col-1][pw.wayId] === undefined) continue;
+          var hc = hopClass(adj, pw.wayId, cw.wayId);
+          if (!isFinite(hc)) continue;
+          var base = (hc === 0) ? 0 : (hc === 1) ? HOP1 : HOP2;
+          var projStep = hav(pw.plat, pw.plon, cw.plat, cw.plon);
+          var tot = V[col-1][pw.wayId] + base + GAMMA * Math.abs(projStep - gpsStep);
+          if (tot < bestCost) { bestCost = tot; bestPrev = pw.wayId; }
+        }
+        if (bestPrev !== null) { V[col][cw.wayId] = bestCost + cw.emit + headCost; back[col][cw.wayId] = bestPrev; }
+      }
+      if (Object.keys(V[col]).length === 0) { for (var g2 = 0; g2 < cur.length; g2++) { V[col][cur[g2].wayId] = cur[g2].emit; back[col][cur[g2].wayId] = null; } }
+    }
+
+    function bestStateOf(colObj) { var bw = null, bc = Infinity; for (var ww in colObj) if (colObj[ww] < bc) { bc = colObj[ww]; bw = ww; } return bw; }
+
+    // stuksgewijze backtrack
+    var path = new Array(cols.length).fill(null), last = cols.length - 1;
+    while (last >= 0 && Object.keys(V[last]).length === 0) last--;
+    if (last < 0) return fixes.map(function () { return null; });
+    path[last] = bestStateOf(V[last]);
+    for (var col2 = last; col2 > 0; col2--) {
+      var cw2 = path[col2];
+      var pv = (cw2 != null) ? back[col2][cw2] : null;
+      path[col2-1] = (pv != null) ? pv : bestStateOf(V[col2-1]);
+    }
+
+    // segIdx per fix
+    function segIdxFor(wayId, plat, plon) {
+      var el = net[wayId]; if (!el || !el.geometry) return 0;
+      var g = el.geometry, lm = lonM(g[0].lat), px = plon * lm, py = plat * LAT_M;
+      var cum = 0, bestCum = 0, best = Infinity;
+      for (var i = 0; i < g.length - 1; i++) {
+        var ax = g[i].lon*lm, ay = g[i].lat*LAT_M, bx = g[i+1].lon*lm, by = g[i+1].lat*LAT_M;
+        var dx = bx-ax, dy = by-ay, l2 = dx*dx+dy*dy, segLen = Math.sqrt(l2);
+        var t = (l2 === 0) ? 0 : Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / l2));
+        var cx = ax + t*dx, cy = ay + t*dy, d = Math.hypot(px-cx, py-cy);
+        if (d < best) { best = d; bestCum = cum + t*segLen; }
+        cum += segLen;
+      }
+      var total = cum, n = segCounter(wayId, g);
+      if (n <= 1 || total === 0) return 0;
+      return Math.min(n - 1, Math.floor(bestCum / (total / n)));
+    }
+
+    var out = [];
+    for (var i2 = 0; i2 < fixes.length; i2++) {
+      var wayId = path[i2];
+      if (wayId && net[wayId]) {
+        var pr2 = project(fixes[i2].lat, fixes[i2].lon, net[wayId].geometry);
+        out.push({ wayId: wayId, segIdx: segIdxFor(wayId, pr2.lat, pr2.lon), plat: pr2.lat, plon: pr2.lon });
+      } else out.push(null);
+    }
+    return out;
+  }
+
+  // node-adjacency uit Overpass-elements (met el.nodes), zoals snapRegisterWay.
+  function buildAdjacency(elements) {
+    var nodeToWays = {}, adj = {};
+    elements.forEach(function (el) {
+      if (el.type !== 'way' || !el.nodes || el.nodes.length < 2) return;
+      var wayId = String(el.id);
+      el.nodes.forEach(function (nid) {
+        if (!nodeToWays[nid]) nodeToWays[nid] = {};
+        if (nodeToWays[nid][wayId]) return;
+        nodeToWays[nid][wayId] = true;
+        if (!adj[wayId]) adj[wayId] = {};
+        Object.keys(nodeToWays[nid]).forEach(function (other) {
+          if (other === wayId) return;
+          adj[wayId][other] = true;
+          if (!adj[other]) adj[other] = {};
+          adj[other][wayId] = true;
+        });
+      });
+    });
+    return adj;
+  }
+
+  return { matchTrajectory: matchTrajectory, buildAdjacency: buildAdjacency, project: project,
+           CONST: { SR: SR, SIG_MIN: SIG_MIN, HOP1: HOP1, HOP2: HOP2, GAMMA: GAMMA, BETA: BETA, HEAD_REF_M: HEAD_REF_M } };
+})();
+
+
+
+
+/* ---- segmentatie, byte-identiek aan pocket_count.html --------------------- */
+var SEGMENT_TARGET_M = 40;
+var SEGMENT_MIN_M = 60;
+function _normPt(p) { return (p && p.lat !== undefined) ? [p.lat, p.lon] : p; }
+function splitWayIntoSegments(geom) {
+  if (!geom || geom.length < 2) return [geom ? geom.map(_normPt) : []];
+  var pts = geom.map(_normPt);
+  var refLat = pts[0][0];
+  var cos = Math.cos(refLat * Math.PI / 180);
+  var cum = [0];
+  for (var i = 1; i < pts.length; i++) {
+    var dx = (pts[i][1] - pts[i-1][1]) * 111320 * cos;
+    var dy = (pts[i][0] - pts[i-1][0]) * 111320;
+    cum.push(cum[i-1] + Math.sqrt(dx*dx + dy*dy));
+  }
+  var total = cum[cum.length-1];
+  if (total < SEGMENT_MIN_M) return [pts];
+  var N = Math.max(1, Math.round(total / SEGMENT_TARGET_M));
+  if (N === 1) return [pts];
+  var segLen = total / N;
+  var result = [];
+  var curSeg = [pts[0]];
+  var nextCut = segLen;
+  var done = 0;
+  for (var j = 1; j < pts.length; j++) {
+    var dStart = cum[j-1], dEnd = cum[j], edge = dEnd - dStart;
+    while (done < N - 1 && dEnd >= nextCut && edge > 0) {
+      var t = (nextCut - dStart) / edge;
+      var cutLat = pts[j-1][0] + t * (pts[j][0] - pts[j-1][0]);
+      var cutLon = pts[j-1][1] + t * (pts[j][1] - pts[j-1][1]);
+      curSeg.push([cutLat, cutLon]);
+      result.push(curSeg);
+      curSeg = [[cutLat, cutLon]];
+      nextCut += segLen;
+      done++;
+    }
+    curSeg.push(pts[j]);
+  }
+  result.push(curSeg);
+  return result;
+}
+
+/* ===================== TELTYPE-PROFIELEN =================================== */
+/* Elk profiel weet: hoe herken ik mijn ZIP, waar zit de zijde/richting-invoer,
+   welke highway-typen prefereer ik (buigt de Viterbi-emissie), en hoe schrijf ik
+   terug. De MOTOR (Viterbi, richtingslaag, offset, segmentatie) is ongedeeld.
+   Toevoegen van een teltype = één profiel erbij, geen motor-wijziging. */
+
+// highway-voorkeur: bonus (negatief = goedkoper/geprefereerd) per way-type.
+function hwPref(prefer, avoid) {
+  return function (hw) {
+    if (!hw) return 0;
+    if (prefer.indexOf(hw) >= 0) return -2;   // geprefereerd netwerk goedkoper
+    if (avoid.indexOf(hw) >= 0) return 4;     // vermeden netwerk duurder
+    return 0;
+  };
+}
+var RIJBAAN = ['residential', 'living_street', 'primary', 'secondary', 'tertiary', 'unclassified', 'service'];
+var LANGZAAM = ['cycleway', 'footway', 'pedestrian', 'path', 'track'];
+
+/* Stip-/legendakleuren. Profielen met vaste, betekenisdragende categorieën (parkeren,
+   auto, fiets) geven een kleuren:{type->kleur}-map mee. Wandelmodi hebben vrije,
+   configureerbare types (tegemoet/stilstaand, car/truck/…, ped) en krijgen automatisch
+   een kleur uit PALET, afgeleid uit de types die echt in de data voorkomen. */
+var KLEUR = { groen: '#3a7d44', rood: '#b0342b', amber: '#8a7a2b', grijs: '#9c9384',
+              teal: '#2f5d62', blauw: '#317b9c', paars: '#5b4b8a', oranje: '#a75d2b' };
+var PALET = [KLEUR.teal, KLEUR.rood, KLEUR.groen, KLEUR.amber, KLEUR.paars, KLEUR.blauw, KLEUR.oranje, KLEUR.grijs];
+
+/* Fabriek voor pocket-WANDELPROFIELEN (moving observer): je loopt één route en tikt
+   onderweg wat je tegenkomt. transect, winkelstraat en simpel delen exact dezelfde
+   bouwstenen — de tik wordt via de trajectorie-Viterbi aan de gelopen link gekoppeld en
+   ZONDER zijde-offset op die link geplaatst (opLink). Ze verschillen alleen in:
+   - hun modus-herkenning, en
+   - of ze een richting a/b dragen (alleen transect; winkelstraat/simpel hebben er geen).
+   Een nieuwe wandelmodus toevoegen = één regel wandelProfiel(...) erbij. */
+function wandelProfiel(opts) {
+  var basis = 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat';
+  var kwal  = 'conf;conf_level;gps_stab;gps_level;recon_status';
+  return {
+    label: opts.label,
+    modus: opts.modus,
+    herken: function (ses) {
+      var m = (ses.modus || '').toLowerCase();
+      return m === opts.modus || (ses.type || '').toLowerCase() === opts.modus;
+    },
+    opLink: true,                     // geen zijde: plaats de tik op de gelopen link zelf
+    zijdeVeld: false,
+    labelVan: function () { return ''; },              // niet gebruikt (opLink kent geen zijde)
+    highwayCost: function () { return 0; },            // volg de gelopen route, neutraal
+    typeVan: function (t) { return t.type; },          // categorie (car/truck/…, winkeltype, object)
+    telHeader: basis + (opts.metRichting ? ';richting;' : ';') + kwal,
+    telRij: function (sid, tp, i) {
+      var s = tp.src;
+      var rij = [sid, i + 1, s.tijdstip, tp.type, s.lat || '', s.lon || '',
+        tp.wayId, tp.segIdx, s.straat || ''];
+      if (opts.metRichting) rij.push(s.richting || '');   // a/b = veld-grondwaarheid
+      rij.push(s.conf || '', s.conf_level || '', s.gps_stab || '', s.gps_level || '', (tp.reconOverride || tp.status));
+      return rij.join(';');
+    },
+    metRichting: !!opts.metRichting,   // stuurt de richting-kolom in de segment-samenvatting
+    heeftStraten: false,
+    // wandel-ZIP's hebben geen _straten.csv; i.p.v. een brede straat-aggregatie leveren
+    // ze een tidy-long segment-samenvatting (link × richting × categorie). Zie
+    // bouwSegmentSamenvatting(). Eén vlag hier = alle drie de wandelmodi krijgen 'm.
+    heeftSegmentSamenvatting: true
+  };
+}
+
+var PROFIELEN = {
+  'pocket-parkeren': {
+    label: 'Parkeren (pocket)',
+    modus: 'parkeren',
+    // herkenning: modus=parkeren, of telregels met segment_index + richting links/rechts
+    herken: function (ses, tel) {
+      var m = (ses.modus || '').toLowerCase();
+      if (m === 'parkeren') return true;
+      // terugval voor oudere parkeer-ZIP's zonder modus-veld: expliciete links/rechts-zijde.
+      // BEWUST geen '|| segment_index !== undefined' — dat was een tautologie (die kolom
+      // bestaat altijd), waardoor transect/winkelstraat/simpel hier stil werden ingepikt.
+      return tel.length && (tel[0].richting === 'links' || tel[0].richting === 'rechts');
+    },
+    zijdeVeld: false,                 // zijde wordt HIER bepaald uit richting-label
+    labelVan: function (t) { return t.richting; },     // 'links' | 'rechts'
+    highwayCost: function () { return 0; },             // geen voorkeur (loopt overal)
+    typeVan: function (t) { return t.type; },           // leeg/bezet
+    kleuren: { bezet: KLEUR.rood, leeg: KLEUR.groen },
+    // export: pocket-schema + zijde-kolom (groeit naar auto-schema toe)
+    telHeader: 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;lat_marker;lon_marker;zijde;richting;recon_status',
+    telRij: function (sid, tp, i) {
+      var s = tp.src;
+      return [sid, i + 1, s.tijdstip, tp.type, s.lat || '', s.lon || '',
+        tp.wayId, tp.segIdx, s.straat || '',
+        tp.latMarker !== '' ? (+tp.latMarker).toFixed(6) : '',
+        tp.lonMarker !== '' ? (+tp.lonMarker).toFixed(6) : '',
+        tp.zijde, tp.richting, (tp.reconOverride || tp.status)].join(';');
+    },
+    heeftStraten: false
+  },
+  // pocket-wandelprofielen (moving observer) — zie wandelProfiel() hierboven.
+  'transect':     wandelProfiel({ label: 'Transect (pocket, wandeling)',     modus: 'transect',     metRichting: true  }),
+  'winkelstraat': wandelProfiel({ label: 'Winkelstraat (pocket, wandeling)', modus: 'winkelstraat', metRichting: false }),
+  'simpel':       wandelProfiel({ label: 'Simpel (pocket, wandeling)',       modus: 'simpel',       metRichting: false }),
+  'auto': {
+    label: 'Parkeren auto (parkeertelling.html)',
+    modus: 'parkeren',
+    herken: function (ses, tel) {
+      return (ses.app_type || '').toLowerCase() === 'auto' ||
+             (tel.length && tel[0].zijde !== undefined && tel[0].hdg_gebruikt !== undefined && (ses.app_type || '').toLowerCase() !== 'fiets');
+    },
+    zijdeVeld: true,                  // zijde is VELD-GRONDWAARHEID, niet overschrijven
+    labelVan: function (t) { return t.zijde === 'L' ? 'links' : 'rechts'; },
+    highwayCost: hwPref(RIJBAAN, LANGZAAM),             // prefereer rijbaan, vermijd fietspad
+    typeVan: function (t) { return t.type; },            // goed/fout/leeg/spec
+    kleuren: { goed: KLEUR.groen, fout: KLEUR.rood, leeg: KLEUR.grijs, spec: KLEUR.amber },
+    // export: auto-schema behouden + gereconstrueerde velden (segment_index, recon_status)
+    telHeader: 'sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_marker;lon_marker;zijde;snapped;hdg_kompas;hdg_gps;hdg_osm;hdg_gebruikt;recon_status',
+    telRij: function (sid, tp, i) {
+      var s = tp.src;
+      return [sid, i + 1, s.tijdstip, tp.type,
+        s.lat_gps || s.lat || '', s.lon_gps || s.lon || '',
+        tp.wayId, tp.segIdx, s.straat || '',
+        tp.latMarker !== '' ? (+tp.latMarker).toFixed(6) : '',
+        tp.lonMarker !== '' ? (+tp.lonMarker).toFixed(6) : '',
+        tp.zijde, s.snapped || '1',
+        s.hdg_kompas || '', s.hdg_gps || '', s.hdg_osm || '', s.hdg_gebruikt || '',
+        (tp.reconOverride || tp.status)].join(';');
+    },
+    heeftStraten: true,
+    // straten-schema: welke tik-types tellen per straat, plus header en rij-opbouw.
+    // bezet/vrij/bezettingsgraad_pct blijven VELD-GRONDWAARHEID (uit het origineel)
+    // tot de parkeertelling zelf is omgebouwd — dan pas herberekend.
+    straten: {
+      typen: ['goed', 'fout', 'leeg', 'spec'],
+      header: 'sessie_id;naam;osm_way_ids;goed;fout;leeg;spec;bezet;vrij;bezettingsgraad_pct;eerste_waarneming;laatste_waarneming',
+      rij: function (sid, naam, ways, a, orig) {
+        return [sid, naam, ways, a.goed, a.fout, a.leeg, a.spec,
+          orig.bezet || '', orig.vrij || '', orig.bezettingsgraad_pct || '',
+          a.eerste || orig.eerste_waarneming || '', a.laatste || orig.laatste_waarneming || ''].join(';');
+      }
+    }
+  },
+  'fiets': {
+    label: 'Fietsparkeren (fietsparkeren.html)',
+    herken: function (ses, tel) { return (ses.app_type || '').toLowerCase() === 'fiets'; },
+    zijdeVeld: true,
+    labelVan: function (t) { return t.zijde === 'L' ? 'links' : 'rechts'; },
+    highwayCost: hwPref(LANGZAAM, RIJBAAN),             // prefereer fietspad/voetpad, vermijd rijbaan
+    typeVan: function (t) { return t.type; },            // fiets
+    kleuren: { fiets: KLEUR.teal, brommer: KLEUR.oranje, breed: KLEUR.blauw, wrak: KLEUR.rood },
+    telHeader: 'sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_marker;lon_marker;zijde;snapped;hdg_kompas;hdg_gps;hdg_osm;hdg_gebruikt;recon_status',
+    telRij: function (sid, tp, i) {
+      var s = tp.src;
+      return [sid, i + 1, s.tijdstip, tp.type,
+        s.lat_gps || s.lat || '', s.lon_gps || s.lon || '',
+        tp.wayId, tp.segIdx, s.straat || '',
+        tp.latMarker !== '' ? (+tp.latMarker).toFixed(6) : '',
+        tp.lonMarker !== '' ? (+tp.lonMarker).toFixed(6) : '',
+        tp.zijde, s.snapped || '1',
+        s.hdg_kompas || '', s.hdg_gps || '', s.hdg_osm || '', s.hdg_gebruikt || '',
+        (tp.reconOverride || tp.status)].join(';');
+    },
+    heeftStraten: true,
+    // fiets kent een heel ander straten-schema dan auto: vier voertuig-types en
+    // een som-kolom, geen bezet/vrij/graad. Reproduceert fietsparkeren.html exact.
+    straten: {
+      typen: ['fiets', 'brommer', 'breed', 'wrak'],
+      header: 'sessie_id;naam;osm_way_ids;fiets;brommer;breed;wrak;totaal;eerste_waarneming;laatste_waarneming',
+      rij: function (sid, naam, ways, a, orig) {
+        var totaal = a.fiets + a.brommer + a.breed + a.wrak;
+        return [sid, naam, ways, a.fiets, a.brommer, a.breed, a.wrak, totaal,
+          a.eerste || orig.eerste_waarneming || '', a.laatste || orig.laatste_waarneming || ''].join(';');
+      }
+    }
+  }
+};
+
+// leidt een profiel-sleutel af uit de type-woordenschat (voor sessies zonder modus-veld)
+function profielUitTypes(tel) {
+  var s = {};
+  for (var i = 0; i < tel.length; i++) { var t = (tel[i].type || '').toLowerCase(); if (t) s[t] = 1; }
+  var heeft = function (re) { for (var k in s) if (re.test(k)) return true; return false; };
+  if (heeft(/^(car|truck|moto|bike|ped)$/))        return 'transect';
+  if (heeft(/stilstaand|tegemoet|meelop/))          return 'winkelstraat';
+  if (heeft(/^(bezet|leeg|vrij|goed|fout|spec)$/))  return 'pocket-parkeren';
+  return null;                                       // vrije tekst → onbekend
+}
+function kiesProfiel(ses, tel) {
+  for (var k in PROFIELEN) if (PROFIELEN[k].herken(ses, tel)) return (S.profielId = k), PROFIELEN[k];
+  var k2 = profielUitTypes(tel);                     // geen herken-match: niet blind 'parkeren',
+  if (k2 && PROFIELEN[k2]) return (S.profielId = k2), PROFIELEN[k2];   // maar afleiden uit de woordenschat
+  return (S.profielId = 'simpel'), PROFIELEN['simpel'];   // neutrale terugval (was: pocket-parkeren)
+}
+
+/* ---- Overpass-constanten, byte-identiek aan pocket_count.html ------------- */
+var HIGHWAY_RE = 'residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path|track|bridleway|steps|corridor';
+var SNAP_ROAD_FETCH_RADIUS = 250;
+/* ---- Verse-data-garantie -------------------------------------------------
+   Elk Overpass-antwoord draagt osm3s.timestamp_osm_base: het moment waarop de
+   dataset van die server voor het laatst is bijgewerkt. Een mirror die achter-
+   loopt levert stilzwijgend verouderde wegen — nieuwe of gewijzigde straten
+   ontbreken dan zonder dat je het merkt. We keuren daarom elk antwoord zelf.
+   Te oud → als mislukt behandelen, zodat de volgende endpoint aan de beurt is. */
+var OSM_MAX_LAG_DAGEN = 7;
+function dataIsVers(data) {
+  try {
+    var ts = data && data.osm3s && data.osm3s.timestamp_osm_base;
+    if (!ts) return true;                       // geen stempel → niet afkeuren
+    var lag = (Date.now() - new Date(ts).getTime()) / 86400000;
+    if (isNaN(lag)) return true;
+    return lag <= OSM_MAX_LAG_DAGEN;
+  } catch (e) { return true; }                  // nooit het tellen blokkeren op een parseerfout
+}
+
+var SNAP_OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+
+/* ---- Overpass-antwoord classificeren (v2.49) ------------------------------
+   GEDEELD BLOK — houd byte-identiek over alle tools (grep OVP_LIMIET).
+
+   Vóór v2.49 ging élk niet-ideaal antwoord door dezelfde catch: een gebied
+   zónder wegen liet de app net zo hard opnieuw vragen als een netwerkstoring.
+   Erger nog: Overpass meldt rate-limiting niet altijd als HTTP 429, maar soms
+   als een 200 met de melding in data.remark. Die zagen wij als 'geen wegen' en
+   dus als reden om meteen de andere mirror te proberen — precies wanneer de
+   servers vol zitten, sloegen wij er het hardst op. En een geweigerd verzoek
+   is niet gratis: Overpass voert de query eerst uit en meldt de limiet daarna.
+
+   Vijf uitkomsten, elk met eigen gedrag:
+     ok     -> verwerken
+     leeg   -> geldig antwoord; hier liggen geen wegen. NIET opnieuw vragen.
+     oud    -> deze mirror loopt achter (> OSM_MAX_LAG_DAGEN). Andere proberen.
+     limiet -> server wijst ons af of zit vol. Lang wachten, niets proberen.
+     fout   -> netwerk-/HTTP-storing. Kort exponentieel wachten.               */
+var OVP_OK = 'ok', OVP_LEEG = 'leeg', OVP_OUD = 'oud',
+    OVP_LIMIET = 'limiet', OVP_FOUT = 'fout';
+var OVP_LIMIET_WACHT_MS = 30000;      // rate-limit: slots komen per ~minuut vrij
+var OVP_OUD_WACHT_MS    = 300000;     // alle mirrors achter: lost niet op in seconden
+function ovpStatusUitHttp(status) {
+  return (status === 429 || status === 503 || status === 504) ? OVP_LIMIET : OVP_FOUT;
+}
+function ovpKeur(data) {
+  if (!data || typeof data !== 'object') return OVP_FOUT;
+  var rem = '' + (data.remark || '');
+  if (rem) {
+    // Overpass legt runtime-meldingen in 'remark' bij een verder normale 200.
+    if (/rate_?limit|too many requests|Dispatcher_Client/i.test(rem)) return OVP_LIMIET;
+    return OVP_FOUT;
+  }
+  if (!dataIsVers(data)) return OVP_OUD;
+  if (!data.elements || !data.elements.length) return OVP_LEEG;
+  return OVP_OK;
+}
+// Exponentieel wachten met plafond: 500 . 2^(n-1), max 8s. Lang genoeg om een
+// overbelaste server te ontzien, kort genoeg om terug te zijn zodra het kan.
+function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000); }
+
+var OFFSET_M = 4;          // meters uit de wegas — gelijk aan parkeertelling.html SIDE_OFFSET_M
+var SNAP_MAX_M = 50;       // max afstand tik→way bij hersnap. Ruim, want tik-GPS valt
+                           // in stadskloven tientallen meters naast de weg (multipath).
+                           // Instelbaar in de UI zodat gebiedskennis de grens kan bijstellen.
+
+/* ---- overpassFetch: gedeeld transport (v2.50) -----------------------------
+   GEDEELD BLOK — houd byte-identiek (grep overpassFetch). Eén verzoek tegelijk,
+   endpoints op volgorde, exponentieel wachten, en elk antwoord door ovpKeur.
+   Query en verwerking blijven per tool; alleen het transport is gedeeld.
+   onProgress is optioneel: tools zonder voortgangsmelding laten hem weg.       */
+function overpassFetch(query, onOk, onFail, onProgress) {
+  var attempt = 0;
+  function tryOnce() {
+    if (attempt >= SNAP_OVERPASS.length * 2) { onFail('opgegeven na ' + attempt + ' pogingen'); return; }
+    var ep = SNAP_OVERPASS[attempt % SNAP_OVERPASS.length];
+    var epNaam = ep.replace(/^https?:\/\//, '').split('/')[0];
+    if (onProgress) onProgress('verbinden met ' + epNaam + (attempt > 0 ? ' (poging ' + (attempt + 1) + ')' : ''));
+    fetch(ep + '?data=' + encodeURIComponent(query))
+      .then(function (r) {
+        if (onProgress) onProgress('antwoord van ' + epNaam + ' verwerken');
+        return r.ok ? r.json() : Promise.reject(ovpStatusUitHttp(r.status));
+      })
+      .then(function (data) {
+        var uitkomst = ovpKeur(data);
+        // Leeg is een geldig antwoord: een gebied zonder wegen bestaat echt
+        // (water, buitengebied), en een opzoeking op way-id kan simpelweg niets
+        // opleveren. De rest gaat naar de catch met z'n uitkomst.
+        if (uitkomst === OVP_OK || uitkomst === OVP_LEEG) { onOk(data); return; }
+        return Promise.reject(uitkomst);
+      })
+      .catch(function (err) {
+        // Een rate-limit is geen gewone storing. Overpass voert de query eerst
+        // uit en meldt de limiet pas daarna, dus doorrammen kost de server
+        // evenveel als slagen. Eén lange pauze in plaats van vier korte. Dat dit
+        // apart wordt herkend beschermt ook de tegel-cache: zonder deze tak kon
+        // een 200 met een rate-limit-melding ín de body als 'leeg gebied'
+        // binnenkomen en zo een lege tegel als geldig wegschrijven.
+        if (err === OVP_LIMIET) {
+          attempt++;
+          if (attempt >= SNAP_OVERPASS.length * 2) { onFail('server blijft vol'); return; }
+          if (onProgress) onProgress('server zit vol, wachten (' + Math.round(OVP_LIMIET_WACHT_MS / 1000) + 's)');
+          setTimeout(tryOnce, OVP_LIMIET_WACHT_MS);
+          return;
+        }
+        attempt++;
+        var wait = ovpBackoffMs(attempt);            // 500, 1000, 2000, ... max 8s
+        if (onProgress && attempt < SNAP_OVERPASS.length * 2) onProgress('mislukt, opnieuw over ' + (wait / 1000).toFixed(1) + 's');
+        setTimeout(tryOnce, wait);
+      });
+  }
+  tryOnce();
+}
+
+/* ---- state ---------------------------------------------------------------- */
+var S = {
+  sid: '', modus: '', sc: null, lon0: 0,
+  profiel: null, profielId: '', stratenRows: [],
+  netM: {},          // wayId -> [{segIdx, pts:[[x,y]]}]  (meters)
+  netGeoLL: {},      // wayId -> {segIdx -> [[lat,lon]]} voor kaart + ZIP
+  telregels: [], gps: [], bezocht: [], sessieRow: null, netwerkRows: [],
+  taps: [],          // verrijkte tikken na reconstructie
+  gapFetchPts: [],   // locaties die herfetch nodig hebben
+  map: null, layers: {}
+};
+
+/* ---- laden ---------------------------------------------------------------- */
+var drop = document.getElementById('drop'), fileInput = document.getElementById('file');
+drop.onclick = function () { fileInput.click(); };
+fileInput.onchange = function (e) { if (e.target.files.length) verwerkBatch(e.target.files); };
+['dragenter', 'dragover'].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); });
+});
+['dragleave', 'drop'].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); });
+});
+drop.addEventListener('drop', function (e) { e.preventDefault(); if (e.dataTransfer.files.length) verwerkBatch(e.dataTransfer.files); });
+
+/* ---- Handoff: ZIP rechtstreeks vanuit een tel-app ---------------------------
+   De tel-app legt de ZIP-blob in IndexedDB (store 'handoff') en opent deze pagina
+   met ?handoff=1. We halen 'm op, verwerken 'm als een normaal bestand en ruimen
+   de overdracht op, zodat een refresh niet opnieuw dezelfde telling inlaadt. */
+(function () {
+  if (!/[?&]handoff=1\b/.test(location.search)) return;
+  if (typeof indexedDB === 'undefined' || !indexedDB) return;
+  var q = indexedDB.open('telsuite_osm', 1);
+  q.onupgradeneeded = function (e) {
+    var db = e.target.result;
+    if (!db.objectStoreNames.contains('tiles'))   db.createObjectStore('tiles',   { keyPath: 'key' });
+    if (!db.objectStoreNames.contains('handoff')) db.createObjectStore('handoff', { keyPath: 'key' });
+  };
+  q.onsuccess = function (e) {
+    var db = e.target.result;
+    if (!db.objectStoreNames.contains('handoff')) return;
+    var g = db.transaction('handoff', 'readonly').objectStore('handoff').get('zip');
+    g.onsuccess = function () {
+      var rec = g.result;
+      if (!rec || !rec.blob) return;
+      try {
+        var f = new File([rec.blob], rec.naam || 'telling.zip', { type: 'application/zip' });
+        verwerkBatch([f]);
+      } catch (err) { return; }
+      try { db.transaction('handoff', 'readwrite').objectStore('handoff').delete('zip'); } catch (err2) {}
+    };
+  };
+})();
+
+document.getElementById('snapmax').addEventListener('input', function (e) {
+  SNAP_MAX_M = +e.target.value;
+  document.getElementById('snapmaxval').textContent = SNAP_MAX_M;
+});
+document.getElementById('snapmax').addEventListener('change', function () {
+  if (S.telregels.length) reconstrueer();   // herbereken bij loslaten
+});
+
+function parseCsv(txt) {
+  return Papa.parse(txt.replace(/^\uFEFF/, '').trim(), { header: true, delimiter: ';', skipEmptyLines: true }).data;
+}
+
+// Leest de CSV's uit een geopend JSZip in S. Gedeeld door de interactieve laadZip en batch.
+function leesZipInS(zip, fallbackNaam) {
+  var namen = Object.keys(zip.files), want = {};
+  ['sessie', 'telregels', 'gps', 'netwerk', 'bezocht', 'straten'].forEach(function (soort) {
+    var n = namen.find(function (x) { return x.indexOf('_' + soort + '.csv') >= 0; });
+    if (n) want[soort] = n;
+  });
+  if (!want.telregels) return Promise.reject(new Error('ZIP mist telregels'));
+  var keys = Object.keys(want);
+  return Promise.all(keys.map(function (k) { return zip.file(want[k]).async('string'); }))
+    .then(function (teksten) {
+      var d = {}; keys.forEach(function (k, i) { d[k] = parseCsv(teksten[i]); });
+      S.telregels = d.telregels || []; S.gps = d.gps || [];
+      S.netwerkRows = d.netwerk || []; S.bezocht = d.bezocht || [];
+      S.stratenRows = d.straten || [];   // alleen car/fiets; leeg voor pocket
+      S.sessieRow = (d.sessie || [])[0] || {};
+      S.sid = S.sessieRow.sessie_id || fallbackNaam || '';
+      S.modus = S.sessieRow.modus || S.sessieRow.type || '';
+      // Geen aparte GPS-track? De tikken dragen zelf lat/lon — surrogaat-trajectorie eruit bouwen.
+      S.gpsSurrogaat = false;
+      if (!S.gps.length && S.telregels.length) {
+        S.gps = S.telregels.map(function (t) {
+          return { tijdstip: t.tijdstip, lat: t.lat || t.lat_gps || '', lon: t.lon || t.lon_gps || '',
+                   nauwkeurigheid: t.nauwkeurigheid || '' };
+        }).filter(function (g) { return g.lat && g.lon; });
+        S.gpsSurrogaat = true;
+      }
+      S.profiel = kiesProfiel(S.sessieRow, S.telregels);
+    });
+}
+
+function laadZip(file) {
+  resetStappen();
+  document.getElementById('stapblok').classList.remove('hide');
+  // libs geladen? (CDN kan geblokkeerd zijn op sommige netwerken)
+  var mist = [];
+  if (typeof JSZip === 'undefined') mist.push('JSZip');
+  if (typeof Papa === 'undefined') mist.push('PapaParse');
+  if (typeof L === 'undefined') mist.push('Leaflet');
+  if (mist.length) { stap('lees', 'Bibliotheek niet geladen', 'fail', mist.join(', ') + ' — controleer de internetverbinding'); return; }
+  stap('lees', 'ZIP lezen', 'busy');
+  JSZip.loadAsync(file).then(function (zip) {
+    return leesZipInS(zip, file.name.replace(/\.zip$/, '')).then(function () {
+      stap('lees', 'ZIP gelezen', 'done', S.telregels.length + ' tikken · ' +
+           (S.gpsSurrogaat ? 'GPS uit tikken' : S.gps.length + ' GPS') + ' · ' + S.profiel.label);
+      verwerk();
+    });
+  }).catch(function (err) {
+    var waar = err && err.stack ? (' [' + String(err.stack).split('\n')[1] || '').trim() + ']' : '';
+    stap('lees', 'Fout', 'fail', (err.message || String(err)) + waar);
+  });
+}
+
+/* ---- pijplijn ------------------------------------------------------------- */
+// Pure voorbereiding (geen DOM): meterschaal, origineel netwerk bewaren, normaliseren, bbox.
+// Gedeeld door de interactieve verwerk() en de batch-verwerking.
+function bereidVoor() {
+  var lats = S.gps.map(function (g) { return +g.lat; }).filter(isFinite);
+  var lons = S.gps.map(function (g) { return +g.lon; }).filter(isFinite);
+  var lat0 = lats.reduce(function (a, b) { return a + b; }, 0) / lats.length;
+  S.lon0 = lons.reduce(function (a, b) { return a + b; }, 0) / lons.length;
+  S.sc = RECON.meterScale(lat0);
+  S.netwerkOrigineel = S.netwerkRows.slice();          // grondwaarheid vóór eventuele verse fetch
+  S.netwerkRows = normaliseerNetwerk(S.netwerkRows);   // car/fiets zonder segment_index → segmenteren
+  bouwNetwerk(S.netwerkRows);
+  S.bbox = trailBbox();
+}
+
+function verwerk() {
+  bereidVoor();
+
+  // De route-consistente (Viterbi) snap heeft node-adjacency nodig; die zit NIET
+  // in _netwerk.csv. Daarom biedt de tool een verse bbox-fetch aan (out body geom
+  // → geometrie + node-IDs). Zonder verse fetch draait de reconstructie op het
+  // bestaande netwerk zónder adjacency (matcher valt terug op emissie+koers).
+  stap('plan', 'Route-gebied bepalen', 'busy');
+  var geenNet = !S.netwerkRows.length;
+  if (geenNet) {
+    // ZIP zonder netwerk (bv. Overpass faalde tijdens de telling). De tikken hebben
+    // lat/lon, dus de verse bbox-fetch kan het netwerk alsnog ophalen — dat is hier
+    // de ENIGE bron. Geen eerste reconstructie; direct de fetch aanbieden.
+    stap('plan', 'Geen netwerk in ZIP', 'done',
+         'bbox ' + S.bbox.wM.toFixed(0) + '×' + S.bbox.hM.toFixed(0) + ' m — verse fetch is nodig om te reconstrueren');
+    document.getElementById('fetchBtn').classList.remove('hide');
+    document.getElementById('fetchBtn').disabled = false;   // nieuwe ZIP: knop weer aanklikbaar
+    document.getElementById('fetchBtn').textContent = 'Netwerk ophalen en reconstrueren';
+    document.getElementById('fetchBtn').onclick = bboxFetch;
+    document.getElementById('statblok').classList.remove('hide');
+    var m = document.getElementById('melding');
+    m.className = 'note warn';
+    m.innerHTML = '<b>Deze ZIP bevat geen netwerk.</b> Waarschijnlijk was Overpass onbereikbaar tijdens de telling. ' +
+                  'Klik hierboven om het netwerk alsnog op te halen; daarna wordt de sessie volledig gereconstrueerd.';
+    return;
+  }
+  stap('plan', 'Route-gebied bepaald', 'done',
+       'bbox ' + S.bbox.wM.toFixed(0) + '×' + S.bbox.hM.toFixed(0) + ' m — verse fetch aanbevolen voor topologie');
+  document.getElementById('fetchBtn').classList.remove('hide');
+  document.getElementById('fetchBtn').disabled = false;   // nieuwe ZIP: knop weer aanklikbaar
+  document.getElementById('fetchBtn').textContent = 'Hele route verversen (met topologie)';
+  document.getElementById('fetchBtn').onclick = bboxFetch;
+
+  reconstrueer();
+}
+
+/* ---- batch-verwerking ----------------------------------------------------
+   Sleep meerdere ZIP's erin → elk sequentieel: laden, netwerk via de tegel-cache
+   verversen (zo profiteert elke volgende telling in hetzelfde gebied van de tegels
+   van de vorige — minimale OSM-belasting), reconstrueren, en los downloaden.
+   De kaart wordt overgeslagen (S.batchModus); een bestand dat faalt wordt overgeslagen. */
+function verwerkBatchFile(file) {
+  return JSZip.loadAsync(file)
+    .then(function (zip) { return leesZipInS(zip, file.name.replace(/\.zip$/, '')); })
+    .then(function () {
+      bereidVoor();
+      return cacheGefetchteRoute(S.bbox, function () {})
+        .then(function (res) { verwerkOsmWays(res.ways); })
+        .catch(function () { if (!S.netwerkRows.length) throw new Error('geen netwerk en fetch mislukt'); });
+                              // fetch mislukt maar netwerk aanwezig: draai erop verder (zoals interactief)
+    })
+    .then(function () {
+      reconstrueer();                       // batchModus skipt kaart/resultaat
+      return bouwZipBlob();
+    })
+    .then(function (blob) { return { naam: S.sid + '_recon.zip', blob: blob, tikken: S.telregels.length }; });
+}
+
+function verwerkBatch(files) {
+  var lijst = Array.prototype.slice.call(files).filter(function (f) { return /\.zip$/i.test(f.name); });
+  if (!lijst.length) return;
+  if (lijst.length === 1) return laadZip(lijst[0]);   // één bestand: gewone interactieve modus
+  resetStappen();
+  document.getElementById('stapblok').classList.remove('hide');
+  S.batchModus = true;
+  var gelukt = 0, mislukt = [], n = lijst.length;
+  var seq = Promise.resolve();
+  lijst.forEach(function (file, i) {
+    seq = seq.then(function () {
+      stap('batch', 'Batch verwerken', 'busy', 'bestand ' + (i + 1) + '/' + n + ' · ' + file.name);
+      return verwerkBatchFile(file).then(function (res) {
+        saveBlob(res.blob, res.naam, 'application/zip');
+        gelukt++;
+        stap('batch', 'Batch verwerken', 'busy', (i + 1) + '/' + n + ' klaar · ' + res.naam + ' (' + res.tikken + ' tikken)');
+      }).catch(function (err) {
+        mislukt.push(file.name + ' — ' + (err && err.message || err));
+        stap('batch', 'Batch verwerken', 'busy', (i + 1) + '/' + n + ' MISLUKT · ' + file.name);
+      });
+    });
+  });
+  seq.then(function () {
+    S.batchModus = false;
+    resetStappen();   // transiënte snap/plan-stappen opruimen; alleen de samenvatting tonen
+    stap('batch', 'Batch klaar', 'done', gelukt + '/' + n + ' gereconstrueerd en gedownload');
+    var m = document.getElementById('melding');
+    m.className = mislukt.length ? 'note warn' : 'note';
+    m.innerHTML = '<b>Batch klaar:</b> ' + gelukt + ' van ' + n + ' gedownload.'
+      + (mislukt.length ? '<br><b>Overgeslagen:</b> ' + mislukt.join('; ') : '');
+  });
+}
+
+function trailBbox() {
+  var la = S.gps.map(function (g) { return +g.lat; }).filter(isFinite);
+  var lo = S.gps.map(function (g) { return +g.lon; }).filter(isFinite);
+  var la0 = Math.min.apply(null, la), la1 = Math.max.apply(null, la);
+  var lo0 = Math.min.apply(null, lo), lo1 = Math.max.apply(null, lo);
+  // 250 m marge zodat ways net buiten de trail meekomen
+  var mLat = 250 / 111320, mLon = 250 / (111320 * Math.cos((la0 + la1) / 2 * Math.PI / 180));
+  la0 -= mLat; la1 += mLat; lo0 -= mLon; lo1 += mLon;
+  var wM = (lo1 - lo0) * 111320 * Math.cos((la0 + la1) / 2 * Math.PI / 180);
+  var hM = (la1 - la0) * 111320;
+  return { la0: la0, la1: la1, lo0: lo0, lo1: lo1, wM: wM, hM: hM };
+}
+
+function bouwNetwerk(rows) {
+  S.netM = {}; S.netGeoLL = {};
+  rows.forEach(function (r) {
+    var ll = wktToLatLon(r.geometrie_wkt);
+    if (ll.length < 2) return;
+    var ptsM = ll.map(function (p) { return RECON.toM(p[1], p[0], S.sc, S.lon0); });
+    (S.netM[r.osm_way_id] = S.netM[r.osm_way_id] || []).push({ segIdx: r.segment_index, pts: ptsM });
+    (S.netGeoLL[r.osm_way_id] = S.netGeoLL[r.osm_way_id] || {})[r.segment_index] = ll;
+  });
+}
+
+/* Normaliseer netwerk-rijen naar het segment_index-schema. Pocket levert die al;
+   car/fiets hebben één ongesplitste LINESTRING per way zonder segment_index —
+   die knippen we hier met splitWayIntoSegments (byte-identiek aan pocket), zodat
+   snapM variatie krijgt en het kaartbeeld fijner wordt bij lange OSM-links. */
+function normaliseerNetwerk(rows) {
+  if (!rows.length) return rows;
+  if (rows[0].segment_index !== undefined && rows[0].segment_index !== '') return rows;  // al gesegmenteerd (pocket)
+  var out = [];
+  rows.forEach(function (r) {
+    var ll = wktToLatLon(r.geometrie_wkt);           // [[lat,lon]]
+    if (ll.length < 2) return;
+    var geom = ll.map(function (p) { return { lat: p[0], lon: p[1] }; });
+    var subs = splitWayIntoSegments(geom);           // [[ [lat,lon], ... ]]
+    subs.forEach(function (sub, idx) {
+      var wkt = 'LINESTRING (' + sub.map(function (p) { return p[1] + ' ' + p[0]; }).join(', ') + ')';
+      out.push({ osm_way_id: r.osm_way_id, segment_index: String(idx), segment_count: String(subs.length),
+                 highway: r.highway || '', geometrie_wkt: wkt });
+    });
+  });
+  return out;
+}
+
+function wktToLatLon(wkt) {
+  var m = /\((.*)\)/.exec(wkt || ''); if (!m) return [];
+  return m[1].split(',').map(function (p) {
+    var xy = p.trim().split(/\s+/); return [parseFloat(xy[1]), parseFloat(xy[0])]; // [lat,lon]
+  });
+}
+
+/* ---- OSM tegel-cache ------------------------------------------------------
+   De meeste tellingen liggen in hetzelfde gebied en halen dus steeds dezelfde
+   OSM-data op. We cachen fetches per vaste tegel (~0,01° ≈ 0,7–1,1 km) in
+   IndexedDB en hergebruiken verse tegels; alleen ontbrekende/verouderde tegels
+   worden opgehaald, in ÉÉN gebundelde Overpass-call over hun omhullende bbox.
+   Zo belasten we de OSM-servers minimaal. De dag-snapshot (_netwerk.csv) blijft
+   als grondwaarheid bewaard; deze cache voedt alleen het 'verse' netwerk. */
+var TILE_DEG = 0.01;                             // tegelgrootte in graden
+var TEGEL_SCHEMA = 2;                            // v2.49: tegels dragen ook de straatnaam
+var CACHE_TTL_MS = 60 * 24 * 3600 * 1000;        // verse tegel: < 60 dagen oud
+
+function tileKey(ty, tx) { return 't_' + ty + '_' + tx; }
+function coveringTiles(b) {
+  // half-open tegels [k·S, (k+1)·S): bovenrand exact op een grens telt NIET de volgende
+  // tegel mee (ceil-1), anders fetch je stelselmatig een tegelrand te veel.
+  var ty0 = Math.floor(b.la0 / TILE_DEG), ty1 = Math.max(ty0, Math.ceil(b.la1 / TILE_DEG) - 1);
+  var tx0 = Math.floor(b.lo0 / TILE_DEG), tx1 = Math.max(tx0, Math.ceil(b.lo1 / TILE_DEG) - 1);
+  var out = [];
+  for (var ty = ty0; ty <= ty1; ty++) for (var tx = tx0; tx <= tx1; tx++) out.push({ ty: ty, tx: tx, key: tileKey(ty, tx) });
+  return out;
+}
+function bboxOfTiles(tiles) {                     // omhullende bbox (graden) van een set tegels
+  var tys = tiles.map(function (t) { return t.ty; }), txs = tiles.map(function (t) { return t.tx; });
+  return { la0: Math.min.apply(null, tys) * TILE_DEG, la1: (Math.max.apply(null, tys) + 1) * TILE_DEG,
+           lo0: Math.min.apply(null, txs) * TILE_DEG, lo1: (Math.max.apply(null, txs) + 1) * TILE_DEG };
+}
+function wayTileKeys(el) {                        // tegels die de way-geometrie raakt
+  var s = {};
+  (el.geometry || []).forEach(function (p) { s[tileKey(Math.floor(p.lat / TILE_DEG), Math.floor(p.lon / TILE_DEG))] = 1; });
+  return Object.keys(s);
+}
+function tegelVers(rec) { return rec && rec.ts && (Date.now() - rec.ts) < CACHE_TTL_MS; }
+function dedupeWays(lists) {                      // meerdere way-lijsten → unieke ways op id
+  var seen = {}, out = [];
+  lists.forEach(function (ws) { (ws || []).forEach(function (w) { if (!seen[w.id]) { seen[w.id] = 1; out.push(w); } }); });
+  return out;
+}
+
+// IndexedDB-store voor tegels; alle requests binnen één transactie synchroon uitgegeven.
+var OSMCACHE = (function () {
+  var DB = 'telsuite_osm', STORE = 'tiles', dbP = null;
+  function open() {
+    if (dbP) return dbP;
+    dbP = new Promise(function (res, rej) {
+      if (typeof indexedDB === 'undefined' || !indexedDB) return rej(new Error('geen IndexedDB'));
+      var q = indexedDB.open(DB, 1);
+      q.onupgradeneeded = function (e) {
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE))     db.createObjectStore(STORE, { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('handoff')) db.createObjectStore('handoff', { keyPath: 'key' });
+      };
+      q.onsuccess = function (e) { res(e.target.result); };
+      q.onerror = function () { rej(q.error); };
+    });
+    return dbP;
+  }
+  return {
+    get: function (keys) {
+      return open().then(function (db) {
+        return new Promise(function (res) {
+          var store = db.transaction(STORE, 'readonly').objectStore(STORE), out = {}, pending = keys.length;
+          if (!pending) return res(out);
+          keys.forEach(function (k) {
+            var r = store.get(k);
+            r.onsuccess = function () { if (r.result) out[k] = r.result; if (--pending === 0) res(out); };
+            r.onerror = function () { if (--pending === 0) res(out); };
+          });
+        });
+      });
+    },
+    put: function (records) {
+      return open().then(function (db) {
+        return new Promise(function (res, rej) {
+          var tx = db.transaction(STORE, 'readwrite'), store = tx.objectStore(STORE);
+          tx.oncomplete = function () { res(); };
+          tx.onerror = function () { rej(tx.error); };
+          records.forEach(function (rec) { store.put(rec); });
+        });
+      });
+    },
+    clear: function () {
+      return open().then(function (db) {
+        return new Promise(function (res) {
+          var tx = db.transaction(STORE, 'readwrite');
+          tx.oncomplete = function () { res(); }; tx.onerror = function () { res(); };
+          tx.objectStore(STORE).clear();
+        });
+      });
+    }
+  };
+})();
+
+// Eén live Overpass-fetch over bbox b → genormaliseerde ways (klaar voor verwerking én cache).
+function liveFetchWays(b, onProgress) {
+  var bbox = b.la0.toFixed(6) + ',' + b.lo0.toFixed(6) + ',' + b.la1.toFixed(6) + ',' + b.lo1.toFixed(6);
+  // Unie: alle highway-ways (steps zit in HIGHWAY_RE) PLUS gebouwdoorgangen (tunnel=building_passage),
+  // die soms geen highway-tag dragen en anders wegvielen — de route loopt door trappen en doorgangen.
+  var q = '[out:json][timeout:25];('
+        + 'way["highway"~"' + HIGHWAY_RE + '"]["area"!="yes"](' + bbox + ');'
+        + 'way["tunnel"="building_passage"](' + bbox + ');'
+        + ');out body geom;';
+  return new Promise(function (res, rej) {
+    overpassFetch(q, function (data) {
+      var ways = (data.elements || [])
+        .filter(function (el) { return el.type === 'way' && el.geometry && el.geometry.length >= 2; })
+        .map(function (el) { return { type: 'way', id: el.id, nodes: el.nodes || [], geometry: el.geometry,
+                                      tags: { highway: (el.tags && el.tags.highway) || '',
+                                              name:    (el.tags && el.tags.name)    || '' } }; });
+      res(ways);
+    }, function (err) { rej(err); }, onProgress);
+  });
+}
+
+// Stel het netwerk voor de trail-bbox samen: verse tegels uit cache, ontbrekende in één call ophalen.
+function cacheGefetchteRoute(bbox, onProgress) {
+  var tiles = coveringTiles(bbox);
+  return Promise.resolve()
+    .then(function () { return OSMCACHE.get(tiles.map(function (t) { return t.key; })); })
+    .catch(function () { return null; })   // IndexedDB niet beschikbaar → volledige live-fetch
+    .then(function (cached) {
+      if (cached === null) {
+        if (onProgress) onProgress('cache uit — volledige fetch');
+        return liveFetchWays(bbox, onProgress).then(function (ways) {
+          return { ways: ways, tegels: tiles.length, vers: tiles.length, oudsteDagen: 0, cacheUit: true };
+        });
+      }
+      var missing = tiles.filter(function (t) { return !tegelVers(cached[t.key]); });
+      var stap0 = missing.length
+        ? liveFetchWays(bboxOfTiles(missing), function (m) { if (onProgress) onProgress(missing.length + ' tegel(s) — ' + m); })
+            .then(function (fresh) {
+              var extTiles = coveringTiles(bboxOfTiles(missing));   // hele opgehaalde rechthoek is nu compleet
+              var per = {}; extTiles.forEach(function (t) { per[t.key] = []; });
+              fresh.forEach(function (w) { wayTileKeys(w).forEach(function (k) { if (per[k]) per[k].push(w); }); });
+              var now = Date.now();
+              var recs = extTiles.map(function (t) { return { key: t.key, ts: now, v: TEGEL_SCHEMA, ways: per[t.key] }; });
+              recs.forEach(function (r) { cached[r.key] = r; });
+              return OSMCACHE.put(recs).catch(function () {});   // opslaan mislukt: draai door met wat we hebben
+            })
+        : Promise.resolve();
+      return stap0.then(function () {
+        var ways = dedupeWays(tiles.map(function (t) { return cached[t.key] && cached[t.key].ways; }));
+        var oudste = 0; tiles.forEach(function (t) { if (cached[t.key]) oudste = Math.max(oudste, Date.now() - cached[t.key].ts); });
+        return { ways: ways, tegels: tiles.length, vers: missing.length, oudsteDagen: Math.round(oudste / 86400000) };
+      });
+    });
+}
+
+// Bouw het 'verse' netwerk (rijen + node-adjacency) uit een set ways. Gedeeld door cache- en live-route.
+function verwerkOsmWays(ways) {
+  S.adjacency = MATCHER.buildAdjacency(ways);
+  var rows = [];
+  ways.forEach(function (el) {
+    var subs = splitWayIntoSegments(el.geometry);        // zelfde segmentatie als KNIME verwacht
+    subs.forEach(function (sub, idx) {
+      var wktPts = sub.map(function (p) { return p[1] + ' ' + p[0]; }).join(', ');
+      rows.push({ osm_way_id: String(el.id), segment_index: String(idx), segment_count: String(subs.length),
+        highway: (el.tags && el.tags.highway) || '', geometrie_wkt: 'LINESTRING (' + wktPts + ')' });
+    });
+  });
+  S.netwerkRows = rows;                                   // vervangt het netwerk
+  S.netwerkVers = true;
+  bouwNetwerk(S.netwerkRows);
+}
+
+/* ---- bbox-fetch: hele route verversen via de tegel-cache ------------------
+   Verse tegels komen uit IndexedDB; alleen ontbrekende/verouderde tegels worden
+   in één Overpass-call opgehaald. 'out body geom' levert geometrie ÉN node-IDs,
+   waaruit de node-adjacency wordt gebouwd die de Viterbi-matcher nodig heeft.
+   Grondwaarheid blijft bewaard in S.netwerkOrigineel. */
+function bboxFetch() {
+  document.getElementById('fetchBtn').disabled = true;
+  var t0 = Date.now(), fase = 'verbinden';
+  var ticker = setInterval(function () {
+    stap('fetch', 'Netwerk samenstellen', 'busy', fase + ' — ' + ((Date.now() - t0) / 1000).toFixed(0) + 's');
+  }, 250);
+  stap('fetch', 'Netwerk samenstellen', 'busy', 'cache raadplegen — 0s');
+  cacheGefetchteRoute(S.bbox, function (bericht) { fase = bericht; }).then(function (res) {
+    fase = 'netwerk verwerken';
+    verwerkOsmWays(res.ways);
+    clearInterval(ticker);
+    var herkomst = res.cacheUit ? 'geen cache' : (res.vers + ' van ' + res.tegels + ' tegels vers'
+                   + (res.oudsteDagen ? ', oudste ' + res.oudsteDagen + ' d' : ''));
+    stap('fetch', 'Route ververst', 'done',
+         res.ways.length + ' ways · ' + herkomst + ' · ' + Object.keys(S.adjacency).length + ' met buren · '
+         + ((Date.now() - t0) / 1000).toFixed(0) + 's');
+    reconstrueer();
+    // na een geslaagde verversing is dit het "goede" resultaat — desgewenst meteen downloaden
+    var auto = document.getElementById('autoDl');
+    if (auto && auto.checked) exporteerZip();
+  }).catch(function (err) {
+    clearInterval(ticker);
+    stap('fetch', 'Fetch mislukt', 'fail', String(err) + ' — reconstructie draait op bestaand netwerk');
+    document.getElementById('fetchBtn').disabled = false;
+  });
+}
+
+// Leegt de OSM-tegelcache (voor als je bewust verse data wilt forceren).
+function legOsmCacheLeeg() {
+  OSMCACHE.clear().then(function () {
+    stap('fetch', 'OSM-cache geleegd', 'done', 'volgende verversing haalt alles opnieuw op');
+  }).catch(function () {});
+}
+
+/* ---- reconstructie: Viterbi-hersnap → richting → offset ------------------- */
+function reconstrueer() {
+  stap('snap', 'Route-consistent snappen', 'busy');
+
+  // netwerk in matcher-formaat: samengevoegde geometrie per wayId als [{lat,lon}]
+  var netMatch = bouwMatcherNet();
+  var adj = S.adjacency || {};   // leeg zonder verse fetch → matcher valt terug op emissie+koers
+  var segCount = maakSegCounter();
+  S.netMatch = netMatch; S.segCount = segCount;   // hergebruik door link-correctie (handmatig herberekenen)
+
+  // Bouw één chronologische trajectorie van GPS-fixes + tikken. De tik erft zo de
+  // way-toewijzing uit hetzelfde Viterbi-pad als de omringende fixes.
+  // Tik-coördinaat: pocket gebruikt lat/lon, car/fiets lat_gps/lon_gps.
+  function tapLat(t) { return t.lat != null && t.lat !== '' ? +t.lat : +t.lat_gps; }
+  function tapLon(t) { return t.lon != null && t.lon !== '' ? +t.lon : +t.lon_gps; }
+  var events = [];
+  S.gps.forEach(function (g) { if (g.lat) events.push({ kind: 'gps', t: tsec(g.tijdstip), ts: g.tijdstip, lat: +g.lat, lon: +g.lon, acc: +g.nauwkeurigheid || 5 }); });
+  var tapEvents = [];
+  S.telregels.forEach(function (t, ti) {
+    var la = tapLat(t), lo = tapLon(t);
+    if (!isFinite(la) || !isFinite(lo)) { tapEvents.push({ kind: 'tap', idx: ti, src: t, noloc: true }); return; }
+    var ev = { kind: 'tap', idx: ti, src: t, t: tsec(t.tijdstip), lat: la, lon: lo, acc: +t.nauwkeurigheid || 5 };
+    events.push(ev); tapEvents.push(ev);
+  });
+  events.sort(function (a, b) { return a.t - b.t || (a.kind === 'gps' ? -1 : 1); });
+
+  // Viterbi over de hele trajectorie, met de highway-voorkeur van dit teltype
+  var matched = MATCHER.matchTrajectory(netMatch, adj, events, segCount, S.profiel.highwayCost);
+
+  // richtingslaag op de gematchte trajectorie (snapM = globale positie langs way)
+  var timeline = [];
+  events.forEach(function (ev, i) {
+    var m = matched[i];
+    ev._match = m;
+    if (m) timeline.push({ t: ev.t, wayId: m.wayId, snapM: RECON.globalSnapM(m.segIdx, alongMeters(netMatch[m.wayId], m.plat, m.plon)), _ev: ev });
+  });
+  var dirs = RECON.reconstructDirection(timeline);
+  var dirOf = new Map(); timeline.forEach(function (o, i) { dirOf.set(o._ev, dirs[i]); });
+  S.reconEvents = events; S.timeline = timeline; S.dirs = dirs;   // hergebruik door link-correctie
+
+  // tikken samenstellen
+  var placed = 0, uncertain = 0, ongesnapt = 0, gesnapt = 0, verschoven = 0;
+  S.taps = tapEvents.map(function (ev) {
+    if (ev.noloc || !ev._match) { ongesnapt++; return maakTap2(ev, null, null, 0, 'ongesnapt'); }
+    gesnapt++;
+    var m = ev._match;
+    // koos de reconstructie een ANDERE way dan het veld? (link-revisie zichtbaar maken)
+    if (ev.src.osm_way_id && ev.src.osm_way_id !== m.wayId) verschoven++;
+    // links-vector op het snap-punt uit de way-geometrie
+    var lv = leftVectorAt(netMatch[m.wayId], m.plat, m.plon);
+    var qM = RECON.toM(m.plon, m.plat, S.sc, S.lon0);
+    var sgn = dirOf.get(ev) || 0;
+    // transect: geen zijde — plaats de tik op de gelopen link zelf, zonder loodrechte offset.
+    if (S.profiel.opLink) { placed++; return maakTap2(ev, m, qM, sgn, 'ok'); }
+    // zijde/richting-label komt via het profiel (pocket: richting-keuze; car/fiets: veld-zijde)
+    var label = S.profiel.labelVan(ev.src);
+    var mm = RECON.offsetPoint(qM, lv, sgn, label, OFFSET_M);
+    if (!mm) { uncertain++; return maakTap2(ev, m, qM, sgn, 'onzeker', label); }
+    placed++; return maakTap2(ev, m, mm, sgn, 'ok', label);
+  });
+
+  var adjInfo = Object.keys(adj).length ? ' · topologie actief' : ' · zonder topologie (nog geen verse fetch)';
+  stap('snap', 'Gesnapt', 'done', gesnapt + '/' + tapEvents.length + ' op een way · ' + verschoven + ' verschoven t.o.v. veld' + adjInfo);
+  stap('offset', 'Geplaatst', 'done', placed + ' met kant · ' + uncertain + ' onzeker · ' + ongesnapt + ' ongesnapt');
+
+  S.typeKleuren = bouwTypeKleuren();   // kleurregister voor stippen + legenda (profiel-afhankelijk)
+  // _bezocht.csv herbouwen uit de gereconstrueerde route (spook-'gelopen' segmenten weg)
+  S.bezochtReconRows = herbouwBezocht(events, netMatch, segCount);
+  if (S.batchModus) return;   // batch: compute klaar, geen kaart/resultaat-render
+  toonResultaat(placed, uncertain, ongesnapt, gesnapt, tapEvents.length);
+  try { tekenKaart(); }
+  catch (e) {
+    stap('offset', 'Geplaatst (kaart faalde)', 'done',
+         'reconstructie OK — kaart tekenen mislukte: ' + (e.message || e));
+  }
+}
+
+// netwerk in matcher-formaat: één samengevoegde geometrie per wayId
+function bouwMatcherNet() {
+  var bySeg = {};
+  S.netwerkRows.forEach(function (r) { (bySeg[r.osm_way_id] = bySeg[r.osm_way_id] || []).push(r); });
+  var net = {};
+  Object.keys(bySeg).forEach(function (wid) {
+    var segs = bySeg[wid].sort(function (a, b) { return (+a.segment_index) - (+b.segment_index); });
+    var geom = [];
+    segs.forEach(function (s) {
+      var g = wktLL(s.geometrie_wkt);  // [{lat,lon}]
+      if (geom.length && g.length) geom = geom.concat(g.slice(1)); else geom = geom.concat(g);
+    });
+    net[wid] = { geometry: geom, osmName: '', highway: (segs[0] && segs[0].highway) || '', _rows: segs.length };
+  });
+  return net;
+}
+function maakSegCounter() {
+  return function (wayId, geom) {
+    // aantal segmenten = zoals opgeslagen (uit segment_count) of via splitWayIntoSegments
+    var row = S.netwerkRows.find(function (r) { return r.osm_way_id === wayId; });
+    if (row && row.segment_count) return parseInt(row.segment_count, 10) || 1;
+    return splitWayIntoSegments(geom).length;
+  };
+}
+function wktLL(wkt) {
+  var m = /\((.*)\)/.exec(wkt || ''); if (!m) return [];
+  return m[1].split(',').map(function (p) { var xy = p.trim().split(/\s+/); return { lat: parseFloat(xy[1]), lon: parseFloat(xy[0]) }; });
+}
+// positie langs way in meters tot het snap-punt (voor globalSnapM)
+function alongMeters(net, plat, plon) {
+  if (!net) return 0;
+  var g = net.geometry, lm = 111320 * Math.cos(g[0].lat * Math.PI / 180), LAT_M = 111320;
+  var px = plon * lm, py = plat * LAT_M, cum = 0, best = Infinity, bestCum = 0;
+  for (var i = 0; i < g.length - 1; i++) {
+    var ax = g[i].lon*lm, ay = g[i].lat*LAT_M, bx = g[i+1].lon*lm, by = g[i+1].lat*LAT_M;
+    var dx = bx-ax, dy = by-ay, l2 = dx*dx+dy*dy, segLen = Math.sqrt(l2);
+    var t = l2 ? Math.max(0, Math.min(1, ((px-ax)*dx+(py-ay)*dy)/l2)) : 0;
+    var cx = ax+t*dx, cy = ay+t*dy, d = Math.hypot(px-cx, py-cy);
+    if (d < best) { best = d; bestCum = cum + t*segLen; }
+    cum += segLen;
+  }
+  return bestCum;
+}
+// links-eenheidsvector (90° links van lokale edge-richting A→B) op het snap-punt, in meters
+function leftVectorAt(net, plat, plon) {
+  var g = net.geometry, lm = 111320 * Math.cos(g[0].lat * Math.PI / 180), LAT_M = 111320;
+  var px = plon * lm, py = plat * LAT_M, best = Infinity, lx = 0, ly = 1;
+  for (var i = 0; i < g.length - 1; i++) {
+    var ax = g[i].lon*lm, ay = g[i].lat*LAT_M, bx = g[i+1].lon*lm, by = g[i+1].lat*LAT_M;
+    var dx = bx-ax, dy = by-ay, L = Math.hypot(dx, dy); if (L < 1e-9) continue;
+    var t = Math.max(0, Math.min(1, ((px-ax)*dx+(py-ay)*dy)/(L*L)));
+    var cx = ax+t*dx, cy = ay+t*dy, d = Math.hypot(px-cx, py-cy);
+    if (d < best) { best = d; lx = -dy/L; ly = dx/L; }
+  }
+  return [lx, ly];
+}
+
+function maakTap2(ev, m, ptM, sgn, status, label) {
+  var ll = null, zijde = 'X';
+  if (ptM) ll = RECON.toLL(ptM[0], ptM[1], S.sc, S.lon0);  // [lon,lat]
+  // zijde: pocket leidt 'm af uit richting; car/fiets HOUDT de veld-zijde (grondwaarheid)
+  if (status === 'ok') {
+    if (S.profiel.opLink) zijde = 'X';                                    // transect: geen zijde
+    else if (S.profiel.zijdeVeld) zijde = ev.src.zijde || (label === 'links' ? 'L' : 'R');
+    else zijde = (label === 'links') ? 'L' : 'R';
+  }
+  var origWay = ev.src.osm_way_id || '';
+  var linkGewijzigd = m && origWay && origWay !== m.wayId;
+  return {
+    src: ev.src, wayId: m ? m.wayId : '', segIdx: m ? m.segIdx : '',
+    type: S.profiel.typeVan(ev.src) || '', richting: label || '',
+    latMarker: ll ? ll[1] : '', lonMarker: ll ? ll[0] : '',
+    latGps: ev.lat || ev.src.lat || ev.src.lat_gps || '', lonGps: ev.lon || ev.src.lon || ev.src.lon_gps || '',
+    zijde: zijde, dir: sgn, status: status,
+    origWay: origWay, linkGewijzigd: linkGewijzigd
+  };
+}
+
+function tsec(iso) {
+  // pocket gebruikt 'T' als datum/tijd-scheider, car/fiets een spatie
+  var s = String(iso);
+  var tijd = s.indexOf('T') >= 0 ? s.split('T')[1] : (s.indexOf(' ') >= 0 ? s.split(' ')[1] : s);
+  var t = (tijd || '0:0:0').split(':').map(Number);
+  return t[0] * 3600 + t[1] * 60 + (t[2] || 0);
+}
+function hhmmss(iso) {
+  var s = String(iso);
+  return s.indexOf('T') >= 0 ? s.split('T')[1] : (s.indexOf(' ') >= 0 ? s.split(' ')[1] : s);
+}
+
+/* Herbouw _bezocht.csv uit de GERECONSTRUEERDE route. De live-snap markeerde door
+   GPS-ruis segmenten als 'gelopen' die je niet liep; die spoken staan niet in de
+   Viterbi-route en verdwijnen zo bij de bron. We lopen de gematchte GPS-fixes
+   chronologisch langs, knippen in aaneengesloten runs per (way,segment), en tellen de
+   gereconstrueerde tikken per venster. Zelfde drempels als pocket_count.buildBezochtCsv
+   (gap 30s, minimaal 5s en 3 punten), zodat het schema en gedrag herkenbaar blijven. */
+function herbouwBezocht(events, netMatch, segCounterFn) {
+  var MAX_GAP = 30, MIN_DUR = 5, MIN_PTS = 3;   // seconden / punten
+  // naam per way uit de originele snap (het netwerk zelf draagt geen straatnaam)
+  var naam = {};
+  [S.gps, S.telregels].forEach(function (bron) {
+    (bron || []).forEach(function (r) {
+      var w = (r.osm_way_id || '').trim();
+      if (w && !naam[w] && r.straat) naam[w] = r.straat;
+    });
+  });
+  // aaneengesloten runs over de gematchte GPS-fixes
+  var visits = [], cur = null;
+  events.forEach(function (ev) {
+    if (ev.kind !== 'gps') return;
+    var m = ev._match;
+    if (!m) { if (cur) { visits.push(cur); cur = null; } return; }   // geen match: sluit run
+    var seg = +m.segIdx || 0;
+    var same = cur && cur.wayId === m.wayId && cur.segIdx === seg;
+    if (!same || (ev.t - cur.tEnd) > MAX_GAP) {
+      if (cur) visits.push(cur);
+      cur = { wayId: m.wayId, segIdx: seg, tStart: ev.t, tEnd: ev.t, tsStart: ev.ts, tsEnd: ev.ts, nGps: 1 };
+    } else { cur.tEnd = ev.t; cur.tsEnd = ev.ts; cur.nGps++; }
+  });
+  if (cur) visits.push(cur);
+  visits = visits.filter(function (v) { return (v.tEnd - v.tStart) >= MIN_DUR && v.nGps >= MIN_PTS; });
+  // tikken per venster tellen uit de gereconstrueerde toewijzing
+  visits.forEach(function (v) {
+    v.nTel = 0;
+    S.taps.forEach(function (tp) {
+      if (tp.status === 'ongesnapt' || tp.wayId !== v.wayId || (+tp.segIdx || 0) !== v.segIdx) return;
+      var tt = tsec(tp.src.tijdstip);
+      if (tt >= v.tStart && tt <= v.tEnd) v.nTel++;
+    });
+  });
+  var datum = (S.sessieRow && S.sessieRow.datum) || '';
+  return visits.map(function (v) {
+    var g = netMatch[v.wayId];
+    var segCount = g ? segCounterFn(v.wayId, g.geometry) : 1;
+    return { sessie_id: S.sid, datum: datum, osm_way_id: v.wayId, segment_index: v.segIdx,
+      segment_count: segCount, straat: naam[v.wayId] || '',
+      start_tijd: hhmmss(v.tsStart), eind_tijd: hhmmss(v.tsEnd),
+      duur_sec: Math.round(v.tEnd - v.tStart), n_gps: v.nGps, n_tellingen: v.nTel };
+  });
+}
+
+/* ---- resultaat + kaart ---------------------------------------------------- */
+function toonResultaat(placed, uncertain, ongesnapt, gesnapt, totaal) {
+  document.getElementById('statblok').classList.remove('hide');
+  document.getElementById('kpi').innerHTML =
+    kpi('Geplaatst', placed) + kpi('Onzeker', uncertain) + kpi('Ongesnapt', ongesnapt) + kpi('Totaal', totaal);
+  zetLegenda();   // legenda past zich aan het teltype aan (bezet/leeg, tegemoet/stilstaand, …)
+  var exp = document.getElementById('exportBtn');
+  exp.disabled = false; exp.onclick = exporteerZip;
+  var m = document.getElementById('melding');
+  if (ongesnapt > 0) {
+    m.className = 'note warn';
+    m.innerHTML = '<b>' + ongesnapt + ' tikken nog zonder way.</b> Haal eerst het ontbrekende netwerk op ' +
+                  '(knop hierboven), daarna wordt opnieuw gereconstrueerd.';
+  } else {
+    m.className = 'note';
+    m.innerHTML = 'Alle gesnapte tikken verwerkt. Controleer op de kaart of links/rechts fysiek klopt ' +
+                  'tegen wat je van de straat weet.';
+  }
+}
+function kpi(label, n) { return '<div><span>' + label + '</span><b>' + n + '</b></div>'; }
+
+function cssVar(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+/* Bouw het type->kleur-register uit de types die echt geplot worden. Vaste semantische
+   kleuren komen uit het profiel (kleuren:{}); vrije wandeltypes rouleren door PALET. */
+function bouwTypeKleuren() {
+  var seen = [];
+  S.taps.forEach(function (tp) {
+    if (tp.status === 'ongesnapt') return;                 // niet geplot → niet in legenda
+    if (tp.type && seen.indexOf(tp.type) < 0) seen.push(tp.type);
+  });
+  var vast = S.profiel.kleuren || {}, map = {}, pi = 0;
+  seen.forEach(function (t) { map[t] = vast[t] || PALET[pi++ % PALET.length]; });
+  return { map: map, volgorde: seen };
+}
+
+/* Vul de legenda op basis van het kleurregister. De 'onzeker'-regel alleen als er ook
+   echt onzekere tikken zijn (wandelprofielen kennen die status niet). */
+function zetLegenda() {
+  var el = document.getElementById('legenda'); if (!el) return;
+  var tk = S.typeKleuren || bouwTypeKleuren();
+  var html = '<div>' + tk.volgorde.map(function (t) {
+    return '<i style="background:' + tk.map[t] + '"></i>' + t;
+  }).join(' &nbsp; ') + '</div>';
+  if (S.taps.some(function (tp) { return tp.status === 'onzeker'; }))
+    html += '<div style="margin-top:3px"><i style="background:' + cssVar('--onzeker') +
+            '"></i>richting onzeker (op de wegas)</div>';
+  el.innerHTML = html;
+}
+
+function tekenKaart(behoudView) {
+  if (!S.map) {
+    S.map = L.map('map', { zoomControl: true, maxZoom: 22 });
+    // Twee achtergronden: CartoDB grijs (overzicht) en PDOK luchtfoto 25cm (parkeervakken
+    // zichtbaar, diep inzoombaar). URL byte-identiek aan telrapport.html.
+    S.basemaps = {
+      grijs: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=cb1_2a2n_1_3583b21ab7073b803a894288',
+        { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 22, maxNativeZoom: 20 }),
+      luchtfoto: L.tileLayer('https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_ortho25/EPSG:3857/{z}/{x}/{y}.jpeg',
+        { attribution: '&copy; Kadaster · Luchtfoto 25cm', maxZoom: 22, maxNativeZoom: 20 })
+    };
+    S.basemapNaam = 'grijs';
+    S.basemaps.grijs.addTo(S.map);
+    zetBasemapOpacity();
+    // Meteen een geldige view zetten op het route-zwaartepunt. Zonder gedefinieerd
+    // centrum+zoom heeft de kaart geen projectie en tekent Leaflet géén vectorlagen
+    // (tegels wel). fitBounds hieronder is daarna alleen nog verfijning.
+    var la = S.gps.map(function (g) { return +g.lat; }).filter(isFinite);
+    var lo = S.gps.map(function (g) { return +g.lon; }).filter(isFinite);
+    if (la.length) {
+      S.map.setView([la.reduce(function (a, b) { return a + b; }, 0) / la.length,
+                     lo.reduce(function (a, b) { return a + b; }, 0) / lo.length], 16);
+    } else {
+      S.map.setView([52.1, 5.1], 8);   // fallback: midden NL
+    }
+  }
+  Object.values(S.layers).forEach(function (l) { S.map.removeLayer(l); });
+  S.layers = {};
+
+  // wegen — bewaar per wayId (voor de link-correctie: doel kiezen + markeren)
+  var wegLayer = L.layerGroup().addTo(S.map);
+  S.wayLines = {};
+  Object.keys(S.netGeoLL).forEach(function (wid) {
+    Object.values(S.netGeoLL[wid]).forEach(function (ll) {
+      var pl = L.polyline(ll, { color: '#1a4fb0', weight: 2, opacity: 0.7 }).addTo(wegLayer);
+      pl.on('click', function () { if (S.corrModus) kiesDoelWay(wid); });
+      (S.wayLines[wid] = S.wayLines[wid] || []).push(pl);
+    });
+  });
+  S.layers.weg = wegLayer;
+  if (S.corrModus && S.corrDoel && S.wayLines[S.corrDoel])
+    S.wayLines[S.corrDoel].forEach(function (pl) { pl.setStyle({ color: '#e11d48', weight: 4, opacity: 0.95 }); });
+
+  // GPS-trail
+  var trail = S.gps.filter(function (g) { return g.lat; }).map(function (g) { return [+g.lat, +g.lon]; });
+  S.layers.trail = L.polyline(trail, { color: '#ff6600', weight: 2, opacity: 0.85, dashArray: '4,4' }).addTo(S.map);
+
+  // tikken
+  var tapLayer = L.layerGroup().addTo(S.map);
+  var pts = [];
+  S.taps.forEach(function (tp) {
+    var lat, lon, kleur, straal = 5;
+    if (tp.status === 'ok') {
+      lat = tp.latMarker; lon = tp.lonMarker;
+      // kleur uit het profiel-afhankelijke register; onbekend type → neutrale terugval
+      kleur = (S.typeKleuren && S.typeKleuren.map[tp.type]) || cssVar('--leeg');
+    } else if (tp.status === 'onzeker') {
+      lat = tp.latMarker; lon = tp.lonMarker;
+      kleur = cssVar('--onzeker'); straal = 4;
+    } else { return; } // ongesnapt: niet plotten
+    if (!lat || !lon) return;
+    pts.push([+lat, +lon]);
+    // tooltip toont alleen wat van toepassing is: richting enkel bij a/b, zijde enkel bij L/R
+    var tip = tp.type;
+    if (tp.richting) tip += ' · ' + tp.richting;
+    if (tp.zijde && tp.zijde !== 'X') tip += ' (' + tp.zijde + ')';
+    if (tp.status === 'onzeker') tip += ' — richting onzeker';
+    L.circleMarker([+lat, +lon], {
+      radius: straal, color: '#000', weight: 0.8, opacity: 0.6,
+      fillColor: (kleur || '').trim(), fillOpacity: 0.85
+    }).bindTooltip(tip, { direction: 'top' }).addTo(tapLayer);
+    var mk = tapLayer.getLayers()[tapLayer.getLayers().length - 1];
+    tp._marker = mk;
+    mk.on('click', function () { if (S.corrModus) markeerTik(tp); });
+    if (S.corrModus) mk.setStyle(corrStijl(tp));
+  });
+  S.layers.taps = tapLayer;
+
+  var geldig = pts.filter(function (p) { return isFinite(p[0]) && isFinite(p[1]); });
+  var t2 = trail.filter(function (p) { return isFinite(p[0]) && isFinite(p[1]); });
+  var doel = geldig.length ? geldig : t2;
+  // Leaflet kent de kaartgrootte pas na layout; in een flex-container is dat vaak
+  // ná de eerste render. invalidateSize + fitBounds na een tick zorgt dat de
+  // vectorlagen op de juiste plek komen i.p.v. tegen een kaart van hoogte 0.
+  setTimeout(function () {
+    try {
+      S.map.invalidateSize();
+      if (!behoudView && doel.length) S.map.fitBounds(L.latLngBounds(doel).pad(0.2));
+    } catch (e) {}
+  }, 100);
+}
+
+/* ---- Link-correctie (handmatig) ------------------------------------------
+   Sommige tikken snappen bij een kruising haaks op de dwarslink i.p.v. de
+   gelopen link (trajectorie-Viterbi kiest de dichtstbijzijnde way). In
+   correctiemodus markeer je zulke tikken, klik je de juiste blauwe link, en
+   herberekent de tool way + segment + richting + markerplaatsing voor precies
+   die tikken — via dezelfde bouwstenen als de reconstructie (RECON.project,
+   segIdx, richtingslaag, offsetPoint). De aggregaten (_bezocht n_tellingen)
+   volgen omdat die uit tp.wayId/segIdx tellen. Herkomst: recon_status='handmatig'. */
+function corrInit() {
+  if (!S.corrSel) { S.corrSel = new Set(); S.corrDoel = null; S.corrModus = false; }
+}
+function toggleCorrModus() {
+  corrInit();
+  S.corrModus = !S.corrModus;
+  var btn = document.getElementById('corrToggle');
+  if (btn) btn.textContent = S.corrModus ? 'Correctiemodus uit' : 'Correctiemodus aan';
+  var pn = document.getElementById('corrPaneel');
+  if (pn) pn.classList.toggle('hide', !S.corrModus);
+  if (!S.corrModus) { wisCorrectie(); }
+  tekenKaart(true);         // herteken zodat kandidaten (linkGewijzigd) opvallen; view behouden
+  tekenCorrPaneel();
+}
+// segIdx voor een (lat,lon) op een way — spiegelt segIdxFor uit de matcher, herbruikbaar.
+function segIdxOp(wayId, plat, plon) {
+  var el = S.netMatch && S.netMatch[wayId]; if (!el || !el.geometry) return 0;
+  var g = el.geometry, LAT_M = 111320, lm = LAT_M * Math.cos(g[0].lat * Math.PI / 180);
+  var px = plon * lm, py = plat * LAT_M, cum = 0, bestCum = 0, best = Infinity;
+  for (var i = 0; i < g.length - 1; i++) {
+    var ax = g[i].lon*lm, ay = g[i].lat*LAT_M, bx = g[i+1].lon*lm, by = g[i+1].lat*LAT_M;
+    var dx = bx-ax, dy = by-ay, l2 = dx*dx+dy*dy, segLen = Math.sqrt(l2);
+    var t = l2 ? Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / l2)) : 0;
+    var cx = ax+t*dx, cy = ay+t*dy, d = Math.hypot(px-cx, py-cy);
+    if (d < best) { best = d; bestCum = cum + t*segLen; }
+    cum += segLen;
+  }
+  var n = S.segCount ? S.segCount(wayId, g) : 1;
+  if (n <= 1 || cum === 0) return 0;
+  return Math.min(n - 1, Math.floor(bestCum / (cum / n)));
+}
+// travelSign op een way rond een tijdstip, uit de al berekende richtingslaag.
+function dirVoorWayOpTijd(wayId, t) {
+  if (!S.timeline) return 0;
+  var best = 0, bestDt = Infinity;
+  for (var i = 0; i < S.timeline.length; i++) {
+    if (S.timeline[i].wayId !== wayId) continue;
+    var dt = Math.abs(S.timeline[i].t - t);
+    if (dt < bestDt) { bestDt = dt; best = S.dirs[i] || 0; }
+  }
+  return best;
+}
+// Herbereken één tik naar de doel-way; retour nieuw tap-object (of null).
+function herberekenEenTik(tp, doel) {
+  var el = S.netMatch && S.netMatch[doel]; if (!el || !el.geometry) return null;
+  var pr = MATCHER.project(+tp.latGps, +tp.lonGps, el.geometry);
+  var seg = segIdxOp(doel, pr.lat, pr.lon);
+  var sgn = dirVoorWayOpTijd(doel, tsec(tp.src.tijdstip));
+  var qM = RECON.toM(pr.lon, pr.lat, S.sc, S.lon0);
+  var m = { wayId: doel, segIdx: seg, plat: pr.lat, plon: pr.lon };
+  var ev = { src: tp.src, lat: +tp.latGps, lon: +tp.lonGps };
+  var nieuw;
+  if (S.profiel.opLink) {
+    nieuw = maakTap2(ev, m, qM, sgn, 'ok');
+  } else {
+    var lv = leftVectorAt(el, pr.lat, pr.lon);
+    var label = S.profiel.labelVan(ev.src);
+    var mm = RECON.offsetPoint(qM, lv, sgn, label, OFFSET_M);
+    nieuw = mm ? maakTap2(ev, m, mm, sgn, 'ok', label) : maakTap2(ev, m, qM, sgn, 'onzeker', label);
+  }
+  nieuw.reconOverride = 'handmatig';   // herkomst in de export
+  return nieuw;
+}
+// Stroke-stijl van een tik-marker afhankelijk van selectie/kandidaat-status.
+function corrStijl(tp) {
+  if (S.corrSel && S.corrSel.has(tp)) return { color: '#f1c40f', weight: 3, opacity: 1 };
+  if (S.corrModus && tp.linkGewijzigd) return { color: '#e67e22', weight: 2, opacity: 0.95 };
+  return { color: '#000', weight: 0.8, opacity: 0.6 };
+}
+function markeerTik(tp) {
+  corrInit();
+  if (S.corrSel.has(tp)) S.corrSel.delete(tp); else S.corrSel.add(tp);
+  if (tp._marker) tp._marker.setStyle(corrStijl(tp));
+  tekenCorrPaneel();
+}
+function kiesDoelWay(wid) {
+  corrInit();
+  if (S.corrDoel && S.wayLines[S.corrDoel])
+    S.wayLines[S.corrDoel].forEach(function (pl) { pl.setStyle({ color: '#1a4fb0', weight: 2, opacity: 0.7 }); });
+  S.corrDoel = wid;
+  if (S.wayLines[wid])
+    S.wayLines[wid].forEach(function (pl) { pl.setStyle({ color: '#e11d48', weight: 4, opacity: 0.95 }); });
+  tekenCorrPaneel();
+}
+function wisCorrectie() {
+  corrInit();
+  S.corrSel.forEach(function (tp) { if (tp._marker) { S.corrSel.delete(tp); tp._marker.setStyle(corrStijl(tp)); } });
+  S.corrSel.clear();
+  if (S.corrDoel && S.wayLines[S.corrDoel])
+    S.wayLines[S.corrDoel].forEach(function (pl) { pl.setStyle({ color: '#1a4fb0', weight: 2, opacity: 0.7 }); });
+  S.corrDoel = null;
+  tekenCorrPaneel();
+}
+function herberekenSelectie() {
+  corrInit();
+  if (!S.corrSel.size || !S.corrDoel) return;
+  var doel = S.corrDoel, n = 0;
+  S.corrSel.forEach(function (tp) {
+    var idx = S.taps.indexOf(tp);
+    if (idx < 0) return;
+    var nieuw = herberekenEenTik(tp, doel);
+    if (nieuw) { S.taps[idx] = nieuw; n++; }
+  });
+  // aggregaten opnieuw uit de gecorrigeerde tikken (n_tellingen telt uit tp.wayId/segIdx)
+  S.bezochtReconRows = herbouwBezocht(S.reconEvents, S.netMatch, S.segCount);
+  S.corrSel.clear(); S.corrDoel = null;
+  tekenKaart(true);          // herteken met nieuwe posities; view behouden
+  tekenCorrPaneel();
+  var m = document.getElementById('melding');
+  if (m) {
+    m.className = 'note';
+    m.innerHTML = '<b>' + n + ' tik' + (n === 1 ? '' : 'ken') + ' verplaatst naar way ' + doel + '.</b> ' +
+                  'Download de ZIP opnieuw om de correctie mee te nemen.';
+  }
+}
+function naamVanWay(wid) {
+  var el = S.netMatch && S.netMatch[wid];
+  if (el && el.osmName) return el.osmName;
+  var hit = (S.telregels || []).concat(S.gps || []).find(function (r) {
+    return (r.osm_way_id || '').trim() === wid && r.straat;
+  });
+  return hit ? hit.straat : '';
+}
+function tekenCorrPaneel() {
+  corrInit();
+  var u = document.getElementById('corrUitleg');
+  if (u) u.textContent = 'Markeer de foute stippen (klik), klik daarna de juiste blauwe link. ' +
+                         'Oranje ring = reconstructie week af van het veld (kandidaat).';
+  var st = document.getElementById('corrStatus');
+  if (st) {
+    var dn = S.corrDoel ? naamVanWay(S.corrDoel) : '';
+    st.textContent = S.corrSel.size + ' tik(ken) gemarkeerd' +
+      (S.corrDoel ? ' → doel: way ' + S.corrDoel + (dn ? ' (' + dn + ')' : '') : ' — kies nog een doellink');
+  }
+  var hb = document.getElementById('corrHerbereken');
+  if (hb) hb.disabled = !(S.corrSel.size && S.corrDoel);
+}
+
+// wissel tussen grijs en luchtfoto; behoud opacity en de vectorlagen
+function zetBasemap(naam) {
+  if (!S.map || !S.basemaps[naam] || naam === S.basemapNaam) return;
+  S.map.removeLayer(S.basemaps[S.basemapNaam]);
+  S.basemaps[naam].addTo(S.map).bringToBack();
+  S.basemapNaam = naam;
+  zetBasemapOpacity();
+  document.querySelectorAll('.bm-btn').forEach(function (b) {
+    b.classList.toggle('on', b.getAttribute('data-bm') === naam);
+  });
+}
+function zetBasemapOpacity() {
+  var el = document.getElementById('bmOpacity');
+  var v = el ? (+el.value) / 100 : 1;
+  if (S.basemaps && S.basemaps[S.basemapNaam]) S.basemaps[S.basemapNaam].setOpacity(v);
+}
+
+/* ---- herschreven ZIP ------------------------------------------------------ */
+// Bouwt het herschreven ZIP-blob uit de huidige S (zonder te downloaden). Gedeeld door
+// de interactieve download en de batch-verwerking.
+function bouwZipBlob() {
+  var sid = S.sid;
+  var zip = new JSZip();
+
+  // sessie: modus + reconstructie-vlag
+  var sesHdr = 'sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen;modus;richting_a;richting_b;reconstructie\n';
+  var r = S.sessieRow;
+  var sesRow = [sid, r.datum || '', r.start_tijd || '', r.eind_tijd || '', r.app_type || 'pocket',
+                r.type || '', r.n_waarnemingen || S.telregels.length, (S.profiel && S.profiel.modus) || r.modus || '',
+                r.richting_a || '', r.richting_b || '', 'v2.24'].join(';');
+
+  // telregels: schema via het profiel (pocket-schema of auto/fiets-schema)
+  var telCsv = S.profiel.telHeader + '\n';
+  S.taps.forEach(function (tp, i) { telCsv += S.profiel.telRij(sid, tp, i) + '\n'; });
+
+  // netwerk: aangevuld (incl. herfetch)
+  var netHdr = 'osm_way_id;segment_index;segment_count;highway;geometrie_wkt\n';
+  var netCsv = netHdr + S.netwerkRows.map(function (n) {
+    return [n.osm_way_id, n.segment_index, n.segment_count || '1', n.highway || '', n.geometrie_wkt].join(';');
+  }).join('\n') + '\n';
+
+  // reconstructie-log
+  var placed = S.taps.filter(function (t) { return t.status === 'ok'; }).length;
+  var onz = S.taps.filter(function (t) { return t.status === 'onzeker'; }).length;
+  var ong = S.taps.filter(function (t) { return t.status === 'ongesnapt'; }).length;
+  var logCsv = 'sleutel;waarde\n' +
+    'bron_zip;' + sid + '\n' +
+    'reconstructie_versie;v2.18\n' +
+    'netwerk_bron;' + (S.netwerkVers ? 'verse bbox-fetch (met topologie)' : 'origineel uit ZIP (geen topologie)') + '\n' +
+    'bbox;' + (S.bbox ? [S.bbox.la0.toFixed(6), S.bbox.lo0.toFixed(6), S.bbox.la1.toFixed(6), S.bbox.lo1.toFixed(6)].join(',') : '') + '\n' +
+    'netwerk_ways;' + Object.keys(bouwMatcherNet()).length + '\n' +
+    'adjacency_ways;' + (S.adjacency ? Object.keys(S.adjacency).length : 0) + '\n' +
+    'matcher;Viterbi SR=' + MATCHER.CONST.SR + ' HOP1=' + MATCHER.CONST.HOP1 + ' HOP2=' + MATCHER.CONST.HOP2 +
+      ' GAMMA=' + MATCHER.CONST.GAMMA + ' BETA=' + MATCHER.CONST.BETA + '\n' +
+    'offset_m;' + OFFSET_M + '\n' +
+    'richting_half_s;' + RECON.DIR.HALF_S + '\n' +
+    'richting_min_range_m;' + RECON.DIR.MIN_RANGE_M + '\n' +
+    'richting_hyst;' + RECON.DIR.HYST + '\n' +
+    'richting_gap_s;' + RECON.DIR.GAP_S + '\n' +
+    'tikken_totaal;' + S.taps.length + '\n' +
+    'tikken_geplaatst;' + placed + '\n' +
+    'tikken_onzeker;' + onz + '\n' +
+    'tikken_ongesnapt;' + ong + '\n';
+
+  zip.file(sid + '_sessie.csv', sesRow ? sesHdr + sesRow + '\n' : sesHdr);
+  zip.file(sid + '_telregels.csv', telCsv);
+  zip.file(sid + '_netwerk.csv', netCsv);
+  // origineel netwerk bewaren als grondwaarheid naast het verse (indien ververst)
+  if (S.netwerkOrigineel && S.netwerkOrigineel.length) {
+    var origCsv = netHdr + S.netwerkOrigineel.map(function (n) {
+      return [n.osm_way_id, n.segment_index, n.segment_count || '1', n.highway || '', n.geometrie_wkt].join(';');
+    }).join('\n') + '\n';
+    zip.file(sid + '_netwerk_origineel.csv', origCsv);
+  }
+  zip.file(sid + '_reconstructie_log.csv', logCsv);
+  // straten: herberekend (getoond in telrapport) + origineel als grondwaarheid
+  if (S.profiel.heeftStraten && S.stratenRows && S.stratenRows.length) {
+    var stratenCsv = herberekenStraten(sid);
+    if (stratenCsv) zip.file(sid + '_straten.csv', stratenCsv);
+    zip.file(sid + '_straten_origineel.csv',
+      csvUit(S.stratenRows, Object.keys(S.stratenRows[0])));
+  }
+  // segment-samenvatting voor wandelmodi: tik-kant van de Viterbi-route, tidy-long
+  // (link × richting × categorie). Joinbaar met _bezocht.csv op way+segment voor p/m·u.
+  if (S.profiel.heeftSegmentSamenvatting) {
+    var segCsv = bouwSegmentSamenvatting(sid);
+    if (segCsv) zip.file(sid + '_segmentsamenvatting.csv', segCsv);
+  }
+  // originele gps ongewijzigd meegeven
+  zip.file(sid + '_gps.csv', csvUit(S.gps, ['sessie_id','tijdstip','lat','lon','nauwkeurigheid','osm_way_id','segment_index','straat']));
+  // bezocht: herbouwd uit de gereconstrueerde route (spook-segmenten weg); origineel als grondwaarheid ernaast
+  var bezKol = ['sessie_id','datum','osm_way_id','segment_index','segment_count','straat','start_tijd','eind_tijd','duur_sec','n_gps','n_tellingen'];
+  if (S.bezochtReconRows && S.bezochtReconRows.length) {
+    zip.file(sid + '_bezocht.csv', csvUit(S.bezochtReconRows, bezKol));
+    if (S.bezocht.length) zip.file(sid + '_bezocht_origineel.csv', csvUit(S.bezocht, Object.keys(S.bezocht[0])));
+  } else if (S.bezocht.length) {
+    zip.file(sid + '_bezocht.csv', csvUit(S.bezocht, Object.keys(S.bezocht[0])));
+  }
+
+  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 9 } });
+}
+
+// Interactieve download: bouw het blob en bied het aan.
+function exporteerZip() {
+  var sid = S.sid;
+  bouwZipBlob().then(function (blob) { saveBlob(blob, sid + '_recon.zip', 'application/zip'); });
+}
+
+function csvUit(rows, cols) {
+  var out = cols.join(';') + '\n';
+  rows.forEach(function (r) { out += cols.map(function (c) { return r[c] != null ? r[c] : ''; }).join(';') + '\n'; });
+  return out;
+}
+
+/* Herbereken _straten.csv op basis van de GERECONSTRUEERDE links.
+   - straat-groepering (naam -> ways) blijft veldkennis, maar wordt UITGEBREID:
+     verhuist een tik naar een way die in geen enkele straat zit, dan gaat die way
+     naar de geografisch dichtstbijzijnde straat (terugval: de oorspronkelijke
+     straat van de tik). Zo raakt geen tik kwijt en verschuift de telling mee.
+   - types per straat opnieuw geteld uit de gereconstrueerde tik-toewijzing.
+   - SCHEMA komt uit het profiel (S.profiel.straten): welke types tellen, welke
+     header, hoe schrijf je een rij. Auto telt goed/fout/leeg/spec (bezet/vrij/graad
+     ongewijzigd uit origineel tot de parkeertelling zelf is omgebouwd); fiets telt
+     fiets/brommer/breed/wrak met een som-kolom. Zo blijft deze functie motor-neutraal
+     en werkt een nieuw teltype mee zodra het een straten-schema in zijn profiel zet. */
+function herberekenStraten(sid) {
+  if (!S.stratenRows || !S.stratenRows.length) return null;
+  // way -> straatnaam uit de bestaande groepering
+  var wayNaarStraat = {};
+  var straatNamen = [];
+  S.stratenRows.forEach(function (r) {
+    straatNamen.push(r.naam);
+    (r.osm_way_ids || '').split('|').forEach(function (w) { if (w) wayNaarStraat[w] = r.naam; });
+  });
+  // per straat een representatief zwaartepunt (in meters) voor "dichtstbijzijnde"
+  var netMatch = bouwMatcherNet();
+  function wayCentroid(wid) {
+    var n = netMatch[wid]; if (!n || !n.geometry.length) return null;
+    var g = n.geometry, i = Math.floor(g.length / 2);
+    return RECON.toM(g[i].lon, g[i].lat, S.sc, S.lon0);
+  }
+  var straatCentroids = {};
+  S.stratenRows.forEach(function (r) {
+    var pts = [];
+    (r.osm_way_ids || '').split('|').forEach(function (w) { var c = wayCentroid(w); if (c) pts.push(c); });
+    if (pts.length) straatCentroids[r.naam] = [
+      pts.reduce(function (a, p) { return a + p[0]; }, 0) / pts.length,
+      pts.reduce(function (a, p) { return a + p[1]; }, 0) / pts.length];
+  });
+  function dichtstbijStraat(wid) {
+    var c = wayCentroid(wid); if (!c) return null;
+    var best = null, bestD = Infinity;
+    straatNamen.forEach(function (naam) {
+      var sc = straatCentroids[naam]; if (!sc) return;
+      var d = Math.hypot(c[0] - sc[0], c[1] - sc[1]);
+      if (d < bestD) { bestD = d; best = naam; }
+    });
+    return best;
+  }
+  // uitbreiding: elke gereconstrueerde way die nergens bij hoort -> dichtstbijzijnde straat
+  var uitgebreid = {};   // naam -> Set van ways (start met bestaande)
+  straatNamen.forEach(function (naam) { uitgebreid[naam] = {}; });
+  Object.keys(wayNaarStraat).forEach(function (w) { uitgebreid[wayNaarStraat[w]][w] = true; });
+  S.taps.forEach(function (tp) {
+    if (!tp.wayId || wayNaarStraat[tp.wayId]) return;
+    // nieuwe way zonder straat: geografisch dichtstbij, terugval = oorspronkelijke straat van de tik
+    var doel = dichtstbijStraat(tp.wayId) || wayNaarStraat[tp.origWay];
+    if (doel) { uitgebreid[doel][tp.wayId] = true; wayNaarStraat[tp.wayId] = doel; }
+  });
+  // schema uit het profiel: welke types tellen, welke header, hoe schrijf je een rij
+  var sch = S.profiel.straten;
+  if (!sch) return null;   // profiel zonder straten-schema: niets te herberekenen
+  function leegAgg(orig) {
+    var a = { eerste: (orig && orig.eerste_waarneming) || '', laatste: (orig && orig.laatste_waarneming) || '' };
+    sch.typen.forEach(function (t) { a[t] = 0; });
+    return a;
+  }
+  // tel types per straat uit de gereconstrueerde tikken
+  var agg = {};
+  straatNamen.forEach(function (naam) { agg[naam] = leegAgg(null); });
+  S.taps.forEach(function (tp) {
+    var naam = wayNaarStraat[tp.wayId] || wayNaarStraat[tp.origWay];
+    if (!naam || !agg[naam]) return;
+    var t = (tp.type || '').toLowerCase();
+    if (agg[naam][t] !== undefined) agg[naam][t]++;
+    var ts = tp.src.tijdstip || '';
+    if (ts) { if (!agg[naam].eerste || ts < agg[naam].eerste) agg[naam].eerste = ts;
+              if (!agg[naam].laatste || ts > agg[naam].laatste) agg[naam].laatste = ts; }
+  });
+  // schrijf via het profiel-schema
+  var hdr = sch.header + '\n';
+  var body = S.stratenRows.map(function (r) {
+    var naam = r.naam, a = agg[naam] || leegAgg(r);
+    var ways = Object.keys(uitgebreid[naam] || {}).join('|') || (r.osm_way_ids || '');
+    return sch.rij(sid, naam, ways, a, r);
+  }).join('\n');
+  return hdr + body + '\n';
+}
+
+/* Lengte van een segment-polyline [{lat,lon}] in meters (Cartesisch op WGS84, cos(lat)-
+   correctie). Byte-gelijk aan de formule in telrapport.segmentLengthM, zodat de lengte
+   in het CSV overeenkomt met wat telrapport uit dezelfde _netwerk.csv-geometrie afleidt. */
+function segLenM(pts) {
+  if (!pts || pts.length < 2) return 0;
+  var LAT_M = 111320, tot = 0;
+  for (var i = 1; i < pts.length; i++) {
+    var cos = Math.cos(pts[i - 1].lat * Math.PI / 180);
+    var dx = (pts[i].lon - pts[i - 1].lon) * LAT_M * cos;
+    var dy = (pts[i].lat - pts[i - 1].lat) * LAT_M;
+    tot += Math.sqrt(dx * dx + dy * dy);
+  }
+  return tot;
+}
+
+/* Segment-samenvatting voor WANDELMODI (transect/winkelstraat/simpel): tellingen per
+   (link × richting × categorie), tidy-long. Wandel-ZIP's hebben geen _straten.csv; deze
+   samenvatting bouwen we van nul uit de gereconstrueerde tikken — de TIK-kant van dezelfde
+   Viterbi-route waarvan _bezocht.csv de PRESENCE-kant is. De twee joinen schoon op
+   (osm_way_id, segment_index); presence staat daarom bewust NIET hier maar in _bezocht.csv.
+   Densiteit downstream: p/m·u = aantal / (segment_lengte_m × Σduur_sec/3600).
+   richting (a/b) alleen bij transect; leeg bij winkelstraat/simpel. */
+function bouwSegmentSamenvatting(sid) {
+  // straatnaam per way uit de herbouwde bezocht (zelfde naamgeving als _bezocht.csv)
+  var wayNaam = {};
+  (S.bezochtReconRows || []).forEach(function (b) {
+    if (b.straat && !wayNaam[b.osm_way_id]) wayNaam[b.osm_way_id] = b.straat;
+  });
+  // segment-lengte, highway en segment_count per (way, seg) uit _netwerk.csv
+  var segMeta = {};   // "way|seg" -> {lenM, highway, segCount}
+  S.netwerkRows.forEach(function (r) {
+    var k = r.osm_way_id + '|' + (+r.segment_index || 0);
+    segMeta[k] = { lenM: segLenM(wktLL(r.geometrie_wkt)),
+                   highway: r.highway || '', segCount: r.segment_count || '1' };
+  });
+  var metR = !!S.profiel.metRichting;
+  // aggregeer geplaatste tikken naar (way, seg, richting, categorie)
+  var agg = {};
+  S.taps.forEach(function (tp) {
+    if (tp.status !== 'ok' || !tp.wayId) return;   // ongesnapt (geen way) telt niet mee op een link
+    var seg = (+tp.segIdx || 0);
+    var rich = metR ? (tp.src.richting || '') : '';
+    var cat = tp.type || '';
+    var k = tp.wayId + '|' + seg + '|' + rich + '|' + cat;
+    if (!agg[k]) agg[k] = { way: tp.wayId, seg: seg, rich: rich, cat: cat, aantal: 0 };
+    agg[k].aantal++;
+  });
+  var lijst = Object.keys(agg).map(function (k) { return agg[k]; });
+  if (!lijst.length) return null;
+  // deterministische, leesbare volgorde: way, seg, richting, categorie
+  lijst.sort(function (a, b) {
+    return (a.way < b.way ? -1 : a.way > b.way ? 1 : 0) ||
+           (a.seg - b.seg) ||
+           (a.rich < b.rich ? -1 : a.rich > b.rich ? 1 : 0) ||
+           (a.cat < b.cat ? -1 : a.cat > b.cat ? 1 : 0);
+  });
+  var hdr = 'sessie_id;osm_way_id;segment_index;segment_count;straat;highway;richting;categorie;aantal;segment_lengte_m';
+  var body = lijst.map(function (a) {
+    var meta = segMeta[a.way + '|' + a.seg] || {};
+    return [sid, a.way, a.seg, meta.segCount || '1',
+      wayNaam[a.way] || '', meta.highway || '',
+      a.rich, a.cat, a.aantal,
+      meta.lenM != null ? meta.lenM.toFixed(1) : ''].join(';');
+  }).join('\n');
+  return hdr + '\n' + body + '\n';
+}
+
+/* saveBlob — zelfde iOS/desktop-patroon als de rest van de suite */
+function saveBlob(blob, filename, mime) {
+  mime = mime || 'application/octet-stream';
+  var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+           || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) {
+    try {
+      if (navigator.canShare) {
+        var f = new File([blob], filename, { type: mime });
+        if (navigator.canShare({ files: [f] })) { navigator.share({ files: [f] }).catch(function () {}); return; }
+      }
+    } catch (e) {}
+  }
+  var url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = filename; a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
+}
+
+/* ---- stap-UI -------------------------------------------------------------- */
+var STAP_ORDER = ['batch', 'lees', 'plan', 'fetch', 'snap', 'offset'];
+var STAP_STATE = {};
+function resetStappen() { STAP_STATE = {}; renderStappen(); }
+function stap(id, label, state, detail) { STAP_STATE[id] = { label: label, state: state, detail: detail || '' }; renderStappen(); }
+function renderStappen() {
+  var h = '';
+  STAP_ORDER.forEach(function (id) {
+    var s = STAP_STATE[id]; if (!s) return;
+    h += '<div class="step ' + s.state + '"><span class="dot"></span><span>' + s.label +
+         (s.detail ? ' <span class="detail">— ' + s.detail + '</span>' : '') + '</span></div>';
+  });
+  document.getElementById('stappen').innerHTML = h;
+}
+</script>
+</body>
+</html>

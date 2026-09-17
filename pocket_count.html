@@ -6,6 +6,8 @@
 <title>Pocket Count</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
@@ -332,6 +334,21 @@
     margin-right: 10px;
     touch-action: manipulation;
   }
+  #preview-recon {
+    background: rgba(31,95,191,0.25);
+    border: 1px solid #1f5fbf;
+    border-radius: 5px;
+    color: #cfe0ff;
+    font-family: var(--font);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 5px 10px;
+    margin-right: 10px;
+    touch-action: manipulation;
+  }
   #preview-close {
     background: none;
     border: none;
@@ -506,13 +523,34 @@
     font-size: 1.6rem; font-weight: 700; color: rgba(255,255,255,0.85); -webkit-tap-highlight-color: transparent;
   }
   .ws-undo:active { background: rgba(0,0,0,0.5); }
-  #ws-stop, #ws-back, #pk-stop, #pk-back {
+  #ws-stop, #ws-back, #pk-stop, #pk-back, #pk-map {
     position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 60;
     padding: 12px 18px; border: none; border-radius: 6px; font-family: var(--font);
     font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
   }
   #ws-stop, #pk-stop { right: 14px; background: #c0392b; color: #fff; }
   #ws-back, #pk-back { left: 14px; background: #333; color: rgba(255,255,255,0.8); }
+  #pk-map { background: #1f5fbf; color: #fff; }
+  /* pk-knoppen in een flex-balk: verdelen zich, overlappen nooit (welke schermbreedte dan ook) */
+  #pk-btnbar {
+    position: fixed; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 60; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  #pk-back, #pk-map, #pk-stop {
+    position: static; left: auto; right: auto; transform: none; bottom: auto;
+    padding: 11px 13px; font-size: 0.75rem;
+  }
+
+  /* Dekkingskaart-overlay (pocket parkeren) */
+  #pk-map-overlay { position: fixed; inset: 0; z-index: 4000; background: #fff; display: none; flex-direction: column; }
+  #pk-map-bar, #pk-map-legend { background: #1a1918; color: #fff; font-family: var(--font); padding: 10px 14px; display: flex; align-items: center; }
+  #pk-map-bar { justify-content: space-between; font-weight: 600; font-size: 15px; }
+  #pk-map-close { background: #c0392b; color: #fff; border: none; border-radius: 6px; padding: 6px 15px; font-size: 17px; font-weight: 700; cursor: pointer; }
+  #pk-map-canvas { flex: 1; }
+  #pk-map-legend { gap: 14px; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+  #pk-map-legend .lg { display: flex; align-items: center; gap: 5px; }
+  #pk-map-legend .dot { width: 15px; height: 15px; border-radius: 50%; box-sizing: border-box; }
+  #pk-map-legend .ln { width: 18px; height: 4px; border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -1155,6 +1193,7 @@ function startParkeren() {
   updateParkeerDisplay();
   document.getElementById('pk-stop').style.display = '';
   document.getElementById('pk-back').style.display = '';
+  document.getElementById('pk-map').style.display = '';
   initBattery();
   acquireWakeLock();
   startGps();
@@ -1182,6 +1221,74 @@ function buildParkeerCards() {
   });
 }
 
+// --- audio-feedback (proef, alleen parkeren-submodus) ---------------------
+// Web Audio: klik wordt in code gesynthetiseerd, geen geluidsbestand/CDN nodig.
+// iOS Safari: de audio-context wordt bij de eerste tik ontgrendeld (resume()).
+var GELUID = true;          // zet op false om het klikje uit te zetten
+var _actx = null;
+function klik(freq, dur) {
+  if (!GELUID) return;
+  try {
+    if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_actx.state === 'suspended') _actx.resume();   // iOS: ontgrendel op de tik-gesture
+    var t = _actx.currentTime, osc = _actx.createOscillator(), g = _actx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq || 1100;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.005);          // snelle attack
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (dur || 0.03)); // snelle decay
+    osc.connect(g); g.connect(_actx.destination);
+    osc.start(t); osc.stop(t + (dur || 0.03) + 0.02);
+  } catch (e) { /* audio niet beschikbaar → stil doorgaan */ }
+}
+
+/* ── Dekkingskaart (pocket parkeren) ─────────────────────── */
+var pkMap = null, pkMapLayers = null;
+function openPkMap() {
+  document.getElementById('pk-map-overlay').style.display = 'flex';
+  if (!pkMap) {
+    pkMap = L.map('pk-map-canvas', { zoomControl: true, attributionControl: false });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(pkMap);
+    pkMapLayers = L.layerGroup().addTo(pkMap);
+  }
+  setTimeout(function () { pkMap.invalidateSize(); tekenPkMap(); }, 60);
+}
+function closePkMap() {
+  document.getElementById('pk-map-overlay').style.display = 'none';
+}
+function tekenPkMap() {
+  if (!pkMapLayers) return;
+  pkMapLayers.clearLayers();
+  var pts = [];
+  // gelopen/gereden route
+  if (typeof routeLog !== 'undefined' && routeLog.length) {
+    var rc = [];
+    routeLog.forEach(function (p) { if (p.lat != null && p.lon != null) rc.push([p.lat, p.lon]); });
+    if (rc.length >= 2) {
+      L.polyline(rc, { color: '#1f5fbf', weight: 4, opacity: 0.85 }).addTo(pkMapLayers);
+      rc.forEach(function (ll) { pts.push(ll); });
+    }
+  }
+  // tik-stippen — de eerlijke laag: waar daadwerkelijk geteld is
+  var STAT = { bezet: '#b0342b', leeg: '#3a7d44' };
+  var RING = { links: '#ffffff', rechts: '#111111' };
+  telHistory.forEach(function (t) {
+    if (t.lat == null || t.lon == null) return;
+    if (t.type !== 'bezet' && t.type !== 'leeg') return;    // alleen parkeren-tikken
+    var m = L.circleMarker([t.lat, t.lon], {
+      radius: 8, fillColor: STAT[t.type] || '#555', fillOpacity: 1,
+      color: RING[t.richting] || '#111', weight: t.richting === 'links' ? 1.5 : 2.5
+    });
+    m.bindPopup('<b>' + (t.richting || '') + ' \u00b7 ' + (t.type || '') + '</b><br>' +
+                (t.osmName || '') + '<br>' + (t.ts || ''));
+    m.addTo(pkMapLayers);
+    pts.push([t.lat, t.lon]);
+  });
+  if (pts.length) {
+    pkMap.fitBounds(L.latLngBounds(pts), { padding: [30, 30], maxZoom: 18 });
+  }
+}
+
 function adjustParkeer(key, delta) {
   if (!(key in pkCounts)) return;
   var parts = key.split('_');            // side_status
@@ -1192,6 +1299,7 @@ function adjustParkeer(key, delta) {
               type: parts[1], richting: parts[0] };
     snapResolveTap(e);
     if (navigator.vibrate) navigator.vibrate(25);
+    klik(parts[1] === 'bezet' ? 440 : 392, 0.05);  // bezet = A/440 (hoger), vrij = G/392 (lager)
   } else {
     if (pkCounts[key] <= 0) return;
     for (var i = telHistory.length - 1; i >= 0; i--) {
@@ -1201,6 +1309,7 @@ function adjustParkeer(key, delta) {
         if (qi >= 0) snap.pendingQueue.splice(qi, 1);
         telCount = Math.max(0, telCount - 1);
         pkCounts[key]--;
+        klik(560, 0.05);         // lagere 'ongedaan'-toon
         break;
       }
     }
@@ -1227,6 +1336,8 @@ function closeParkeerScreen() {
   document.getElementById('parkeer-screen').style.display = 'none';
   document.getElementById('pk-stop').style.display = 'none';
   document.getElementById('pk-back').style.display = 'none';
+  document.getElementById('pk-map').style.display = 'none';
+  document.getElementById('pk-map-overlay').style.display = 'none';
   releaseWakeLock();
   stopGps();
 }
@@ -2217,6 +2328,13 @@ function savePreviewZip() {
   if (lastZipBlob) saveBlob(lastZipBlob, lastZipName, 'application/zip');
 }
 
+// Stuur de zojuist gebouwde ZIP door naar de reconstructor en open die.
+function openReconstructie() {
+  if (!lastZipBlob) { alert('Nog geen ZIP beschikbaar \u2014 stop eerst de telling.'); return; }
+  stuurNaarReconstructie(lastZipBlob, lastZipName)
+    .catch(function () { alert('Doorsturen mislukt \u2014 sla de ZIP op en sleep hem in telreconstructie.html.'); });
+}
+
 // ── OSM SNAP MODULE (transect/pocket variant) ─────────────────────────────────
 // Vereenvoudigd t.o.v. parkeertelling: geen L/R weging, geen minimap,
 // geen kompas-fusie. Graceful degradeert als Overpass niet bereikbaar is.
@@ -2224,6 +2342,163 @@ function savePreviewZip() {
 var SNAP_ROAD_FETCH_RADIUS = 250;
 // Snap-netwerk highway-filter — HOUD GELIJK over alle tools (grep HIGHWAY_RE).
 var HIGHWAY_RE = 'residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path|track|bridleway|steps|corridor';
+
+/* ---- Gedeelde OSM-tegelcache (zelfde IndexedDB als telreconstructie.html) ----
+   Wat hier tijdens het tellen wordt opgehaald, hoeft de reconstructor later niet
+   opnieuw te fetchen. Formaat identiek: { key:'t_<ty>_<tx>', ts, ways:[...] }.
+   BELANGRIJK: we schrijven alleen tegels weg die VOLLEDIG binnen de opgehaalde
+   cirkel liggen. Een half gevulde tegel zou de reconstructor als 'vers' lezen en
+   dan wegen missen. */
+var TILE_DEG_SHARED = 0.01, TILE_DB = 'telsuite_osm', TILE_STORE = 'tiles';
+function _tileDb() {
+  return new Promise(function (res, rej) {
+    if (typeof indexedDB === 'undefined' || !indexedDB) return rej(new Error('geen IndexedDB'));
+    var q = indexedDB.open(TILE_DB, 1);
+    q.onupgradeneeded = function (e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains(TILE_STORE))  db.createObjectStore(TILE_STORE, { keyPath: 'key' });
+      if (!db.objectStoreNames.contains('handoff'))   db.createObjectStore('handoff', { keyPath: 'key' });
+    };
+    q.onsuccess = function (e) { res(e.target.result); };
+    q.onerror = function () { rej(q.error); };
+  });
+}
+// Bewaar ways per tegel, maar pas als een tegel VOLLEDIG gedekt is door de
+// opgehaalde cirkels van deze sessie. Eén fetch (r=250m) dekt nooit een hele
+// tegel (~1,1km); al lopend groeit de dekking en komt de tegel alsnog compleet.
+// We rasteren elke tegel in 8x8 cellen en markeren welke cellen binnen een
+// fetch-cirkel liggen; bij 64/64 is de tegel compleet en gaat hij de cache in.
+var _tileCov = {};      // tegelsleutel -> { cells:Set, ways:{id:way} }
+var _TILE_N = 8;
+function cacheWaysInTiles(elements, lat, lon, radiusM) {
+  try {
+    if (!elements || !elements.length) return;
+    var mPerLat = 111320, mPerLon = 111320 * Math.cos(lat * Math.PI / 180) || 1;
+    var dLat = radiusM / mPerLat, dLon = radiusM / mPerLon;
+    // 1) dekking bijwerken voor elke tegel die de cirkel raakt
+    var ty0 = Math.floor((lat - dLat) / TILE_DEG_SHARED), ty1 = Math.floor((lat + dLat) / TILE_DEG_SHARED);
+    var tx0 = Math.floor((lon - dLon) / TILE_DEG_SHARED), tx1 = Math.floor((lon + dLon) / TILE_DEG_SHARED);
+    var raak = [];
+    for (var ty = ty0; ty <= ty1; ty++) {
+      for (var tx = tx0; tx <= tx1; tx++) {
+        var key = 't_' + ty + '_' + tx;
+        var rec = _tileCov[key] || (_tileCov[key] = { cells: {}, n: 0, ways: {} });
+        for (var i = 0; i < _TILE_N; i++) {
+          for (var j = 0; j < _TILE_N; j++) {
+            var ci = i * _TILE_N + j;
+            if (rec.cells[ci]) continue;
+            var cLat = (ty + (i + 0.5) / _TILE_N) * TILE_DEG_SHARED;
+            var cLon = (tx + (j + 0.5) / _TILE_N) * TILE_DEG_SHARED;
+            var dy = (cLat - lat) * mPerLat, dx = (cLon - lon) * mPerLon;
+            if (dy * dy + dx * dx <= radiusM * radiusM) { rec.cells[ci] = 1; rec.n++; }
+          }
+        }
+        raak.push(key);
+      }
+    }
+    // 2) ways toewijzen aan de tegels die ze raken
+    var norm = elements.filter(function (el) { return el.type === 'way' && el.geometry && el.geometry.length >= 2; })
+      .map(function (el) {
+        return { type: 'way', id: el.id, nodes: el.nodes || [], geometry: el.geometry,
+                 tags: { highway: (el.tags && el.tags.highway) || '',
+                         name:    (el.tags && el.tags.name)    || '' } };
+      });
+    norm.forEach(function (w) {
+      w.geometry.forEach(function (p) {
+        var k = 't_' + Math.floor(p.lat / TILE_DEG_SHARED) + '_' + Math.floor(p.lon / TILE_DEG_SHARED);
+        if (_tileCov[k]) _tileCov[k].ways[w.id] = w;
+      });
+    });
+    // 3) volledig gedekte tegels wegschrijven (en daarna niet meer bijhouden)
+    var klaar = raak.filter(function (k) { return _tileCov[k] && _tileCov[k].n >= _TILE_N * _TILE_N; });
+    if (!klaar.length) return;
+    var now = Date.now();
+    var recs = klaar.map(function (k) {
+      var ws = []; for (var id in _tileCov[k].ways) ws.push(_tileCov[k].ways[id]);
+      return { key: k, ts: now, v: TEGEL_SCHEMA, ways: ws };
+    });
+    klaar.forEach(function (k) { _tileCov[k].opgeslagen = 1; delete _tileCov[k].ways; });
+    _tileDb().then(function (db) {
+      var tx2 = db.transaction(TILE_STORE, 'readwrite'), st = tx2.objectStore(TILE_STORE);
+      recs.forEach(function (r) { st.put(r); });
+    }).catch(function () {});
+  } catch (e) { /* cache is best-effort: nooit het tellen verstoren */ }
+}
+
+/* ---- Tegel-cache LEZEN (v2.49) --------------------------------------------
+   GEDEELD BLOK — houd byte-identiek over de vier veld-apps (grep leesTegels).
+
+   Sinds v2.43 schrijven de veld-apps hun opgehaalde netwerk in tegels, maar
+   las alleen de reconstructor ze terug. Wie dezelfde straat voor de derde keer
+   telt, haalde hem dus ook voor de derde keer op. Nu kijken we eerst.
+
+   Alles-of-niets: de fetch wordt alleen overgeslagen als ÁLLE tegels die de
+   fetch-cirkel raken aanwezig én vers zijn. Deelresultaten mengen we niet —
+   een half gedekte cirkel zou stil wegen missen, precies de fout die de
+   schrijfkant met het 8x8-raster al vermijdt.
+
+   TTL is hier korter dan de 60 dagen van de reconstructor. Daar ziet de
+   gebruiker de tegelouderdom in beeld en kan hij verversen; hier gebeurt het
+   stil, en stille veroudering verdient een strakkere grens.
+
+   Schemaversie: tegels van vóór v2.49 dragen geen straatnaam. Die tellen als
+   misser, worden opnieuw opgehaald en meteen mét naam teruggeschreven — dus
+   geen migratie, de cache geneest zichzelf.                                   */
+var TEGEL_TTL_MS  = 14 * 24 * 3600 * 1000;
+var TEGEL_SCHEMA  = 2;
+function leesTegels(lat, lon, radiusM) {
+  return new Promise(function (res) {
+    try {
+      var mPerLat = 111320, mPerLon = 111320 * Math.cos(lat * Math.PI / 180) || 1;
+      var dLat = radiusM / mPerLat, dLon = radiusM / mPerLon;
+      var ty0 = Math.floor((lat - dLat) / TILE_DEG_SHARED), ty1 = Math.floor((lat + dLat) / TILE_DEG_SHARED);
+      var tx0 = Math.floor((lon - dLon) / TILE_DEG_SHARED), tx1 = Math.floor((lon + dLon) / TILE_DEG_SHARED);
+      var keys = [];
+      for (var ty = ty0; ty <= ty1; ty++) {
+        for (var tx = tx0; tx <= tx1; tx++) keys.push('t_' + ty + '_' + tx);
+      }
+      if (!keys.length) return res(null);
+      _tileDb().then(function (db) {
+        var st = db.transaction(TILE_STORE, 'readonly').objectStore(TILE_STORE);
+        var grens = Date.now() - TEGEL_TTL_MS;
+        var pending = keys.length, mis = false, seen = {}, out = [];
+        keys.forEach(function (k) {
+          var r = st.get(k);
+          r.onsuccess = function () {
+            var rec = r.result;
+            if (!rec || !rec.ts || rec.ts < grens || (rec.v || 1) < TEGEL_SCHEMA) {
+              mis = true;
+            } else {
+              // Een way die twee tegels raakt staat in beide: ontdubbelen op id.
+              (rec.ways || []).forEach(function (w) {
+                if (!seen[w.id]) { seen[w.id] = 1; out.push(w); }
+              });
+            }
+            if (--pending === 0) res(mis ? null : out);
+          };
+          r.onerror = function () { mis = true; if (--pending === 0) res(null); };
+        });
+      }).catch(function () { res(null); });
+    } catch (e) { res(null); }   // cache is best-effort: nooit het tellen blokkeren
+  });
+}
+
+
+// Geef de zojuist gebouwde ZIP door aan telreconstructie.html en open die.
+function stuurNaarReconstructie(blob, naam) {
+  return _tileDb().then(function (db) {
+    return new Promise(function (res, rej) {
+      if (!db.objectStoreNames.contains('handoff')) return rej(new Error('geen handoff-store'));
+      var tx = db.transaction('handoff', 'readwrite');
+      tx.objectStore('handoff').put({ key: 'zip', blob: blob, naam: naam || 'telling.zip', ts: Date.now() });
+      tx.oncomplete = function () { res(); };
+      tx.onerror = function () { rej(tx.error); };
+    });
+  }).then(function () {
+    location.href = 'telreconstructie.html?handoff=1';
+  });
+}
+
 // Een way blijft snap-kandidaat zolang z'n geometrie binnen deze straal van de
 // huidige fetch-positie ligt. Afgeleid: fetch-radius + de max. drift vóór een
 // re-fetch (re-fetch triggert bij 0.6×fetch-radius = 150m), dus precies het
@@ -2261,7 +2536,65 @@ var GPS_ACC_GOOD   = 12;      // m: acc ≤ dit telt als goed
 var GPS_ACC_BAD    = 35;      // m: acc ≥ dit telt als slecht
 var GPS_STAB_EMA   = 0.4;     // smoothing van de stabiliteitsscore
 var GPS_STAB_GREEN = 0.66, GPS_STAB_AMBER = 0.33;
-var SNAP_OVERPASS          = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+/* ---- Verse-data-garantie -------------------------------------------------
+   Elk Overpass-antwoord draagt osm3s.timestamp_osm_base: het moment waarop de
+   dataset van die server voor het laatst is bijgewerkt. Een mirror die achter-
+   loopt levert stilzwijgend verouderde wegen — nieuwe of gewijzigde straten
+   ontbreken dan zonder dat je het merkt. We keuren daarom elk antwoord zelf.
+   Te oud → als mislukt behandelen, zodat de volgende endpoint aan de beurt is. */
+var OSM_MAX_LAG_DAGEN = 7;
+function dataIsVers(data) {
+  try {
+    var ts = data && data.osm3s && data.osm3s.timestamp_osm_base;
+    if (!ts) return true;                       // geen stempel → niet afkeuren
+    var lag = (Date.now() - new Date(ts).getTime()) / 86400000;
+    if (isNaN(lag)) return true;
+    return lag <= OSM_MAX_LAG_DAGEN;
+  } catch (e) { return true; }                  // nooit het tellen blokkeren op een parseerfout
+}
+
+var SNAP_OVERPASS          = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+
+/* ---- Overpass-antwoord classificeren (v2.49) ------------------------------
+   GEDEELD BLOK — houd byte-identiek over alle tools (grep OVP_LIMIET).
+
+   Vóór v2.49 ging élk niet-ideaal antwoord door dezelfde catch: een gebied
+   zónder wegen liet de app net zo hard opnieuw vragen als een netwerkstoring.
+   Erger nog: Overpass meldt rate-limiting niet altijd als HTTP 429, maar soms
+   als een 200 met de melding in data.remark. Die zagen wij als 'geen wegen' en
+   dus als reden om meteen de andere mirror te proberen — precies wanneer de
+   servers vol zitten, sloegen wij er het hardst op. En een geweigerd verzoek
+   is niet gratis: Overpass voert de query eerst uit en meldt de limiet daarna.
+
+   Vijf uitkomsten, elk met eigen gedrag:
+     ok     -> verwerken
+     leeg   -> geldig antwoord; hier liggen geen wegen. NIET opnieuw vragen.
+     oud    -> deze mirror loopt achter (> OSM_MAX_LAG_DAGEN). Andere proberen.
+     limiet -> server wijst ons af of zit vol. Lang wachten, niets proberen.
+     fout   -> netwerk-/HTTP-storing. Kort exponentieel wachten.               */
+var OVP_OK = 'ok', OVP_LEEG = 'leeg', OVP_OUD = 'oud',
+    OVP_LIMIET = 'limiet', OVP_FOUT = 'fout';
+var OVP_LIMIET_WACHT_MS = 30000;      // rate-limit: slots komen per ~minuut vrij
+var OVP_OUD_WACHT_MS    = 300000;     // alle mirrors achter: lost niet op in seconden
+function ovpStatusUitHttp(status) {
+  return (status === 429 || status === 503 || status === 504) ? OVP_LIMIET : OVP_FOUT;
+}
+function ovpKeur(data) {
+  if (!data || typeof data !== 'object') return OVP_FOUT;
+  var rem = '' + (data.remark || '');
+  if (rem) {
+    // Overpass legt runtime-meldingen in 'remark' bij een verder normale 200.
+    if (/rate_?limit|too many requests|Dispatcher_Client/i.test(rem)) return OVP_LIMIET;
+    return OVP_FOUT;
+  }
+  if (!dataIsVers(data)) return OVP_OUD;
+  if (!data.elements || !data.elements.length) return OVP_LEEG;
+  return OVP_OK;
+}
+// Exponentieel wachten met plafond: 500 . 2^(n-1), max 8s. Lang genoeg om een
+// overbelaste server te ontzien, kort genoeg om terug te zijn zodra het kan.
+function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000); }
+
 
 // Wegvakken worden bij export opgeknipt in segmenten van ~SEGMENT_TARGET_M.
 // Wegen korter dan SEGMENT_MIN_M blijven heel (één segment).
@@ -2872,16 +3205,112 @@ function traceFetchEvent(event, lat, lon, detail) {
   });
 }
 
+// v2.49: een verse aanvraag begint hier, niet in snapFetchNetwork. De poort
+// (in-flight guard, cooldown, fid) is hierheen verhuisd omdat er vóór het
+// eerste verzoek nog een goedkopere bron is: de gedeelde tegel-cache. Een
+// treffer kost nul verzoeken en nul wachttijd. leesTegels geeft een lijst bij
+// volledige dekking (ook een lege lijst — dan weten we dat hier geen wegen
+// liggen) en null bij een misser.
+function snapStartFetch(lat, lon) {
+  if (snap.fetchInFlight) return;                 // één fetch tegelijk
+  if (Date.now() < snap.fetchCooldownUntil) return; // nog in cooldown na fout
+  snap.fetchInFlight = true;
+  var fid = ++snap.fetchSeq;                      // v2.17: id per logische aanvraag
+  leesTegels(lat, lon, SNAP_ROAD_FETCH_RADIUS).then(function(ways) {
+    if (ways) {
+      traceFetchEvent('tegelcache', lat, lon, 'fid:'+fid+'|n_ways:'+ways.length);
+      snapVerwerkNetwerk(ways, lat, lon, fid, 'tegel');
+      return;
+    }
+    snapFetchNetwork(lat, lon, 0, fid);
+  }, function() { snapFetchNetwork(lat, lon, 0, fid); });
+}
+
+// v2.49: het tóépassen van een netwerk zit in één functie, want het komt sinds
+// deze versie uit twee bronnen — een verse Overpass-fetch of de tegel-cache.
+// 'bron' belandt in snap_path, zodat snap_trace.csv laat zien waar het vandaan
+// kwam. Alle v2.17/v2.18-garanties (volgorde-guard, guard vrijgeven, backoff-
+// teller) blijven ongewijzigd en gelden nu ook voor de cache-route.
+function snapVerwerkNetwerk(elements, lat, lon, fid, bron) {
+  // v2.17 volgorde-guard: is er intussen een níéuwere fetch toegepast, dan
+  // is deze respons verouderd — cacheLat/Lon en segs niet overschrijven.
+  if (fid <= snap.fetchApplied) {
+    traceFetchEvent('fetch_stale', lat, lon, 'fid:'+fid+'|applied:'+snap.fetchApplied);
+    snap.fetchInFlight = false;   // v2.18: verouderde respons, maar guard wel vrij
+    return;
+  }
+  snap.fetchApplied = fid;
+  // v2.18: geslaagd — guard vrij, backoff-teller terug naar nul.
+  snap.fetchInFlight = false;
+  snap.fetchFailStreak = 0;
+  snap.fetchCooldownUntil = 0;
+  snap.cacheLat=lat; snap.cacheLon=lon;
+  // Stap 1 — accumuleer het nieuwe netwerk in snap.elements + adjacency ZODAT de
+  // segs-herbouw hieronder de nieuwe ways al meeneemt. (Volgorde t.o.v. <2.8:
+  // dit blok stond na de segs-bouw; nu ervóór.)
+  elements.forEach(function(el) {
+    if (el.type!=='way'||!el.geometry||el.geometry.length<2) return;
+    snapRegisterWay(el);  // adjacency cumulatief bijwerken
+    if (!snap.elements[String(el.id)]) {
+      snap.elements[String(el.id)] = {
+        highway: (el.tags&&el.tags.highway)||'',
+        osmName: (el.tags&&el.tags.name)||'',
+        geometry: el.geometry
+      };
+    }
+  });
+  // Stap 2 — herbouw snap.segs uit het CUMULATIEVE netwerk (niet alleen deze
+  // fetch), beperkt tot SNAP_SEGS_RADIUS rond de huidige positie. snapBuildSegs
+  // herprojecteert alles tegen (lat,lon) → geen frame-menging. Hiermee verliest
+  // een way die net buiten de verse 250m-cirkel valt z'n snap-kandidatuur niet.
+  var segElems = snapElementsNear(lat, lon);
+  snap.segs = snapBuildSegs(segElems, lat, lon);
+  // Log het event in snap_trace zodat de segs-herbouw traceerbaar is.
+  // bron   = fetch | tegel | leeg
+  // n_el   = ways uit deze bron
+  // n_kept = cumulatieve ways binnen SNAP_SEGS_RADIUS (input voor segs)
+  // n_segs = resulterende segmenten
+  snap.traceSeq++;
+  snap.trace.push({
+    seq:            snap.traceSeq,
+    tijdstip:       new Date().toISOString().slice(0,19),
+    event:          'fetch',
+    lat:            lat.toFixed(7),
+    lon:            lon.toFixed(7),
+    accuracy:       '',
+    anchor_before:  snap.anchorWayId||'',
+    snap_path:      'bron:'+bron+'|n_el:'+elements.length+'|n_kept:'+segElems.length+'|n_segs:'+snap.segs.length,
+    chosen_way:     '',
+    d_anchor:       '',
+    d_chosen:       '',
+    alternatives:   '',
+    anchor_after:   snap.anchorWayId||'',
+    tap_nr:         '',
+    conf:           (snap.confScore === null) ? "" : snap.confScore.toFixed(2),
+    conf_level:     snap.confLevel,
+    gps_stab:       (snap.gpsStabScore === null) ? "" : snap.gpsStabScore.toFixed(2),
+    gps_level:      snap.gpsStabLevel
+  });
+  snap.ready=true;
+  // Retro-snap tikken die wachtten op het netwerk: dichtstbijzijnde way op
+  // hun eigen historische positie (read-only, muteert het anker niet).
+  if (snap.pendingQueue.length) {
+    snap.pendingQueue.forEach(function(entry) {
+      if (entry.lat===null) return;
+      var s = snapNearestAny(entry.lat, entry.lon);
+      if (s) { entry.wayId = s.wayId; entry.segIdx = s.segIdx; entry.osmName = s.osmName; }
+      traceWrite({type:'tap_retro', tijdstip:entry.ts}, entry.lat, entry.lon,
+                 s ? 'retro_nearest' : 'no_candidate', snap.anchorWayId, s?s.wayId:null, null, s?s.d:null, []);
+    });
+    snap.pendingQueue = [];
+  }
+}
+
 function snapFetchNetwork(lat, lon, attempt, fid) {
   if (attempt===undefined) attempt=0;
-  // v2.18 fetch-discipline — alleen bij een VERSE aanvraag (attempt 0), niet bij
-  // een interne retry (die heeft z'n plek in de rij al).
-  if (attempt===0) {
-    if (snap.fetchInFlight) return;                 // één fetch tegelijk
-    if (Date.now() < snap.fetchCooldownUntil) return; // nog in cooldown na fout
-    snap.fetchInFlight = true;
-  }
-  if (fid===undefined) fid = ++snap.fetchSeq;   // v2.17: id per logische aanvraag
+  // v2.49: een aanroep zónder fid is een verse aanvraag en hoort via
+  // snapStartFetch te lopen (eerst de tegel-cache, dan pas Overpass).
+  if (fid===undefined) { snapStartFetch(lat, lon); return; }
   if (attempt>=SNAP_OVERPASS.length*2) {
     snap.fetchInFlight = false;
     snap.fetchFailStreak++;
@@ -2891,7 +3320,7 @@ function snapFetchNetwork(lat, lon, attempt, fid) {
     // normale giveup: een mislukte refresh is dan niet fataal (oud netwerk blijft).
     if (snap.cacheLat===null) {
       traceFetchEvent('fetch_retry_first', lat, lon, 'fid:'+fid+'|streak:'+snap.fetchFailStreak);
-      setTimeout(function(){ snapFetchNetwork(lat,lon); }, snapBackoffMs(snap.fetchFailStreak));
+      setTimeout(function(){ snapStartFetch(lat,lon); }, snapBackoffMs(snap.fetchFailStreak));
       return;
     }
     traceFetchEvent('fetch_giveup', lat, lon, 'fid:'+fid+'|attempts:'+attempt);
@@ -2901,87 +3330,51 @@ function snapFetchNetwork(lat, lon, attempt, fid) {
   var epIdx=attempt%SNAP_OVERPASS.length;
   // body geom: levert tags + node-IDs (el.nodes) + geometrie. Node-IDs zijn nodig
   // voor adjacency-detectie (twee ways grenzen aan elkaar via gedeelde node-ID).
-  var query='[out:json][timeout:8];way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"](around:'+SNAP_ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out body geom;';
+  var query='[out:json][timeout:8];('
+            +'way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"](around:'+SNAP_ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
+            +'way["tunnel"="building_passage"](around:'+SNAP_ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
+            +');out body geom;';
   fetch(SNAP_OVERPASS[epIdx]+'?data='+encodeURIComponent(query))
-    .then(function(r){ return r.ok?r.json():Promise.reject(r.status); })
+    .then(function(r){ return r.ok?r.json():Promise.reject(ovpStatusUitHttp(r.status)); })
     .then(function(data) {
-      if (!data.elements||!data.elements.length) throw new Error('geen wegen');
-      // v2.17 volgorde-guard: is er intussen een níéuwere fetch toegepast, dan
-      // is deze respons verouderd — cacheLat/Lon en segs niet overschrijven.
-      if (fid <= snap.fetchApplied) {
-        traceFetchEvent('fetch_stale', lat, lon, 'fid:'+fid+'|applied:'+snap.fetchApplied);
-        snap.fetchInFlight = false;   // v2.18: verouderde respons, maar guard wel vrij
+      var uitkomst = ovpKeur(data);
+      if (uitkomst === OVP_LEEG) {
+        // v2.49: geldig antwoord — hier liggen geen wegen (polder, haven, water).
+        // Vóór v2.49 ging dit door de catch, en zolang er nog nóóit een netwerk
+        // was gerapporteerd bleef de 'fataal'-tak hierboven eindeloos doorvragen.
+        // Nu accepteren we het lege netwerk: cacheLat komt te staan, en de
+        // afstandspoort in snapCheckRefresh houdt z'n mond tot we verder zijn.
+        traceFetchEvent('fetch_leeg', lat, lon, 'fid:'+fid+'|ep:'+epIdx);
+        snapVerwerkNetwerk([], lat, lon, fid, 'leeg');
         return;
       }
-      snap.fetchApplied = fid;
-      // v2.18: geslaagd — guard vrij, backoff-teller terug naar nul.
-      snap.fetchInFlight = false;
-      snap.fetchFailStreak = 0;
-      snap.fetchCooldownUntil = 0;
-      snap.cacheLat=lat; snap.cacheLon=lon;
-      // Stap 1 — accumuleer de verse fetch in snap.elements + adjacency ZODAT de
-      // segs-herbouw hieronder de nieuwe ways al meeneemt. (Volgorde t.o.v. <2.8:
-      // dit blok stond na de segs-bouw; nu ervóór.)
-      data.elements.forEach(function(el) {
-        if (el.type!=='way'||!el.geometry||el.geometry.length<2) return;
-        snapRegisterWay(el);  // adjacency cumulatief bijwerken
-        if (!snap.elements[String(el.id)]) {
-          snap.elements[String(el.id)] = {
-            highway: (el.tags&&el.tags.highway)||'',
-            osmName: (el.tags&&el.tags.name)||'',
-            geometry: el.geometry
-          };
-        }
-      });
-      // Stap 2 — herbouw snap.segs uit het CUMULATIEVE netwerk (niet alleen deze
-      // fetch), beperkt tot SNAP_SEGS_RADIUS rond de huidige positie. snapBuildSegs
-      // herprojecteert alles tegen (lat,lon) → geen frame-menging. Hiermee verliest
-      // een way die net buiten de verse 250m-cirkel valt z'n snap-kandidatuur niet.
-      var segElems = snapElementsNear(lat, lon);
-      snap.segs = snapBuildSegs(segElems, lat, lon);
-      // Log fetch-event in snap_trace zodat de segs-herbouw traceerbaar is.
-      // n_el  = ways uit deze Overpass-fetch
-      // n_kept = cumulatieve ways binnen SNAP_SEGS_RADIUS (input voor segs)
-      // n_segs = resulterende segmenten
-      snap.traceSeq++;
-      snap.trace.push({
-        seq:            snap.traceSeq,
-        tijdstip:       new Date().toISOString().slice(0,19),
-        event:          'fetch',
-        lat:            lat.toFixed(7),
-        lon:            lon.toFixed(7),
-        accuracy:       '',
-        anchor_before:  snap.anchorWayId||'',
-        snap_path:      'n_el:'+data.elements.length+'|n_kept:'+segElems.length+'|n_segs:'+snap.segs.length,
-        chosen_way:     '',
-        d_anchor:       '',
-        d_chosen:       '',
-        alternatives:   '',
-        anchor_after:   snap.anchorWayId||'',
-        tap_nr:         '',
-        conf:           (snap.confScore === null) ? "" : snap.confScore.toFixed(2),
-        conf_level:     snap.confLevel,
-        gps_stab:       (snap.gpsStabScore === null) ? "" : snap.gpsStabScore.toFixed(2),
-        gps_level:      snap.gpsStabLevel
-      });
-      snap.ready=true;
-      // Retro-snap tikken die wachtten op het netwerk: dichtstbijzijnde way op
-      // hun eigen historische positie (read-only, muteert het anker niet).
-      if (snap.pendingQueue.length) {
-        snap.pendingQueue.forEach(function(entry) {
-          if (entry.lat===null) return;
-          var s = snapNearestAny(entry.lat, entry.lon);
-          if (s) { entry.wayId = s.wayId; entry.segIdx = s.segIdx; entry.osmName = s.osmName; }
-          traceWrite({type:'tap_retro', tijdstip:entry.ts}, entry.lat, entry.lon,
-                     s ? 'retro_nearest' : 'no_candidate', snap.anchorWayId, s?s.wayId:null, null, s?s.d:null, []);
-        });
-        snap.pendingQueue = [];
-      }
+      if (uitkomst !== OVP_OK) return Promise.reject(uitkomst);
+      cacheWaysInTiles(data.elements, lat, lon, SNAP_ROAD_FETCH_RADIUS);   // deel met de reconstructor
+      snapVerwerkNetwerk(data.elements, lat, lon, fid, 'fetch');
     })
     .catch(function(err){
       // v2.17: elke mislukte poging zichtbaar in de trace (was volledig stil).
       traceFetchEvent('fetch_fail', lat, lon,
         'fid:'+fid+'|ep:'+epIdx+'|attempt:'+attempt+'|err:'+String(err).slice(0,60));
+      if (err === OVP_LIMIET) {
+        // v2.49: de server wijst ons af of zit vol. Niet meteen de andere mirror
+        // erbij halen — Overpass voert de query eerst uit en meldt de limiet
+        // daarna, dus een geweigerd verzoek kost net zoveel als een geslaagd.
+        snap.fetchInFlight = false;
+        snap.fetchFailStreak++;
+        snap.fetchCooldownUntil = Date.now() + OVP_LIMIET_WACHT_MS;
+        return;
+      }
+      if (err === OVP_OUD && attempt + 1 >= SNAP_OVERPASS.length && snap.cacheLat !== null) {
+        // v2.49: álle mirrors lopen achter op OSM. Dat lost zich niet op in
+        // seconden. We hebben al een werkend netwerk, dus lang wachten mag.
+        // Zónder netwerk (cacheLat===null) geldt de fataal-regel van v2.18 en
+        // blijven we het gewoon proberen — verouderd nieuws is dan beter dan niets.
+        snap.fetchInFlight = false;
+        snap.fetchFailStreak++;
+        snap.fetchCooldownUntil = Date.now() + OVP_OUD_WACHT_MS;
+        return;
+      }
       // v2.18: wacht vóór de volgende poging (exponentieel) i.p.v. onmiddellijk
       // opnieuw vuren. De in-flight guard blijft aan: dit is dezelfde logische
       // aanvraag die z'n volgende poging afwacht.
@@ -2993,8 +3386,10 @@ function snapFetchNetwork(lat, lon, attempt, fid) {
 // v2.18: exponentiële backoff met plafond. 500·2^(n-1), gemaximeerd op 8s, zodat
 // een aanhoudend onbereikbaar netwerk de tool niet laat malen maar ook niet te
 // lang blind blijft zodra de dekking terugkeert.
+// v2.49: de formule zelf staat nu in het gedeelde Overpass-blok (ovpBackoffMs),
+// zodat pocket en de parkeer-apps niet uit elkaar kunnen lopen.
 function snapBackoffMs(n) {
-  return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000);
+  return ovpBackoffMs(n);
 }
 
 var _snapRefreshTimer = null;
@@ -3006,14 +3401,14 @@ function snapCheckRefresh(lat, lon) {
     // tot één poging i.p.v. één per fix.
     if (snap.fetchInFlight || Date.now() < snap.fetchCooldownUntil) return;
     if (_snapRefreshTimer) clearTimeout(_snapRefreshTimer);
-    _snapRefreshTimer = setTimeout(function(){ snapFetchNetwork(lat,lon); }, 600);
+    _snapRefreshTimer = setTimeout(function(){ snapStartFetch(lat,lon); }, 600);
     return;
   }
   var cos=Math.cos(snap.cacheLat*Math.PI/180);
   var dx=(lon-snap.cacheLon)*111320*cos, dy=(lat-snap.cacheLat)*111320;
   if (Math.sqrt(dx*dx+dy*dy) > SNAP_ROAD_FETCH_RADIUS*0.6) {
     if (_snapRefreshTimer) clearTimeout(_snapRefreshTimer);
-    _snapRefreshTimer = setTimeout(function(){ snapFetchNetwork(lat,lon); }, 600);
+    _snapRefreshTimer = setTimeout(function(){ snapStartFetch(lat,lon); }, 600);
   }
 }
 // ── EINDE SNAP MODULE ─────────────────────────────────────────────────────────
@@ -3063,14 +3458,33 @@ restoreSession();
   </div>
   <div id="pk-cards"></div>
 </div>
-<button id="pk-back" style="display:none" onclick="pkBack()">&#8249; Terug</button>
-<button id="pk-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
+<div id="pk-btnbar">
+  <button id="pk-back" style="display:none" onclick="pkBack()">&#8249; Terug</button>
+  <button id="pk-map" style="display:none" onclick="openPkMap()">&#128506; Kaart</button>
+  <button id="pk-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
+</div>
+
+<div id="pk-map-overlay">
+  <div id="pk-map-bar">
+    <span>Dekking &mdash; waar heb je geteld</span>
+    <button id="pk-map-close" onclick="closePkMap()">&#10005;</button>
+  </div>
+  <div id="pk-map-canvas"></div>
+  <div id="pk-map-legend">
+    <span class="lg"><span class="dot" style="background:#b0342b"></span>bezet</span>
+    <span class="lg"><span class="dot" style="background:#3a7d44"></span>leeg</span>
+    <span class="lg"><span class="dot" style="background:#888;border:2.5px solid #fff"></span>links</span>
+    <span class="lg"><span class="dot" style="background:#888;border:2.5px solid #111"></span>rechts</span>
+    <span class="lg"><span class="ln" style="background:#1f5fbf"></span>route</span>
+  </div>
+</div>
 
 <div id="preview-overlay">
   <div id="preview-header">
     <span id="preview-title">Telling afgerond</span>
     <div>
       <button id="preview-save" onclick="savePreviewZip()">&#x2913; ZIP opslaan</button>
+      <button id="preview-recon" onclick="openReconstructie()">&#8635; Reconstrueren</button>
       <button id="preview-close" onclick="closePreview()">&#x2715; Sluiten</button>
     </div>
   </div>

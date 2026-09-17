@@ -220,7 +220,7 @@
 <header>
   <a href="index.html" style="color:#aaa8a2;text-decoration:none;font-size:13px;font-weight:300;margin-right:4px;">&#8592;</a>
   <h1>Walk and Survey Parked Bikes</h1>
-  <span>rvmk.nl</span>
+  <span>telonline.org</span>
 </header>
 
 <div class="main">
@@ -344,6 +344,7 @@
 
   <div style="margin-bottom:6px;">
     <button class="btn-dl" id="btnDlZip" disabled onclick="exportZip()" style="width:100%;border-color:var(--text);color:var(--text);font-weight:600;">&#8595; Download ZIP (CSV + GPX + kaart)</button>
+    <button class="btn-dl" id="btnRecon" onclick="openReconstructie()" style="display:none;width:100%;margin-top:6px;border-color:#1f5fbf;color:#1f5fbf;font-weight:600;">&#8635; Direct reconstrueren</button>
   </div>
   <div class="download-row">
     <button class="btn-dl" id="btnDlCsv" disabled onclick="exportCSV()">&#8595; Download CSV</button>
@@ -385,6 +386,171 @@ var GEOCODE_INTERVAL = 60000; // street name refresh ms
 var ROAD_FETCH_RADIUS = 300;  // meters around position to fetch roads
 // Snap-netwerk highway-filter — HOUD GELIJK over alle tools (grep HIGHWAY_RE).
 var HIGHWAY_RE = 'residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path|track|bridleway|steps|corridor';
+
+/* ---- Gedeelde OSM-tegelcache (zelfde IndexedDB als telreconstructie.html) ----
+   Wat hier tijdens het tellen wordt opgehaald, hoeft de reconstructor later niet
+   opnieuw te fetchen. Formaat identiek: { key:'t_<ty>_<tx>', ts, ways:[...] }.
+   BELANGRIJK: we schrijven alleen tegels weg die VOLLEDIG binnen de opgehaalde
+   cirkel liggen. Een half gevulde tegel zou de reconstructor als 'vers' lezen en
+   dan wegen missen. */
+var _laatsteZip = null;
+var TILE_DEG_SHARED = 0.01, TILE_DB = 'telsuite_osm', TILE_STORE = 'tiles';
+function _tileDb() {
+  return new Promise(function (res, rej) {
+    if (typeof indexedDB === 'undefined' || !indexedDB) return rej(new Error('geen IndexedDB'));
+    var q = indexedDB.open(TILE_DB, 1);
+    q.onupgradeneeded = function (e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains(TILE_STORE))  db.createObjectStore(TILE_STORE, { keyPath: 'key' });
+      if (!db.objectStoreNames.contains('handoff'))   db.createObjectStore('handoff', { keyPath: 'key' });
+    };
+    q.onsuccess = function (e) { res(e.target.result); };
+    q.onerror = function () { rej(q.error); };
+  });
+}
+// Bewaar ways per tegel, maar pas als een tegel VOLLEDIG gedekt is door de
+// opgehaalde cirkels van deze sessie. Eén fetch (r=250m) dekt nooit een hele
+// tegel (~1,1km); al lopend groeit de dekking en komt de tegel alsnog compleet.
+// We rasteren elke tegel in 8x8 cellen en markeren welke cellen binnen een
+// fetch-cirkel liggen; bij 64/64 is de tegel compleet en gaat hij de cache in.
+var _tileCov = {};      // tegelsleutel -> { cells:Set, ways:{id:way} }
+var _TILE_N = 8;
+function cacheWaysInTiles(elements, lat, lon, radiusM) {
+  try {
+    if (!elements || !elements.length) return;
+    var mPerLat = 111320, mPerLon = 111320 * Math.cos(lat * Math.PI / 180) || 1;
+    var dLat = radiusM / mPerLat, dLon = radiusM / mPerLon;
+    // 1) dekking bijwerken voor elke tegel die de cirkel raakt
+    var ty0 = Math.floor((lat - dLat) / TILE_DEG_SHARED), ty1 = Math.floor((lat + dLat) / TILE_DEG_SHARED);
+    var tx0 = Math.floor((lon - dLon) / TILE_DEG_SHARED), tx1 = Math.floor((lon + dLon) / TILE_DEG_SHARED);
+    var raak = [];
+    for (var ty = ty0; ty <= ty1; ty++) {
+      for (var tx = tx0; tx <= tx1; tx++) {
+        var key = 't_' + ty + '_' + tx;
+        var rec = _tileCov[key] || (_tileCov[key] = { cells: {}, n: 0, ways: {} });
+        for (var i = 0; i < _TILE_N; i++) {
+          for (var j = 0; j < _TILE_N; j++) {
+            var ci = i * _TILE_N + j;
+            if (rec.cells[ci]) continue;
+            var cLat = (ty + (i + 0.5) / _TILE_N) * TILE_DEG_SHARED;
+            var cLon = (tx + (j + 0.5) / _TILE_N) * TILE_DEG_SHARED;
+            var dy = (cLat - lat) * mPerLat, dx = (cLon - lon) * mPerLon;
+            if (dy * dy + dx * dx <= radiusM * radiusM) { rec.cells[ci] = 1; rec.n++; }
+          }
+        }
+        raak.push(key);
+      }
+    }
+    // 2) ways toewijzen aan de tegels die ze raken
+    var norm = elements.filter(function (el) { return el.type === 'way' && el.geometry && el.geometry.length >= 2; })
+      .map(function (el) {
+        return { type: 'way', id: el.id, nodes: el.nodes || [], geometry: el.geometry,
+                 tags: { highway: (el.tags && el.tags.highway) || '',
+                         name:    (el.tags && el.tags.name)    || '' } };
+      });
+    norm.forEach(function (w) {
+      w.geometry.forEach(function (p) {
+        var k = 't_' + Math.floor(p.lat / TILE_DEG_SHARED) + '_' + Math.floor(p.lon / TILE_DEG_SHARED);
+        if (_tileCov[k]) _tileCov[k].ways[w.id] = w;
+      });
+    });
+    // 3) volledig gedekte tegels wegschrijven (en daarna niet meer bijhouden)
+    var klaar = raak.filter(function (k) { return _tileCov[k] && _tileCov[k].n >= _TILE_N * _TILE_N; });
+    if (!klaar.length) return;
+    var now = Date.now();
+    var recs = klaar.map(function (k) {
+      var ws = []; for (var id in _tileCov[k].ways) ws.push(_tileCov[k].ways[id]);
+      return { key: k, ts: now, v: TEGEL_SCHEMA, ways: ws };
+    });
+    klaar.forEach(function (k) { _tileCov[k].opgeslagen = 1; delete _tileCov[k].ways; });
+    _tileDb().then(function (db) {
+      var tx2 = db.transaction(TILE_STORE, 'readwrite'), st = tx2.objectStore(TILE_STORE);
+      recs.forEach(function (r) { st.put(r); });
+    }).catch(function () {});
+  } catch (e) { /* cache is best-effort: nooit het tellen verstoren */ }
+}
+
+/* ---- Tegel-cache LEZEN (v2.49) --------------------------------------------
+   GEDEELD BLOK — houd byte-identiek over de vier veld-apps (grep leesTegels).
+
+   Sinds v2.43 schrijven de veld-apps hun opgehaalde netwerk in tegels, maar
+   las alleen de reconstructor ze terug. Wie dezelfde straat voor de derde keer
+   telt, haalde hem dus ook voor de derde keer op. Nu kijken we eerst.
+
+   Alles-of-niets: de fetch wordt alleen overgeslagen als ÁLLE tegels die de
+   fetch-cirkel raken aanwezig én vers zijn. Deelresultaten mengen we niet —
+   een half gedekte cirkel zou stil wegen missen, precies de fout die de
+   schrijfkant met het 8x8-raster al vermijdt.
+
+   TTL is hier korter dan de 60 dagen van de reconstructor. Daar ziet de
+   gebruiker de tegelouderdom in beeld en kan hij verversen; hier gebeurt het
+   stil, en stille veroudering verdient een strakkere grens.
+
+   Schemaversie: tegels van vóór v2.49 dragen geen straatnaam. Die tellen als
+   misser, worden opnieuw opgehaald en meteen mét naam teruggeschreven — dus
+   geen migratie, de cache geneest zichzelf.                                   */
+var TEGEL_TTL_MS  = 14 * 24 * 3600 * 1000;
+var TEGEL_SCHEMA  = 2;
+function leesTegels(lat, lon, radiusM) {
+  return new Promise(function (res) {
+    try {
+      var mPerLat = 111320, mPerLon = 111320 * Math.cos(lat * Math.PI / 180) || 1;
+      var dLat = radiusM / mPerLat, dLon = radiusM / mPerLon;
+      var ty0 = Math.floor((lat - dLat) / TILE_DEG_SHARED), ty1 = Math.floor((lat + dLat) / TILE_DEG_SHARED);
+      var tx0 = Math.floor((lon - dLon) / TILE_DEG_SHARED), tx1 = Math.floor((lon + dLon) / TILE_DEG_SHARED);
+      var keys = [];
+      for (var ty = ty0; ty <= ty1; ty++) {
+        for (var tx = tx0; tx <= tx1; tx++) keys.push('t_' + ty + '_' + tx);
+      }
+      if (!keys.length) return res(null);
+      _tileDb().then(function (db) {
+        var st = db.transaction(TILE_STORE, 'readonly').objectStore(TILE_STORE);
+        var grens = Date.now() - TEGEL_TTL_MS;
+        var pending = keys.length, mis = false, seen = {}, out = [];
+        keys.forEach(function (k) {
+          var r = st.get(k);
+          r.onsuccess = function () {
+            var rec = r.result;
+            if (!rec || !rec.ts || rec.ts < grens || (rec.v || 1) < TEGEL_SCHEMA) {
+              mis = true;
+            } else {
+              // Een way die twee tegels raakt staat in beide: ontdubbelen op id.
+              (rec.ways || []).forEach(function (w) {
+                if (!seen[w.id]) { seen[w.id] = 1; out.push(w); }
+              });
+            }
+            if (--pending === 0) res(mis ? null : out);
+          };
+          r.onerror = function () { mis = true; if (--pending === 0) res(null); };
+        });
+      }).catch(function () { res(null); });
+    } catch (e) { res(null); }   // cache is best-effort: nooit het tellen blokkeren
+  });
+}
+
+
+// Geef de zojuist gebouwde ZIP door aan telreconstructie.html en open die.
+function stuurNaarReconstructie(blob, naam) {
+  return _tileDb().then(function (db) {
+    return new Promise(function (res, rej) {
+      if (!db.objectStoreNames.contains('handoff')) return rej(new Error('geen handoff-store'));
+      var tx = db.transaction('handoff', 'readwrite');
+      tx.objectStore('handoff').put({ key: 'zip', blob: blob, naam: naam || 'telling.zip', ts: Date.now() });
+      tx.oncomplete = function () { res(); };
+      tx.onerror = function () { rej(tx.error); };
+    });
+  }).then(function () {
+    location.href = 'telreconstructie.html?handoff=1';
+  });
+}
+
+// Open de reconstructor met de zojuist gebouwde ZIP (handoff via IndexedDB).
+function openReconstructie() {
+  if (!_laatsteZip) { alert('Nog geen ZIP gebouwd \u2014 stop eerst de sessie.'); return; }
+  stuurNaarReconstructie(_laatsteZip.blob, _laatsteZip.naam)
+    .catch(function () { alert('Doorsturen mislukt \u2014 open telreconstructie.html en sleep de ZIP erin.'); });
+}
+
 var ROAD_CACHE_DIST   = 150;  // re-fetch when this far from cache center
 var SNAP_MAX_DIST     = 50;   // ignore snap if road is further than this
 var SNAP_SEGS_RADIUS  = Math.round(ROAD_FETCH_RADIUS * 1.6);  // cumulatieve snap-kandidaten (480m)
@@ -406,10 +572,68 @@ var snap = {
 };
 var planningWegen = [];     // [{id, naam, highway, coords}] van geladen opdracht
 var planningLayer = null;   // Leaflet layerGroup
+/* ---- Verse-data-garantie -------------------------------------------------
+   Elk Overpass-antwoord draagt osm3s.timestamp_osm_base: het moment waarop de
+   dataset van die server voor het laatst is bijgewerkt. Een mirror die achter-
+   loopt levert stilzwijgend verouderde wegen — nieuwe of gewijzigde straten
+   ontbreken dan zonder dat je het merkt. We keuren daarom elk antwoord zelf.
+   Te oud → als mislukt behandelen, zodat de volgende endpoint aan de beurt is. */
+var OSM_MAX_LAG_DAGEN = 7;
+function dataIsVers(data) {
+  try {
+    var ts = data && data.osm3s && data.osm3s.timestamp_osm_base;
+    if (!ts) return true;                       // geen stempel → niet afkeuren
+    var lag = (Date.now() - new Date(ts).getTime()) / 86400000;
+    if (isNaN(lag)) return true;
+    return lag <= OSM_MAX_LAG_DAGEN;
+  } catch (e) { return true; }                  // nooit het tellen blokkeren op een parseerfout
+}
+
 var OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter'
+  'https://overpass.private.coffee/api/interpreter'
 ];
+
+/* ---- Overpass-antwoord classificeren (v2.49) ------------------------------
+   GEDEELD BLOK — houd byte-identiek over alle tools (grep OVP_LIMIET).
+
+   Vóór v2.49 ging élk niet-ideaal antwoord door dezelfde catch: een gebied
+   zónder wegen liet de app net zo hard opnieuw vragen als een netwerkstoring.
+   Erger nog: Overpass meldt rate-limiting niet altijd als HTTP 429, maar soms
+   als een 200 met de melding in data.remark. Die zagen wij als 'geen wegen' en
+   dus als reden om meteen de andere mirror te proberen — precies wanneer de
+   servers vol zitten, sloegen wij er het hardst op. En een geweigerd verzoek
+   is niet gratis: Overpass voert de query eerst uit en meldt de limiet daarna.
+
+   Vijf uitkomsten, elk met eigen gedrag:
+     ok     -> verwerken
+     leeg   -> geldig antwoord; hier liggen geen wegen. NIET opnieuw vragen.
+     oud    -> deze mirror loopt achter (> OSM_MAX_LAG_DAGEN). Andere proberen.
+     limiet -> server wijst ons af of zit vol. Lang wachten, niets proberen.
+     fout   -> netwerk-/HTTP-storing. Kort exponentieel wachten.               */
+var OVP_OK = 'ok', OVP_LEEG = 'leeg', OVP_OUD = 'oud',
+    OVP_LIMIET = 'limiet', OVP_FOUT = 'fout';
+var OVP_LIMIET_WACHT_MS = 30000;      // rate-limit: slots komen per ~minuut vrij
+var OVP_OUD_WACHT_MS    = 300000;     // alle mirrors achter: lost niet op in seconden
+function ovpStatusUitHttp(status) {
+  return (status === 429 || status === 503 || status === 504) ? OVP_LIMIET : OVP_FOUT;
+}
+function ovpKeur(data) {
+  if (!data || typeof data !== 'object') return OVP_FOUT;
+  var rem = '' + (data.remark || '');
+  if (rem) {
+    // Overpass legt runtime-meldingen in 'remark' bij een verder normale 200.
+    if (/rate_?limit|too many requests|Dispatcher_Client/i.test(rem)) return OVP_LIMIET;
+    return OVP_FOUT;
+  }
+  if (!dataIsVers(data)) return OVP_OUD;
+  if (!data.elements || !data.elements.length) return OVP_LEEG;
+  return OVP_OK;
+}
+// Exponentieel wachten met plafond: 500 . 2^(n-1), max 8s. Lang genoeg om een
+// overbelaste server te ontzien, kort genoeg om terug te zijn zodra het kan.
+function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000); }
+
 
 var COLORS = { fiets:'#27ae60', brommer:'#e67e22', breed:'#2980b9', wrak:'#c0392b' };
 var TYPE_LABELS = { fiets:'Fiets', brommer:'Brommer', breed:'Breed voertuig', wrak:'Fietswrak' };
@@ -648,7 +872,8 @@ function stopSession() {
     document.getElementById('btnDlKaart').disabled=false;
     document.getElementById('btnDlGpx').disabled=false;
     document.getElementById('btnDlZip').disabled=false;
-    setStatus('Sessie gestopt \u00b7 '+entries.length+' object'+(entries.length===1?'':'en')+' \u2014 download CSV en kaart hieronder.','off');
+    setStatus('Sessie gestopt \u00b7 '+entries.length+' object'+(entries.length===1?'':'en')+' \u2014 ZIP wordt gedownload\u2026 (of gebruik de knoppen hieronder).','off');
+    exportZip();   // automatisch downloaden, net als pocket/static
   } else {
     setStatus('Sessie gestopt \u00b7 geen vermeldingen.','off');
   }
@@ -904,7 +1129,7 @@ function scheduleGeocode(lat,lon) {
 
 function doGeocode(lat,lon) {
   fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat='+lat+'&lon='+lon+'&zoom=17&addressdetails=1',
-    {headers:{'Accept-Language':'nl','User-Agent':'rvmk-fietsparkeren/1.0'}})
+    {headers:{'Accept-Language':'nl','User-Agent':'telonline-fietsparkeren/1.0'}})
   .then(function(r){ return r.json(); })
   .then(function(data){
     var a=data.address||{};
@@ -1040,25 +1265,78 @@ function snapToRoad(lat, lon) {
 }
 
 /* Fetch road geometries from Overpass, try endpoints in order + retry */
-var _roadFetchRetry = 0;
-var _roadFetchRetryTimer = null;
-var MAX_RETRIES = 4;
-var RETRY_DELAY = 5000; // ms
+/* ---- fetch-discipline (v2.49) ---------------------------------------------
+   GEDEELD BLOK over de drie parkeer-apps — houd byte-identiek (grep
+   startRoadFetch). Model komt van pocket_count.html (v2.18).
+
+   Vóór v2.49 gold hier één vaste retry van 5s zonder in-flight guard, en ging
+   élk niet-ideaal antwoord door dezelfde catch. Een gebied zónder wegen kostte
+   daardoor 2 endpoints x 5 pogingen = tien verzoeken, en dat herhaalde zich
+   elke ROAD_CACHE_DIST meter. Nu:
+     1. een verse aanvraag kijkt eerst in de tegel-cache (nul verzoeken bij hit)
+     2. één verzoek tegelijk (in-flight guard) met afkoeling na mislukking
+     3. het antwoord wordt geclassificeerd (ovpKeur) en per uitkomst behandeld
+     4. wachten gebeurt exponentieel, niet met een vaste 5s                     */
+var _roadFetchRetry       = 0;
+var _roadFetchRetryTimer  = null;
+var _roadFetchInFlight    = false;
+var _roadFetchFailStreak  = 0;
+var _roadFetchCooldownTot = 0;
+var MAX_RETRIES = 4;      // volledige rondes over alle endpoints vóór afkoeling
+
+function scheduleRoadFetch(lat, lon) {
+  if (snap.fetchTimer) clearTimeout(snap.fetchTimer);
+  snap.fetchTimer = setTimeout(function(){ startRoadFetch(lat, lon); }, 600);
+}
+
+// Verse aanvraag. Eerst de gedeelde tegel-cache: wie dezelfde straat voor de
+// derde keer telt, hoeft hem niet voor de derde keer op te halen. leesTegels
+// geeft een lijst terug bij volledige dekking (ook een lege lijst — dan weten
+// we zeker dat hier geen wegen liggen) en null bij een misser.
+function startRoadFetch(lat, lon) {
+  if (_roadFetchInFlight) return;
+  if (Date.now() < _roadFetchCooldownTot) return;
+  _roadFetchInFlight = true;
+  snap.status = 'fetching';
+  setSnapBadge();
+  leesTegels(lat, lon, ROAD_FETCH_RADIUS).then(function (ways) {
+    if (ways) { roadFetchGelukt(); pasNetwerkToe(ways, lat, lon); return; }
+    fetchRoads(lat, lon, 0);
+  }, function () { fetchRoads(lat, lon, 0); });
+}
+
+function roadFetchGelukt() {
+  _roadFetchInFlight = false;
+  _roadFetchRetry = 0;
+  _roadFetchFailStreak = 0;
+  _roadFetchCooldownTot = 0;
+}
+
+// Geen nieuwe poging meer; wacht af. wachtMs komt uit de uitkomst.
+function roadFetchStop(wachtMs) {
+  if (_roadFetchRetryTimer) clearTimeout(_roadFetchRetryTimer);
+  _roadFetchInFlight = false;
+  _roadFetchRetry = 0;
+  _roadFetchFailStreak++;
+  _roadFetchCooldownTot = Date.now() + wachtMs;
+  snap.status = 'error';
+  setSnapBadge();
+}
 
 function fetchRoads(lat, lon, endpointIdx) {
   if (endpointIdx === undefined) endpointIdx = 0;
 
-  // Alle endpoints geprobeerd — wacht en probeer opnieuw
+  // Alle endpoints geprobeerd — wacht (exponentieel) en probeer opnieuw
   if (endpointIdx >= OVERPASS_ENDPOINTS.length) {
     _roadFetchRetry++;
     if (_roadFetchRetry <= MAX_RETRIES) {
       snap.status = 'fetching';
       setSnapBadge();
       if (_roadFetchRetryTimer) clearTimeout(_roadFetchRetryTimer);
-      _roadFetchRetryTimer = setTimeout(function(){ fetchRoads(lat, lon, 0); }, RETRY_DELAY);
+      _roadFetchRetryTimer = setTimeout(function(){ fetchRoads(lat, lon, 0); },
+                                        ovpBackoffMs(_roadFetchRetry));
     } else {
-      snap.status = 'error';
-      setSnapBadge();
+      roadFetchStop(ovpBackoffMs(_roadFetchFailStreak + 1));
     }
     return;
   }
@@ -1066,7 +1344,10 @@ function fetchRoads(lat, lon, endpointIdx) {
   snap.status = 'fetching';
   setSnapBadge();
 
-  var query = '[out:json][timeout:8];way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');out tags geom;';
+  var query = '[out:json][timeout:8];('
+            + 'way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
+            + 'way["tunnel"="building_passage"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
+            + ');out tags geom;';
   var url = OVERPASS_ENDPOINTS[endpointIdx] + '?data=' + encodeURIComponent(query);
 
   var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -1075,38 +1356,67 @@ function fetchRoads(lat, lon, endpointIdx) {
   fetch(url, controller ? { signal: controller.signal } : {})
     .then(function(r) {
       clearTimeout(timer);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) return Promise.reject(ovpStatusUitHttp(r.status));
       return r.json();
     })
     .then(function(data) {
-      if (!data.elements || !data.elements.length) throw new Error('Geen wegen');
-      _roadFetchRetry = 0; // succes — reset teller
-      snap.cacheLat = lat; snap.cacheLon = lon;
-      // Cumulatief bijhouden: nieuwe ways toevoegen, bekende overslaan (EERST)
-      var knownIds = {};
-      snap.networkElements.forEach(function(el){ knownIds[el.id] = true; });
-      data.elements.forEach(function(el){
-        if (!knownIds[el.id]) snap.networkElements.push(el);
-      });
-      try { localStorage.setItem(LS_KEY+'_netwerk', JSON.stringify(snap.networkElements)); } catch(e) {}
-      // Snap-kandidaten cumulatief: álle eerder gevonden ways binnen SNAP_SEGS_RADIUS
-      // van dit centrum, herprojecteerd op dit centrum. Een weg die net buiten de
-      // verse fetch-cirkel valt blijft zo een snap-kandidaat (walk-back-geval).
-      snap.segs = buildSegments(elementsNear(lat, lon, SNAP_SEGS_RADIUS), lat, lon);
-      snap.status = snap.segs.length ? 'ok' : 'error';
-      setSnapBadge();
-      drawMiniMap();
+      var uitkomst = ovpKeur(data);
+      if (uitkomst === OVP_OK) {
+        cacheWaysInTiles(data.elements, lat, lon, ROAD_FETCH_RADIUS);   // deel met de reconstructor
+        roadFetchGelukt();
+        pasNetwerkToe(data.elements, lat, lon);
+        return;
+      }
+      if (uitkomst === OVP_LEEG) {
+        // Geldig antwoord: hier liggen simpelweg geen wegen (polder, haven,
+        // water). Niet opnieuw vragen en de mirror niet lastigvallen.
+        // pasNetwerkToe zet cacheLat/Lon, zodat de afstandspoort dit punt als
+        // opgehaald ziet en we niet elke ROAD_CACHE_DIST meter terugkomen.
+        roadFetchGelukt();
+        pasNetwerkToe([], lat, lon);
+        return;
+      }
+      return Promise.reject(uitkomst);
     })
-    .catch(function() {
+    .catch(function(uitkomst) {
       clearTimeout(timer);
+      if (uitkomst === OVP_LIMIET) {
+        // Doorrammen maakt het erger: Overpass voert de query eerst uit en
+        // meldt de limiet pas daarna. De tweede mirror is een klein vrijwilligers-
+        // instantie; die erbij halen terwijl de hoofdserver ons afwijst is
+        // precies verkeerd. Dus: wachten.
+        roadFetchStop(OVP_LIMIET_WACHT_MS);
+        return;
+      }
+      if (uitkomst === OVP_OUD && endpointIdx + 1 >= OVERPASS_ENDPOINTS.length) {
+        // Álle mirrors lopen achter op OSM. Blijven vragen levert alleen
+        // dezelfde verouderde data op.
+        roadFetchStop(OVP_OUD_WACHT_MS);
+        return;
+      }
       fetchRoads(lat, lon, endpointIdx + 1);
     });
 }
 
-function scheduleRoadFetch(lat, lon) {
-  if (snap.fetchTimer) clearTimeout(snap.fetchTimer);
-  snap.fetchTimer = setTimeout(function(){ fetchRoads(lat, lon); }, 600);
+// Verwerk een netwerk — uit Overpass óf uit de tegel-cache — in de snap-state.
+function pasNetwerkToe(elements, lat, lon) {
+  snap.cacheLat = lat; snap.cacheLon = lon;
+  // Cumulatief bijhouden: nieuwe ways toevoegen, bekende overslaan (EERST)
+  var knownIds = {};
+  snap.networkElements.forEach(function(el){ knownIds[el.id] = true; });
+  elements.forEach(function(el){
+    if (!knownIds[el.id]) snap.networkElements.push(el);
+  });
+  try { localStorage.setItem(LS_KEY+'_netwerk', JSON.stringify(snap.networkElements)); } catch(e) {}
+  // Snap-kandidaten cumulatief: álle eerder gevonden ways binnen SNAP_SEGS_RADIUS
+  // van dit centrum, herprojecteerd op dit centrum. Een weg die net buiten de
+  // verse fetch-cirkel valt blijft zo een snap-kandidaat (walk-back-geval).
+  snap.segs = buildSegments(elementsNear(lat, lon, SNAP_SEGS_RADIUS), lat, lon);
+  snap.status = snap.segs.length ? 'ok' : 'error';
+  setSnapBadge();
+  drawMiniMap();
 }
+
 
 /* Kies de beste OSM-richting: snapBrg of snapBrg+180, gebaseerd op referentie-bearing.
    Referentie: netto looprichting (trail) -> currentBearing -> kompas -> geen flip. */
@@ -1506,7 +1816,7 @@ function buildCsvString() {
 
 function buildGpxString() {
   var d = new Date();
-  var creator = 'rvmk-fietsparkeren';
+  var creator = 'telonline-fietsparkeren';
   var TYPE_SYM = { fiets:'Parking', brommer:'Flag, Orange', breed:'Flag, Blue', wrak:'Flag, Red' };
   var lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -1625,7 +1935,7 @@ function buildMapBlob(cb) {
     lx+=ctx.measureText(item.l).width+legR*5;
   });
   ctx.font=Math.round(FTR*0.25)+'px sans-serif'; ctx.fillStyle='#aaa'; ctx.textAlign='right';
-  ctx.fillText('route: blauw ≤10m · oranje ≤20m · rood >20m GPS  ·  rvmk.nl / fietsparkeren', W-FTR*0.3, ly);
+  ctx.fillText('route: blauw ≤10m · oranje ≤20m · rood >20m GPS  ·  telonline.org / fietsparkeren', W-FTR*0.3, ly);
   canvas.toBlob(function(blob){ cb(blob); }, 'image/png');
 }
 
@@ -1713,6 +2023,8 @@ function exportZip() {
     zip.generateAsync({type:'blob', compression:'DEFLATE', compressionOptions:{level:9}}).then(function(zipBlob) {
       var zipName = sid + '_fts.zip';
       var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
+      _laatsteZip = { blob: zipBlob, naam: zipName };   // voor 'Direct reconstrueren'
+      var rb = document.getElementById('btnRecon'); if (rb) rb.style.display = '';
       // Pas ná een bevestigde opslag de herstelkopie wissen — niet optimistisch
       // vooraf, anders is de back-up al weg terwijl het deelvenster nog open staat.
       function finalizeExport() {

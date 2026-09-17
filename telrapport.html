@@ -150,6 +150,9 @@
     margin-top: 1px; font-family: 'Courier New', monospace; }
   .session-n { font-size: 11px; color: var(--text); flex-shrink: 0;
     font-weight: 600; opacity: 0.7; }
+  .session-dekking { font-size: 9.5px; color: var(--muted); margin-top: 2px;
+    line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-dekking.incompleet { color: #e0a03a; font-weight: 600; }
 
   #reset-footer {
     padding: 8px 16px 10px; border-top: 1px solid var(--border);
@@ -523,7 +526,13 @@
       <summary>Kaart</summary>
       <div class="ctrl-body">
         <div class="toggle-row">
-          <button class="dot-btn active" id="capnetwerk-toggle" style="color:#fff;flex:1"
+          <button class="dot-btn" id="export-verzameling-btn" style="color:#fff;flex:1"
+            onclick="exportVerzameling()">
+            <span class="dot" style="background:#5bc0be;border:1px solid #888"></span>bewaar kaart als verzamel-ZIP
+          </button>
+        </div>
+        <div class="toggle-row" style="margin-top:6px">
+          <button class="dot-btn" id="capnetwerk-toggle" style="color:#fff;flex:1"
             onclick="toggleCapNetwerk(this)">
             <span class="dot" style="background:#1a1918;border:1px solid #888"></span>capaciteitscontouren
           </button>
@@ -737,14 +746,17 @@ const capNetwerkLayers = [];  // voor toggle
             color: '#1a1918', weight: 1.5, opacity: 0.7,
             fillColor: '#8e44ad', fillOpacity: 0.08,
             interactive: false
-          }).addTo(map);
+          });
         } else {
           capEl = L.polyline(coords, {
             pane: 'capnetwerk',
             color: '#1a1918', weight: 4, opacity: 0.45,
             interactive: false
-          }).addTo(map);
+          });
         }
+        // Volg de toggle-stand (staat standaard UIT bij opstarten)
+        var capBtn0 = document.getElementById('capnetwerk-toggle');
+        if (capBtn0 && capBtn0.classList.contains('active')) capEl.addTo(map);
         capNetwerkLayers.push(capEl);
       });
       window._capNetwerkReady = true;
@@ -806,8 +818,139 @@ const capNetwerkLayers = [];  // voor toggle
     .catch(function() {});
 })();
 
+/* ---- Verse-data-garantie -------------------------------------------------
+   Elk Overpass-antwoord draagt osm3s.timestamp_osm_base: het moment waarop de
+   dataset van die server voor het laatst is bijgewerkt. Een mirror die achter-
+   loopt levert stilzwijgend verouderde wegen — nieuwe of gewijzigde straten
+   ontbreken dan zonder dat je het merkt. We keuren daarom elk antwoord zelf.
+   Te oud → als mislukt behandelen, zodat de volgende endpoint aan de beurt is. */
+var OSM_MAX_LAG_DAGEN = 7;
+function dataIsVers(data) {
+  try {
+    var ts = data && data.osm3s && data.osm3s.timestamp_osm_base;
+    if (!ts) return true;                       // geen stempel → niet afkeuren
+    var lag = (Date.now() - new Date(ts).getTime()) / 86400000;
+    if (isNaN(lag)) return true;
+    return lag <= OSM_MAX_LAG_DAGEN;
+  } catch (e) { return true; }                  // nooit het tellen blokkeren op een parseerfout
+}
+
+var SNAP_OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+/* ---- Overpass-antwoord classificeren (v2.49) ------------------------------
+   GEDEELD BLOK — houd byte-identiek over alle tools (grep OVP_LIMIET).
+
+   Vóór v2.49 ging élk niet-ideaal antwoord door dezelfde catch: een gebied
+   zónder wegen liet de app net zo hard opnieuw vragen als een netwerkstoring.
+   Erger nog: Overpass meldt rate-limiting niet altijd als HTTP 429, maar soms
+   als een 200 met de melding in data.remark. Die zagen wij als 'geen wegen' en
+   dus als reden om meteen de andere mirror te proberen — precies wanneer de
+   servers vol zitten, sloegen wij er het hardst op. En een geweigerd verzoek
+   is niet gratis: Overpass voert de query eerst uit en meldt de limiet daarna.
+
+   Vijf uitkomsten, elk met eigen gedrag:
+     ok     -> verwerken
+     leeg   -> geldig antwoord; hier liggen geen wegen. NIET opnieuw vragen.
+     oud    -> deze mirror loopt achter (> OSM_MAX_LAG_DAGEN). Andere proberen.
+     limiet -> server wijst ons af of zit vol. Lang wachten, niets proberen.
+     fout   -> netwerk-/HTTP-storing. Kort exponentieel wachten.               */
+var OVP_OK = 'ok', OVP_LEEG = 'leeg', OVP_OUD = 'oud',
+    OVP_LIMIET = 'limiet', OVP_FOUT = 'fout';
+var OVP_LIMIET_WACHT_MS = 30000;      // rate-limit: slots komen per ~minuut vrij
+var OVP_OUD_WACHT_MS    = 300000;     // alle mirrors achter: lost niet op in seconden
+function ovpStatusUitHttp(status) {
+  return (status === 429 || status === 503 || status === 504) ? OVP_LIMIET : OVP_FOUT;
+}
+function ovpKeur(data) {
+  if (!data || typeof data !== 'object') return OVP_FOUT;
+  var rem = '' + (data.remark || '');
+  if (rem) {
+    // Overpass legt runtime-meldingen in 'remark' bij een verder normale 200.
+    if (/rate_?limit|too many requests|Dispatcher_Client/i.test(rem)) return OVP_LIMIET;
+    return OVP_FOUT;
+  }
+  if (!dataIsVers(data)) return OVP_OUD;
+  if (!data.elements || !data.elements.length) return OVP_LEEG;
+  return OVP_OK;
+}
+// Exponentieel wachten met plafond: 500 . 2^(n-1), max 8s. Lang genoeg om een
+// overbelaste server te ontzien, kort genoeg om terug te zijn zodra het kan.
+function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000); }
+
+/* ---- overpassFetch: gedeeld transport (v2.50) -----------------------------
+   GEDEELD BLOK — houd byte-identiek (grep overpassFetch). Eén verzoek tegelijk,
+   endpoints op volgorde, exponentieel wachten, en elk antwoord door ovpKeur.
+   Query en verwerking blijven per tool; alleen het transport is gedeeld.
+   onProgress is optioneel: tools zonder voortgangsmelding laten hem weg.       */
+function overpassFetch(query, onOk, onFail, onProgress) {
+  var attempt = 0;
+  function tryOnce() {
+    if (attempt >= SNAP_OVERPASS.length * 2) { onFail('opgegeven na ' + attempt + ' pogingen'); return; }
+    var ep = SNAP_OVERPASS[attempt % SNAP_OVERPASS.length];
+    var epNaam = ep.replace(/^https?:\/\//, '').split('/')[0];
+    if (onProgress) onProgress('verbinden met ' + epNaam + (attempt > 0 ? ' (poging ' + (attempt + 1) + ')' : ''));
+    fetch(ep + '?data=' + encodeURIComponent(query))
+      .then(function (r) {
+        if (onProgress) onProgress('antwoord van ' + epNaam + ' verwerken');
+        return r.ok ? r.json() : Promise.reject(ovpStatusUitHttp(r.status));
+      })
+      .then(function (data) {
+        var uitkomst = ovpKeur(data);
+        // Leeg is een geldig antwoord: een gebied zonder wegen bestaat echt
+        // (water, buitengebied), en een opzoeking op way-id kan simpelweg niets
+        // opleveren. De rest gaat naar de catch met z'n uitkomst.
+        if (uitkomst === OVP_OK || uitkomst === OVP_LEEG) { onOk(data); return; }
+        return Promise.reject(uitkomst);
+      })
+      .catch(function (err) {
+        // Een rate-limit is geen gewone storing. Overpass voert de query eerst
+        // uit en meldt de limiet pas daarna, dus doorrammen kost de server
+        // evenveel als slagen. Eén lange pauze in plaats van vier korte. Dat dit
+        // apart wordt herkend beschermt ook de tegel-cache: zonder deze tak kon
+        // een 200 met een rate-limit-melding ín de body als 'leeg gebied'
+        // binnenkomen en zo een lege tegel als geldig wegschrijven.
+        if (err === OVP_LIMIET) {
+          attempt++;
+          if (attempt >= SNAP_OVERPASS.length * 2) { onFail('server blijft vol'); return; }
+          if (onProgress) onProgress('server zit vol, wachten (' + Math.round(OVP_LIMIET_WACHT_MS / 1000) + 's)');
+          setTimeout(tryOnce, OVP_LIMIET_WACHT_MS);
+          return;
+        }
+        attempt++;
+        var wait = ovpBackoffMs(attempt);            // 500, 1000, 2000, ... max 8s
+        if (onProgress && attempt < SNAP_OVERPASS.length * 2) onProgress('mislukt, opnieuw over ' + (wait / 1000).toFixed(1) + 's');
+        setTimeout(tryOnce, wait);
+      });
+  }
+  tryOnce();
+}
+
+/* Geometrie ophalen voor een lijst way-IDs. Drie plekken in dit bestand hadden
+   hier hun eigen fetch voor: twee gingen rechtstreeks naar de hoofdserver
+   zonder mirror-fallback, en de derde had de endpoint-lijst twee keer inline
+   staan. Nu één ingang, bovenop het gedeelde transport, met ontdubbelde IDs
+   zodat de query niet onnodig lang wordt.
+   onOk krijgt een geomMap: wayId (string) -> [[lat,lon], ...].
+   onFail is optioneel; wie iets moet tekenen ook als het misgaat geeft 'm mee. */
+function haalWayGeometrie(wayIds, onOk, onFail) {
+  var ids = [], gezien = {};
+  (wayIds || []).forEach(function (id) {
+    var t = String(id);
+    if (t && !gezien[t]) { gezien[t] = 1; ids.push(t); }
+  });
+  if (!ids.length) { onOk({}); return; }
+  var query = '[out:json][timeout:10];way(id:' + ids.join(',') + ');out geom;';
+  overpassFetch(query, function (data) {
+    var geomMap = {};
+    (data.elements || []).forEach(function (el) {
+      if (el.type === 'way' && el.geometry) {
+        geomMap[String(el.id)] = el.geometry.map(function (p) { return [p.lat, p.lon]; });
+      }
+    });
+    onOk(geomMap);
+  }, function (reden) { if (onFail) onFail(reden); });
+}
+
 // ── BASEMAPS ──────────────────────────────────────────────────────
-const CARTO_API_KEY = 'cb1_2a2n_1_3583b21ab7073b803a894288';
 const BASEMAPS = {
   osm: {
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -815,7 +958,7 @@ const BASEMAPS = {
     maxZoom: 19, subdomains: 'abc'
   },
   positron: {
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?api_key=' + CARTO_API_KEY,
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=cb1_2a2n_1_3583b21ab7073b803a894288',
     attribution: '© CARTO · © OpenStreetMap',
     maxZoom: 20, subdomains: 'abcd'
   },
@@ -1500,20 +1643,17 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
       });
       if (missingGeom.length) {
         var missingWids = missingGeom.map(function(k){ return parseKey(k).wid; });
-        var query='[out:json][timeout:10];way(id:'+missingWids.join(',')+');out geom;';
-        fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(query))
-          .then(function(r){return r.json();})
-          .then(function(data){
-            (data.elements||[]).forEach(function(el){
-              var k = wkey(String(el.id), 0);
-              if (wayData[k]&&el.geometry) {
-                wayData[k].geometry = el.geometry.map(function(p){return[p.lat,p.lon];});
-                makeWayLine(k, wayData[k].geometry, {color:'#5500cc',weight:3,opacity:0.6});
-                attachPocketSegmentInteraction(k);
-              }
-            });
-            drawClusters(sid);
-          }).catch(function(){});
+        haalWayGeometrie(missingWids, function(geomMap){
+          Object.keys(geomMap).forEach(function(wid){
+            var k = wkey(wid, 0);
+            if (wayData[k]) {
+              wayData[k].geometry = geomMap[wid];
+              makeWayLine(k, wayData[k].geometry, {color:'#5500cc',weight:3,opacity:0.6});
+              attachPocketSegmentInteraction(k);
+            }
+          });
+          drawClusters(sid);
+        });
       }
     }
   }
@@ -1524,6 +1664,22 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
   if (gpsLayers[sid]) {
     try { map.fitBounds(gpsLayers[sid].getBounds().pad(0.15)); } catch(e) {}
   }
+}
+
+/* Welke coördinaat tekenen we voor een pocket-tik? (v2.51)
+   Een gereconstrueerde pocket-parkeertelling draagt naast de rauwe GPS-positie
+   (lat/lon) ook de routeconsistente wegpositie (lat_marker/lon_marker) — die
+   stond er sinds v2.18 al in, maar werd hier niet gebruikt. Juist bij parkeren
+   is die wegpositie het punt: auto's komen dan als strakke rijtjes langs de
+   straat te staan in plaats van als een GPS-wolk.
+   Rauwe pocket-ZIP's en de wandelprofielen (transect/winkelstraat/simpel)
+   kennen geen markerkolom — die vallen terug op lat/lon en veranderen niet.
+   De auto/fiets-lader tekent al op lat_marker; hiermee zijn de twee laders het
+   eens. Zie ook §"GPS-positie versus wegpositie" in overdracht_v2_51.md. */
+function tikPositie(r) {
+  var la = parseFloat(r.lat_marker), lo = parseFloat(r.lon_marker);
+  if (!isNaN(la) && !isNaN(lo)) return [la, lo];
+  return [parseFloat(r.lat), parseFloat(r.lon)];
 }
 
 function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
@@ -1647,15 +1803,22 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
 
   // telData vullen zodat drawClusters werkt — segIdx onthouden voor segment-projectie.
   // Transect/winkelstraat: per-rij type i.p.v. de sessie-type, zodat clusters splitsen.
+  // v2.51: clustert op de wegpositie waar die er is, en neemt 'zijde' mee.
+  // drawClusters groepeert op `${wayId|segIdx}|${zijde}`; zonder zijde zouden
+  // links en rechts op dezelfde positie langs de lijn projecteren en tot één
+  // bol samenklappen — precies de twee rijtjes die je uit elkaar wilt zien.
   telData[sid] = rows.filter(function(r){ return r.osm_way_id && r.osm_way_id.trim(); })
-    .map(function(r){ return { type: perRowType ? (r.type || 'other') : ptype,
-      lat_marker:r.lat, lon_marker:r.lon,
+    .map(function(r){ var p = tikPositie(r);
+      return { type: perRowType ? (r.type || 'other') : ptype,
+      lat_marker:p[0], lon_marker:p[1],
+      zijde: r.zijde || '',
       straat:r.straat||'', osm_way_id:r.osm_way_id,
       segment_index: +(r.segment_index || 0) || 0,
       snapped:'1' }; });
 
   rows.forEach(function(r) {
-    const la = parseFloat(r.lat), lo = parseFloat(r.lon);
+    const pos = tikPositie(r);
+    const la = pos[0], lo = pos[1];
     if (isNaN(la)||isNaN(lo)) return;
     const rowType = perRowType ? (r.type || 'other') : ptype;
     const kleur = APP_CONFIG.pocket.colors[rowType] || '#555';
@@ -1723,25 +1886,21 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
       return !g||(g.length===2&&g[0][0]===g[1][0]&&g[0][1]===g[1][1]);
     });
     if (missing.length) {
-      const missingWids = [...new Set(missing.map(function(k){ return parseKey(k).wid; }))];
-      const q='[out:json][timeout:10];way(id:'+missingWids.join(',')+');out geom;';
-      fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q))
-        .then(function(r){return r.json();})
-        .then(function(data){
-          (data.elements||[]).forEach(function(el){
-            const wid=String(el.id);
-            // Alleen segIdx=0 vullen (oude pocket had geen segmenten)
-            const k = wkey(wid, 0);
-            if (wayData[k]&&el.geometry) {
-              wayData[k].geometry=el.geometry.map(function(p){return[p.lat,p.lon];});
-              if (!wayLayers[k]) {
-                makeWayLine(k, wayData[k].geometry, {color:'#3a3d42',weight:2,opacity:0.5});
-                attachPocketSegmentInteraction(k);
-              }
+      const missingWids = missing.map(function(k){ return parseKey(k).wid; });
+      haalWayGeometrie(missingWids, function(geomMap){
+        Object.keys(geomMap).forEach(function(wid){
+          // Alleen segIdx=0 vullen (oude pocket had geen segmenten)
+          const k = wkey(wid, 0);
+          if (wayData[k]) {
+            wayData[k].geometry = geomMap[wid];
+            if (!wayLayers[k]) {
+              makeWayLine(k, wayData[k].geometry, {color:'#3a3d42',weight:2,opacity:0.5});
+              attachPocketSegmentInteraction(k);
             }
-          });
-          recolorAll(); renderSessions(); drawClusters(sid);
-        }).catch(function(){});
+          }
+        });
+        recolorAll(); renderSessions(); drawClusters(sid);
+      });
     }
   }
 
@@ -3251,27 +3410,9 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
   const missingIds = wayIds.filter(id => !polyMap[id]);
   if (!missingIds.length) { drawGroups({}); return; }
 
-  // Overpass: haal geometrie op voor ontbrekende way-IDs
-  const query = '[out:json][timeout:10];way(id:'+missingIds.join(',')+');out geom;';
-  const tryOverpass = (idx) => {
-    if (idx >= ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'].length) {
-      drawGroups({}); return;
-    }
-    const endpoints = ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
-    fetch(endpoints[idx]+'?data='+encodeURIComponent(query))
-      .then(r=>r.json())
-      .then(data => {
-        const geomMap = {};
-        (data.elements||[]).forEach(el => {
-          if (el.type==='way' && el.geometry) {
-            geomMap[String(el.id)] = el.geometry.map(p=>[p.lat, p.lon]);
-          }
-        });
-        drawGroups(geomMap);
-      })
-      .catch(()=>tryOverpass(idx+1));
-  };
-  tryOverpass(0);
+  // Overpass: haal geometrie op voor ontbrekende way-IDs. Lukt dat niet, dan
+  // tekenen we de groepen alsnog — zonder weggeometrie, maar wel zichtbaar.
+  haalWayGeometrie(missingIds, drawGroups, function(){ drawGroups({}); });
 }
 
 function showCapDetail(g, datum, teller, sid) {
@@ -3319,8 +3460,10 @@ function showHideDots(sid, type, show) {
 }
 
 // ── LOAD ZIP ─────────────────────────────────────────────────────
-async function loadZip(file) {
-  const zip=await JSZip.loadAsync(file);
+async function loadZip(file, voorgeladenZip) {
+  // v2.55: loadFile pakt een ZIP soms al uit om te zien of het een verzameling
+  // is. Dan geeft hij 'm hier door in plaats van 'm nog een keer te ontleden.
+  const zip = voorgeladenZip || await JSZip.loadAsync(file);
   const F={};
   await Promise.all(Object.entries(zip.files).map(([p,e])=>{
     if (e.dir) return;
@@ -3512,6 +3655,36 @@ function sessionGroup(s) {
 const GROUP_ORDER = ['auto','fiets','capaciteit','pocket:winkelstraat',
                      'pocket:transect','pocket:simpel','transect','standstill'];
 
+// Volledigheids-telling: hoeveel getelde tikken van deze sessie belanden echt in een cluster?
+// Spiegelt de filters van drawClusters (snapped-set in telData + geometrie + numerieke marker,
+// of het gap-pad via de getekende stippen). Bij wijziging in drawClusters: hier meelopen.
+function clusterDekking(sid) {
+  var s = sessions[sid]; if (!s) return null;
+  var appType = s.appType;
+  var totaal = +((s.meta && s.meta.n_waarnemingen)) || 0;
+  var geplaatst = 0;
+  var gapPad = false;
+  if (appType === 'transect' || appType === 'pocket') {
+    var hasWayData = Object.keys(wayData).some(function(k) {
+      return wayData[k].sessions && wayData[k].sessions.some(function(x){ return x.sid === sid; });
+    });
+    gapPad = !hasWayData;
+  }
+  if (gapPad) {
+    Object.values(dotLayers[sid] || {}).forEach(function(arr){ geplaatst += arr.length; });
+  } else {
+    (telData[sid] || []).forEach(function(r){
+      var k = wkey(r.osm_way_id, +(r.segment_index || 0) || 0);
+      if (!(wayData[k] && wayData[k].geometry)) return;
+      var la = +r.lat_marker, lo = +r.lon_marker;
+      if (isNaN(la) || isNaN(lo)) return;
+      geplaatst++;
+    });
+  }
+  if (!totaal) totaal = geplaatst;
+  return { totaal: totaal, geplaatst: geplaatst, buiten: Math.max(0, totaal - geplaatst) };
+}
+
 // Bouwt één sessie-rij (ongewijzigde markup; klik/shift/solo blijven via delegatie werken).
 function makeSessionRow(sid) {
   const s = sessions[sid];
@@ -3520,6 +3693,17 @@ function makeSessionRow(sid) {
   const color = SESSION_COLORS[sid] || '#888';
   const teller = s.meta.teller ? s.meta.teller : '';
   const n = s.meta.n_waarnemingen || '';
+  const dk = clusterDekking(sid);
+  let dekHtml = '';
+  if (dk && dk.totaal) {
+    const compleet = dk.buiten === 0;
+    const titel = compleet
+      ? 'Alle getelde tikken zitten in een cluster.'
+      : dk.buiten + ' tik(ken) niet in een cluster (ongesnapt of buiten het netwerk) \u2014 zichtbaar als vervaagde \u26a0-stippen.';
+    dekHtml = '<div class="session-dekking' + (compleet ? '' : ' incompleet') + '" title="' + titel + '">'
+            + (compleet ? '\u2713 ' : '\u26a0 ') + dk.geplaatst + '/' + dk.totaal + ' geclusterd'
+            + (compleet ? '' : ' \u00b7 ' + dk.buiten + ' buiten') + '</div>';
+  }
   const row = document.createElement('div');
   row.className = 'session-row' + (s.visible ? '' : ' off');
   row.dataset.sid = sid;
@@ -3535,6 +3719,7 @@ function makeSessionRow(sid) {
           (teller ? '<span class="stell">' + teller + '</span>' : '') +
         '</div>' +
         '<div class="session-id">' + sid + '</div>' +
+        dekHtml +
       '</div>' +
       (n ? '<div class="session-n">' + n + '</div>' : '') +
     '</div>';
@@ -3890,12 +4075,12 @@ function resetAll() {
   var gT = document.getElementById('grp-tonen');     if (gT) gT.open = true;
   var gW = document.getElementById('grp-weergave');  if (gW) gW.open = true;
   var gK = document.getElementById('grp-kaart');     if (gK) gK.open = true;
-  // Capaciteitscontouren-toggle terug naar default (aan)
+  // Capaciteitscontouren-toggle terug naar default (uit)
   var capBtn = document.getElementById('capnetwerk-toggle');
-  if (capBtn && !capBtn.classList.contains('active')) {
-    capBtn.classList.add('active');
-    capNetwerkLayers.forEach(function(l) { l.addTo(map); });
+  if (capBtn && capBtn.classList.contains('active')) {
+    capBtn.classList.remove('active');
   }
+  capNetwerkLayers.forEach(function(l) { map.removeLayer(l); });
   // Basemap-opacity terug naar 100%
   var opSlider = document.getElementById('basemap-opacity');
   if (opSlider) { opSlider.value = 100; setBasemapOpacity(100); }
@@ -4241,7 +4426,7 @@ let   editModeActive   = false;
 
 // Afstand (m) loodrecht op de way-as die we toepassen op gecorrigeerde
 // markers, zodat ze visueel in lijn liggen met de niet-gecorrigeerde
-// punten (die door TrafficCounterSuite ook al uit de as worden geplaatst).
+// punten (die door Telonline Verkeerstellingen ook al uit de as worden geplaatst).
 const OFFSET_M = 4;
 
 // Bearing in graden, 0=N, met de klok mee. Voor een korte segmentafstand
@@ -4858,10 +5043,204 @@ async function exportCorrectedZips() {
 }
 
 // ── DROP ──────────────────────────────────────────────────────────
-function loadFile(file) {
+/* ═══ VERZAMEL-ZIP (v2.55) ═══════════════════════════════════════════════════
+   Eén bestand dat de hele kaart terugbrengt: alle geladen tellingen plus de
+   weergavestaat. De ZIP's zitten er GENEST in, niet samengevoegd — loadZip
+   zoekt zijn CSV's op achtervoegsel en pakt de eerste treffer, dus vijf
+   tellingen in één platte ZIP zou vier ervan onzichtbaar maken.
+
+   Twee bewuste keuzes bij het schrijven:
+   - Correcties gaan mee. Wie een middag heeft zitten slepen wil dat terug, niet
+     de rauwe ZIP. De leden zijn daardoor niet meer byte-identiek aan je
+     bronbestanden; bewaar die dus zelf.
+   - `_kaart.png` gaat er niet in. Die is per telling gerenderd en in een
+     verzameling nergens voor nodig. Wat is weggelaten staat per telling in het
+     manifest, zodat het zichtbaar blijft.                                     */
+const VERZAMELING_MANIFEST = 'verzameling.json';
+const VERZAMELING_VERSIE   = 1;
+let _verzamelingHerstel = null;   // weergavestaat die na het laden wordt toegepast
+
+function verzamelingWeergave() {
+  const c = map.getCenter();
+  const zichtbaar = {};
+  Object.keys(sessions).forEach(function(sid){ zichtbaar[sid] = !!sessions[sid].visible; });
+  const capBtn = document.getElementById('capnetwerk-toggle');
+  return {
+    midden: { lat: c.lat, lon: c.lng },
+    zoom: map.getZoom(),
+    basemap: currentBasemap,
+    zichtbaar: zichtbaar,
+    stippen: Object.assign({}, dotVisible),
+    clusters: clustersVisible,
+    capaciteitscontouren: !!(capBtn && capBtn.classList.contains('active'))
+  };
+}
+
+async function exportVerzameling() {
+  // Laadvolgorde is betekenisvol: sessiekleuren komen uit SESSION_COLOR_PALETTE
+  // op volgorde van binnenkomst. Zonder vaste volgorde krijg je dezelfde kaart
+  // in andere kleuren terug.
+  const sids = Object.keys(sessions);
+  if (!sids.length) { alert('Geen tellingen geladen.'); return; }
+
+  const zip = new JSZip();
+  const tellingen = [];
+  const zonderOrigineel = [];
+
+  for (let i = 0; i < sids.length; i++) {
+    const sid = sids[i];
+    const bron = originalFile[sid];
+    if (!bron) { zonderOrigineel.push(sid); continue; }
+
+    const src = await JSZip.loadAsync(bron);
+    const nCorr = allTelregels[sid] ? countCorrections(sid) : 0;
+
+    let nieuwTel = null, nieuwStr = null;
+    if (nCorr > 0) {
+      let origStraten = '';
+      const stratenPad = Object.keys(src.files).find(function(p){
+        return !src.files[p].dir && p.split('/').pop().endsWith('_straten.csv');
+      });
+      if (stratenPad) origStraten = await src.files[stratenPad].async('text');
+      nieuwTel = buildTelregelsCsv(sid);
+      nieuwStr = buildStratenCsv(sid, origStraten);
+    }
+
+    const uit = new JSZip();
+    const weggelaten = [];
+    const paden = Object.keys(src.files);
+    for (let j = 0; j < paden.length; j++) {
+      const pad = paden[j], e = src.files[pad];
+      if (e.dir) continue;
+      const base = pad.split('/').pop();
+      if (base.endsWith('_kaart.png')) { weggelaten.push(base); continue; }
+      if (nieuwTel && base.endsWith('_telregels.csv')) { uit.file(pad, nieuwTel); continue; }
+      if (nieuwStr && base.endsWith('_straten.csv'))   { uit.file(pad, nieuwStr); continue; }
+      // uint8array: PNG, GPX en andere binaire leden blijven ongeschonden
+      uit.file(pad, await e.async('uint8array'));
+    }
+
+    const blob = await uit.generateAsync({ type:'blob', compression:'DEFLATE' });
+    zip.file(sid + '.zip', blob);
+    tellingen.push({
+      sid: sid,
+      bestand: sid + '.zip',
+      bron: bron.name || '',
+      app_type: (sessions[sid] && sessions[sid].appType) || '',
+      correcties: nCorr,
+      weggelaten: weggelaten
+    });
+  }
+
+  if (!tellingen.length) { alert('Geen originele ZIP-bestanden meer beschikbaar.'); return; }
+
+  zip.file(VERZAMELING_MANIFEST, JSON.stringify({
+    formaat: 'telonline-verzameling',
+    versie: VERZAMELING_VERSIE,
+    gemaakt: new Date().toISOString().slice(0,19),
+    tellingen: tellingen,
+    weergave: verzamelingWeergave()
+  }, null, 2));
+
+  const stamp = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  const blob = await zip.generateAsync({ type:'blob', compression:'DEFLATE' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'TelVerzameling_' + stamp + '.zip';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+
+  if (zonderOrigineel.length) {
+    alert('Bewaard, maar zonder ' + zonderOrigineel.length +
+          ' telling(en) waarvan het originele ZIP-bestand niet meer beschikbaar was:\n' +
+          zonderOrigineel.join('\n'));
+  }
+}
+
+// Uitpakken. De leden gaan door dezelfde loadZip als een los bestand, in de
+// volgorde van het manifest. De weergave wordt pas ná afloop hersteld (zie het
+// eind van ingestFiles), anders overschrijft de fitBounds van de laatste
+// telling 'm meteen weer.
+async function loadVerzameling(zip) {
+  let manifest = null;
+  try { manifest = JSON.parse(await zip.file(VERZAMELING_MANIFEST).async('text')); }
+  catch (e) { alert('Verzameling onleesbaar: manifest ontbreekt of is beschadigd.'); return; }
+
+  if (manifest.versie > VERZAMELING_VERSIE) {
+    alert('Deze verzameling is gemaakt met een nieuwere versie van telrapport (v' +
+          manifest.versie + '). Wat deze versie niet kent, wordt overgeslagen.');
+  }
+
+  const lijst = Array.isArray(manifest.tellingen) ? manifest.tellingen : [];
+  for (let i = 0; i < lijst.length; i++) {
+    const t = lijst[i];
+    const e = zip.file(t.bestand);
+    if (!e) { console.warn('Verzameling: lid ontbreekt', t.bestand); continue; }
+    if (dzText) dzText.innerHTML = '\u23f3 uitpakken\u2026 ' + (i+1) + '/' + lijst.length;
+    const blob = await e.async('blob');
+    let lid;
+    try { lid = new File([blob], t.bestand, { type:'application/zip' }); }
+    catch (err) { lid = blob; lid.name = t.bestand; }   // oudere browsers
+    try { await loadZip(lid); }
+    catch (err) { console.error('Verzameling: laden mislukt', t.bestand, err); }
+  }
+  _verzamelingHerstel = manifest.weergave || null;
+}
+
+function pasVerzamelingWeergaveToe(w) {
+  if (!w) return;
+  try {
+    if (w.basemap && w.basemap !== currentBasemap) setBasemap(w.basemap);
+
+    if (w.stippen) {
+      Object.keys(dotVisible).forEach(function(type){
+        if (typeof w.stippen[type] !== 'boolean') return;
+        dotVisible[type] = w.stippen[type];
+        const btn = document.querySelector('.dot-btn[data-type="' + type + '"]');
+        if (btn) btn.classList.toggle('active', dotVisible[type]);
+        Object.keys(dotLayers).forEach(function(sid){ showHideDots(sid, type, dotVisible[type]); });
+      });
+    }
+
+    if (w.zichtbaar) {
+      Object.keys(w.zichtbaar).forEach(function(sid){
+        if (!sessions[sid]) return;
+        sessions[sid].visible = !!w.zichtbaar[sid];
+        applySessionVisibility(sid);
+      });
+      renderSessions();
+    }
+
+    const capBtn = document.getElementById('capnetwerk-toggle');
+    if (capBtn && typeof w.capaciteitscontouren === 'boolean' &&
+        capBtn.classList.contains('active') !== w.capaciteitscontouren) {
+      toggleCapNetwerk(capBtn);
+    }
+
+    if (typeof w.clusters === 'boolean' && w.clusters !== clustersVisible) {
+      const cb = document.getElementById('cluster-toggle');
+      if (cb) cb.click();
+    }
+
+    // Als laatste: het kaartbeeld. Wint bewust van het bbox-filter, want een
+    // bewaarde kaart is een expliciete keuze en het bevroren filterbeeld niet.
+    if (w.midden && isFinite(w.midden.lat) && isFinite(w.midden.lon)) {
+      map.setView([w.midden.lat, w.midden.lon], w.zoom || map.getZoom(), { animate:false });
+    }
+  } catch (e) { console.error('Weergave herstellen mislukt', e); }
+}
+
+async function loadFile(file) {
   const name = (file.name || '').toLowerCase();
   if (name.endsWith('.csv')) return loadStandStillCsv(file);
-  if (name.endsWith('.zip')) return loadZip(file);
+  if (name.endsWith('.zip')) {
+    // v2.55: één keer uitpakken, dan pas beslissen wat het is.
+    let zip;
+    try { zip = await JSZip.loadAsync(file); }
+    catch (e) { console.error('Geen leesbare ZIP:', file.name, e); return; }
+    if (zip.file(VERZAMELING_MANIFEST)) return loadVerzameling(zip);
+    return loadZip(file, zip);
+  }
   // Onbekend type: stil overslaan (multi-select kan andere bestanden bevatten)
 }
 
@@ -4984,6 +5363,12 @@ async function ingestFiles(files){
                                  (skipped?' · '+skipped+' overgeslagen':'');
   }else{
     if(dzText) dzText.innerHTML=dzTextHTML;
+  }
+  // v2.55: een verzameling heeft een bewaarde weergave. Pas die nu toe, na alle
+  // per-telling fitBounds en na het eventuele bbox-herstel hierboven.
+  if(_verzamelingHerstel){
+    const w=_verzamelingHerstel; _verzamelingHerstel=null;
+    pasVerzamelingWeergaveToe(w);
   }
   return toLoad.length;
 }

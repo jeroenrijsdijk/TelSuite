@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZIP Format Reference — TrafficCounterSuite</title>
+<title>ZIP Format Reference — telonline.org</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -286,7 +286,7 @@
 <div id="header">
   <a class="back" href="index.html">&#8592; Menu</a>
   <h1>ZIP Format<br>Reference</h1>
-  <div class="sub">TrafficCounterSuite &mdash; telrapport.html input specification</div>
+  <div class="sub">telonline.org &mdash; telrapport.html input specification</div>
 </div>
 
 <div class="intro">
@@ -305,8 +305,10 @@
       <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata</span></div>
       <div class="file-row"><span class="file-name">_straten.csv</span><span class="file-req required">Required</span><span class="file-desc">Occupancy per street &mdash; drives the heatmap</span></div>
       <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req required">Required</span><span class="file-desc">OSM way geometry as WKT</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Individual observations for hover detail</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track (blue dashed path)</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">One row per tap: side, street, both coordinate pairs, headings</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track (blue dashed path) with heading and snap state per point</span></div>
+      <div class="file-row"><span class="file-name">.gpx</span><span class="file-req optional">Optional</span><span class="file-desc">The same track as GPX, for import elsewhere</span></div>
+      <div class="file-row"><span class="file-name">_kaart.png</span><span class="file-req optional">Optional</span><span class="file-desc">Rendered map image of the session</span></div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_sessie.csv</div>
@@ -330,6 +332,30 @@
         <div class="csv-note">WKT coordinates as <code>lon lat</code> (not lat lon)</div>
       </div>
     </div>
+    <div class="csv-block">
+      <div class="csv-title">_telregels.csv</div>
+      <div class="csv-sample">sessie_id;nr;tijdstip;type;zijde;straat;lat_marker;lon_marker;lat_gps;lon_gps;snapped;osm_way_id;hdg_kompas;hdg_gps;hdg_osm;hdg_gebruikt
+20260514_100500_qah;1;2026-05-14T10:07:22;bezet;L;Voorstraat;51.852501;4.332480;51.852540;4.332551;1;12345;184;179;181;181
+20260514_100500_qah;2;2026-05-14T10:07:29;leeg;R;Voorstraat;51.852533;4.332622;51.852540;4.332551;1;12345;184;179;181;181</div>
+      <div class="csv-notes">
+        <div class="csv-note"><strong>Two coordinate pairs per row.</strong> <code>lat_gps</code> / <code>lon_gps</code> is where the phone was; <code>lat_marker</code> / <code>lon_marker</code> is the point placed on the street, offset ~4&nbsp;m to the counted side. Telrapport draws the marker pair; the GPS pair is the untouched original.</div>
+        <div class="csv-note"><code>zijde</code>: <code>L</code> / <code>R</code> from the phone's tilt, or <code>N</code> when it was held flat.</div>
+        <div class="csv-note"><code>snapped</code>: <code>1</code> when the tap was attached to a way, <code>0</code> when not. Unsnapped rows keep their GPS pair and carry an empty <code>osm_way_id</code>; they are summarised in <code>_straten.csv</code> under <code>(niet gesnapped)</code>.</div>
+        <div class="csv-note">Four heading columns in degrees: <code>hdg_kompas</code> (magnetometer), <code>hdg_gps</code> (course over ground), <code>hdg_osm</code> (bearing of the snapped way) and <code>hdg_gebruikt</code> (the one actually used to decide the side). Empty when unavailable.</div>
+        <div class="csv-note">After reconstruction <code>lat_marker</code> / <code>lon_marker</code> are rewritten to the route-consistent position and the row gains <code>richting</code> and <code>recon_status</code>; the GPS pair never changes.</div>
+      </div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_gps.csv</div>
+      <div class="csv-sample">sessie_id;tijdstip;lat;lon;nauwkeurigheid;hdg_gps;hdg_kompas;hdg_fused;gesnapped;osm_way_id;kompas_bevroren
+20260514_100500_qah;2026-05-14T10:07:20;51.852540;4.332551;6;179;184;181;1;12345;0</div>
+      <div class="csv-notes">
+        <div class="csv-note">Different columns from the pocket <code>_gps.csv</code>: this variant carries headings and snap state instead of <code>segment_index</code> / <code>straat</code>.</div>
+        <div class="csv-note"><code>nauwkeurigheid</code> in metres as reported by the device.</div>
+        <div class="csv-note"><code>hdg_fused</code> blends compass and course over ground; <code>kompas_bevroren</code> is <code>1</code> when the compass was held steady because the walker had stopped.</div>
+        <div class="csv-note"><code>gesnapped</code>: <code>1</code> when this fix was attached to a way.</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -345,14 +371,21 @@
       <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata</span></div>
       <div class="file-row"><span class="file-name">_straten.csv</span><span class="file-req required">Required</span><span class="file-desc">Occupancy per street &mdash; heatmap on &radic;(total)</span></div>
       <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req required">Required</span><span class="file-desc">OSM way geometry as WKT</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Individual observations</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">One row per tap &mdash; identical schema to auto</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track &mdash; identical schema to auto</span></div>
+      <div class="file-row"><span class="file-name">.gpx</span><span class="file-req optional">Optional</span><span class="file-desc">The same track as GPX</span></div>
+      <div class="file-row"><span class="file-name">_kaart.png</span><span class="file-req optional">Optional</span><span class="file-desc">Rendered map image of the session</span></div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_straten.csv &mdash; columns differ from auto</div>
-      <div class="csv-sample">sessie_id;naam;osm_way_ids;fiets;brommer;breed;wrak;bezet;vrij;bezettingsgraad_pct;eerste_waarneming;laatste_waarneming</div>
+      <div class="csv-sample">sessie_id;naam;osm_way_ids;fiets;brommer;breed;wrak;totaal;eerste_waarneming;laatste_waarneming
+20260514_140200_bvk;Korenmarkt;12345|67890;31;4;2;1;38;14:03:11;14:29:50
+20260514_140200_bvk;(niet gesnapped);;3;0;0;0;3;14:15:02;14:18:44</div>
       <div class="csv-notes">
+        <div class="csv-note">There is no occupancy here: bikes are counted, not matched against a capacity. So <strong>no <code>bezet</code> / <code>vrij</code> / <code>bezettingsgraad_pct</code></strong> &mdash; those are auto-only columns. Instead there is <code>totaal</code>, the sum of the four type columns.</div>
         <div class="csv-note">Heatmap colors on &radic;(fiets + brommer + breed + wrak)</div>
+        <div class="csv-note">One row per street name; <code>osm_way_ids</code> is the pipe-separated list of every way that carried that name.</div>
+        <div class="csv-note">Unsnapped taps are gathered in one <code>(niet gesnapped)</code> row with an empty <code>osm_way_ids</code>, so the columns always sum to the session total.</div>
       </div>
     </div>
   </div>
@@ -368,20 +401,29 @@
   <div class="section-body" style="border-color:#8e44ad">
     <div class="file-list">
       <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata</span></div>
-      <div class="file-row"><span class="file-name">_capaciteit.csv</span><span class="file-req required">Required</span><span class="file-desc">Capacity counts per type per way (streets)</span></div>
+      <div class="file-row"><span class="file-name">_capaciteit.csv</span><span class="file-req required">Required</span><span class="file-desc">Capacity per soort per street name (streets)</span></div>
       <div class="file-row"><span class="file-name">_terrein.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Capacity counts on parking areas &mdash; same schema as _capaciteit.csv (zijde = nvt)</span></div>
-      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Recommended</span><span class="file-desc">POLYGON WKT for parking areas &mdash; otherwise Overpass call</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Individual dots when clicking on an area</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Recommended</span><span class="file-desc">Way and area geometry as WKT &mdash; otherwise Overpass call</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">One row per tap &mdash; identical schema to auto</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track &mdash; identical schema to auto</span></div>
+      <div class="file-row"><span class="file-name">.gpx</span><span class="file-req optional">Optional</span><span class="file-desc">The same track as GPX</span></div>
+      <div class="file-row"><span class="file-name">_kaart.png</span><span class="file-req optional">Optional</span><span class="file-desc">Rendered map image of the session</span></div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_capaciteit.csv</div>
       <div class="csv-sample">sessie_id;osm_way_id;naam;zijde;soort;capaciteit;eerste_waarneming;laatste_waarneming
-20260429_094659_mat;142108527;Damstraat;nvt;regulier;50;2026-04-29T07:46:42;2026-04-29T07:46:42
-20260429_094659_mat;142108527;Damstraat;nvt;gehandicapt;2;2026-04-29T07:46:42;2026-04-29T07:46:42</div>
+20260429_094659_mat;142108527;Damstraat;L+R;regulier;50;2026-04-29T07:46:42;2026-04-29T07:52:10
+20260429_094659_mat;142108527;Damstraat;L+R;gehandicapt;2;2026-04-29T07:47:05;2026-04-29T07:47:05
+20260429_094659_mat;;(niet gesnapped);L+R;regulier;3;2026-04-29T07:49:31;2026-04-29T07:50:02</div>
       <div class="csv-notes">
-        <div class="csv-note"><code>soort</code>: <code>regulier</code> / <code>gehandicapt</code> / <code>laadpaal</code> / <code>gereserveerd</code></div>
-        <div class="csv-note">Multiple rows per <code>osm_way_id</code> &mdash; one per <code>soort</code></div>
+        <div class="csv-note">One row per (<code>naam</code> &times; <code>soort</code>), aggregated by <strong>street name</strong> &mdash; not by way. A street split into several OSM ways still yields one row per soort.</div>
+        <div class="csv-note"><code>osm_way_id</code> is therefore a <em>representative</em>, not a key: the first way ID seen under that name. Do not join on it expecting one-to-one; join on <code>naam</code>, or expand through <code>_netwerk.csv</code>.</div>
+        <div class="csv-note"><code>capaciteit</code> is the number of taps in that group &mdash; one tap is one parking space.</div>
+        <div class="csv-note"><code>soort</code>: <code>regulier</code> / <code>gehandicapt</code> / <code>laadpaal</code> / <code>gereserveerd</code>. A soort with a zero count gets no row at all.</div>
+        <div class="csv-note"><code>zijde</code> is always <code>L+R</code>: a capacity count sums both kerbsides of a street. Per-side detail is in <code>_telregels.csv</code>.</div>
+        <div class="csv-note">Taps that could not be snapped to a way are gathered in their own rows with <code>naam=(niet gesnapped)</code> and an empty <code>osm_way_id</code>, one per soort. The <code>capaciteit</code> column therefore always sums to <code>n_waarnemingen</code> in <code>_sessie.csv</code>.</div>
+        <div class="csv-note"><code>eerste_waarneming</code> / <code>laatste_waarneming</code> bracket the taps inside that one (naam &times; soort) group, not the whole street. ISO local time, no zone.</div>
+        <div class="csv-note">The <code>_cap</code> marker lives in the ZIP name only; <code>sessie_id</code> itself is <code>YYYYMMDD_HHMMSS_xyz</code>, so the member file is <code>&lt;sessie_id&gt;_capaciteit.csv</code>.</div>
       </div>
     </div>
     <div class="csv-block">
@@ -394,16 +436,24 @@
         <div class="csv-note">Never merged under the <code>_capaciteit.csv</code> rows &mdash; two clean files, one schema</div>
         <div class="csv-note"><code>zijde</code> is always <code>nvt</code> (an area has no side)</div>
         <div class="csv-note">Aggregated per (<code>osm_way_id</code> &times; <code>soort</code>); only present when areas were counted</div>
+        <div class="csv-note"><code>capaciteit</code> means something different here than in <code>_capaciteit.csv</code>: an area is entered as a <em>number</em> of spaces per soort and those numbers are summed, whereas a street counts one tap per space</div>
       </div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_netwerk.csv &mdash; capacity variant</div>
       <div class="csv-sample">osm_way_id;highway;geometrie_wkt
-142108527;parking;POLYGON ((4.332000 51.852000, 4.333000 51.852000, 4.333000 51.853000, 4.332000 51.852000))
-987654321;residential;LINESTRING (4.335000 51.854000, 4.336000 51.855000)</div>
+142108527;residential;LINESTRING (4.335000 51.854000, 4.335600 51.854400, 4.336000 51.855000)
+130419432;parking;POLYGON ((4.332000 51.852000, 4.333000 51.852000, 4.333000 51.853000, 4.332000 51.852000))
+987654321;;LINESTRING (4.331000 51.851000, 4.331500 51.851400)</div>
       <div class="csv-notes">
-        <div class="csv-note"><code>highway=parking</code> + POLYGON &rarr; area drawn directly, no Overpass needed</div>
-        <div class="csv-note"><code>highway=residential</code> (etc.) + LINESTRING &rarr; way geometry for street mode</div>
+        <div class="csv-note">Three columns only, and <strong>no <code>sessie_id</code></strong>: this is a geometry snapshot, not observation data. The session lives in the file name.</div>
+        <div class="csv-note">WKT coordinates are <code>lon lat</code> (not lat lon), six decimals, always a dot as the decimal separator.</div>
+        <div class="csv-note">An OSM way tagged <code>amenity=parking</code> is written as <code>highway=parking</code> with a POLYGON &mdash; the literal string <code>parking</code>, overriding whatever highway tag the way carried. The ring is closed on export when OSM left the first and last node unequal.</div>
+        <div class="csv-note">Everything else becomes a LINESTRING carrying its real OSM <code>highway</code> value (<code>residential</code>, <code>service</code>, &hellip;). The column is left empty when the way has no highway tag, as in the third sample row.</div>
+        <div class="csv-note">One row per way, de-duplicated on <code>osm_way_id</code>. Ways with fewer than two geometry points are dropped.</div>
+        <div class="csv-note">Holds the <em>whole</em> network gathered during the session, not just the ways that were counted &mdash; so telrapport can draw areas and streets straight from the file and skip the Overpass call. Expect rows without a matching <code>_capaciteit.csv</code> entry; that is not an error.</div>
+        <div class="csv-note">Omitted from the ZIP entirely when no geometry was gathered, rather than written as a header-only file. Readers should treat it as optional.</div>
+        <div class="csv-note">Same three columns as the auto / bike variant, so one reader fits all app types; only capacity sessions can contain POLYGON rows.</div>
       </div>
     </div>
   </div>
@@ -449,41 +499,47 @@
   <div class="section-body" style="border-color:#d4007a">
     <div class="file-list">
       <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata including type and icon</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Per tap: timestamp, type, lat/lon, osm_way_id, segment_index (v2.3+), street, snap confidence (v2.8), GPS stability (v2.9)</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track with osm_way_id, segment_index (v2.3+) and street per point</span></div>
-      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Optional</span><span class="file-desc">One row per ~40m segment with segment_index, segment_count and sub-LINESTRING (v2.3+)</span></div>
-      <div class="file-row"><span class="file-name">_bezocht.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Per visit to a segment: duration, GPS points, count of taps (v2.3: per (way, segment) instead of per way)</span></div>
+      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Per tap: timestamp, type, lat/lon, osm_way_id, segment_index, street, snap confidence, GPS stability</span></div>
+      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track with osm_way_id, segment_index and street per point</span></div>
+      <div class="file-row"><span class="file-name">_netwerk.csv</span><span class="file-req optional">Optional</span><span class="file-desc">One row per ~40m segment with segment_index, segment_count and sub-LINESTRING</span></div>
+      <div class="file-row"><span class="file-name">_bezocht.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Per visit to a segment: duration, GPS points, count of taps</span></div>
+      <div class="file-row"><span class="file-name">_snap_trace.csv</span><span class="file-req optional">Optional</span><span class="file-desc">Diagnostics &mdash; snap decisions per event. Not intended for processing; columns change with the snap engine.</span></div>
     </div>
     <div class="csv-block">
       <div class="csv-title">_sessie.csv</div>
-      <div class="csv-sample">sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen
-20260514_131611_lok_pkt_s;2026-05-14;13:15:44;13:16:11;pocket;fiets;42</div>
+      <div class="csv-sample">sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen;modus;richting_a;richting_b
+20260514_131611_lok_pkt_s;2026-05-14;13:15:44;13:16:11;pocket;fiets;42;simpel;;
+20260514_141002_lok_pkt_t;2026-05-14;14:09:30;14:10:02;pocket;car;88;transect;noord;zuid</div>
       <div class="csv-notes">
         <div class="csv-note"><code>type</code>: <code>car</code> / <code>bike</code> / <code>ped</code> / or free text when "Iets Anders" is chosen</div>
+        <div class="csv-note"><code>modus</code>: <code>simpel</code> / <code>transect</code> / <code>winkelstraat</code> / <code>parkeren</code> &mdash; the same letter that sits in the <code>sessie_id</code> as <code>_pkt_&lt;s|t|w|p&gt;</code>.</div>
+        <div class="csv-note"><code>richting_a</code> / <code>richting_b</code> carry the two direction labels and are filled <strong>only</strong> for <code>modus=transect</code>; empty in every other mode.</div>
       </div>
     </div>
     <div class="csv-block">
-      <div class="csv-title">_telregels.csv (v2.3+, conf columns v2.8, gps columns v2.9)</div>
-      <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level;gps_stab;gps_level
-20260514_131611_lok_pkt_s;1;2026-05-14T13:15:52;fiets;51.852540;4.332551;123456;2;Korenmarkt;0.87;green;0.91;green</div>
+      <div class="csv-title">_telregels.csv</div>
+      <div class="csv-sample">sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level;gps_stab;gps_level;richting;snelheid
+20260514_131611_lok_pkt_s;1;2026-05-14T13:15:52;fiets;51.852540;4.332551;123456;2;Korenmarkt;0.87;green;0.91;green;;
+20260514_141002_lok_pkt_t;7;2026-05-14T14:09:48;car;51.852601;4.332710;123456;2;Korenmarkt;0.81;green;0.88;green;noord;</div>
       <div class="csv-notes">
-        <div class="csv-note"><code>segment_index</code> (0-based) indicates which ~40m segment of the way was hit. For v2.2 ZIPs without this column, tools interpret it as 0.</div>
-        <div class="csv-note"><strong>v2.8 &mdash; <code>conf</code> / <code>conf_level</code>:</strong> snap confidence appended after the stable columns. <code>conf</code> is a 0&ndash;1 score (weakest link of: margin to the runner-up way, snap distance, GPS accuracy); <code>conf_level</code> is <code>green</code> / <code>amber</code> / <code>red</code>. They are appended at the end so the existing column order is untouched &mdash; tools read by header name and ignore unknown trailing columns, so older readers stay compatible.</div>
-        <div class="csv-note"><strong>v2.9 &mdash; <code>gps_stab</code> / <code>gps_level</code>:</strong> GPS-signal stability at the moment of the tap, independent of which street was chosen. <code>gps_stab</code> is a 0&ndash;1 score (weakest link of: jump &mdash; speed versus the median pace over the last ~15&nbsp;s using median + K&middot;MAD, so it self-calibrates and does not flag cycling; heading consistency; reported accuracy); <code>gps_level</code> is <code>green</code> / <code>amber</code> / <code>red</code>, or empty / <code>none</code> before enough fixes have arrived. Appended after the conf columns, same compatibility rule.</div>
-        <div class="csv-note"><strong>v2.8 &mdash; trajectory-corrected:</strong> <code>osm_way_id</code> and <code>segment_index</code> are no longer the live (causal) snap. Just before export, <code>reassignTrajectory()</code> re-solves the whole path topology-first and each tap inherits the (way, segment) of its nearest-in-time GPS fix. Raw <code>lat</code>/<code>lon</code> are untouched. See <code>snap_methodology.html</code> &sect;7.</div>
+        <div class="csv-note"><code>segment_index</code> (0-based) indicates which ~40m segment of the way was hit.</div>
+        <div class="csv-note"><strong><code>conf</code> / <code>conf_level</code>:</strong> snap confidence appended after the stable columns. <code>conf</code> is a 0&ndash;1 score (weakest link of: margin to the runner-up way, snap distance, GPS accuracy); <code>conf_level</code> is <code>green</code> / <code>amber</code> / <code>red</code>. They are appended at the end so the existing column order is untouched &mdash; tools read by header name and ignore unknown trailing columns, so older readers stay compatible.</div>
+        <div class="csv-note"><strong><code>gps_stab</code> / <code>gps_level</code>:</strong> GPS-signal stability at the moment of the tap, independent of which street was chosen. <code>gps_stab</code> is a 0&ndash;1 score (weakest link of: jump &mdash; speed versus the median pace over the last ~15&nbsp;s using median + K&middot;MAD, so it self-calibrates and does not flag cycling; heading consistency; reported accuracy); <code>gps_level</code> is <code>green</code> / <code>amber</code> / <code>red</code>, or empty / <code>none</code> before enough fixes have arrived. Appended after the conf columns, same compatibility rule.</div>
+        <div class="csv-note"><code>richting</code> / <code>snelheid</code>: the last two columns depend on the modus. <code>transect</code> fills <code>richting</code> with the chosen direction label, <code>parkeren</code> with <code>links</code> / <code>rechts</code>, and <code>winkelstraat</code> leaves it empty but fills <code>snelheid</code> with the walking speed in m/s at the moment of the tap. <code>simpel</code> leaves both empty.</div>
+        <div class="csv-note"><strong>Trajectory-corrected:</strong> <code>osm_way_id</code> and <code>segment_index</code> are no longer the live (causal) snap. Just before export, <code>reassignTrajectory()</code> re-solves the whole path topology-first and each tap inherits the (way, segment) of its nearest-in-time GPS fix. Raw <code>lat</code>/<code>lon</code> are untouched. See <code>snap_methodology.html</code> &sect;7.</div>
       </div>
     </div>
     <div class="csv-block">
-      <div class="csv-title">_gps.csv (v2.3+)</div>
+      <div class="csv-title">_gps.csv</div>
       <div class="csv-sample">sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;segment_index;straat
 20260514_131611_lok_pkt_s;2026-05-14T13:15:50;51.852540;4.332551;5;123456;2;Korenmarkt</div>
       <div class="csv-notes">
         <div class="csv-note">Route point at &ge;5m displacement. <code>segment_index</code> comes from the same snap engine as the telregels &mdash; input for deriving <code>_bezocht.csv</code> per segment.</div>
-        <div class="csv-note"><strong>v2.8:</strong> per-point <code>osm_way_id</code> / <code>segment_index</code> are also trajectory-corrected (same <code>reassignTrajectory()</code> pass), so the track, the taps and the visits all reference the same corrected segments. Raw <code>lat</code>/<code>lon</code> and <code>nauwkeurigheid</code> are untouched.</div>
+        <div class="csv-note">Per-point <code>osm_way_id</code> / <code>segment_index</code> are also trajectory-corrected (same <code>reassignTrajectory()</code> pass), so the track, the taps and the visits all reference the same corrected segments. Raw <code>lat</code>/<code>lon</code> and <code>nauwkeurigheid</code> are untouched.</div>
       </div>
     </div>
     <div class="csv-block">
-      <div class="csv-title">_netwerk.csv (v2.3+)</div>
+      <div class="csv-title">_netwerk.csv</div>
       <div class="csv-sample">osm_way_id;segment_index;segment_count;highway;geometrie_wkt
 123456;0;3;residential;LINESTRING (4.3325 51.8525, 4.3329 51.8525)
 123456;1;3;residential;LINESTRING (4.3329 51.8525, 4.3333 51.8525)
@@ -493,15 +549,14 @@
       </div>
     </div>
     <div class="csv-block">
-      <div class="csv-title">_bezocht.csv (v2.3+)</div>
+      <div class="csv-title">_bezocht.csv</div>
       <div class="csv-sample">sessie_id;datum;osm_way_id;segment_index;segment_count;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen
 20260514_131611_lok_pkt_s;2026-05-14;123456;2;3;Korenmarkt;13:15:50;13:16:05;15;14;3</div>
       <div class="csv-notes">
         <div class="csv-note">One row per <strong>visit</strong> (a contiguous stay on one segment). Visits shorter than 5s or with fewer than 3 GPS points are filtered out. A gap of &gt;30s breaks a visit. The date is in every row &mdash; self-contained for day-part classification in telplanning.</div>
         <div class="csv-note">KNIME join: <code>(sessie_id, osm_way_id, segment_index)</code> as composite key.</div>
         <div class="csv-note">Flux calculation: <code>n_tellingen &times; 60 / duur_sec = passages/min</code> &mdash; now per segment, more accurate for long streets.</div>
-        <div class="csv-note">For old v2.2 pocket ZIPs: <code>python build_bezocht.py FILE_OR_DIR</code> upgrades the ZIP in-place to v2.3 (idempotent &mdash; pass --force to redo).</div>
-        <div class="csv-note"><strong>v2.8:</strong> built from the trajectory-corrected taps and presence, so a visit's <code>(osm_way_id, segment_index)</code> always matches the taps attributed to it &mdash; no orphan segments, no empty week-profile cells. (<code>build_bezocht.py</code> is the older server-side path and is <em>not</em> trajectory-aware; ZIPs it produces keep the live snap.)</div>
+        <div class="csv-note">Built from the trajectory-corrected taps and presence, so a visit's <code>(osm_way_id, segment_index)</code> always matches the taps attributed to it &mdash; no orphan segments, no empty week-profile cells.</div>
       </div>
     </div>
   </div>
@@ -561,7 +616,7 @@ Time;Vehicle;Direction
 <!-- ── Naming & coding ── -->
 <div class="summary-section">
   <h2>Filename markers &amp; survey-type coding</h2>
-  <p style="color:var(--dim);max-width:72ch">A session's survey type is fixed three ways, in order of authority: the marker embedded in the filename, the <code>app_type</code> field in <code>_sessie.csv</code>, and &mdash; for reconstructed or legacy sessions whose <code>modus</code> is missing or wrong &mdash; the vocabulary of the tap <code>type</code>s. <code>relabel_modus.py</code> and the reconstructor (<code>parkeer_reconstructie.html</code>, v2.24+) apply exactly these rules.</p>
+  <p style="color:var(--dim);max-width:72ch">A session's survey type is fixed three ways, in order of authority: the marker embedded in the filename, the <code>app_type</code> field in <code>_sessie.csv</code>, and &mdash; for reconstructed sessions whose <code>modus</code> is missing or wrong &mdash; the vocabulary of the tap <code>type</code>s. The reconstructor (<code>telreconstructie.html</code>) applies exactly these rules.</p>
   <table>
     <thead><tr><th>filename marker</th><th>app_type</th><th>modus</th><th>tap types</th></tr></thead>
     <tbody>
@@ -575,7 +630,7 @@ Time;Vehicle;Direction
       <tr><td><code>_pkt_p</code></td><td>pocket</td><td>parkeren</td><td>bezet / leeg</td></tr>
     </tbody>
   </table>
-  <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Pocket modus letter.</strong> Since pocket_count v2.30 the modus letter (<code>s</code>/<code>t</code>/<code>w</code>/<code>p</code>) is part of the pocket <code>sessie_id</code> itself &mdash; not just the filename &mdash; so it survives reconstruction (<code>&hellip;_pkt_w.zip</code> &rarr; <code>&hellip;_pkt_w_recon.zip</code>). Older pocket ZIPs may still be a bare <code>_pkt</code>; the standalone <code>voeg_modusletter_toe.py</code> retrofits them (renames the ZIP + internal files and rewrites the <code>sessie_id</code> value).</p>
+  <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Pocket modus letter.</strong> The modus letter (<code>s</code>/<code>t</code>/<code>w</code>/<code>p</code>) is part of the pocket <code>sessie_id</code> itself &mdash; not just the filename &mdash; so it survives reconstruction (<code>&hellip;_pkt_w.zip</code> &rarr; <code>&hellip;_pkt_w_recon.zip</code>).</p>
   <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Type vocabulary &rarr; modus</strong> &mdash; how a session with an absent or wrong <code>modus</code> is recovered from its tap <code>type</code>s:</p>
   <table>
     <thead><tr><th>tap types present</th><th>resolves to</th></tr></thead>
@@ -593,19 +648,61 @@ Time;Vehicle;Direction
 <!-- ── Reconstructed ZIPs ── -->
 <div class="summary-section">
   <h2>Reconstructed ZIPs</h2>
-  <p style="color:var(--dim);max-width:72ch"><code>parkeer_reconstructie.html</code> rewrites a raw field ZIP into a route-consistent one, keeping the originals alongside the corrected files.</p>
+  <p style="color:var(--dim);max-width:72ch"><code>telreconstructie.html</code> rewrites a raw field ZIP into a route-consistent one, keeping the originals alongside the corrected files.</p>
   <table>
     <thead><tr><th>file</th><th>state</th><th>what changes</th></tr></thead>
     <tbody>
-      <tr><td><code>_sessie.csv</code></td><td>changed</td><td>gains <code>modus</code> (resolved from the chosen profile) and a <code>reconstructie</code> version stamp, e.g. <code>v2.24</code></td></tr>
+      <tr><td><code>_sessie.csv</code></td><td>changed</td><td>gains <code>modus</code> (resolved from the chosen profile) and a <code>reconstructie</code> stamp &mdash; currently the literal string <code>v2.24</code></td></tr>
       <tr><td><code>_netwerk.csv</code></td><td>changed</td><td>snapped geometry with <code>segment_index</code> / <code>segment_count</code></td></tr>
       <tr><td><code>_netwerk_origineel.csv</code></td><td>added</td><td>the network before snapping</td></tr>
-      <tr><td><code>_straten.csv</code></td><td>rebuilt</td><td>auto/parking only: re-aggregated from the reconstructed links (v2.23+); <code>_straten_origineel.csv</code> keeps the original</td></tr>
-      <tr><td><code>_segmentsamenvatting.csv</code></td><td>added</td><td>walk reconstructions: tidy-long per-segment category counts (v2.20+)</td></tr>
+      <tr><td><code>_straten.csv</code></td><td>rebuilt</td><td>auto/parking only: re-aggregated from the reconstructed links; <code>_straten_origineel.csv</code> keeps the original</td></tr>
+      <tr><td><code>_segmentsamenvatting.csv</code></td><td>added</td><td>walk reconstructions: tidy-long per-segment category counts</td></tr>
       <tr><td><code>_telregels.csv</code></td><td>changed</td><td>gains <code>lat_marker</code> / <code>lon_marker</code>, <code>zijde</code>, <code>richting</code>, <code>recon_status</code></td></tr>
+      <tr><td><code>_bezocht.csv</code></td><td>rebuilt</td><td>walk reconstructions: rebuilt from the Viterbi route; <code>_bezocht_origineel.csv</code> keeps the original</td></tr>
+      <tr><td><code>_reconstructie_log.csv</code></td><td>added</td><td>diagnostics &mdash; matcher settings and per-tap outcome counts. Not intended for processing.</td></tr>
     </tbody>
   </table>
-  <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Legacy note.</strong> Reconstructions before v2.24 defaulted an empty <code>modus</code> to <code>parkeren</code>, mislabelling e.g. pedestrian counts as parking. The v2.24 reconstructor derives the modus from the profile / type vocabulary instead; <code>relabel_modus.py</code> repairs already-exported legacy ZIPs (non-destructively, via the rules above).</p>
+  <div class="csv-block" style="margin-top:1.2em">
+    <div class="csv-title">_sessie.csv &mdash; after reconstruction</div>
+    <div class="csv-sample">sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen;modus;richting_a;richting_b;reconstructie
+20260514_141002_lok_pkt_t_recon;2026-05-14;14:09:30;14:10:02;pocket;car;88;transect;noord;zuid;v2.24</div>
+    <div class="csv-notes">
+      <div class="csv-note">One column added at the end: <code>reconstructie</code>. Its presence is the reliable test for "this ZIP has been reconstructed"; the <code>_recon</code> in the file name is convention, this is data.</div>
+      <div class="csv-note">Auto and bike sessions keep their own <code>_sessie.csv</code> columns (<code>teller</code> instead of <code>modus</code> / <code>richting_a</code> / <code>richting_b</code>) and likewise gain <code>reconstructie</code>.</div>
+    </div>
+  </div>
+  <div class="csv-block" style="margin-top:1.2em">
+    <div class="csv-title">_telregels.csv &mdash; three schemas after reconstruction</div>
+    <div class="csv-sample">walk, direction-aware (transect)
+sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;richting;conf;conf_level;gps_stab;gps_level;recon_status
+
+walk, no direction (simpel / winkelstraat)
+sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level;gps_stab;gps_level;recon_status
+
+pocket parking
+sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;lat_marker;lon_marker;zijde;richting;recon_status
+
+auto / bike parking
+sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_marker;lon_marker;zijde;snapped;hdg_kompas;hdg_gps;hdg_osm;hdg_gebruikt;recon_status</div>
+    <div class="csv-notes">
+      <div class="csv-note">The reconstructor picks a schema from the profile, so the column set depends on the modus &mdash; there is no single reconstructed telregels layout. <strong>Read by column name, never by position:</strong> the auto variant even reorders, putting <code>lat_gps</code> / <code>lon_gps</code> before <code>lat_marker</code> / <code>lon_marker</code> where the raw file has them the other way round.</div>
+      <div class="csv-note"><code>recon_status</code> is the one column all three share: how the tap came out of the matcher.</div>
+      <div class="csv-note">The walk schema comes in two shapes: <code>transect</code> inserts a <code>richting</code> column after <code>straat</code>, the other walk modes do not. Both keep <code>conf</code> / <code>gps_stab</code> from the field session and both drop <code>snelheid</code>.</div>
+      <div class="csv-note">Both parking variants gain <code>lat_marker</code> / <code>lon_marker</code> and <code>zijde</code>. The raw coordinate is never overwritten: <code>lat</code> / <code>lon</code> (pocket) and <code>lat_gps</code> / <code>lon_gps</code> (auto, bike) still hold the position the phone reported.</div>
+    </div>
+  </div>
+  <div class="csv-block" style="margin-top:1.2em">
+    <div class="csv-title">_segmentsamenvatting.csv &mdash; walk reconstructions only</div>
+    <div class="csv-sample">sessie_id;osm_way_id;segment_index;segment_count;straat;highway;richting;categorie;aantal;segment_lengte_m
+20260514_141002_lok_pkt_t_recon;123456;2;3;Korenmarkt;residential;noord;car;14;38.4
+20260514_141002_lok_pkt_t_recon;123456;2;3;Korenmarkt;residential;zuid;car;11;38.4</div>
+    <div class="csv-notes">
+      <div class="csv-note">Tidy-long: one row per (segment &times; <code>richting</code> &times; <code>categorie</code>), so it drops straight into a pivot without reshaping.</div>
+      <div class="csv-note"><code>richting</code> is empty for modes that do not distinguish direction.</div>
+      <div class="csv-note"><code>segment_lengte_m</code> lets you turn <code>aantal</code> into a density per metre; join on (<code>sessie_id</code>, <code>osm_way_id</code>, <code>segment_index</code>).</div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ── Overview ── -->

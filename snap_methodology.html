@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GPS Snap Methodology — TrafficCounterSuite</title>
+<title>GPS Snap Methodology — telonline.org</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -235,14 +235,14 @@
   <div class="container">
     <a class="back" href="index.html">&#8592; Menu</a>
     <h1>GPS Snap<br>Methodology</h1>
-    <div class="sub">TrafficCounterSuite &mdash; adjacency-aware road snapping</div>
+    <div class="sub">telonline.org &mdash; adjacency-aware road snapping</div>
   </div>
 </div>
 
 <div class="container">
 
   <div class="intro">
-    This document describes how GPS fixes are matched to OSM road geometry in the TrafficCounterSuite. The snap is what links every observation to a specific <code>way_id</code> and <code>seg_idx</code>; the quality of that match determines whether the downstream reports (<code>telrapport.html</code>) attribute counts to the correct street.
+    This document describes how GPS fixes are matched to OSM road geometry in telonline.org. The snap is what links every observation to a specific <code>way_id</code> and <code>seg_idx</code>; the quality of that match determines whether the downstream reports (<code>telrapport.html</code>) attribute counts to the correct street.
   </div>
 
   <div class="scope-banner">
@@ -541,11 +541,6 @@
     <h3>Anchor is not persisted</h3>
     <p>
       The anchor lives only in memory during the running session. A page reload or crash-recovery restart wipes it; the next fix bootstraps fresh. This is intentional &mdash; an old anchor from a previous session is more likely to be wrong than right.
-    </p>
-
-    <h3>build_bezocht.py is not on this path</h3>
-    <p>
-      The legacy Python pipeline <code>build_bezocht.py</code> (used for the v2.2 archive) performs its own server-side snapping and does not implement adjacency awareness. Sessions exported through that path retain the older nearest-edge behavior.
     </p>
   </div>
 

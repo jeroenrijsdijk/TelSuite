@@ -216,9 +216,9 @@
 </header>
 
 
-<!-- Over deze Online TelSuite -->
+<!-- Over deze Telonline Verkeerstellingen -->
 <section id="Over">
-  <h2>Online TelSuite</h2>
+  <h2>Telonline Verkeerstellingen</h2>
   <p>Traffic Counter is a browser-based field tool for counting traffic. All data is stored locally in the browser and exported to a semicolon-delimited CSV ready for telrapport.html, Excel or KNIME. No account or internet connection required for counting — internet is only used for map tiles and address lookup.</p>
   <p>Dit pakket bestaat uit 2 delen: TELLEN en RAPPORTAGE/BEWERKING/PLANNING.</p>
 
@@ -238,7 +238,7 @@
     <p>Na het tellen verwerk je de resultaten. Drie tools:</p>
     <ul>
       <li><a class="back" href="telplanning.html">Telplanning</a> — maak en verstuur opdrachten tot het tellen van straten.</li>
-      <li><a class="back" href="parkeer_reconstructie.html">Parkeer-reconstructie</a> — de tussenstap: herbereken een parkeer- of pocket-ZIP op logica. De gelopen GPS route en de aangeklikte punten worden opnieuw op het netwerk gefit.</li>
+      <li><a class="back" href="telreconstructie.html">Telreconstructie</a> — de tussenstap: herbereken een parkeer- of pocket-ZIP op logica. De gelopen GPS route en de aangeklikte punten worden opnieuw op het netwerk gefit.</li>
       <li><a class="back" href="telrapport.html">Telrapport</a> — laad de ge&euml;xporteerde ZIP's, visualiseer op de kaart en analyseer per type, tijd en wegvak.</li>
     </ul>
   </div>
@@ -928,16 +928,7 @@
     </ul>
     <p class="mt-8">Flux uitrekenen in KNIME: <code>n_tellingen × 60 / duur_sec = passages/min</code></p>
   </div>
-  <div class="card bl-red mt-8">
-    <div class="card-title">Oude pocket-ZIPs opwaarderen</div>
-    <p>Pocket-ZIPs van vóór v2.2 bevatten geen <code>_bezocht.csv</code>. Het Python-script <code>build_bezocht.py</code> genereert deze retroactief uit <code>_gps.csv</code> + <code>_netwerk.csv</code>. Pure stdlib, geen pip-install:</p>
-    <p style="margin-top:6px;font-family:var(--mono);font-size:0.85em;background:rgba(0,0,0,0.06);padding:8px;border-radius:3px;">
-      python3 build_bezocht.py mijn_zip.zip<br>
-      python3 build_bezocht.py /pad/naar/map<br>
-      python3 build_bezocht.py *.zip --in-zip --force
-    </p>
-    <p class="note mt-6">Werkt alleen voor ZIPs met <code>_netwerk.csv</code> (sinds pocket v2.1). Oudere ZIPs zonder netwerkgeometrie kunnen niet retro-geconverteerd worden.</p>
-  </div>
+
   <p class="mt-12">Laad de ZIP in telrapport.html voor directe kaartvisualisatie, of in telplanning.html (Dekkings-modus) voor dagdeel-dekking.</p>
 </section>
 
@@ -1013,7 +1004,7 @@
 
   <div class="card bl-magenta">
     <div class="card-title">Op reconstructie-ZIP's: alles op de heringedeelde linkjes (v2.19)</div>
-    <p>Bied je een <code>_recon</code>-ZIP aan, dan zijn <strong>alle drie</strong> de ingrediënten de gereconstrueerde versie. Teller en presence komen uit de door <code>parkeer_reconstructie.html</code> herbouwde <code>_bezocht.csv</code> (uit de Viterbi-route): de visits dragen de heringedeelde <code>osm_way_id</code>/<code>segment_index</code>. De segmentlengte komt uit het verse <code>_netwerk.csv</code> (inclusief herfetch), dus ook nieuw opgehaalde ways hebben geometrie. Telrapport gebruikt nooit de bewaarde <code>_&hellip;_origineel.csv</code>-varianten.</p>
+    <p>Bied je een <code>_recon</code>-ZIP aan, dan zijn <strong>alle drie</strong> de ingrediënten de gereconstrueerde versie. Teller en presence komen uit de door <code>telreconstructie.html</code> herbouwde <code>_bezocht.csv</code> (uit de Viterbi-route): de visits dragen de heringedeelde <code>osm_way_id</code>/<code>segment_index</code>. De segmentlengte komt uit het verse <code>_netwerk.csv</code> (inclusief herfetch), dus ook nieuw opgehaalde ways hebben geometrie. Telrapport gebruikt nooit de bewaarde <code>_&hellip;_origineel.csv</code>-varianten.</p>
     <p class="note mt-6">Gevolg: tikken die in het veld rond passages en kruispunten fout snapten, zitten nú in de p/m&middot;u van de júíste segmenten — een raw-ZIP en een recon-ZIP van dezelfde telling geven daar bewust andere waarden. Ook de noemer wordt schoner: spook-"gelopen" segmenten (presence maar geen echte tikken) staan niet meer in de herbouwde <code>_bezocht.csv</code> en slepen dus geen fantoom-aanwezigheidstijd meer mee.</p>
     <p class="note mt-6"><strong>Nieuw in v2.20:</strong> wandel-recon-ZIP's (transect/winkelstraat/simpel) leveren een <code>_segmentsamenvatting.csv</code> — tellingen per link&times;richting&times;categorie. In deze popup verschijnt daaruit een extra tabel <strong>categorie&times;richting</strong> met per categorie de p/m&middot;u, die de segment-p/m&middot;u netjes opdeelt (presence via join op <code>_bezocht.csv</code>).</p>
   </div>
@@ -1132,7 +1123,7 @@
     </table>
   </div>
   <p class="mt-8">De heatmap-kleuring binnen de matrix zelf geeft direct het patroon: welke cellen zijn al goed gevuld, welke zijn nog leeg. Met één blik weet je waar de prioriteit ligt.</p>
-  <p class="note mt-6">Tip: heb je oude pocket-ZIPs zonder <code>_bezocht.csv</code>? Gebruik <code>build_bezocht.py</code> (zie pocket-export sectie) om ze op te waarderen voordat je ze hier laadt.</p>
+
 </section>
 
 <!-- ══════════════════════════════════════════════════════
@@ -1153,7 +1144,7 @@
     </div>
     <div class="file-row">
       <span class="file-name">over.html</span>
-      <span class="file-desc">Introductiepagina — wat is rvmk.nl, voor wie, en de workflow in drie stappen (tellen → nabewerken → telrapport)</span>
+      <span class="file-desc">Introductiepagina — wat is telonline.org, voor wie, en de workflow in drie stappen (tellen → nabewerken → telrapport)</span>
     </div>
     <div class="file-row">
       <span class="file-name">traffic_counter.html</span>
@@ -1176,8 +1167,8 @@
       <span class="file-desc">Telrapport — gecombineerde kaartvisualisatie voor alle teltypen</span>
     </div>
     <div class="file-row">
-      <span class="file-name">parkeer_reconstructie.html</span>
-      <span class="file-desc">Parkeer-reconstructie — desktop post-verwerking: route-consistente hersnap, richtingslaag, handmatige link-correctie</span>
+      <span class="file-name">telreconstructie.html</span>
+      <span class="file-desc">Telreconstructie — desktop post-verwerking: route-consistente hersnap, richtingslaag, handmatige link-correctie</span>
     </div>
     <div class="file-row">
       <span class="file-name">pocket_count.html</span>
@@ -1195,13 +1186,10 @@
       <span class="file-name">traffic_counter_help.html</span>
       <span class="file-desc">This help file — covers all tools</span>
     </div>
+
     <div class="file-row">
-      <span class="file-name">build_bezocht.py</span>
-      <span class="file-desc">Python-tool om <code>_bezocht.csv</code> retroactief te maken voor oude pocket-ZIPs (stdlib, geen dependencies)</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">recon_qgis_loader.py</span>
-      <span class="file-desc">PyQGIS-script: laadt een map met (gereconstrueerde) ZIP's recursief in QGIS, één laag per telptype (modus), plus een samengevoegde netwerklaag</span>
+      <span class="file-name">telonline_qgis_loader.py</span>
+      <span class="file-desc">PyQGIS-script: laadt een map met (gereconstrueerde) ZIP's recursief in QGIS, één laag per telptype (modus), plus een samengevoegde netwerklaag en de gelopen GPS-route. Te downloaden op <a href="https://telonline.org/telonline_qgis_loader.py" target="_blank">telonline.org/telonline_qgis_loader.py</a></span>
     </div>
   </div>
   <p class="mt-12"><strong>Serverbestanden (planningen):</strong></p>
@@ -1223,14 +1211,14 @@
       <span class="file-desc">Capaciteitsaantallen per osm_way_id</span>
     </div>
   </div>
-  <p class="mt-12">External dependencies (CDN, require internet): Google Fonts (Oswald, Share Tech Mono), Leaflet.js, OpenStreetMap tiles &amp; Nominatim, Overpass API.</p>
+  <p class="mt-12">External dependencies (CDN, require internet): Leaflet.js, OpenStreetMap tiles &amp; Nominatim, Overpass API.</p>
   <p class="mt-12">Many thanks to developers and contributors to Openstreetmap, all built by a community of people like you. If you see errors, report or correct them.</p>
 </section>
 
 <div class="branding">
   <div class="branding-logo">*</div>
   <div class="branding-text">
-    <span class="built">Built with AI by</span>
+    <span class="built">Built by me and</span>
     <span class="name">Claude - Anthropic</span>
   </div>
 </div>
