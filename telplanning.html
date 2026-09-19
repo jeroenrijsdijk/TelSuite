@@ -577,7 +577,7 @@
 
 <div id="header">
   <div>
-    <div class="sub">TrafficCounterSuite</div>
+    <div class="sub">Telonline Verkeerstellingen</div>
     <h1>Telplanning</h1>
   </div>
   <div id="mode-tabs">
@@ -960,9 +960,26 @@ var HW_COLORS = {
   other:       '#7f8c8d'
 };
 
+/* ---- Verse-data-garantie -------------------------------------------------
+   Elk Overpass-antwoord draagt osm3s.timestamp_osm_base: het moment waarop de
+   dataset van die server voor het laatst is bijgewerkt. Een mirror die achter-
+   loopt levert stilzwijgend verouderde wegen — nieuwe of gewijzigde straten
+   ontbreken dan zonder dat je het merkt. We keuren daarom elk antwoord zelf.
+   Te oud → als mislukt behandelen, zodat de volgende endpoint aan de beurt is. */
+var OSM_MAX_LAG_DAGEN = 7;
+function dataIsVers(data) {
+  try {
+    var ts = data && data.osm3s && data.osm3s.timestamp_osm_base;
+    if (!ts) return true;                       // geen stempel → niet afkeuren
+    var lag = (Date.now() - new Date(ts).getTime()) / 86400000;
+    if (isNaN(lag)) return true;
+    return lag <= OSM_MAX_LAG_DAGEN;
+  } catch (e) { return true; }                  // nooit het tellen blokkeren op een parseerfout
+}
+
 var OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter'
+  'https://overpass.private.coffee/api/interpreter'
 ];
 
 // ── Map init ─────────────────────────────────────────────────────────────────
@@ -998,7 +1015,6 @@ var map = L.map('map', { zoomControl: true }).setView(initCenter, initZoom);
 map.on('moveend zoomend', saveCurrentView);
 
 // Achtergrondkaarten — identieke set en gedrag als telrapport.
-var CARTO_API_KEY = 'cb1_2a2n_1_3583b21ab7073b803a894288';
 var BASEMAPS = {
   osm: {
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -1006,7 +1022,7 @@ var BASEMAPS = {
     maxZoom: 19, subdomains: 'abc'
   },
   positron: {
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?api_key=' + CARTO_API_KEY,
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=cb1_2a2n_1_3583b21ab7073b803a894288',
     attribution: '© CARTO · © OpenStreetMap',
     maxZoom: 20, subdomains: 'abcd'
   },
@@ -1150,6 +1166,7 @@ function fetchWaysForPolygon(geojsonPoly, endpointIdx) {
       return r.json();
     })
     .then(function(data) {
+      if (!dataIsVers(data)) throw new Error('verouderde OSM-data');   // volgende mirror proberen
       document.getElementById('loading').style.display = 'none';
       processWays(data.elements || [], geojsonPoly);
     })
