@@ -567,11 +567,44 @@
   <div class="section-header" style="border-color:#0a8a30">
     <span class="app-tag" style="background:var(--c-ss)">stand-still</span>
     <h2>Stand Still and Count</h2>
-    <span class="filename-hint">*.csv (loose file, no ZIP)</span>
+    <span class="filename-hint">&lt;sid&gt;.zip &middot; sid ends in <code>_sta</code> (v2.73)</span>
   </div>
   <div class="section-body" style="border-color:#0a8a30">
     <p style="font-size:0.92rem;color:var(--dim);margin-bottom:14px;">
-      Unlike the other five formats, a stand-still export from <code>traffic_counter.html</code> is a <strong>single loose CSV</strong> &mdash; not a ZIP. The file is human-readable and uses a section-based structure rather than separate per-purpose CSVs. Telrapport detects it from the <code>Traffic Count Export</code> banner on line 2 and parses the three sections in order.
+      Since <strong>v2.73</strong> a stand-still export from <code>traffic_counter.html</code> has the same shape as the other apps: one ZIP named after the <code>sessie_id</code> (<code>&lt;yyyymmdd&gt;_&lt;hhmmss&gt;_&lt;xxx&gt;_sta</code>, fixed at Start), holding <code>_sessie.csv</code> and <code>_telregels.csv</code> for the pipeline, <code>_onderbrekingen.csv</code> only when the session was interrupted and continued, and the human-readable <code>_overzicht.csv</code> &mdash; the same text the app exported before v2.73. All four are written from the same state at the same moment.
+    </p>
+    <p style="font-size:0.92rem;color:var(--dim);margin-bottom:14px;">
+      <strong>Older exports.</strong> v2.18&ndash;v2.72 produced <code>traffic_count_&lt;timestamp&gt;.zip</code> with only the overview CSV; before v2.18 that CSV was a loose file. Telrapport reads all three forms (since v2.73 also the ZIPs directly): it finds the overview by its <code>Traffic Count Export</code> banner and takes the <code>sessie_id</code> from <code>_sessie.csv</code> when present, otherwise it synthesises one from the start time. The reconstructor refuses stand-still sessions: a fixed point has no route.
+    </p>
+    <div class="csv-block">
+      <div class="csv-title">_sessie.csv &mdash; one row</div>
+      <div class="csv-sample">sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen;modus;richting_a;richting_b;lat;lon;nauwkeurigheid;straat;plaats;notities;actieve_duur_s;uurfactor
+20260923_143205_kqd_sta;2026-09-23;14:32:05;15:02:40;standstill;verkeer;412;standstill;West;East;51.851400;4.331200;6;Voorstraat;Spijkenisse;droog, spits;1835;1.9619</div>
+      <div class="csv-notes">
+        <div class="csv-note">The first ten columns are the pocket <code>_sessie.csv</code> columns. <code>app_type</code> and <code>modus</code> are always <code>standstill</code>; <code>type</code> is <code>verkeer</code>; <code>n_waarnemingen</code> is the counted total.</div>
+        <div class="csv-note"><code>lat</code>/<code>lon</code>/<code>nauwkeurigheid</code>/<code>straat</code>/<code>plaats</code> are the single GPS fix of the counting point (empty without a fix). <code>notities</code> is the free-text field, with <code>;</code> and line breaks replaced by spaces.</div>
+        <div class="csv-note"><code>actieve_duur_s</code> is the counted time in seconds, <strong>excluding interruptions</strong>; <code>uurfactor</code> = 3600 / <code>actieve_duur_s</code>, empty below 30 s. <code>eind_tijd</code> &minus; <code>start_tijd</code> still includes interruptions; for rates use <code>actieve_duur_s</code> or <code>uurfactor</code>.</div>
+      </div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_telregels.csv &mdash; one row per counted vehicle</div>
+      <div class="csv-sample">sessie_id;nr;tijdstip;type;richting;lat;lon;nauwkeurigheid
+20260923_143205_kqd_sta;1;2026-09-23T14:32:11;car;a;51.851400;4.331200;6</div>
+      <div class="csv-notes">
+        <div class="csv-note"><code>tijdstip</code> is local time with the date, same form as pocket. <code>type</code>: <code>car</code> / <code>truck</code> / <code>moto</code> / <code>bike</code> / <code>ped</code>. <code>richting</code>: <code>a</code> or <code>b</code>; the labels are <code>richting_a</code>/<code>richting_b</code> in <code>_sessie.csv</code>. <code>lat</code>/<code>lon</code>/<code>nauwkeurigheid</code> repeat the counting point, so the file stands on its own.</div>
+        <div class="csv-note">Taps restored from a v2.72 emergency copy carry only a clock time; their date is the start date, advanced by one day where the clock runs backwards (a session across midnight).</div>
+      </div>
+    </div>
+    <div class="csv-block">
+      <div class="csv-title">_onderbrekingen.csv &mdash; only when the session was interrupted</div>
+      <div class="csv-sample">sessie_id;nr;van;tot;duur_s
+20260923_143205_kqd_sta;1;2026-09-23T14:37:12;2026-09-23T14:41:03;231</div>
+      <div class="csv-notes">
+        <div class="csv-note">One row per gap between the last sign of life (a heartbeat every 10 s) and <em>Continue</em>. These seconds are left out of <code>actieve_duur_s</code> and <code>uurfactor</code>.</div>
+      </div>
+    </div>
+    <p style="font-size:0.92rem;color:var(--dim);margin:14px 0;">
+      <strong>_overzicht.csv</strong> &mdash; the human-readable overview, unchanged since before v2.73. Section-based rather than separate per-purpose files; telrapport detects it from the <code>Traffic Count Export</code> banner on line 2 and parses the three sections in order.
     </p>
     <div class="csv-block">
       <div class="csv-title">Structure &mdash; three sections separated by blank lines</div>
@@ -603,7 +636,7 @@ Time;Vehicle;Direction
 16:32:31;Bike;South
 ...</div>
       <div class="csv-notes">
-        <div class="csv-note"><strong>Section 1 &mdash; metadata</strong>: key-value rows. Required keys for telrapport: <code>Start time</code>, <code>End time</code>, <code>GPS latitude</code>, <code>GPS longitude</code>. Optional but recognised: <code>Location / Notes</code>, <code>GPS accuracy (m)</code>, <code>GPS reliable</code>, <code>GPS street</code>, <code>GPS city</code>, <code>GPS country</code>, <code>Extrapolation factor</code>.</div>
+        <div class="csv-note"><strong>Section 1 &mdash; metadata</strong>: key-value rows. Required keys for telrapport: <code>Start time</code>, <code>End time</code>, <code>GPS latitude</code>, <code>GPS longitude</code>. Optional but recognised: <code>Location / Notes</code>, <code>GPS accuracy (m)</code>, <code>GPS reliable</code>, <code>GPS street</code>, <code>GPS city</code>, <code>GPS country</code>, <code>Extrapolation factor</code>. <strong>Interruptions (v2.72)</strong>: only when a session was restored and continued after an interruption, the metadata gains <code>Interruptions;&lt;n&gt;;&lt;total&gt; not counted&hellip;</code> and one <code>Interruption &lt;i&gt;;&lt;from&gt;;&lt;to&gt;</code> row per gap, right after <code>Observed duration</code>. <code>Observed duration</code> and <code>Extrapolation factor</code> then exclude the gaps, while <code>End time</code> &minus; <code>Start time</code> still includes them &mdash; so a reader should prefer the factor. Without an interruption the export is unchanged.</div>
         <div class="csv-note"><strong>Section 2 &mdash; summary table</strong>: starts at the <code>Vehicle Type</code> header. The first two count columns define the direction labels (<code>dirA</code>, <code>dirB</code>) for the entire session. Rows end at the <code>TOTAL</code> row.</div>
         <div class="csv-note"><strong>Section 3 &mdash; timestamp log</strong>: starts after the <code>Time;Vehicle;Direction</code> header. Each row is one observation. Direction values must match the labels from section 2.</div>
         <div class="csv-note">Vehicle type names are matched case-insensitively against the internal lookup table (<code>SS_VEHICLE_LOOKUP</code>); unrecognised types are dropped silently.</div>
@@ -628,6 +661,7 @@ Time;Vehicle;Direction
       <tr><td><code>_pkt_t</code></td><td>pocket</td><td>transect</td><td>car / truck / moto / bike / ped</td></tr>
       <tr><td><code>_pkt_w</code></td><td>pocket</td><td>winkelstraat</td><td>stilstaand / tegemoet</td></tr>
       <tr><td><code>_pkt_p</code></td><td>pocket</td><td>parkeren</td><td>bezet / leeg</td></tr>
+      <tr><td><code>_sta</code></td><td>standstill</td><td>standstill</td><td>car / truck / moto / bike / ped (fixed point, v2.73)</td></tr>
     </tbody>
   </table>
   <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Pocket modus letter.</strong> The modus letter (<code>s</code>/<code>t</code>/<code>w</code>/<code>p</code>) is part of the pocket <code>sessie_id</code> itself &mdash; not just the filename &mdash; so it survives reconstruction (<code>&hellip;_pkt_w.zip</code> &rarr; <code>&hellip;_pkt_w_recon.zip</code>).</p>
@@ -652,7 +686,7 @@ Time;Vehicle;Direction
   <table>
     <thead><tr><th>file</th><th>state</th><th>what changes</th></tr></thead>
     <tbody>
-      <tr><td><code>_sessie.csv</code></td><td>changed</td><td>gains <code>modus</code> (resolved from the chosen profile) and a <code>reconstructie</code> stamp &mdash; currently the literal string <code>v2.24</code></td></tr>
+      <tr><td><code>_sessie.csv</code></td><td>changed</td><td>gains <code>modus</code> (resolved from the chosen profile) and a <code>reconstructie</code> stamp &mdash; the release in which the reconstructor last changed (e.g. <code>v2.74</code>); ZIPs reconstructed before v2.74 carry <code>v2.24</code></td></tr>
       <tr><td><code>_netwerk.csv</code></td><td>changed</td><td>snapped geometry with <code>segment_index</code> / <code>segment_count</code></td></tr>
       <tr><td><code>_netwerk_origineel.csv</code></td><td>added</td><td>the network before snapping</td></tr>
       <tr><td><code>_straten.csv</code></td><td>rebuilt</td><td>auto/parking only: re-aggregated from the reconstructed links; <code>_straten_origineel.csv</code> keeps the original</td></tr>
@@ -665,9 +699,10 @@ Time;Vehicle;Direction
   <div class="csv-block" style="margin-top:1.2em">
     <div class="csv-title">_sessie.csv &mdash; after reconstruction</div>
     <div class="csv-sample">sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen;modus;richting_a;richting_b;reconstructie
-20260514_141002_lok_pkt_t_recon;2026-05-14;14:09:30;14:10:02;pocket;car;88;transect;noord;zuid;v2.24</div>
+20260514_141002_lok_pkt_t;2026-05-14;14:09:30;14:10:02;pocket;car;88;transect;noord;zuid;v2.24</div>
     <div class="csv-notes">
       <div class="csv-note">One column added at the end: <code>reconstructie</code>. Its presence is the reliable test for "this ZIP has been reconstructed"; the <code>_recon</code> in the file name is convention, this is data.</div>
+      <div class="csv-note"><strong>The <code>sessie_id</code> does not change.</strong> Reconstruction rewrites the file name to <code>&lt;sessie_id&gt;_recon.zip</code> and the member files keep their original <code>&lt;sessie_id&gt;_…csv</code> names. So the original and its reconstruction carry the same identity, and a reader that keys on <code>sessie_id</code> sees them as one session — load one or the other, not both.</div>
       <div class="csv-note">Auto and bike sessions keep their own <code>_sessie.csv</code> columns (<code>teller</code> instead of <code>modus</code> / <code>richting_a</code> / <code>richting_b</code>) and likewise gain <code>reconstructie</code>.</div>
     </div>
   </div>
@@ -694,8 +729,8 @@ sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_m
   <div class="csv-block" style="margin-top:1.2em">
     <div class="csv-title">_segmentsamenvatting.csv &mdash; walk reconstructions only</div>
     <div class="csv-sample">sessie_id;osm_way_id;segment_index;segment_count;straat;highway;richting;categorie;aantal;segment_lengte_m
-20260514_141002_lok_pkt_t_recon;123456;2;3;Korenmarkt;residential;noord;car;14;38.4
-20260514_141002_lok_pkt_t_recon;123456;2;3;Korenmarkt;residential;zuid;car;11;38.4</div>
+20260514_141002_lok_pkt_t;123456;2;3;Korenmarkt;residential;noord;car;14;38.4
+20260514_141002_lok_pkt_t;123456;2;3;Korenmarkt;residential;zuid;car;11;38.4</div>
     <div class="csv-notes">
       <div class="csv-note">Tidy-long: one row per (segment &times; <code>richting</code> &times; <code>categorie</code>), so it drops straight into a pivot without reshaping.</div>
       <div class="csv-note"><code>richting</code> is empty for modes that do not distinguish direction.</div>

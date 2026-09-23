@@ -232,6 +232,7 @@
   </div>
 
   <div id="restoreBanner" style="display:none;background:#fef9e7;border:1px solid #d68910;padding:8px 12px;margin-bottom:8px;font-size:12px;font-weight:500;color:#7d5a00;font-family:var(--font);"></div>
+  <button id="btnHervat" class="btn-ctrl start" onclick="hervatSessie()" style="display:none;width:100%;margin-bottom:8px;">&#9654; Doortellen</button>
 
   <div id="tellerPanel" style="margin-bottom:6px;">
     <div style="background:var(--surface);border:1px solid var(--border);padding:7px 12px;display:flex;align-items:center;gap:10px;">
@@ -381,7 +382,7 @@ var gpsLog = [];
 var lastGpsLogLat = null, lastGpsLogLon = null;
 
 var GPS_THRESHOLD = 25;   // meters accuracy required
-var SIDE_OFFSET_M = 4;    // meters offset left/right from road centerline
+var SIDE_OFFSET_M = 4;    // meters uit de wegas. zijde-offset: zelfde waarde in 5 bestanden, bewaakt door valideer.py
 var GEOCODE_INTERVAL = 60000; // street name refresh ms
 var ROAD_FETCH_RADIUS = 300;  // meters around position to fetch roads
 // Snap-netwerk highway-filter — HOUD GELIJK over alle tools (grep HIGHWAY_RE).
@@ -783,6 +784,10 @@ function offsetPoint(lat,lon,bearing,meters) {
 
 /* ── Session ──────────────────────────────────────────── */
 function startSession() {
+  // v2.72: een nieuwe sessie wist de herstelde telling. Niet ongevraagd.
+  if (herstelOpen() && !confirm('Nieuwe sessie starten? De herstelde telling wordt dan gewist. '
+      + 'Download hem eerst als je hem nog nodig hebt.')) return;
+  document.getElementById('btnHervat').style.display='none';
   if (!navigator.geolocation) { setStatus('GPS niet beschikbaar.'); return; }
   sessionActive=true;
   entries=[]; totalNr=0;
@@ -1664,6 +1669,61 @@ function undoLast() {
   saveSession();
 }
 
+/* ── Doortellen na herstel (v2.72) ─────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren en
+   capaciteitstelling (bewaakt door valideer.py). restoreSession() zet de
+   telling al terug (vermeldingen, tellers, GPS-spoor, sessie-id, teller,
+   starttijd, wegennet); dit start alleen het tellen weer, zonder iets te
+   wissen. Sessie-id en starttijd blijven, dus alles komt in één ZIP. De
+   onderbreking is zichtbaar als gat in het GPS-spoor. */
+function herstelOpen() {
+  var b = document.getElementById('restoreBanner');
+  return !!(b && b.style.display !== 'none');
+}
+function hervatSessie() {
+  if (sessionActive || !herstelOpen()) return;
+  if (!navigator.geolocation) { setStatus('GPS niet beschikbaar.'); return; }
+  sessionActive = true;
+  sessionEndTime = null;
+  if (disableTimer){ clearTimeout(disableTimer); disableTimer=null; }
+  // Wegennet rond de huidige plek opnieuw ophalen; het herstelde net
+  // (snap.networkElements) blijft staan en groeit aan voor de export.
+  snap.segs=[]; snap.cacheLat=null; snap.cacheLon=null; snap.status='none';
+  if (snap.fetchTimer){ clearTimeout(snap.fetchTimer); snap.fetchTimer=null; }
+  csvDownloaded=false; kaartDownloaded=false;
+  recentBearings=[]; segVisitBuffer={};
+  snap.history=[]; snap.stable=true;
+  lastGpsLogLat=null; lastGpsLogLon=null;
+  if (typeof prevLat !== 'undefined') { prevLat=null; prevLon=null; }
+  var tellerEl = document.getElementById('inputTeller');
+  if (tellerEl) { tellerEl.value = sessionTeller; tellerEl.disabled = true; }
+  displayBearing=null;
+  if (typeof lastMoved !== 'undefined') lastMoved=false;
+  compassHeading=null;
+  compassActive = false; lastCompassValue = null; lastCompassChangeTime = null; compassFrozen = false;
+  try { setCompassBadge(); } catch(e) {}
+  document.getElementById('restoreBanner').style.display='none';
+  document.getElementById('btnHervat').style.display='none';
+  setButtonsEnabled(false);   // telknoppen gaan aan bij de eerste GPS-fix, net als bij Start
+  document.getElementById('btnStart').disabled=true;
+  document.getElementById('btnStop').disabled=false;
+  ['btnDlCsv','btnDlKaart','btnDlGpx','btnDlZip'].forEach(function(id){
+    document.getElementById(id).disabled=true;   // tijdens het tellen: eerst Stop
+  });
+  document.getElementById('btnUndo').disabled=!entries.length;
+  setStatus('GPS zoeken\u2026', 'searching');
+  acquireWakeLock();
+  if (geocodeIntervalId) clearInterval(geocodeIntervalId);
+  geocodeIntervalId = setInterval(function(){
+    if (sessionActive && currentLat!==null) doGeocode(currentLat, currentLon);
+  }, GEOCODE_INTERVAL);
+  if (!compassActive) requestCompass();   // Doortellen is een tik: geldig gebaar voor iOS
+  watchId=navigator.geolocation.watchPosition(onPosition, onGPSError,
+    {enableHighAccuracy:true, timeout:15000, maximumAge:2000});
+  saveSession();
+}
+/* ── einde gedeeld blok doortellen ── */
+
 /* ── localStorage: herstel na crash/refresh ───────────── */
 var LS_KEY = 'fietsparkeren_sessie';
 
@@ -1720,8 +1780,9 @@ function restoreSession() {
     // Toon herstelmelding
     var banner = document.getElementById('restoreBanner');
     banner.style.display = '';
+    document.getElementById('btnHervat').style.display = '';
     banner.textContent = '\u26a0\ufe0f ' + entries.length + ' vermeldingen hersteld van ' +
-      data.savedAt + ' \u2014 download hieronder of begin een nieuwe sessie.';
+      data.savedAt + ' \u2014 tel door, download hieronder of begin een nieuwe sessie.';
 
     // Herstel tellers
     ['Fiets','Brommer','Breed','Wrak'].forEach(function(t){

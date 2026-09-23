@@ -32,6 +32,18 @@
     padding: 14px 10px; text-align: center; color: var(--muted); cursor: pointer;
     transition: border-color 0.2s, color 0.2s; flex-shrink: 0; }
   #dropzone.over, #dropzone:hover { border-color: var(--accent); color: var(--text); }
+  /* v2.59: leeg scherm = grote uitnodiging; daarna is de dropzone een knop die
+     je zelden nog gebruikt. Compact scheelt ~60 px permanente hoogte, en dat is
+     precies wat de sessielijst tekortkomt. Alleen CSS: de tekstregel blijft
+     dezelfde node, zodat de voortgangsmeldingen erin gewoon blijven werken. */
+  #dropzone.compact { margin: 8px 12px 6px; padding: 7px 10px; }
+  #dropzone.compact .dz-icon { display: none; }
+  #dropzone.compact .dz-sub { display: none; }
+  #dropzone.compact .dz-text { font-size: 10.5px; }
+  #dropzone.compact:hover .dz-sub { display: block; }
+  .sidebar-compact #bbox-filter,
+  .sidebar-compact #recon-filter { margin-bottom: 5px; }
+  .sidebar-compact #statsbar { margin-bottom: 7px; }
   #dropzone input { display: none; }
   #dropzone .dz-icon { font-size: 22px; margin-bottom: 4px; }
   #dropzone .dz-text { font-size: 11px; }
@@ -40,11 +52,11 @@
   #dropzone .dz-sub:hover { color: var(--accent); }
 
   /* Opt-in: alleen tellingen binnen het huidige kaartbeeld laden (bbox-filter) */
-  #bbox-filter { display: flex; align-items: center; gap: 7px; margin: -2px 12px 10px;
+  #bbox-filter, #recon-filter { display: flex; align-items: center; gap: 7px; margin: -2px 12px 10px;
     font-size: 10.5px; color: var(--muted); cursor: pointer; user-select: none; line-height: 1.3; }
-  #bbox-filter input { accent-color: var(--accent); width: 13px; height: 13px;
+  #bbox-filter input, #recon-filter input { accent-color: var(--accent); width: 13px; height: 13px;
     flex: 0 0 auto; cursor: pointer; margin: 0; }
-  #bbox-filter:hover { color: var(--text); }
+  #bbox-filter:hover, #recon-filter:hover { color: var(--text); }
 
   #statsbar { margin: 0 12px 10px; display: flex; gap: 8px; flex-shrink: 0; }
   .stat-pill { flex: 1; background: var(--bg); border-radius: 4px; padding: 6px 8px; text-align: center; }
@@ -101,7 +113,11 @@
   .section-title .count { font-size: 10px; opacity: 0.7; }
 
   /* ── Sessions list — rich rows with color stripe ──────────────── */
-  #sessions-list { flex: 1; overflow-y: auto; min-height: 60px; }
+  /* v2.59: was min-height:60px — nog geen anderhalve sessierij, en omdat
+     #detail-panel niet kon krimpen won dat altijd. Een rij is ~42-55 px, dus
+     dit garandeert er drie à vier. Proportioneel geplafonneerd zodat het op een
+     korte kolom niet zelf de boosdoener wordt. */
+  #sessions-list { flex: 1; overflow-y: auto; min-height: min(170px, 24vh); }
   #sessions-list::-webkit-scrollbar { width: 4px; }
   #sessions-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .session-row { display: flex; cursor: pointer;
@@ -168,8 +184,13 @@
   }
   #reset-footer button:hover { color: #c0392b; background: rgba(192,57,43,0.08); }
 
+  /* v2.59: was flex-shrink:0 met max-height:340px, waardoor een open
+     detailpaneel op een korte kolom de sessielijst tot 60 px (± anderhalve rij)
+     platdrukte. Nu mag het paneel meekrimpen — het scrollt toch al — en pakt
+     het nooit meer dan 40% van de kolomhoogte. */
   #detail-panel { border-top: 1px solid var(--border); background: var(--bg);
-    padding: 12px; max-height: 340px; overflow-y: auto; flex-shrink: 0; }
+    padding: 12px; max-height: min(340px, 40vh); min-height: 84px;
+    overflow-y: auto; flex: 0 1 auto; }
   #detail-panel::-webkit-scrollbar { width: 4px; }
   #detail-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   #detail-panel.hidden { display: none; }
@@ -242,6 +263,12 @@
     border-radius: 4px; color: var(--accent); font-size: 11px;
     letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; }
   .hm-btn:hover { background: rgba(74,158,255,0.2); }
+  /* v2.59: blijft bovenaan het scrollende detailpaneel hangen. De ondoorzichtige
+     achtergrond is nodig omdat de knop zelf half doorschijnend is en de tabel er
+     anders doorheen schuift. -12px compenseert de padding van #detail-panel. */
+  .hm-btn-top { position: sticky; top: -12px; z-index: 2;
+    background: var(--bg); padding: 2px 0 8px; margin-top: -2px; }
+  .hm-btn-top .hm-btn { margin-top: 0; }
   .hm-meta { font-size: 10.5px; color: var(--muted); margin-bottom: 10px;
     line-height: 1.5; }
 
@@ -454,6 +481,11 @@
     <label id="bbox-filter" title="Bij het laden van meerdere bestanden of een map: sla tellingen over die buiten het huidige kaartbeeld vallen. Gemeten op de netwerk-bbox, met 12% marge rondom; deels-in-beeld telt mee.">
       <input type="checkbox" id="bbox-filter-cb">
       <span>alleen binnen huidig kaartbeeld laden</span>
+    </label>
+
+    <label id="recon-filter" title="Staan het origineel en de gereconstrueerde versie van dezelfde telling in de lijst, laad dan alleen de gereconstrueerde. Herkent ze aan de bestandsnaam (..._recon.zip).">
+      <input type="checkbox" id="recon-filter-cb" checked>
+      <span>bij een paar alleen de _recon-versie laden</span>
     </label>
 
     <div id="statsbar" style="display:none">
@@ -1187,19 +1219,47 @@ function ssBuildSid(start) {
               + '_' + p(start.getHours()) + p(start.getMinutes()) + p(start.getSeconds());
 }
 
+// Losse CSV (van vóór v2.18, of zelf uitgepakt). v2.73: de CSV gaat in een
+// ZIP als 'origineel', zodat ook deze telling mee kan in een verzameling.
 async function loadStandStillCsv(file) {
   const text = await file.text();
+  let bron = null;
+  try {
+    const z = new JSZip();
+    z.file(file.name || 'stilstaand.csv', text);
+    const blob = await z.generateAsync({ type:'blob', compression:'DEFLATE' });
+    const naam = (file.name || 'stilstaand.csv').replace(/\.csv$/i, '') + '.zip';
+    try { bron = new File([blob], naam, { type:'application/zip' }); }
+    catch (e) { bron = blob; bron.name = naam; }
+  } catch (e) { /* zonder origineel: dan alleen niet in een verzameling */ }
+  return toonStandStill(text, file.name, bron, null);
+}
+
+// v2.73: een Static-telling als ZIP. Twee vormen:
+//  - v2.73+: <sid>_sessie.csv (app_type standstill), _telregels.csv, eventueel
+//    _onderbrekingen.csv, en het leesbare <sid>_overzicht.csv;
+//  - v2.18–v2.72: traffic_count_<tijd>.zip met alleen het leesbare overzicht.
+// Het overzicht is in beide gevallen dezelfde tekst als de losse CSV; de
+// weergave leest dat. De sessie_id komt uit _sessie.csv als die er is.
+function vindStandStillOverzicht(F) {
+  return Object.keys(F).find(function (k) {
+    return /\.csv$/i.test(k) && /^(sep=;\r?\n)?Traffic Count Export\r?$/m.test(F[k].split('\n').slice(0, 3).join('\n'));
+  }) || null;
+}
+
+function toonStandStill(text, naam, bron, vasteSid) {
   let data;
   try { data = parseStandStillCsv(text); }
-  catch (err) { alert('Kan ' + file.name + ' niet lezen: ' + err.message); return; }
+  catch (err) { alert('Kan ' + naam + ' niet lezen: ' + err.message); return; }
 
   if (!data.start || isNaN(data.lat) || isNaN(data.lon)) {
-    alert(file.name + ': mist start-tijd of GPS-coördinaten.');
+    alert(naam + ': mist start-tijd of GPS-coördinaten.');
     return;
   }
 
-  const sid = ssBuildSid(data.start);
+  const sid = vasteSid || ssBuildSid(data.start);
   if (sessions[sid]) return;  // duplicate, stil overslaan
+  if (bron) originalFile[sid] = bron;
 
   // Totalen voor stats + pin-grootte
   const totalCount = SS_TYPE_ORDER.reduce((a,t)=>a+(data.summary[t].a + data.summary[t].b), 0);
@@ -1611,6 +1671,7 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
         fillColor:kleur, fillOpacity:0.8, pane:'clusters'
       }).bindTooltip((APP_CONFIG.transect.labels[type]||type)+' → '+richting+' · '+datum, {direction:'top'});
       m.addTo(map);
+      m._tikType = type;      // v2.60: type bij de marker, niet in de tooltiptekst
       if (!dotLayers[sid][type]) dotLayers[sid][type] = [];
       dotLayers[sid][type].push(m);
 
@@ -1832,6 +1893,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
         + ' · '+datum
         + (cb ? ' · snap '+r.conf_level : ''), {direction:'top'});
     m.addTo(map);
+    m._tikType = rowType;   // v2.60: type bij de marker, niet in de tooltiptekst
     if (!dotLayers[sid][rowType]) dotLayers[sid][rowType] = [];
     dotLayers[sid][rowType].push(m);
 
@@ -2334,6 +2396,78 @@ function gapCluster(items, threshold) {
 }
 
 // ── DRAW CLUSTERS ─────────────────────────────────────────────────
+/* ── Clusterbol (v2.61) ──────────────────────────────────────────────────────
+   Tot v2.60 kreeg de bol één vlakke kleur: die van het meest voorkomende type.
+   Bij een parkeertelling betekende dat "meestal goed" of "meestal leeg", zonder
+   de verhouding — terwijl die verhouding de telling ís. Nu een taartdiagram.
+
+   Drie keuzes die het leesbaar houden:
+   • Vaste puntvolgorde uit APP_CONFIG.types, niet op aantal gesorteerd. Zo ziet
+     dezelfde straat er elke keer hetzelfde uit en kun je bollen vergelijken.
+   • Het totaal staat in een donutgat, niet over de punten heen. Wit op een
+     lichtgrijze 'leeg'-punt is anders niet te lezen.
+   • Onder PIE_MIN_PX blijft het een vlakke bol met het cijfer erop, precies
+     zoals vroeger. Taartpunten van een paar pixels zijn mush, en een diagram dat
+     je niet kunt aflezen liegt meer dan het vertelt.                          */
+var PIE_MIN_PX = 26;          // kleinere bollen blijven vlak
+var PIE_GAT_KLEUR = '#1a1c1e';  // gelijk aan --bg
+
+// Punten in vaste volgorde; types buiten de config komen er alfabetisch achter.
+function clusterPunten(counts, cfg) {
+  var volgorde = (cfg && cfg.types) ? cfg.types.slice() : [];
+  Object.keys(counts).sort().forEach(function (t) {
+    if (volgorde.indexOf(t) < 0) volgorde.push(t);
+  });
+  var uit = [];
+  volgorde.forEach(function (t) {
+    var n = counts[t] || 0;
+    if (n > 0) uit.push({ type: t, n: n, kleur: (cfg && cfg.colors && cfg.colors[t]) || '#777777' });
+  });
+  return uit;
+}
+
+function conicAchtergrond(punten, total) {
+  var stops = [], acc = 0;
+  punten.forEach(function (p, i) {
+    var van = acc / total * 100;
+    acc += p.n;
+    // laatste punt exact op 100% sluiten, anders blijft er een haarlijn over
+    var tot = (i === punten.length - 1) ? 100 : (acc / total * 100);
+    stops.push(p.kleur + ' ' + van.toFixed(3) + '% ' + tot.toFixed(3) + '%');
+  });
+  return 'background:conic-gradient(' + stops.join(',') + ')';
+}
+
+/* counts  : { type: aantal }
+   total   : som daarvan
+   cfg     : APP_CONFIG[appType]
+   opts    : { size, fontSize, bgStyle?, fallback?, schaduw? }
+             bgStyle overschrijft de taart (gebruikt voor de sessie-tweekleur
+             van een gecombineerd cluster — die zegt iets anders dan het type). */
+function clusterBolHtml(counts, total, cfg, opts) {
+  opts = opts || {};
+  var size = opts.size, fontSize = opts.fontSize;
+  var punten = clusterPunten(counts || {}, cfg);
+  var taart = !opts.bgStyle && punten.length > 1 && size >= PIE_MIN_PX;
+  var bg = opts.bgStyle
+        || (taart ? conicAchtergrond(punten, total)
+                  : 'background:' + (opts.fallback || (punten[0] && punten[0].kleur) || '#777777'));
+  var schaduw = opts.schaduw === false ? '' : 'box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+  var buiten = '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;' + bg + ';'
+             + 'border:1.5px solid #000;opacity:0.85;display:flex;align-items:center;justify-content:center;'
+             + 'transform:translate(-50%,-50%);box-sizing:border-box;' + schaduw + '">';
+  var cijfer = 'font-family:Oswald,sans-serif;font-size:' + fontSize + 'px;font-weight:700;color:#fff;';
+  if (!taart) {
+    return buiten + '<span style="' + cijfer + 'text-shadow:0 1px 2px rgba(0,0,0,0.5);">'
+         + total + '</span></div>';
+  }
+  var gat = Math.max(14, Math.round(size * 0.52));
+  return buiten
+       + '<div style="width:' + gat + 'px;height:' + gat + 'px;border-radius:50%;'
+       + 'background:' + PIE_GAT_KLEUR + ';display:flex;align-items:center;justify-content:center;'
+       + cijfer + '">' + total + '</div></div>';
+}
+
 function makePtClusterMarker(group, sid, appType, sessionColor) {
   var centLat = group.reduce(function(a,p){return a+p.lat;},0)/group.length;
   var centLon = group.reduce(function(a,p){return a+p.lon;},0)/group.length;
@@ -2372,23 +2506,30 @@ function makePtClusterMarker(group, sid, appType, sessionColor) {
     tipLines.push(datum + ' — ' + breakdown);
   });
 
+  // v2.61: bij twee of meer sessies blijft de diagonale tweekleur — die zegt
+  // "hier liggen tellingen van verschillende dagen over elkaar", en dat is een
+  // andere boodschap dan de typeverdeling. Bij één sessie krijgt hij de taart.
   var icon = L.divIcon({
     className: '',
-    html: '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;'+bgStyle+';'
-        + 'border:2px solid rgba(255,255,255,0.85);opacity:0.92;'
-        + 'display:flex;align-items:center;justify-content:center;'
-        + 'font-family:Oswald,sans-serif;font-size:'+fontSize+'px;font-weight:700;'
-        + 'color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.5);'
-        + 'transform:translate(-50%,-50%);box-sizing:border-box;'
-        + 'box-shadow:0 2px 8px rgba(0,0,0,0.3);">'
-        + total + '</div>',
+    html: clusterBolHtml(counts, total, APP_CONFIG[appType], {
+      size: size, fontSize: fontSize,
+      bgStyle: (nSessions >= 2) ? bgStyle : null,
+      fallback: sessionColor
+    }),
     iconSize: [0,0], iconAnchor: [0,0]
   });
 
   var m = L.marker([centLat, centLon], { icon: icon, pane:'cluster-badges', interactive:true })
-    .bindTooltip(tipLines.join('<br>'), { permanent:false, direction:'top',
+    .bindTooltip(clusterTip(tipLines.join('<br>')), { permanent:false, direction:'top',
       offset:[0,-size/2], className:'cluster-label' })
-    .on('click', function() { showPtClusterDetail(counts, sessionCounts, total, appType); })
+    .on('mousedown', shiftBoxZoomBlokkeren)
+    .on('click', function(e) {
+      // shift-klik isoleert de tellingen die in dit cluster zitten — bij een
+      // gecombineerd cluster zijn dat er meer dan één, en dan is die groep de
+      // selectie. Zonder shift gewoon het detailpaneel.
+      if (clusterShiftSolo(e, Object.keys(sessionCounts))) return;
+      showPtClusterDetail(counts, sessionCounts, total, appType);
+    })
     .on('mouseover', function() {
       if (nSessions < 2) {
         // Dim andere sessies
@@ -2477,13 +2618,15 @@ function drawClusters(sid) {
     if (!hasWayData) {
       // Cluster stippen uit dotLayers via gap-drempel
       var points = [];
-      Object.values(dotLayers[sid]||{}).forEach(function(arr) {
-        arr.forEach(function(dot) {
+      // v2.60: het type komt van de marker zelf (_tikType). Het werd hiervoor uit
+      // de tooltiptekst gevist — een weergavestring die je per ongeluk verandert
+      // zodra je de tooltip mooier maakt. De sleutel van dotLayers is het type,
+      // dus die is er sowieso; _tikType is de expliciete versie daarvan.
+      Object.keys(dotLayers[sid]||{}).forEach(function(type) {
+        (dotLayers[sid][type]||[]).forEach(function(dot) {
           if (!dot.getLatLng) return;
           var ll = dot.getLatLng();
-          var tip = dot.getTooltip ? dot.getTooltip() : null;
-          var type = tip ? (tip.getContent().split(' ')[0]||'?') : '?';
-          points.push({ lat:ll.lat, lon:ll.lng, sid:sid, type:type });
+          points.push({ lat:ll.lat, lon:ll.lng, sid:sid, type:(dot._tikType || type || '?') });
         });
       });
       if (!points.length) return;
@@ -2497,18 +2640,23 @@ function drawClusters(sid) {
         var fontSize = total < 10 ? 13 : total < 100 ? 11 : 9;
         var icon = L.divIcon({
           className:'',
-          html:'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+fillColor+';'
-              +'border:1.5px solid #000;opacity:0.85;display:flex;align-items:center;justify-content:center;'
-              +'font-family:Oswald,sans-serif;font-size:'+fontSize+'px;font-weight:700;color:#fff;'
-              +'text-shadow:0 1px 2px rgba(0,0,0,0.5);transform:translate(-50%,-50%);box-sizing:border-box;'
-              +'box-shadow:0 2px 8px rgba(0,0,0,0.3);">'+total+'</div>',
+          html: clusterBolHtml(counts, total, cfg2, {
+            size: size, fontSize: fontSize, fallback: fillColor
+          }),
           iconSize:[0,0], iconAnchor:[0,0]
         });
         var typeLine = Object.entries(counts).sort(function(a,b){return b[1]-a[1];})
           .map(function(e){return e[0]+':'+e[1];}).join(' · ');
-        var m = L.marker([group[0].lat, group[0].lon], {icon:icon, pane:'cluster-badges'})
-          .bindTooltip(typeLine, {direction:'top', className:'cluster-label'})
-          .on('click', function(){
+        // v2.60: het zwaartepunt van de groep, niet de eerste tik. Het segmentpad
+        // hieronder middelde al; dit pad hing de bol aan het toevallig eerst
+        // getelde punt en verschoof dus mee met de volgorde van de regels.
+        var gLat = group.reduce(function(a,p){ return a+p.lat; }, 0) / group.length;
+        var gLon = group.reduce(function(a,p){ return a+p.lon; }, 0) / group.length;
+        var m = L.marker([gLat, gLon], {icon:icon, pane:'cluster-badges'})
+          .bindTooltip(clusterTip(typeLine), {direction:'top', className:'cluster-label'})
+          .on('mousedown', shiftBoxZoomBlokkeren)
+          .on('click', function(e){
+            if (clusterShiftSolo(e, [sid])) return;
             showPtClusterDetail(counts, {[sid]:counts}, total, appType);
           });
         m.addTo(map);
@@ -2554,19 +2702,19 @@ function drawClusters(sid) {
       const fontSize = total < 10 ? 13 : total < 100 ? 11 : 9;
       const icon = L.divIcon({
         className: '',
-        html: '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;'
-            + 'background:'+fillColor+';border:1.5px solid #000;opacity:0.85;'
-            + 'display:flex;align-items:center;justify-content:center;'
-            + 'font-family:Oswald,sans-serif;font-size:'+fontSize+'px;font-weight:700;'
-            + 'color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.6);'
-            + 'transform:translate(-50%,-50%);box-sizing:border-box;">'
-            + total + '</div>',
+        html: clusterBolHtml(counts, total, cfg, {
+          size: size, fontSize: fontSize, fallback: fillColor, schaduw: false
+        }),
         iconSize: [0,0], iconAnchor: [0,0]
       });
       const m = L.marker([centLat, centLon], { icon, pane:'cluster-badges', interactive:true })
-        .bindTooltip(typeLine, { permanent:false, direction:'top', offset:[0,-size/2],
+        .bindTooltip(clusterTip(typeLine), { permanent:false, direction:'top', offset:[0,-size/2],
           className:'cluster-label' })
-        .on('click', ()=>showClusterDetail(counts, total, sid, appType))
+        .on('mousedown', shiftBoxZoomBlokkeren)
+        .on('click', (e)=>{
+          if (clusterShiftSolo(e, [sid])) return;
+          showClusterDetail(counts, total, sid, appType);
+        })
         .on('mouseover', function() {
           // Dim dots én clusters van alle andere sessies
           Object.keys(dotLayers).forEach(function(osid) {
@@ -3062,7 +3210,11 @@ function showWegvakDetail(key) {
         });
       });
       if (hasVisits) {
-        html += `<button class="hm-btn" onclick="openWeekprofile('${key.replace(/'/g, "\\'")}')">Toon weekprofiel ›</button>`;
+        // v2.59: de knop stond onder de sessietabel. Met veel geladen tellingen
+        // wordt die tabel langer dan de 340 px van het paneel, dus zakte de enige
+        // ingang naar het weekprofiel uit beeld. Nu bovenaan, en plakkerig zodat
+        // hij bereikbaar blijft terwijl je door de tabel scrolt.
+        html = `<div class="hm-btn-top"><button class="hm-btn" onclick="openWeekprofile('${key.replace(/'/g, "\\'")}')">Toon weekprofiel ›</button></div>` + html;
       }
     }
   }
@@ -3318,6 +3470,7 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
     .map(g=>g.wayId);
 
   const drawGroups = (geomMap) => {
+    const zonderGeom = [];   // v2.60: groepen zonder bruikbare geometrie
     Object.values(groups).forEach((g, i) => {
       const total = Object.values(g.soorten).reduce((a,n)=>a+n,0);
       const geom  = polyMap[g.wayId] || geomMap[g.wayId];
@@ -3378,27 +3531,34 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
         poly.bringToBack();
         capLayers[sid].push(poly);
 
-        // Label op centroïd van polygoon
-        const bounds = poly.getBounds();
-        const midLat = (bounds.getNorth()+bounds.getSouth())/2;
-        const midLon = (bounds.getEast()+bounds.getWest())/2;
-        const lbl = L.marker([midLat, midLon], {
+        // Label op het zwaartepunt van de polygoon.
+        // v2.60: was het midden van de bounding box. Bij een L-vormig of
+        // langgerekt terrein valt dat punt buiten het vlak; getCenter() is het
+        // echte zwaartepunt en kost niets.
+        const mid = poly.getCenter();
+        const lbl = L.marker([mid.lat, mid.lng], {
           icon: L.divIcon({ className:'', html:labelHtml, iconSize:[0,0], iconAnchor:[0,0] })
         }).on('click', ()=>showCapDetail(g, datum, sm.teller||'', sid));
         lbl.addTo(map);
         capLayers[sid].push(lbl);
       } else {
-        // Fallback: punt op GPS-centroïd
-        const lat = centLat ? centLat+(i*0.00005) : 52.0;
-        const lon = centLon ? centLon+(i*0.00005) : 4.5;
-        const m = L.marker([lat,lon], {
-          icon: L.divIcon({ className:'', html:labelHtml, iconSize:[0,0], iconAnchor:[0,0] })
-        }).on('click', ()=>showCapDetail(g, datum, sm.teller||'', sid));
-        m.addTo(map);
-        capLayers[sid].push(m);
+        // v2.60: geen marker meer. Hiervoor kwam de groep op het GPS-zwaartepunt
+        // van de héle sessie plus i×0,00005° — ruim vijf meter per volgnummer,
+        // puur om overlap te vermijden — en zonder GPS op 52.0/4.5, de Noordzee
+        // voor Den Haag. Een marker op een verzonnen coordinaat is erger dan geen
+        // marker: hij ziet eruit als een meting. De telling zelf gaat niet
+        // verloren (hij zit in _capaciteit.csv en in de statistieken); alleen de
+        // plaatsbepaling ontbreekt, en dat wordt gemeld.
+        zonderGeom.push(g.naam || g.wayId || 'onbekend terrein');
       }
     });
 
+    // v2.60: zichtbaar maken wat er niet getekend kon worden.
+    if (zonderGeom.length) {
+      sessions[sid].zonderGeom = zonderGeom;
+      console.warn('Capaciteit ' + sid + ': geen geometrie voor ' + zonderGeom.length
+                 + ' terrein(en), niet op de kaart gezet:', zonderGeom);
+    }
     if (capLayers[sid].length) {
       map.fitBounds(L.featureGroup(capLayers[sid]).getBounds().pad(0.4));
     }
@@ -3475,6 +3635,14 @@ async function loadZip(file, voorgeladenZip) {
         netCSV=get('_netwerk.csv'), gpsCSV=get('_gps.csv'), telCSV=get('_telregels.csv'),
         bezCSV=get('_bezocht.csv'), segCSV=get('_segmentsamenvatting.csv'),
         capCSV=get('_capaciteit.csv'), terCSV=get('_terrein.csv');
+
+  // v2.73: Static (stilstaand) — nieuw formaat en de ZIP van v2.18–v2.72
+  const ssOverzicht = vindStandStillOverzicht(F);
+  if (ssOverzicht) {
+    const ssSm = sessieCSV ? parseCSV(sessieCSV)[0] : null;
+    const ssSid = (ssSm && (ssSm.app_type || '').trim() === 'standstill' && ssSm.sessie_id) ? ssSm.sessie_id : null;
+    return toonStandStill(F[ssOverzicht], file.name || ssOverzicht, file, ssSid);
+  }
 
   if (!sessieCSV) { alert(`Geen sessie.csv gevonden in ${file.name}`); return; }
 
@@ -3567,32 +3735,10 @@ async function loadZip(file, voorgeladenZip) {
 
   // Stipjes + telregels voor clustering
   // Transect: observaties als losse stippen op de kaart
-  if (appType === 'transect' && telCSV) {
-    const allRows = parseCSV(telCSV);
-    const datum = fmtDatum(sm.datum, sm.start_tijd);
-    const dirA = sm.dir_a || 'A', dirB = sm.dir_b || 'B';
-    allRows.forEach(function(r) {
-      const la = parseFloat(r.lat), lo = parseFloat(r.lon);
-      if (isNaN(la)||isNaN(lo)) return;
-      const type = r.type||'car';
-      const richting = r.richting||'A';
-      const kleur = APP_CONFIG.transect.colors[type]||'#888';
-      const opts = { radius:5, color:'#fff', weight:1.5,
-        fillColor: kleur, fillOpacity:0.8, pane:'clusters' };
-      const cb = confBorder(r);
-      if (cb) { opts.color = cb.color; opts.weight = cb.weight; }
-      const m = L.circleMarker([la,lo], opts).bindTooltip(
-        (APP_CONFIG.transect.labels[type]||type)+' '+richting+' · '+datum
-          + (cb ? ' · snap '+r.conf_level : ''),
-        {direction:'top'});
-      m.addTo(map);
-      if (!dotLayers[sid]) dotLayers[sid]={};
-      if (!dotLayers[sid][type]) dotLayers[sid][type]=[];
-      dotLayers[sid][type].push(m);
-    });
-    renderSessions(); updateUI(); updateStats();
-    return;
-  }
+  // v2.60: hier stond een tweede, volledige transect-tak. Onbereikbaar: hierboven
+  // keert `appType === 'transect'` al terug via loadTransectZip(). Zesentwintig
+  // regels die nooit draaiden en net iets anders waren dan het levende pad —
+  // precies het soort dubbelcode waarin je later één van de twee repareert.
 
   if (telCSV) {
     const allRows=parseCSV(telCSV);
@@ -3695,6 +3841,15 @@ function makeSessionRow(sid) {
   const n = s.meta.n_waarnemingen || '';
   const dk = clusterDekking(sid);
   let dekHtml = '';
+  // v2.60: terreinen zonder geometrie worden niet getekend; zeg dat, anders
+  // verdwijnen ze stilletjes van de kaart terwijl ze wel meetellen.
+  if (s.zonderGeom && s.zonderGeom.length) {
+    dekHtml = '<div class="session-dekking incompleet" title="Geen OSM-geometrie gevonden: '
+            + s.zonderGeom.join(', ').replace(/"/g, '&quot;')
+            + '. De telling telt wel mee in de statistieken.">\u26a0 '
+            + s.zonderGeom.length + ' terrein' + (s.zonderGeom.length === 1 ? '' : 'en')
+            + ' zonder geometrie</div>';
+  }
   if (dk && dk.totaal) {
     const compleet = dk.buiten === 0;
     const titel = compleet
@@ -3865,22 +4020,56 @@ document.getElementById('sessions-list').addEventListener('click', e => {
   setSessionEmphasis(null);
 });
 
-// Rechtermuisknop / contextmenu: solo-modus (alleen deze sessie zichtbaar).
-// Nogmaals rechtsklikken op dezelfde solo-sessie → alles weer aan.
-document.getElementById('sessions-list').addEventListener('contextmenu', e => {
-  const row = e.target.closest('.session-row'); if (!row) return;
-  e.preventDefault();
-  const sid = row.dataset.sid; if (!sessions[sid]) return;
-  const others = Object.keys(sessions).filter(k => k !== sid);
-  const isSolo = sessions[sid].visible && others.every(k => !sessions[k].visible);
+/* Solo-modus: alleen deze telling(en) zichtbaar. Nogmaals solo'en op dezelfde
+   selectie zet alles weer aan, zodat één handeling ook de weg terug is.
+   v2.61: uit de contextmenu-handler gelicht, zodat de kaart dezelfde schakelaar
+   gebruikt als de sessielijst. Neemt een lijst, want een gecombineerd cluster
+   kan tellingen van meerdere dagen bevatten — dan isoleer je die groep. */
+function soloSessies(sids) {
+  const doel = (sids || []).filter(function(k){ return sessions[k]; });
+  if (!doel.length) return;
+  const inDoel = function(k){ return doel.indexOf(k) >= 0; };
+  const alSolo = Object.keys(sessions).every(function(k){ return sessions[k].visible === inDoel(k); });
   Object.keys(sessions).forEach(function(k) {
-    sessions[k].visible = isSolo ? true : (k === sid);
+    sessions[k].visible = alSolo ? true : inDoel(k);
     applySessionVisibility(k);
   });
   recolorAll();
   updateStats();
   syncGroupHeads();
   setSessionEmphasis(null);
+  renderSessions();
+}
+
+/* Shift-klik op een clusterbol. Twee dingen moeten hier gebeuren:
+   • de box-zoom van Leaflet tegenhouden — die start al op shift+mousedown, dus
+     alleen de click afvangen is te laat en je krijgt een zoomkader;
+   • het detailpaneel niet openen, want je selecteert, je inspecteert niet.
+   Geeft true terug als de klik is afgehandeld.                                */
+function clusterShiftSolo(e, sids) {
+  if (!e || !e.originalEvent || !e.originalEvent.shiftKey) return false;
+  L.DomEvent.stop(e.originalEvent);
+  soloSessies(sids);
+  return true;
+}
+/* De hint alleen tonen als er iets te isoleren valt. Bij één geladen telling is
+   'alleen deze telling' een lege belofte, en dan is het ruis bij elke hover. */
+function clusterTip(inhoud) {
+  if (Object.keys(sessions).length < 2) return inhoud;
+  return inhoud + '<br><span style="opacity:0.55;font-size:10px;">shift-klik: alleen deze telling</span>';
+}
+
+function shiftBoxZoomBlokkeren(e) {
+  if (e && e.originalEvent && e.originalEvent.shiftKey) L.DomEvent.stop(e.originalEvent);
+}
+
+// Rechtermuisknop / contextmenu: solo-modus (alleen deze sessie zichtbaar).
+// Nogmaals rechtsklikken op dezelfde solo-sessie → alles weer aan.
+document.getElementById('sessions-list').addEventListener('contextmenu', e => {
+  const row = e.target.closest('.session-row'); if (!row) return;
+  e.preventDefault();
+  const sid = row.dataset.sid; if (!sessions[sid]) return;
+  soloSessies([sid]);
 });
 
 // Hover: dim alle andere sessies (vergelijkbaar met cluster-hover).
@@ -4287,6 +4476,10 @@ function updateUI() {
   const hasAny  =hasFiets||hasAuto||hasCap||hasTransect||hasPocket;
 
   document.getElementById('statsbar').style.display      = hasAny  ?'flex':'none';
+  // v2.59: zodra er tellingen staan mag de dropzone inkrimpen. Scheelt samen met
+  // de krappere marges ruim 70 px, die naar de sessielijst gaan.
+  document.getElementById('dropzone').classList.toggle('compact', hasAny);
+  document.getElementById('sidebar').classList.toggle('sidebar-compact', hasAny);
   // Tonen-groep: fiets/auto (type-toggles) én pocket (modus-filter)
   document.getElementById('grp-tonen').style.display     = (hasFiets||hasAuto||hasPocket) ?'':'none';
   document.getElementById('toggles-fiets').style.display = hasFiets?'block':'none';
@@ -4427,7 +4620,7 @@ let   editModeActive   = false;
 // Afstand (m) loodrecht op de way-as die we toepassen op gecorrigeerde
 // markers, zodat ze visueel in lijn liggen met de niet-gecorrigeerde
 // punten (die door Telonline Verkeerstellingen ook al uit de as worden geplaatst).
-const OFFSET_M = 4;
+const OFFSET_M = 4;   // zijde-offset: zelfde waarde in 5 bestanden, bewaakt door valideer.py
 
 // Bearing in graden, 0=N, met de klok mee. Voor een korte segmentafstand
 // volstaat de Cartesische benadering (lat≈constant binnen één stad).
@@ -5247,6 +5440,38 @@ async function loadFile(file) {
 const dz=document.getElementById('dropzone'), fi=document.getElementById('file-input');
 const di=document.getElementById('dir-input');
 const bboxFilterCb=document.getElementById('bbox-filter-cb');
+const reconFilterCb=document.getElementById('recon-filter-cb');
+
+/* ── origineel versus reconstructie (v2.59) ──────────────────────────────────
+   De sessie_id verandert NIET bij reconstructie — telreconstructie schrijft
+   dezelfde sid weg en zet alleen `_recon` in de BESTANDSNAAM. loadZip slaat een
+   tweede ZIP met dezelfde sid stil over, en omdat `_car` alfabetisch vóór
+   `_recon` komt won het origineel. Wie een map met beide versies binnensleepte,
+   kreeg dus stilzwijgend de ongereconstrueerde tellingen op de kaart.
+
+   Paren herkennen we aan de bestandsnaam. Van het origineel valt het
+   app-achtervoegsel af (`_car` / `_fts` / `_cap` / `_trn`; pocket heeft er geen),
+   van de reconstructie `_recon`. Wat overblijft is dezelfde basis. Een
+   `... (1)`-staart van een tweede download telt niet mee.                      */
+function reconBasis(naam){
+  let n=(naam||'').replace(/\.zip$/i,'').replace(/\s*\(\d+\)$/,'');
+  const recon=/_recon$/i.test(n);
+  n=n.replace(/_recon$/i,'').replace(/_(car|fts|cap|trn)$/i,'');
+  return { basis:n.toLowerCase(), recon:recon };
+}
+
+// Laat uit elke groep het origineel weg zodra er een reconstructie naast ligt.
+function kiesReconstructies(lijst){
+  const info=lijst.map(f=>{ const b=reconBasis(f.name); return { f, basis:b.basis, recon:b.recon }; });
+  const groepen={};
+  info.forEach(x=>{ (groepen[x.basis]=groepen[x.basis]||[]).push(x); });
+  const houden=[], weg=[];
+  info.forEach(x=>{
+    if(!x.recon && groepen[x.basis].some(y=>y.recon)) weg.push(x.f.name);
+    else houden.push(x.f);
+  });
+  return { lijst:houden, weg };
+}
 const dzText=dz.querySelector('.dz-text');
 const dzTextHTML=dzText ? dzText.innerHTML : '';
 
@@ -5323,15 +5548,31 @@ async function probeBbox(file){
 // gepadde) kaartbeeld eerst weggefilterd; een telling wordt nooit stil weggelaten.
 async function ingestFiles(files){
   const ok=[...files].filter(isLoadable)
-                     .sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+                     .sort((a,b)=>{
+                       // v2.59: gaat het om dezelfde telling, dan de reconstructie eerst.
+                       // Vangnet voor hernoemde bestanden: de sid-dubbelcheck in loadZip
+                       // slaat dan het origineel over in plaats van de reconstructie.
+                       const ra=reconBasis(a.name||''), rb=reconBasis(b.name||'');
+                       if(ra.basis===rb.basis && ra.recon!==rb.recon) return ra.recon?-1:1;
+                       return (a.name||'').localeCompare(b.name||'');
+                     });
   if(!ok.length){
     if(dzText) dzText.innerHTML=dzTextHTML;
     alert('Geen ZIP- of CSV-bestanden gevonden.');
     return 0;
   }
 
+  // v2.59: origineel weglaten waar een reconstructie naast ligt.
+  let reconWeg=[];
+  let kandidaten=ok;
+  if(reconFilterCb && reconFilterCb.checked){
+    const r=kiesReconstructies(ok);
+    kandidaten=r.lijst; reconWeg=r.weg;
+    if(reconWeg.length) console.info('Origineel overgeslagen (reconstructie aanwezig):', reconWeg);
+  }
+
   const filterOn = !!(bboxFilterCb && bboxFilterCb.checked);
-  let toLoad=ok, skipped=0, frozenCenter=null, frozenZoom=null;
+  let toLoad=kandidaten, skipped=0, frozenCenter=null, frozenZoom=null;
 
   if(filterOn){
     // Bevries het huidige beeld vóór de eerste (per-telling) fitBounds 'm verspringt.
@@ -5339,12 +5580,12 @@ async function ingestFiles(files){
     const p=map.getBounds().pad(0.12);
     const view={ minLat:p.getSouth(), maxLat:p.getNorth(), minLon:p.getWest(), maxLon:p.getEast() };
     const keep=[];
-    for(let i=0;i<ok.length;i++){
-      if(dzText) dzText.innerHTML='⏳ filteren… '+(i+1)+'/'+ok.length;
+    for(let i=0;i<kandidaten.length;i++){
+      if(dzText) dzText.innerHTML='⏳ filteren… '+(i+1)+'/'+kandidaten.length;
       let bb=null;
-      try{ bb=await probeBbox(ok[i]); }catch(e){ bb=null; }
+      try{ bb=await probeBbox(kandidaten[i]); }catch(e){ bb=null; }
       // fail-open: een bestand waarvan we de bbox niet kunnen lezen, laden we toch.
-      if(bb===null || bboxesOverlap(bb,view)) keep.push(ok[i]);
+      if(bb===null || bboxesOverlap(bb,view)) keep.push(kandidaten[i]);
       else skipped++;
     }
     toLoad=keep;
@@ -5356,11 +5597,18 @@ async function ingestFiles(files){
     catch(err){ console.error('Laden mislukt:', toLoad[i].name, err); }
   }
 
+  // v2.59: stilzwijgend weglaten is precies wat deze release repareert, dus
+  // zeggen hoeveel originelen zijn overgeslagen.
+  const reconNoot = reconWeg.length
+    ? ' · '+reconWeg.length+' origineel'+(reconWeg.length===1?'':'en')+' overgeslagen (reconstructie aanwezig)'
+    : '';
   if(filterOn){
     // Terug naar het kader dat je bewust koos (de per-telling-fits negeren).
     try{ map.setView(frozenCenter, frozenZoom, {animate:false}); }catch(e){}
-    if(dzText) dzText.innerHTML='✓ '+toLoad.length+'/'+ok.length+' binnen beeld geladen'+
-                                 (skipped?' · '+skipped+' overgeslagen':'');
+    if(dzText) dzText.innerHTML='✓ '+toLoad.length+'/'+kandidaten.length+' binnen beeld geladen'+
+                                 (skipped?' · '+skipped+' overgeslagen':'')+reconNoot;
+  }else if(reconNoot){
+    if(dzText) dzText.innerHTML='✓ '+toLoad.length+' geladen'+reconNoot;
   }else{
     if(dzText) dzText.innerHTML=dzTextHTML;
   }

@@ -126,6 +126,22 @@
   .status-badge.running { background: #d4f0da; color: var(--green);  border: 2px solid #7dcc90; }
   .status-badge.ended   { background: #fde8cc; color: var(--orange); border: 2px solid #e8b070; }
 
+  /* ── Restore bar (v2.72): interrupted session found on load ── */
+  .herstel-balk {
+    width: 100%; max-width: 520px;
+    background: #5a3a1a; border: 2px solid #b07d2b; border-radius: 6px;
+    padding: 12px 14px; color: #fff;
+  }
+  .herstel-balk p { font-size: 0.85rem; font-weight: 600; line-height: 1.35; margin-bottom: 10px; }
+  .herstel-knoppen { display: flex; gap: 8px; }
+  .herstel-knoppen button {
+    flex: 1; padding: 10px 6px; border: none; border-radius: 5px; cursor: pointer;
+    font-family: inherit; font-size: 0.78rem; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; color: #fff; background: #444;
+  }
+  .herstel-knoppen button.door { background: var(--green); }
+  .herstel-knoppen button.dl   { background: #3a7d44; }
+
   /* ── Direction labels ── */
   .dir-config { width: 100%; max-width: 520px; display: flex; gap: 8px; align-items: center; }
   .dir-config label { font-size: 0.65rem; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; white-space: nowrap; font-weight: 700; }
@@ -362,33 +378,6 @@
   #log .entry { display: flex; justify-content: space-between; }
   #log .entry span:last-child { color: var(--subdim); }
 
-  /* ── Branding ── */
-  .branding {
-    width: 100%;
-    max-width: 520px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 0 4px;
-    border-top: 2px solid var(--border);
-    margin-top: 2px;
-  }
-  .branding-logo {
-    width: 28px; height: 28px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #cc785c, #a05a3c);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.85rem; flex-shrink: 0;
-    box-shadow: 0 0 8px rgba(160,90,60,0.35);
-  }
-  .branding-text { display: flex; flex-direction: column; gap: 1px; }
-  .branding-text .built { font-size: 0.58rem; letter-spacing: 2px; text-transform: uppercase; color: var(--subdim); }
-  .branding-text .name  {
-    font-size: 0.85rem; font-weight: 700; letter-spacing: 1px;
-    background: linear-gradient(90deg, #a05a3c, #cc785c);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  }
 </style>
 </head>
 <body>
@@ -413,6 +402,15 @@
 </div>
 
 <div class="status-badge idle" id="status-badge">Press Start to begin counting</div>
+
+<div class="herstel-balk" id="herstel-balk" style="display:none">
+  <p id="herstel-tekst"></p>
+  <div class="herstel-knoppen">
+    <button class="door" id="herstel-door" onclick="doortellenStatic()">&#9654; Continue</button>
+    <button class="dl" onclick="exportCSV()">&#8595; Download</button>
+    <button onclick="verwijderStatic()">&#10005; Discard</button>
+  </div>
+</div>
 
 <div class="notes-row">
   <label>Location / Notes</label>
@@ -446,12 +444,6 @@
   <div class="toast-label">Directions set</div>
   <div class="toast-row"><span class="toast-dir">Dir A</span><span class="toast-val" id="toast-a"></span></div>
   <div class="toast-row"><span class="toast-dir">Dir B</span><span class="toast-val" id="toast-b"></span></div>
-</div>
-  <div class="branding-logo">*</div>
-  <div class="branding-text">
-    <span class="built">Built with AI by</span>
-    <span class="name">Claude - Anthropic</span>
-  </div>
 </div>
 
 <script>
@@ -629,6 +621,7 @@
   function startSession() {
     if (state !== 'idle') return;
     startTime = new Date(); state = 'running';
+    sessieId = maakSessieId(startTime);   // v2.73
     document.getElementById('btn-start').disabled = true;
     document.getElementById('btn-end').disabled   = false;
     document.getElementById('disp-start').textContent = fmt(startTime);
@@ -641,8 +634,17 @@
     document.getElementById('session-time').className = 'running';
     TYPES.forEach(t => document.getElementById(`card-${t.id}`).classList.remove('locked'));
     requestGPS();
+    startKlok();
+    acquireWakeLock();
+    bewaarStatic();
+  }
+
+  // Loopt elke seconde. Toont de ACTIEVE teltijd: onderbrekingen (v2.72) tellen
+  // niet mee, want in die tijd is er niet geteld.
+  function startKlok() {
+    if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
-      const elapsed = Date.now() - startTime.getTime();
+      const elapsed = actieveMs(new Date());
       document.getElementById('session-time').textContent = fmtDuration(elapsed);
       document.getElementById('disp-dur').textContent = fmtDuration(elapsed);
       document.getElementById('disp-dur').classList.remove('empty');
@@ -653,10 +655,12 @@
     if (state !== 'running') return;
     endTime = new Date(); state = 'ended';
     clearInterval(timerInterval);
+    releaseWakeLock();
+    bewaarStatic();
     document.getElementById('btn-end').disabled = true;
     document.getElementById('disp-end').textContent = fmt(endTime);
     document.getElementById('disp-end').classList.remove('empty');
-    const elapsed = endTime - startTime;
+    const elapsed = actieveMs(endTime);
     document.getElementById('session-time').textContent = fmtDuration(elapsed);
     document.getElementById('session-time').className = 'ended';
     document.getElementById('disp-dur').textContent = fmtDuration(elapsed);
@@ -813,6 +817,7 @@
     }
     document.getElementById('btn-undo-last').disabled = history.length === 0;
     vibrate(30);
+    bewaarStatic();
   }
 
   function adjust(type, dir, delta) {
@@ -830,7 +835,7 @@
       const ts = new Date().toTimeString().slice(0,8);
       const lbl  = TYPES.find(t => t.id === type).label;
       const dVal = dir === 'a' ? document.getElementById('lbl-a').value : document.getElementById('lbl-b').value;
-      history.push({ type, dir, ts });
+      history.push({ type, dir, ts, t: lokaalIso(new Date()) });   // v2.73: t = datum + tijd
       document.getElementById('btn-undo-last').disabled = false;
       addLog('+1 ' + lbl + ' - ' + dVal, ts);
     } else {
@@ -840,6 +845,7 @@
       if (idx !== undefined) history.splice(idx, 1);
       document.getElementById('btn-undo-last').disabled = history.length === 0;
     }
+    bewaarStatic();
   }
 
   function addLog(msg, ts) {
@@ -853,8 +859,17 @@
 
   function resetAll() {
     if (!confirm('Reset everything and start over?')) return;
+    wisAlles();
+  }
+
+  // Zonder bevestiging; resetAll() en verwijderStatic() vragen het zelf.
+  function wisAlles() {
     clearInterval(timerInterval);
-    state = 'idle'; startTime = null; endTime = null; history = []; gpsLocation = null;
+    releaseWakeLock();
+    wisStatic();
+    onderbrekingen = []; laatstActief = null;
+    document.getElementById('herstel-balk').style.display = 'none';
+    state = 'idle'; startTime = null; endTime = null; history = []; gpsLocation = null; sessieId = null;
     lastZipBlob = null; lastZipName = ''; lastZipCount = -1;   // vangnet vrijgeven — nieuwe telling
     if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
     TYPES.forEach(t => {
@@ -935,8 +950,10 @@
     const dirA = document.getElementById('lbl-a').value || 'Direction A';
     const dirB = document.getElementById('lbl-b').value || 'Direction B';
     const t0 = startTime;
-    const t1 = endTime || (state === 'running' ? new Date() : null);
-    const elapsedSec = (t0 && t1) ? (t1 - t0) / 1000 : null;
+    // Hersteld maar (nog) niet doorgeteld: de telling liep tot het laatste
+    // bekende moment, niet tot nu.
+    const t1 = endTime || (state === 'running' ? new Date() : (state === 'restored' ? laatstActief : null));
+    const elapsedSec = (t0 && t1) ? actieveMs(t1) / 1000 : null;
     const factor = (elapsedSec && elapsedSec >= 30) ? 3600 / elapsedSec : null;
     const exportTs = fmtLocalDateTime(new Date());
     const row = (...cells) => cells.join(D) + '\n';
@@ -948,6 +965,15 @@
     csv += row('Start time', t0 ? fmtLocalDateTime(t0) : 'n/a');
     csv += row('End time',   t1 ? fmtLocalDateTime(t1) : 'n/a (session still running)');
     csv += row('Observed duration', elapsedSec ? fmtDuration(elapsedSec * 1000) : 'n/a');
+    // v2.72: alleen als er onderbroken is, anders blijft de export zoals hij was.
+    const onderbr = t1 ? onderbrekingen.filter(o => new Date(o.van) < t1) : [];
+    if (onderbr.length) {
+      const weg = onderbr.reduce((som, o) => som + (Math.min(+new Date(o.tot), +t1) - new Date(o.van)), 0);
+      csv += row('Interruptions', onderbr.length, fmtDuration(weg) + ' not counted, excluded from duration and per-hour figures');
+      onderbr.forEach((o, i) => {
+        csv += row('Interruption ' + (i + 1), fmtLocalDateTime(new Date(o.van)), fmtLocalDateTime(new Date(o.tot)));
+      });
+    }
     if (gpsLocation && !gpsLocation.error) {
       csv += row('GPS latitude',  gpsLocation.lat.toFixed(6));
       csv += row('GPS longitude', gpsLocation.lon.toFixed(6));
@@ -985,16 +1011,49 @@
     }
     // ZIP met de CSV erin — zelfde deel-/downloadpad als pocket, zodat het ook
     // op iOS Safari werkt (data:-download-link werkte daar niet).
-    const stamp = exportTs.replace(/[: ]/g, '-');
-    const base  = 'traffic_count_' + stamp;
-    const zip   = new JSZip();
-    zip.file(base + '.csv', csv);
+    // v2.73: de ZIP heeft de vorm van de rest van de suite. <sid>_sessie.csv en
+    // <sid>_telregels.csv (met datum per tik) voor KNIME en de keten;
+    // <sid>_onderbrekingen.csv alleen als er onderbroken is; en het leesbare
+    // overzicht van vóór v2.73 ongewijzigd als <sid>_overzicht.csv (Excel,
+    // en telrapport leest dat). Alle vier komen uit dezelfde stand, op één moment.
+    if (!sessieId) sessieId = maakSessieId(t0 || new Date());
+    const sid  = sessieId, base = sid;
+    const gpsOk = gpsLocation && !gpsLocation.error && gpsLocation.lat != null;
+    const lat  = gpsOk ? gpsLocation.lat.toFixed(6) : '', lon = gpsOk ? gpsLocation.lon.toFixed(6) : '';
+    const acc  = gpsOk ? gpsLocation.accuracy : '';
+    const hms  = d => d ? d.toTimeString().slice(0, 8) : '';
+    const dag  = t0 || new Date();
+    let nTot = 0; TYPES.forEach(t => { nTot += counts[t.id].a + counts[t.id].b; });
+    const sessieCsv =
+      'sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen;modus;richting_a;richting_b;lat;lon;nauwkeurigheid;straat;plaats;notities;actieve_duur_s;uurfactor\n'
+      + [sid, lokaalIso(dag).slice(0, 10), hms(t0), hms(t1), 'standstill', 'verkeer', nTot, 'standstill',
+         csvVeld(dirA), csvVeld(dirB), lat, lon, acc,
+         csvVeld(gpsOk ? gpsLocation.street : ''), csvVeld(gpsOk ? gpsLocation.city : ''),
+         csvVeld(document.getElementById('notes').value),
+         elapsedSec ? Math.round(elapsedSec) : '', factor ? factor.toFixed(4) : ''].join(D) + '\n';
+    let telCsv = 'sessie_id;nr;tijdstip;type;richting;lat;lon;nauwkeurigheid\n';
+    tijdstippen(history, t0).forEach((t, i) => {
+      telCsv += [sid, i + 1, t, history[i].type, history[i].dir, lat, lon, acc].join(D) + '\n';
+    });
+    const zip = new JSZip();
+    zip.file(sid + '_sessie.csv', sessieCsv);
+    zip.file(sid + '_telregels.csv', telCsv);
+    if (onderbr.length) {
+      let onCsv = 'sessie_id;nr;van;tot;duur_s\n';
+      onderbr.forEach((o, i) => {
+        const van = new Date(o.van), tot = new Date(Math.min(+new Date(o.tot), +t1));
+        onCsv += [sid, i + 1, lokaalIso(van), lokaalIso(tot), Math.round((tot - van) / 1000)].join(D) + '\n';
+      });
+      zip.file(sid + '_onderbrekingen.csv', onCsv);
+    }
+    zip.file(sid + '_overzicht.csv', csv);
     zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 9 } })
        .then(function(blob) {
          lastZipBlob = blob;
          lastZipName = base + '.zip';
          lastZipCount = history.length;
          saveBlob(lastZipBlob, lastZipName, 'application/zip');
+         if (state === 'ended') { geexporteerd = true; bewaarStatic(); }
        });
   }
 
@@ -1026,7 +1085,197 @@
     toastTimer = setTimeout(() => { el.classList.remove('show'); }, 5000);
   }
 
+  // ── Noodopslag en doortellen (v2.72) ─────────────────────────────────────
+  // Zelfde vangnet als de parkeer-apps en pocket: de hele telling staat na elke
+  // tik in localStorage, en elke 10 s een hartslag (laatstActief). Na een crash,
+  // herladen of weggeveegde tab komt de telling terug met een herstelbalk:
+  // doortellen, downloaden of weggooien.
+  //
+  // Doortellen na een onderbreking: de tijd tussen laatstActief en het moment
+  // van doortellen is niet geteld. Die gaat als onderbreking in de export en telt
+  // niet mee in de geobserveerde duur en de uurfactor; anders zou een pauze de
+  // intensiteit per uur omlaag trekken. Zonder onderbreking blijft de export
+  // byte-gelijk aan die van vóór v2.72.
+  const LS_STATIC = 'static_sessie';
+  let onderbrekingen = [];     // [{van, tot}] als ISO-tekst
+  let sessieId = null;         // v2.73: <jjjjmmdd>_<uummss>_<xxx>_sta, vast vanaf Start
+  let laatstActief = null;     // Date: laatste moment dat de telling zeker liep
+  let geexporteerd = false;    // na End: is de ZIP gemaakt?
+  let wakeLock = null;
+
+  function actieveMs(tot) {
+    if (!startTime || !tot) return 0;
+    let ms = tot - startTime;
+    onderbrekingen.forEach(o => {
+      const van = new Date(o.van), eind = new Date(Math.min(+new Date(o.tot), +tot));
+      if (eind > van) ms -= (eind - van);
+    });
+    return Math.max(0, ms);
+  }
+
+  function bewaarStatic() {
+    if (state === 'idle' || !startTime) return;
+    if (state === 'running') laatstActief = new Date();
+    try {
+      localStorage.setItem(LS_STATIC, JSON.stringify({
+        v: 1, state: state === 'restored' ? 'running' : state,
+        startTime: startTime.toISOString(), endTime: endTime ? endTime.toISOString() : null,
+        laatstActief: laatstActief ? laatstActief.toISOString() : null,
+        counts: counts, history: history, onderbrekingen: onderbrekingen, sessieId: sessieId,
+        gpsLocation: gpsLocation, geexporteerd: geexporteerd,
+        notes: document.getElementById('notes').value,
+        dirA: document.getElementById('lbl-a').value, dirB: document.getElementById('lbl-b').value,
+        savedAt: new Date().toISOString()
+      }));
+    } catch (e) {}
+  }
+
+  // ── Sessie-id en tijden (v2.73) ──
+  // Zelfde vorm als de andere apps, met _sta als merkteken voor stilstaand.
+  function maakSessieId(d) {
+    const p = n => String(n).padStart(2, '0');
+    const rnd = [0, 1, 2].map(() => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_'
+         + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '_' + rnd + '_sta';
+  }
+  // Lokale tijd, zelfde vorm als pocket: 2026-09-23T14:05:31
+  function lokaalIso(d) {
+    const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+         + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+  // Datum + tijd per tik. Tikken van vóór v2.73 (uit een herstelde telling)
+  // hebben alleen HH:MM:SS: dan de startdatum, en een dag verder zodra de
+  // klok terugspringt (telling over middernacht).
+  function tijdstippen(hist, t0) {
+    let dag = t0 ? new Date(t0.getFullYear(), t0.getMonth(), t0.getDate()) : new Date();
+    let vorige = '';
+    return hist.map(h => {
+      if (h.t) return h.t;
+      if (vorige && h.ts < vorige) dag = new Date(dag.getFullYear(), dag.getMonth(), dag.getDate() + 1);
+      vorige = h.ts;
+      return lokaalIso(dag).slice(0, 10) + 'T' + h.ts;
+    });
+  }
+  function csvVeld(v) { return String(v == null ? '' : v).replace(/[;\r\n]+/g, ' ').trim(); }
+
+  function wisStatic() {
+    geexporteerd = false;
+    try { localStorage.removeItem(LS_STATIC); } catch (e) {}
+  }
+
+  function herstelStatic() {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(LS_STATIC) || 'null'); } catch (e) {}
+    if (!d || !d.startTime) return;
+    if (d.state === 'ended' && d.geexporteerd) { wisStatic(); return; }   // netjes afgerond
+
+    startTime = new Date(d.startTime);
+    sessieId = d.sessieId || maakSessieId(startTime);   // v2.72-opslag had er nog geen
+    endTime = d.endTime ? new Date(d.endTime) : null;
+    laatstActief = d.laatstActief ? new Date(d.laatstActief) : new Date(d.savedAt || d.startTime);
+    onderbrekingen = d.onderbrekingen || [];
+    history = d.history || [];
+    gpsLocation = d.gpsLocation || null;
+    if (gpsLocation && gpsLocation.timestamp) gpsLocation.timestamp = new Date(gpsLocation.timestamp);
+    document.getElementById('notes').value = d.notes || '';
+    if (d.dirA) document.getElementById('lbl-a').value = d.dirA;
+    if (d.dirB) document.getElementById('lbl-b').value = d.dirB;
+    let total = 0;
+    TYPES.forEach(t => {
+      counts[t.id] = (d.counts && d.counts[t.id]) || { a: 0, b: 0 };
+      document.getElementById(`cnt-${t.id}-a`).textContent = counts[t.id].a;
+      document.getElementById(`cnt-${t.id}-b`).textContent = counts[t.id].b;
+      total += counts[t.id].a + counts[t.id].b;
+    });
+    document.getElementById('grand-total').textContent = total;
+    history.slice(-60).forEach(h => {
+      const lbl = TYPES.find(t => t.id === h.type).label;
+      addLog('+1 ' + lbl + ' - ' + document.getElementById(h.dir === 'a' ? 'lbl-a' : 'lbl-b').value, h.ts);
+    });
+    document.getElementById('btn-undo-last').disabled = true;
+
+    const afgerond = d.state === 'ended';
+    state = afgerond ? 'ended' : 'restored';
+    const tot = afgerond ? endTime : laatstActief;
+    document.getElementById('disp-start').textContent = fmt(startTime);
+    document.getElementById('disp-start').classList.remove('empty');
+    if (afgerond) {
+      document.getElementById('disp-end').textContent = fmt(endTime);
+      document.getElementById('disp-end').classList.remove('empty');
+    }
+    document.getElementById('disp-dur').textContent = fmtDuration(actieveMs(tot));
+    document.getElementById('disp-dur').classList.remove('empty');
+    document.getElementById('session-time').textContent = fmtDuration(actieveMs(tot));
+    document.getElementById('session-time').className = 'ended';
+    updateGPSDisplay();
+    document.getElementById('btn-start').disabled = true;
+    document.getElementById('btn-end').disabled = true;
+    const badge = document.getElementById('status-badge');
+    badge.className = 'status-badge ended';
+    badge.textContent = afgerond ? 'Session ended - not downloaded yet' : 'Session interrupted';
+
+    document.getElementById('herstel-tekst').textContent = '\u26A0\uFE0F ' +
+      (afgerond ? 'Finished session, not downloaded: ' : 'Interrupted session restored: ') +
+      total + ' counted, started ' + fmt(startTime) + ', ' +
+      (afgerond ? 'ended ' + fmt(endTime) : 'last active ' + fmt(laatstActief)) + '.';
+    document.getElementById('herstel-door').style.display = afgerond ? 'none' : '';
+    document.getElementById('herstel-balk').style.display = '';
+  }
+
+  function doortellenStatic() {
+    if (state !== 'restored') return;
+    const nu = new Date();
+    if (laatstActief && nu > laatstActief) {
+      onderbrekingen.push({ van: laatstActief.toISOString(), tot: nu.toISOString() });
+    }
+    state = 'running'; endTime = null;
+    document.getElementById('herstel-balk').style.display = 'none';
+    document.getElementById('btn-start').disabled = true;
+    document.getElementById('btn-end').disabled = false;
+    document.getElementById('btn-undo-last').disabled = history.length === 0;
+    document.getElementById('session-time').className = 'running';
+    const badge = document.getElementById('status-badge');
+    badge.className = 'status-badge running';
+    badge.textContent = 'Counting in progress...';
+    TYPES.forEach(t => document.getElementById(`card-${t.id}`).classList.remove('locked'));
+    // GPS opnieuw laten settelen als de fix bij de onderbreking nog niet was
+    // vastgezet (geen straat, niet betrouwbaar). requestGPS() houdt de beste fix.
+    if (!gpsLocation || gpsLocation.error || !(gpsLocation.reliable || gpsLocation.street || gpsLocation.city)) requestGPS();
+    startKlok();
+    acquireWakeLock();
+    bewaarStatic();
+  }
+
+  function verwijderStatic() {
+    if (!confirm('Discard the restored session? This cannot be undone.')) return;
+    wisAlles();
+  }
+
+  // Scherm aan houden tijdens het tellen (v2.72; de andere veld-apps deden dit al).
+  async function acquireWakeLock() {
+    if (!('wakeLock' in navigator) || wakeLock) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch (e) {}
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+  }
+
+  // Hartslag: bewaart laatstActief, zodat een onderbreking tot op 10 s klopt,
+  // ook als er een tijd geen verkeer langskwam.
+  setInterval(() => { if (state === 'running') bewaarStatic(); }, 10000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) bewaarStatic();
+    else if (state === 'running') acquireWakeLock();   // de browser geeft het slot vrij bij verbergen
+  });
+  window.addEventListener('pagehide', bewaarStatic);
+  ['notes', 'lbl-a', 'lbl-b'].forEach(id => document.getElementById(id).addEventListener('input', bewaarStatic));
+
   buildCards();
+  herstelStatic();
 </script>
 </body>
 </html>

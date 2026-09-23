@@ -23,6 +23,7 @@
 {
   "@context": "https://schema.org",
   "@type": "WebApplication",
+  "@id": "https://telonline.org/#app",
   "name": "Online Traffic Counting",
   "alternateName": "Telonline Verkeerstellingen",
   "url": "https://telonline.org/",
@@ -164,6 +165,87 @@
     box-shadow: 0 4px 20px rgba(41,128,185,0.12);
   }
 
+  .mode-card.pkpark-card {
+    --accent: #2e6b8a;              /* zelfde kleur als de Parkeren-knop in pocket */
+  }
+  .mode-card.pkpark-card:hover {
+    border-color: #2e6b8a;
+    box-shadow: 0 4px 20px rgba(46,107,138,0.12);
+  }
+
+  /* ── Groepen (v2.69): ingedeeld naar wat je telt ── */
+  .groep {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .groep + .groep { margin-top: 18px; }
+  .groep-kop {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--text);
+  }
+  .groep-kop h2 {
+    white-space: nowrap;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .groep-kop p {
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    color: var(--subdim);
+    text-align: right;
+  }
+
+  /* ── Bureau: de desktoptools, compact ── */
+  /* Rijen delen hun kolommen (subgrid), zodat de omschrijvingen onder elkaar
+     beginnen, hoe lang de langste titel ook is. Zonder subgrid-steun komt de
+     omschrijving onder de titel te staan; ook leesbaar. */
+  .bureau {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    background: var(--panel);
+    border: 3px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .bureau a {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+    column-gap: 16px;
+    padding: 14px 20px;
+    text-decoration: none;
+    color: var(--text);
+    border-top: 1px solid var(--border);
+  }
+  .bureau a:first-child { border-top: none; }
+  .bureau a:hover { background: var(--bg); }
+  .bureau b {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .bureau span {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--dim);
+    line-height: 1.4;
+  }
+
+  .mode-card:focus-visible, .bureau a:focus-visible {
+    outline: 3px solid var(--text);
+    outline-offset: 3px;
+  }
+
   .mode-label {
     font-size: 0.62rem;
     font-weight: 700;
@@ -227,6 +309,16 @@
   .help-link a:hover {
     color: var(--text);
     border-color: var(--text);
+  }
+
+  /* ── Versie: per release ophogen, valideer.py controleert het ── */
+  .versie {
+    text-align: center;
+    padding-top: 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 1px;
+    color: var(--subdim);
   }
 
   /* ── Branding ── */
@@ -317,6 +409,12 @@
 
   <div class="intro-note" data-i18n="introNote">Standalone traffic-counting tools — each runs entirely in your browser. No install, no account; your data stays on your device.</div>
 
+<section class="groep" aria-labelledby="grp-verkeer">
+  <div class="groep-kop">
+    <h2 id="grp-verkeer" data-i18n="grpTraffic">Count traffic</h2>
+    <p data-i18n="grpTrafficSub">what goes by</p>
+  </div>
+
   <a class="mode-card static-card" href="traffic_counter.html">
     <div class="mode-label" data-i18n="staticLabel">Static mode</div>
     <div class="mode-title" data-i18n="staticTitle">Stand Still<br>and Count</div>
@@ -331,32 +429,62 @@
     <div class="mode-desc" data-i18n="pocketDesc">Three modes in one tool: tap-anywhere simple counting with the phone in your pocket, directional transect counts per vehicle type, or moving-observer pedestrian flow on a shopping street. GPS-snapped to the road network; exports a ZIP.</div>
     <div class="mode-arrow">&gt;</div>
   </a>
-  
+</section>
+
+<section class="groep" aria-labelledby="grp-parkeren">
+  <div class="groep-kop">
+    <h2 id="grp-parkeren" data-i18n="grpParking">Count parking</h2>
+    <p data-i18n="grpParkingSub">what is parked</p>
+  </div>
+
+  <a class="mode-card pkpark-card" href="pocket_count.html#parkeren">
+    <div class="mode-label" data-i18n="pkparkLabel">Pocket — parking</div>
+    <div class="mode-title" data-i18n="pkparkTitle">Quick count:<br>taken or free</div>
+    <div class="mode-desc" data-i18n="pkparkDesc">Walk a street and tap per side: taken or free. Four big tiles and a click sound, so your eyes stay on the street. Afterwards the reconstruction puts every tap on the right side of the road.</div>
+    <div class="mode-arrow">&gt;</div>
+  </a>
+
   <a class="mode-card parking-card" href="parkeertelling.html">
-    <div class="mode-label" data-i18n="parkingLabel">Walk and Count Parked Cars</div>
-    <div class="mode-title" data-i18n="parkingTitle">Walk and<br>Survey Parked Cars</div>
-    <div class="mode-desc" data-i18n="parkingDesc">Walk a street and count parked cars and empty spaces. GPS tracks your route. Every observation is pinned to the live map.</div>
+    <div class="mode-label" data-i18n="parkingLabel">Car parking survey</div>
+    <div class="mode-title" data-i18n="parkingTitle">Space by space,<br>on the map</div>
+    <div class="mode-desc" data-i18n="parkingDesc">For a full survey: every space parked correctly or not, empty or special, per side of the street. Each observation appears on the map straight away, on the side where it is.</div>
     <div class="mode-arrow">&gt;</div>
   </a>
 
   <a class="mode-card bike-card" href="fietsparkeren.html">
-    <div class="mode-label" data-i18n="bikeLabel">Walk and Count Parked Bikes</div>
-    <div class="mode-title" data-i18n="bikeTitle">Walk and <br>Survey Parked Bikes</div>
-    <div class="mode-desc" data-i18n="bikeDesc">Walk a street and count parked bikes. GPS tracks your route. Every observation is pinned to the live map.</div>
+    <div class="mode-label" data-i18n="bikeLabel">Bike parking</div>
+    <div class="mode-title" data-i18n="bikeTitle">Parked<br>bikes</div>
+    <div class="mode-desc" data-i18n="bikeDesc">Walk a street or bike rack and count bikes, mopeds, wide bikes and wrecks. Each observation appears on the map straight away.</div>
     <div class="mode-arrow">&gt;</div>
   </a>
 
   <a class="mode-card" href="capaciteitstelling.html" style="--accent:#8e44ad;">
     <style>.mode-card[href="capaciteitstelling.html"]:hover { border-color:#8e44ad; box-shadow:0 4px 20px rgba(142,68,173,0.12); }</style>
-    <div class="mode-label" data-i18n="capacityLabel">Walk and Map Car Parking Capacity</div>
-    <div class="mode-title" data-i18n="capacityTitle">Mapping<br>capacity only</div>
-    <div class="mode-desc" data-i18n="capacityDesc">Walk a street and count a base map of parking spots for cars. GPS tracks your route. Every observation is pinned to the live map. GPS + OSM-snap.</div>
+    <div class="mode-label" data-i18n="capacityLabel">Capacity</div>
+    <div class="mode-title" data-i18n="capacityTitle">Spaces<br>only</div>
+    <div class="mode-desc" data-i18n="capacityDesc">Map how many parking spaces there are: space by space along the street, or by eye per car park. No occupancy — the base map for later counts.</div>
     <div class="mode-arrow">&gt;</div>
   </a>
+</section>
+
+<section class="groep" aria-labelledby="grp-bureau">
+  <div class="groep-kop">
+    <h2 id="grp-bureau" data-i18n="grpDesk">At your desk</h2>
+    <p data-i18n="grpDeskSub">before and after fieldwork</p>
+  </div>
+
+  <nav class="bureau">
+    <a href="telplanning.html"><b data-i18n="deskPlan">Plan</b><span data-i18n="deskPlanDesc">routes and coverage, before you go</span></a>
+    <a href="telreconstructie.html"><b data-i18n="deskRecon">Reconstruct</b><span data-i18n="deskReconDesc">put route and side right afterwards</span></a>
+    <a href="telrapport.html"><b data-i18n="deskReport">Report</b><span data-i18n="deskReportDesc">map and analysis</span></a>
+  </nav>
+</section>
 
   <div class="help-link">
     <a href="traffic_counter_help.html" data-i18n="helpLink">Help &amp; documentation</a>
   </div>
+
+  <div class="versie">v2.74</div>
 
 </div>
 
@@ -374,15 +502,30 @@ const i18n = {
     pocketLabel:   'Pocket — three modes',
     pocketTitle:   'Move and<br>Count',
     pocketDesc:    'Three modes in one tool: tap-anywhere simple counting with the phone in your pocket, directional transect counts per vehicle type, or moving-observer pedestrian flow on a shopping street. GPS-snapped to the road network; exports a ZIP.',
-    parkingLabel:  'Walk and Count Parked Cars',
-    parkingTitle:  'Walk and<br>Survey Parked Cars',
-    parkingDesc:   'Walk a street and count parked cars and empty spaces. GPS tracks your route. Every observation is pinned to the live map.',
-    bikeLabel:     'Walk and Count Parked Bikes',
-    bikeTitle:     'Walk and<br>Survey Parked Bikes',
-    bikeDesc:      'Walk a street and count parked bikes. GPS tracks your route. Every observation is pinned to the live map.',
-    capacityLabel: 'Walk and Map Car Parking Capacity',
-    capacityTitle: 'Mapping<br>capacity only',
-    capacityDesc:  'Walk a street and count a base map of parking spots for cars. GPS tracks your route. Every observation is pinned to the live map. GPS + OSM-snap.',
+    grpTraffic:    'Count traffic',
+    grpTrafficSub: 'what goes by',
+    grpParking:    'Count parking',
+    grpParkingSub: 'what is parked',
+    grpDesk:       'At your desk',
+    grpDeskSub:    'before and after fieldwork',
+    pkparkLabel:   'Pocket — parking',
+    pkparkTitle:   'Quick count:<br>taken or free',
+    pkparkDesc:    'Walk a street and tap per side: taken or free. Four big tiles and a click sound, so your eyes stay on the street. Afterwards the reconstruction puts every tap on the right side of the road.',
+    parkingLabel:  'Car parking survey',
+    parkingTitle:  'Space by space,<br>on the map',
+    parkingDesc:   'For a full survey: every space parked correctly or not, empty or special, per side of the street. Each observation appears on the map straight away, on the side where it is.',
+    bikeLabel:     'Bike parking',
+    bikeTitle:     'Parked<br>bikes',
+    bikeDesc:      'Walk a street or bike rack and count bikes, mopeds, wide bikes and wrecks. Each observation appears on the map straight away.',
+    capacityLabel: 'Capacity',
+    capacityTitle: 'Spaces<br>only',
+    capacityDesc:  'Map how many parking spaces there are: space by space along the street, or by eye per car park. No occupancy — the base map for later counts.',
+    deskPlan:      'Plan',
+    deskPlanDesc:  'routes and coverage, before you go',
+    deskRecon:     'Reconstruct',
+    deskReconDesc: 'put route and side right afterwards',
+    deskReport:    'Report',
+    deskReportDesc:'map and analysis',
     helpLink:      'Help &amp; documentation'
   },
   nl: {
@@ -397,15 +540,30 @@ const i18n = {
     pocketLabel:   'Pocket — drie modi',
     pocketTitle:   'Tellen in beweging',
     pocketDesc:    'Drie modi in één tool: simpel tikken met de telefoon in je zak, transect-tellingen per voertuigtype en richting, of voetgangersstroom in een winkelstraat. Gesnapt op het wegennet; exporteert een ZIP.',
-    parkingLabel:  "Geparkeerde auto's tellen",
-    parkingTitle:  "Parkeertelling auto's",
-    parkingDesc:   "Loop een straat en tel geparkeerde auto's en lege plekken. De GPS volgt je route. Elke waarneming wordt vastgepind op de live kaart.",
-    bikeLabel:     'Geparkeerde fietsen tellen',
-    bikeTitle:     'Parkeertelling Fietsen',
-    bikeDesc:      'Loop een straat en tel geparkeerde fietsen. De GPS volgt je route. Elke waarneming wordt vastgepind op de live kaart.',
-    capacityLabel: 'Parkeercapaciteit in kaart',
-    capacityTitle: 'Parkeer-capaciteit in kaart',
-    capacityDesc:  "Loop een straat en breng het aantal parkeerplaatsen voor auto's in kaart. De GPS volgt je route. Elke waarneming wordt vastgepind op de live kaart. Een telling wordt op een OpenStreetMap-link geplaatst.",
+    grpTraffic:    'Verkeer tellen',
+    grpTrafficSub: 'wat komt er langs',
+    grpParking:    'Parkeren tellen',
+    grpParkingSub: 'wat staat er',
+    grpDesk:       'Achter je bureau',
+    grpDeskSub:    'voor en na het veldwerk',
+    pkparkLabel:   'Pocket — parkeren',
+    pkparkTitle:   'Snel tellen:<br>bezet of leeg',
+    pkparkDesc:    'Loop een straat en tik per kant: bezet of leeg. Vier grote vlakken en een tikgeluid, zodat je ogen op straat blijven. Achteraf zet de reconstructie elke tik aan de goede kant van de weg.',
+    parkingLabel:  "Parkeertelling auto's",
+    parkingTitle:  'Per vak,<br>op de kaart',
+    parkingDesc:   'Voor een volledige telling: per plek goed of fout geparkeerd, leeg of bijzonder, per kant van de straat. Elke waarneming staat meteen op de kaart, aan de kant waar hij staat.',
+    bikeLabel:     'Fietsparkeren',
+    bikeTitle:     'Geparkeerde<br>fietsen',
+    bikeDesc:      'Loop een straat of stalling en tel fietsen, brommers, brede fietsen en wrakken. Elke waarneming staat meteen op de kaart.',
+    capacityLabel: 'Capaciteit',
+    capacityTitle: 'Alleen<br>de plekken',
+    capacityDesc:  'Breng in kaart hoeveel parkeerplaatsen er zijn: per vak langs de straat, of op het oog per parkeerterrein. Geen bezetting — de basiskaart voor latere tellingen.',
+    deskPlan:      'Plannen',
+    deskPlanDesc:  'routes en dekking, vooraf',
+    deskRecon:     'Reconstrueren',
+    deskReconDesc: 'route en kant achteraf rechtzetten',
+    deskReport:    'Rapport',
+    deskReportDesc:'kaart en analyse',
     helpLink:      'Help &amp; documentatie'
   }
 };

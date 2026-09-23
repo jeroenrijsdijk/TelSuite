@@ -1,9 +1,48 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Traffic Counter — Help</title>
+<!-- ── SEO ────────────────────────────────────────────── -->
+<title>Handleiding — verkeers- en parkeertellingen | telonline.org</title>
+<meta name="description" content="Handleiding bij de teltools van telonline.org: tellen in het veld, ZIP's nabewerken met de reconstructie, en tellingen presenteren in Telrapport.">
+<link rel="canonical" href="https://telonline.org/traffic_counter_help.html">
+
+<!-- Open Graph -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="Handleiding — verkeers- en parkeertellingen">
+<meta property="og:description" content="Handleiding bij de teltools van telonline.org: tellen in het veld, ZIP's nabewerken met de reconstructie, en tellingen presenteren in Telrapport.">
+<meta property="og:url" content="https://telonline.org/traffic_counter_help.html">
+<meta property="og:locale" content="nl_NL">
+<meta property="og:site_name" content="telonline.org">
+
+<!-- Structured data: TechArticle (handleiding) -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Handleiding — verkeers- en parkeertellingen",
+  "url": "https://telonline.org/traffic_counter_help.html",
+  "description": "Handleiding bij de teltools van telonline.org: tellen in het veld, ZIP's nabewerken met de reconstructie, en tellingen presenteren in Telrapport.",
+  "inLanguage": "nl",
+  "about": {
+    "@type": "WebApplication",
+    "@id": "https://telonline.org/#app",
+    "name": "Telonline Verkeerstellingen",
+    "url": "https://telonline.org/"
+  },
+  "author": {
+    "@type": "Organization",
+    "name": "telonline.org",
+    "url": "https://telonline.org/"
+  },
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "telonline.org",
+    "url": "https://telonline.org/"
+  }
+}
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
 
@@ -224,9 +263,10 @@
 
   <div class="card mode-static">
     <div class="card-title">Tellen</div>
-    <p>Er zijn 5 teltools beschikbaar &mdash; Pocket kent daarbinnen 4 sub-modi (simpel, transect, winkelstraat, parkeren).</p>
+    <p>Er zijn 5 teltools beschikbaar &mdash; Pocket kent daarbinnen 4 sub-modi (simpel, transect, winkelstraat, parkeren). Op de voorpagina staan ze in twee groepen: <strong>Verkeer tellen</strong> &mdash; wat komt er langs (Static, en Pocket in beweging) &mdash; en <strong>Parkeren tellen</strong> &mdash; wat staat er (Pocket-parkeren, parkeertelling, fietsparkeren, capaciteit). Pocket-parkeren heeft daar een eigen ingang.</p>
     <div class="back-links">
       <a class="back" href="traffic_counter.html">Static</a>
+      <a class="back" href="pocket_count.html#parkeren">Pocket-parkeren</a>
       <a class="back" href="parkeertelling.html">Autoparkeren</a>
       <a class="back" href="fietsparkeren.html">Fietsparkeren</a>
       <a class="back" href="capaciteitstelling.html">Capaciteitstelling</a>
@@ -235,7 +275,7 @@
   </div>
   <div class="card mode-static">
     <div class="card-title">Planning &amp; Rapportage</div>
-    <p>Na het tellen verwerk je de resultaten. Drie tools:</p>
+    <p>Na het tellen verwerk je de resultaten. Drie tools, op de voorpagina onder <strong>Achter je bureau</strong>:</p>
     <ul>
       <li><a class="back" href="telplanning.html">Telplanning</a> — maak en verstuur opdrachten tot het tellen van straten.</li>
       <li><a class="back" href="telreconstructie.html">Telreconstructie</a> — de tussenstap: herbereken een parkeer- of pocket-ZIP op logica. De gelopen GPS route en de aangeklikte punten worden opnieuw op het netwerk gefit.</li>
@@ -265,7 +305,8 @@
     <li><a href="#directions">Directions &amp; compass</a></li>
     <li><a href="#gps">GPS &amp; location</a></li>
     <li><a href="#notes">Location / Notes field</a></li>
-    <li><a href="#csv">CSV export</a></li>
+    <li><a href="#csv">Export (ZIP)</a></li>
+    <li><a href="#recovery">Interruptions &amp; continuing</a></li>
     <li><a href="#keyboard">Keyboard shortcuts</a></li>
     <li><a href="#tips">Field tips</a></li>
   </ul>
@@ -319,6 +360,8 @@
   </ul>
   <p class="subhead">Algemeen</p>
   <ul>
+    <li><a href="#herstel">Onderbreking, herstel &amp; doortellen</a></li>
+    <li><a href="#reconstructie">Telreconstructie in het kort</a></li>
     <li><a href="#files">Bestanden</a></li>
   </ul>
 </div>
@@ -489,10 +532,17 @@
 
 <!-- CSV -->
 <section id="csv">
-  <h2>CSV export</h2>
-  <p>All CSV files use <strong>semicolons</strong> as column delimiters and start with <code>sep=;</code> so Excel opens them correctly without the import wizard. All timestamps are in your local device timezone.</p>
+  <h2>Export (ZIP)</h2>
+  <p>END (or <strong>Export CSV</strong>) produces one ZIP named after the session id, which ends in <code>_sta</code> and is fixed from the moment you press Start. Since v2.73 it has the same shape as the other tools:</p>
+  <table class="key-table">
+    <tr><td><code>_sessie.csv</code></td><td>One row: date, start/end, total, direction labels, the counting point (lat/lon, accuracy, street, city), notes, active duration in seconds and the per-hour factor</td></tr>
+    <tr><td><code>_telregels.csv</code></td><td>One row per vehicle: date <em>and</em> time, type (car/truck/moto/bike/ped), direction <code>a</code>/<code>b</code></td></tr>
+    <tr><td><code>_onderbrekingen.csv</code></td><td>Only after an interruption: one row per gap (from, to, seconds)</td></tr>
+    <tr><td><code>_overzicht.csv</code></td><td>The human-readable overview described below &mdash; the same file the app exported before v2.73</td></tr>
+  </table>
+  <p class="mt-8">All CSV files use <strong>semicolons</strong> as column delimiters. All timestamps are in your local device timezone. Telrapport reads the ZIP directly, and also older Static ZIPs and loose CSVs.</p>
 
-  <h3>CSV structure</h3>
+  <h3>Overview CSV structure</h3>
   <table class="key-table">
     <tr><td>Header block</td><td>Export time, notes, start/end times, duration, GPS data (lat, lon, accuracy, street, city, country, reliability), extrapolation factor</td></tr>
     <tr><td>Summary table</td><td>Counts per vehicle type and direction, plus per-hour extrapolations if session was 30s or longer</td></tr>
@@ -501,7 +551,26 @@
 
   <div class="card mode-both">
     <div class="card-title">Hourly extrapolation</div>
-    <p>Calculated as <code>count x (3600 / observed seconds)</code>. Requires a session of at least 30 seconds. The exact factor and observed duration are written to the CSV so you can verify or adjust the calculation in KNIME.</p>
+    <p>Calculated as <code>count x (3600 / observed seconds)</code>. Requires a session of at least 30 seconds. The exact factor and observed duration are written to the CSV so you can verify or adjust the calculation in KNIME. <strong>Interruptions are not observed time</strong>: they are left out of the duration and the factor (see below).</p>
+  </div>
+</section>
+
+<!-- Interruptions (v2.72) -->
+<section id="recovery">
+  <h2>Interruptions &amp; continuing</h2>
+  <p>The count is saved on the phone after every tap and every 10 seconds. If the browser crashes, the tab is swiped away or the page reloads, nothing is lost: on reopening, a brown bar shows the restored count with three choices.</p>
+  <table class="key-table">
+    <tr><td><strong>&#9654; Continue</strong></td><td>Carry on in the same session. The time between the last sign of life and Continue is recorded as an interruption.</td></tr>
+    <tr><td><strong>&#8595; Download</strong></td><td>Export what was counted, up to the last known moment.</td></tr>
+    <tr><td><strong>&#10005; Discard</strong></td><td>Throw the restored count away (asks first).</td></tr>
+  </table>
+  <div class="card mode-both mt-12">
+    <div class="card-title">Why interruptions are left out</div>
+    <p>Static turns a count into vehicles per hour. Ten minutes in which nobody counted would pull that figure down. So the on-screen clock, <em>Observed duration</em> and the <em>Extrapolation factor</em> only count active time, and the export lists each interruption. Start and end time remain the real clock times.</p>
+  </div>
+  <div class="card mode-both">
+    <div class="card-title">Screen stays on</div>
+    <p>While counting, the screen stays on (Wake Lock). A finished and exported session is cleared automatically; a finished session that was never downloaded is offered again on the next visit.</p>
   </div>
 </section>
 
@@ -685,7 +754,7 @@
     <div class="card-title">Automatisch opslaan</div>
     <p>De app slaat de sessie op in de localStorage van de telefoon. Bij een crash of per ongeluk gesloten tab gaat niets verloren.</p>
   </div>
-  <p>Bij heropenen verschijnt een herstelmelding als er een niet-afgesloten sessie is. Download-knoppen worden direct actief zodat de data exporteerbaar is.</p>
+  <p>Bij heropenen verschijnt een herstelmelding als er een niet-afgesloten sessie is. Download-knoppen worden direct actief zodat de data exporteerbaar is, en met <strong>&#9654; Doortellen</strong> ga je verder in dezelfde sessie: zelfde sessie-id, zelfde starttijd, alles in één ZIP. Druk je toch op Start, dan vraagt de app eerst of de herstelde telling weg mag. Zie <a href="#herstel">Onderbreking, herstel &amp; doortellen</a>.</p>
 </section>
 
 <!-- Export -->
@@ -828,6 +897,10 @@
     <p>Elk telscherm heeft een <strong>&#8249; Terug</strong>-knop. Staan er al tikken op de teller, dan vraagt de app eerst een bevestiging — terug gaan zonder eerst te downloaden kost je die tikken. Download dus eerst als je van modus wilt wisselen halverwege een sessie.</p>
   </div>
   <div class="card mode-both">
+    <div class="card-title">Onderbroken telling</div>
+    <p>Staat er nog een onderbroken telling in de telefoon, dan staat bovenaan het keuzescherm een herstelmelding met <strong>&#9654; Doortellen</strong>, <strong>Download</strong> en <strong>Verwijder</strong>. Doortellen gaat verder in dezelfde modus, met dezelfde tikken, route en starttijd. Tik je in plaats daarvan een modus aan, dan vraagt pocket eerst of de onderbroken telling weg mag.</p>
+  </div>
+  <div class="card mode-both">
     <div class="card-title">Wake Lock</div>
     <p>Het scherm blijft aan zolang een van de vier telschermen actief is. Op browsers die Wake Lock niet ondersteunen (iOS Safari vóór versie 16.4) is dit niet gegarandeerd — zet dan handmatig de schermtime-out uit.</p>
   </div>
@@ -904,6 +977,10 @@
     <div class="card-title">2×2-grid</div>
     <p>Vier vaste vakken: <strong>Links·Bezet</strong>, <strong>Rechts·Bezet</strong> (bovenrij), <strong>Links·Leeg</strong>, <strong>Rechts·Leeg</strong> (onderrij) — kolom is de kant van de straat, rij is de status. Tik het vak om +1 te registreren; het <code>−</code>-hoekje van elk vak (naar het midden van het grid gericht, zodat alle vier makkelijk bereikbaar blijven) maakt de laatste tik van dat vak ongedaan.</p>
   </div>
+  <div class="card bl-blue">
+    <div class="card-title">Eigen ingang op de voorpagina</div>
+    <p>De kaart <strong>Pocket &mdash; parkeren</strong> op de voorpagina opent <code>pocket_count.html#parkeren</code>. Via die ingang is pocket een parkeer-app: je komt meteen op het parkeerscherm, <strong>&#8249; Terug</strong> gaat naar de voorpagina, en na opslaan begint een nieuwe, lege telling. Het keuzemenu met de vier modi zie je niet. Tip: zet deze pagina als eigen icoon op je beginscherm (Delen &rarr; Zet op beginscherm).</p>
+  </div>
   <p class="note mt-8">In <code>_telregels.csv</code> komt de status (<code>bezet</code>/<code>leeg</code>) in de kolom <code>type</code>, de kant (<code>links</code>/<code>rechts</code>) in <code>richting</code> — bestaande kolommen, geen schemawijziging. De sessie krijgt <code>app_type=pocket</code>, <code>modus=parkeren</code>; in QGIS en telrapport valt deze telling dus onder dezelfde parkeren-herkenning als parkeertelling.html, alleen zonder fout/spec-detail.</p>
 </section>
 
@@ -949,6 +1026,7 @@
 <section id="rapport-laden">
   <h2>ZIPs laden</h2>
   <p>Sleep ZIP-bestanden op de kaart of gebruik de uploadknop rechtsonder. Meerdere ZIPs van dezelfde locatie maar verschillende momenten kunnen tegelijk worden geladen — de tijdfilter helpt dan om ze apart te bekijken.</p>
+  <p><strong>Static-tellingen</strong> (stilstaand) laden in drie vormen: de ZIP van v2.73 en later, de oudere <code>traffic_count_&hellip;.zip</code> en een losse CSV. Ze verschijnen als punt op de kaart en gaan ook mee in een verzameling.</p>
   <p>De kapaciteitsreferentielaag (<code>cap_netwerk.csv</code> en <code>cap_capaciteit.csv</code> op de server) wordt automatisch geladen als achtergrond — paarse contouren voor de bekende parkeerzones.</p>
 </section>
 
@@ -1127,6 +1205,44 @@
 </section>
 
 <!-- ══════════════════════════════════════════════════════
+     ALGEMEEN (v2.74)
+     ══════════════════════════════════════════════════════ -->
+<div class="divider">
+  <div class="divider-label" style="color:var(--dim)">Algemeen</div>
+</div>
+
+<section id="herstel">
+  <h2>Onderbreking, herstel &amp; doortellen</h2>
+  <p>Alle vijf de teltools slaan de telling na elke tik op in de telefoon, en nog eens als het scherm uitgaat of je van app wisselt. Een crash, een weggeveegde tab of een per ongeluk herladen pagina kost dus geen tellingen.</p>
+  <table class="key-table">
+    <tr><td><strong>Herstelmelding</strong></td><td>Verschijnt bij het heropenen van de tool als er een niet-afgesloten telling is.</td></tr>
+    <tr><td><strong>&#9654; Doortellen</strong></td><td>Verder in dezelfde telling: zelfde sessie en starttijd, alles in één ZIP. De onderbreking is zichtbaar als gat in het GPS-spoor; Static telt de onderbroken tijd niet mee in de uurintensiteit.</td></tr>
+    <tr><td><strong>Download</strong></td><td>De telling tot het moment van onderbreken exporteren, zonder door te tellen.</td></tr>
+    <tr><td><strong>Verwijder</strong></td><td>Weggooien, na bevestiging.</td></tr>
+    <tr><td><strong>Nieuwe telling</strong></td><td>Start je een nieuwe terwijl er een herstelde klaarstaat, dan vraagt de tool eerst of die weg mag.</td></tr>
+  </table>
+  <div class="card mode-both mt-12">
+    <div class="card-title">Goed om te weten</div>
+    <ul class="mt-4">
+      <li>Bij een harde crash gaan GPS-punten van na de laatste tik verloren; bij scherm-uit of een app-wissel niet.</li>
+      <li>In een privévenster van Safari verdwijnt de opslag zodra de tab sluit.</li>
+      <li>Safari kan websitegegevens wissen van een site die je ruim een week niet hebt bezocht. Download een herstelde telling dus snel.</li>
+      <li>De opslag is ongeveer 5&nbsp;MB voor heel telonline.org. Een normale sessie gebruikt daar een fractie van.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="reconstructie">
+  <h2>Telreconstructie in het kort</h2>
+  <p>De reconstructor legt een parkeer- of pocket-telling achteraf opnieuw op het wegennet: route-consistent snappen, looprichting, en de kant van de weg voor parkeertikken. Het resultaat is <code>&lt;sessie_id&gt;_recon.zip</code>; de sessie-id zelf verandert niet.</p>
+  <table class="key-table">
+    <tr><td><strong>Wegtype-voorkeur</strong></td><td>Een autotelling blijft op de rijbaan, een fietstelling op het fietspad, ook als de GPS naar de andere kant trekt (sinds v2.67). Is er alleen het andere wegtype, dan wordt dat alsnog gekozen. Lopende tellingen hebben geen voorkeur.</td></tr>
+    <tr><td><strong>Versiestempel</strong></td><td>Elke gereconstrueerde ZIP draagt in <code>_sessie.csv</code> (kolom <code>reconstructie</code>) en in <code>_reconstructie_log.csv</code> de release waarin de reconstructor voor het laatst veranderde.</td></tr>
+    <tr><td><strong>Static</strong></td><td>Een stilstaand-telling is één vaste plek zonder route; de reconstructor weigert die met een melding. Open hem direct in telrapport.</td></tr>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
      BESTANDEN (gecombineerd)
      ══════════════════════════════════════════════════════ -->
 <div class="divider">
@@ -1148,7 +1264,7 @@
     </div>
     <div class="file-row">
       <span class="file-name">traffic_counter.html</span>
-      <span class="file-desc">Static mode — fixed location counting</span>
+      <span class="file-desc">Static — tellen vanaf een vast punt; export als ZIP in de vorm van de suite (sessie-id eindigt op <code>_sta</code>)</span>
     </div>
     <div class="file-row">
       <span class="file-name">parkeertelling.html</span>
@@ -1172,7 +1288,7 @@
     </div>
     <div class="file-row">
       <span class="file-name">pocket_count.html</span>
-      <span class="file-desc">Move and Count Simple — één-knops pocket-telling</span>
+      <span class="file-desc">Pocket — tellen met de telefoon in de hand of zak; vier sub-modi, en een eigen ingang voor parkeren (<code>#parkeren</code>)</span>
     </div>
     <div class="file-row">
       <span class="file-name">telplanning.html</span>
@@ -1203,6 +1319,10 @@
       <span class="file-desc">Opdracht opslaan vanuit telplanning</span>
     </div>
     <div class="file-row">
+      <span class="file-name">/planningen/planning_delete.php</span>
+      <span class="file-desc">Opdracht verwijderen</span>
+    </div>
+    <div class="file-row">
       <span class="file-name">/cap_netwerk.csv</span>
       <span class="file-desc">Capaciteitsreferentielaag — geometrie per wegvak/terrein</span>
     </div>
@@ -1211,7 +1331,7 @@
       <span class="file-desc">Capaciteitsaantallen per osm_way_id</span>
     </div>
   </div>
-  <p class="mt-12">External dependencies (CDN, require internet): Leaflet.js, OpenStreetMap tiles &amp; Nominatim, Overpass API.</p>
+  <p class="mt-12">Externe afhankelijkheden (internet nodig): Leaflet, JSZip en PapaParse via CDN; kaarttegels van OpenStreetMap, CARTO en PDOK; Nominatim (straatnaam); Overpass API (wegennet); Open-Meteo (weer, in telrapport).</p>
   <p class="mt-12">Many thanks to developers and contributors to Openstreetmap, all built by a community of people like you. If you see errors, report or correct them.</p>
 </section>
 

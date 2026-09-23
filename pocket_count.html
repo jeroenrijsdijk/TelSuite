@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Pocket Count</title>
+<script>
+// Directe parkeer-ingang (v2.70): al vóór de eerste weergave, zodat het
+// keuzemenu met de vier modi ook niet even zichtbaar is (zie .pk-ingang).
+if (location.hash === '#parkeren') {
+  document.documentElement.className += ' pk-ingang';
+  document.title = 'Pocket Parkeren';
+}
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -551,6 +559,14 @@
   #pk-map-legend .lg { display: flex; align-items: center; gap: 5px; }
   #pk-map-legend .dot { width: 15px; height: 15px; border-radius: 50%; box-sizing: border-box; }
   #pk-map-legend .ln { width: 18px; height: 4px; border-radius: 2px; }
+
+  /* Directe parkeer-ingang (v2.70): van het keuzescherm blijft alleen de
+     Parkeren-knop over. Nodig bij een herstelmelding, en als er na Stop geen
+     voorbeeldscherm komt (bijv. zonder GPS-spoor): dan is er altijd een weg
+     terug naar parkeren, nooit het menu met vier modi. */
+  .pk-ingang #choose-heading,
+  .pk-ingang #mode-note,
+  .pk-ingang #mode-btns > .type-btn:not([onclick="chooseParkeren()"]) { display: none; }
 </style>
 </head>
 <body>
@@ -566,6 +582,7 @@
   <h1 id="choose-heading">Wat tel je?</h1>
   <div id="restore-banner" style="display:none;max-width:340px;width:100%;background:#5a3a1a;border:1px solid #b07d2b;border-radius:6px;padding:12px 14px;margin-bottom:10px;font-family:var(--font);box-sizing:border-box;">
     <p id="restore-text" style="margin:0 0 10px;font-size:0.85rem;font-weight:600;color:#fff;line-height:1.35;"></p>
+    <button onclick="hervatTelling()" style="width:100%;margin-bottom:8px;padding:12px;background:#0a8a30;border:none;border-radius:5px;font-family:var(--font);font-size:0.85rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;cursor:pointer;">&#9654; Doortellen</button>
     <div style="display:flex;gap:8px;">
       <button onclick="restoreDownload()" style="flex:1;padding:10px;background:#3a7d44;border:none;border-radius:5px;font-family:var(--font);font-size:0.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;cursor:pointer;">&#x2913; Download</button>
       <button onclick="restoreDiscard()" style="flex:1;padding:10px;background:#444;border:none;border-radius:5px;font-family:var(--font);font-size:0.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.7);cursor:pointer;">&#x2715; Verwijder</button>
@@ -875,6 +892,7 @@ var tcRichtingA = 'Richting A', tcRichtingB = 'Richting B';
 function chooseTransect() { startTransect(); }
 
 function startTransect() {
+  if (!magNieuwStarten()) return;   // v2.72
   clearSession();
   currentModus = 'transect';
   telType = 'transect'; telLabel = 'Transect'; telIcon = '\u2194\uFE0F';
@@ -1064,6 +1082,7 @@ var wsCounts = {};
 function chooseWinkelstraat() { startWinkelstraat(); }
 
 function startWinkelstraat() {
+  if (!magNieuwStarten()) return;   // v2.72
   clearSession();
   currentModus = 'winkelstraat';
   telType = 'winkelstraat'; telLabel = 'Winkelstraat'; telIcon = '\uD83D\uDED2';
@@ -1176,6 +1195,7 @@ var pkCounts = {};
 function chooseParkeren() { startParkeren(); }
 
 function startParkeren() {
+  if (!magNieuwStarten()) return;   // v2.72
   clearSession();
   currentModus = 'parkeren';
   telType = 'parkeren'; telLabel = 'Parkeren'; telIcon = '\uD83C\uDD7F\uFE0F';
@@ -1345,6 +1365,7 @@ function closeParkeerScreen() {
 function pkBack() {
   if (telCount > 0 && !confirm('Terug? ' + telCount + ' tikken gaan verloren als je niet eerst downloadt.')) return;
   closeParkeerScreen();
+  if (pkDirect) { location.href = 'index.html'; return; }   // v2.70: directe ingang
   backToModes();
   document.getElementById('choose-screen').style.display = '';
 }
@@ -1406,6 +1427,78 @@ function restoreDiscard() {
   clearSession();
   telCount = 0; telHistory = []; routeLog = [];
   document.getElementById('restore-banner').style.display = 'none';
+  if (pkDirect) startParkeren();   // v2.70: directe ingang, geen keuzemenu
+}
+
+// ── Doortellen na herstel (v2.72) ───────────────────────────────────────
+// Een herstelde telling kan verder, in dezelfde modus en met dezelfde tikken,
+// route en starttijd. Werkwijze: de modus gewoon starten (scherm, GPS,
+// scherm-aan), en daarna de telling terugzetten. De start*-functies wissen de
+// noodopslag; saveSession() aan het eind schrijft hem meteen terug.
+// De onderbreking blijft zichtbaar als gat in de GPS-route.
+function herstelZichtbaar() {
+  var b = document.getElementById('restore-banner');
+  return !!(b && b.style.display !== 'none');
+}
+
+// Nieuwe telling terwijl er een herstelde klaarstaat: die zou stil gewist worden.
+function magNieuwStarten() {
+  if (!herstelZichtbaar()) return true;
+  if (!confirm('Nieuwe telling starten? De herstelde telling (' + telCount + ' tikken) wordt dan gewist. '
+               + 'Kies anders Doortellen of Download.')) return false;
+  document.getElementById('restore-banner').style.display = 'none';
+  return true;
+}
+
+function hervatTelling() {
+  if (!herstelZichtbaar() || !telHistory.length) return;
+  var bewaard = {
+    modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
+    telCount: telCount, telHistory: telHistory, routeLog: routeLog, startTime: startTime,
+    tcCounts: tcCounts, tcRichtingA: tcRichtingA, tcRichtingB: tcRichtingB
+  };
+  document.getElementById('restore-banner').style.display = 'none';
+
+  if (bewaard.modus === 'transect') startTransect();
+  else if (bewaard.modus === 'winkelstraat') startWinkelstraat();
+  else if (bewaard.modus === 'parkeren') startParkeren();
+  else { currentModus = 'simpel'; startTelling(bewaard.telType, bewaard.telIcon, bewaard.telLabel); }
+
+  telCount = bewaard.telCount; telHistory = bewaard.telHistory;
+  routeLog = bewaard.routeLog; startTime = bewaard.startTime;
+  var laatste = routeLog[routeLog.length - 1];
+  if (laatste) { lastRouteLat = laatste.lat; lastRouteLon = laatste.lon; }
+
+  if (currentModus === 'transect') {
+    tcRichtingA = bewaard.tcRichtingA; tcRichtingB = bewaard.tcRichtingB;
+    document.getElementById('lbl-a').value = tcRichtingA;
+    document.getElementById('lbl-b').value = tcRichtingB;
+    var totaal = 0;
+    TC_TYPES.forEach(function (t) {
+      var c = (bewaard.tcCounts && bewaard.tcCounts[t.id]) || { a: 0, b: 0 };
+      tcCounts[t.id] = { a: c.a, b: c.b };
+      ['a', 'b'].forEach(function (d) {
+        var cel = document.getElementById('tc-' + t.id + '-' + d);
+        if (cel) cel.textContent = c[d];
+      });
+      totaal += c.a + c.b;
+    });
+    document.getElementById('grand-total').textContent = totaal;
+  } else if (currentModus === 'winkelstraat') {
+    WS_CATS.forEach(function (c) { wsCounts[c.id] = 0; });
+    telHistory.forEach(function (e) { if (e.type in wsCounts) wsCounts[e.type]++; });
+    updateWinkelDisplay();
+  } else if (currentModus === 'parkeren') {
+    PK_CATS.forEach(function (c) { pkCounts[pkKey(c)] = 0; });
+    telHistory.forEach(function (e) {
+      var k = e.richting + '_' + e.type;
+      if (k in pkCounts) pkCounts[k]++;
+    });
+    updateParkeerDisplay();
+  } else {
+    document.getElementById('big-count').textContent = telCount;
+  }
+  saveSession();
 }
 
 function chooseOther() {
@@ -1434,6 +1527,7 @@ function confirmOther() {
 }
 
 function startTelling(type, icon, label) {
+  if (!magNieuwStarten()) return;   // v2.72
   clearSession();
   telType    = type;
   telLabel   = label;
@@ -2319,6 +2413,7 @@ function showPreview() {
 function closePreview() {
   document.getElementById('preview-overlay').classList.remove('visible');
   clearSession();   // export bevestigd gezien \u2192 herstelkopie mag weg
+  if (pkDirect) startParkeren();   // v2.70: directe ingang, geen keuzemenu
 }
 
 // Vangnet: biedt de laatst gegenereerde ZIP opnieuw aan. Deze tik is een verse
@@ -2900,7 +2995,11 @@ function snapNearestWay(lat, lon, eventInfo) {
   // eventInfo (optioneel): {type:'gps'|'tap', tijdstip, accuracy, tap_nr}
   //   gebruikt voor _snap_trace.csv schrijven. Zonder eventInfo wordt niet getraced.
   if (!snap.segs.length || snap.cacheLat===null) {
-    if (eventInfo) traceWrite(eventInfo, lat, lon, 'no_network', null, null, null, []);
+    // v2.71: hier ontbrak één argument (dChosen), waardoor alts undefined was en
+    // traceWrite() op alts.map() crashte. Die fout brak de GPS-callback af vóór
+    // routeLog.push(): zolang er geen wegennet was (start, of Overpass
+    // onbereikbaar) werd er geen enkel routepunt bewaard.
+    if (eventInfo) traceWrite(eventInfo, lat, lon, 'no_network', null, null, null, null, []);
     return null;
   }
   var p = snapToXY(lat, lon, snap.cacheLat, snap.cacheLon);
@@ -3164,6 +3263,9 @@ function snapStallCheck(lat, lon, res, stepM, evt) {
 // na alle eventuele wijzigingen in deze snap-aanroep.
 function traceWrite(evt, lat, lon, snapPath, anchorBefore, chosenWay, dAnchor, dChosen, alts) {
   snap.traceSeq++;
+  // Vangnet (v2.71): een fout hier breekt de GPS-callback af en kost dan
+  // routepunten. Een ontbrekende alternatievenlijst mag nooit veldgegevens kosten.
+  alts = alts || [];
   var altStr = alts.map(function(a){ return a.wayId + ':' + a.d.toFixed(1); }).join('|');
   snap.trace.push({
     seq:            snap.traceSeq,
@@ -3413,15 +3515,56 @@ function snapCheckRefresh(lat, lon) {
 }
 // ── EINDE SNAP MODULE ─────────────────────────────────────────────────────────
 
-// Pas de taal toe bij het laden zodat het vertaalsysteem de enige bron van
-// waarheid is (ook de HTML-defaults lopen er dan doorheen).
-applyLang();
-
-// Sessieherstel (v2.11): veiligheids-opslag bij scherm-uit/wegnavigeren, en
-// bij het laden een eventuele niet-afgeronde telling terugbieden.
+// Sessieherstel (v2.11): veiligheids-opslag bij scherm-uit/wegnavigeren.
 document.addEventListener('visibilitychange', function(){ if (document.hidden) saveSession(); });
 window.addEventListener('pagehide', saveSession);
-restoreSession();
+
+// Opstarten (v2.69): pas als de hele pagina er staat. Tot v2.69 stonden
+// applyLang() en restoreSession() hier los in het script. Maar het
+// voorbeeldscherm (#preview-title e.a.) staat pas NA dit script in de HTML;
+// applyLang() liep daarop vast, het script stopte, en restoreSession() werd
+// nooit bereikt. Een onderbroken telling werd dus nooit teruggeboden, en bij
+// de volgende start stil gewist (start* roept clearSession() aan).
+document.addEventListener('DOMContentLoaded', function () {
+  // Pas de taal toe zodat het vertaalsysteem de enige bron van waarheid is
+  // (ook de HTML-defaults lopen er dan doorheen).
+  applyLang();
+  // Een eventuele niet-afgeronde telling terugbieden.
+  restoreSession();
+});
+
+// Directe ingang (v2.69, v2.70): de voorpagina linkt naar pocket_count.html#parkeren.
+// Via deze ingang is pocket een parkeer-app; het keuzemenu met de vier modi
+// verschijnt nooit (klasse .pk-ingang in <head> + pkDirect hieronder):
+//   - niets te herstellen: meteen het parkeerscherm;
+//   - een onderbroken telling: de herstelmelding met alleen de Parkeren-knop.
+//     Eerst herstellen, dan pas starten, want startParkeren() wist de
+//     noodopslag. Na Verwijder of na het voorbeeldscherm door naar parkeren;
+//   - Terug op het parkeerscherm: naar de voorpagina;
+//   - na Stop en het voorbeeldscherm: een verse parkeertelling.
+// Deze listener staat NA die van het opstarten hierboven; listeners draaien in
+// volgorde, dus restoreSession() heeft dan al beslist of de melding er staat.
+// De hash blijft in de adresbalk, zodat je deze ingang als eigen icoon op het
+// beginscherm kunt zetten.
+var pkDirect = false;
+function directeModus(hash, herstelOpen) {
+  if (hash !== '#parkeren') return null;
+  return herstelOpen ? 'herstel' : 'parkeren';
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var herstelOpen = document.getElementById('restore-banner').style.display !== 'none';
+  var ingang = directeModus(location.hash, herstelOpen);
+  if (!ingang) return;
+  pkDirect = true;
+  if (ingang === 'herstel') return;   // melding + alleen de Parkeren-knop (CSS)
+  startParkeren();
+  // Zonder tik vooraf kan de browser het scherm-aan-verzoek weigeren. De eerste
+  // aanraking telt als gebaar en vraagt het dan opnieuw.
+  document.addEventListener('pointerdown', function eenmalig() {
+    document.removeEventListener('pointerdown', eenmalig);
+    if (!wakeLock) acquireWakeLock();
+  });
+});
 
 </script>
 <!-- Preview overlay — verschijnt na opslaan ZIP -->

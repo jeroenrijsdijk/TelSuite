@@ -1,159 +1,131 @@
-# Telapp suite
+# Telonline Verkeerstellingen
 
-Verzameling standalone veldonderzoek-tools voor mobiliteit en infrastructuur in Nederland. Alle apps zijn enkelvoudige HTML-bestanden zonder framework of backend. Data wordt lokaal opgeslagen en geëxporteerd als ZIP met semikolom-CSV's, GPX en kaart-PNG.
+Losse HTML-tools voor Nederlandse verkeers- en parkeertellingen, online op
+**telonline.org**. Elk hulpmiddel is één HTML-bestand: geen framework, geen
+buildstap, geen account, geen backend (op het opslaan van planningen na).
+Veldwerk op de telefoon (iPhone/Safari), verwerking op de desktop.
+
+Dit bestand is de plattegrond. Wat er nu speelt, welke afspraken vastliggen en
+wat er op de backlog staat, staat in **`OVERDRACHT_STAND_VAN_ZAKEN.md`** —
+begin daar bij een nieuwe sessie.
+
+## Werkwijze
+
+```
+  telplanning ──opdracht──▶ veld-app ──ZIP──▶ telreconstructie ──_recon.zip──▶ telrapport
+  (vooraf)                  (telefoon)         (optioneel, desktop)             (kaart + analyse)
+       ▲                                                                              │
+       └──────────────────────────── dekking terug ───────────────────────────────────┘
+```
+
+Tellen levert per sessie een ZIP met semikolon-CSV's. Reconstrueren is
+optioneel: het legt de route opnieuw op het wegennet, bepaalt de looprichting en
+zet parkeertikken aan de juiste kant van de weg. Telrapport leest ruwe en
+gereconstrueerde ZIP's door elkaar. QGIS is een alternatief eindpunt (zie
+Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 
 ## Bestanden
 
-### Veldtellingen (mobile-first)
+### Veld (telefoon)
 
-| Bestand | Functie |
+| Bestand | Rol |
 |---|---|
-| `index.html` | Startscherm — overzicht van alle tools |
-| `traffic_counter.html` | Verkeerstelling vanaf vaste locatie |
-| `parkeertelling.html` | Parkeerbezetting wandelend — auto, links/rechts per zijde |
-| `fietsparkeren.html` | Fietsparkeerbezetting wandelend — fiets, wrak, brommer, breed |
-| `capaciteitstelling.html` | Parkeercapaciteit per vak en terrein |
-| `pocket_count.html` | Eén-knops pocket-telling — telefoon in jaszak |
+| `traffic_counter.html` | Static — tellen vanaf een vast punt |
+| `parkeertelling.html` | autoparkeren, lopend langs een traject |
+| `fietsparkeren.html` | fietsparkeren, idem |
+| `capaciteitstelling.html` | parkeercapaciteit per vak en per terrein |
+| `pocket_count.html` | Pocket — telefoon in de zak; vier sub-modi: simpel, transect, winkelstraat, parkeren. `pocket_count.html#parkeren` start meteen in parkeren |
 
-### Analyse & planning (desktop)
+### Desktop
 
-| Bestand | Functie |
+| Bestand | Rol |
 |---|---|
-| `telrapport.html` | Kaartvisualisatie voor alle teltypen — sleep ZIPs; sessielijst gegroepeerd per soort met kop-toggle |
-| `telplanning.html` | Telplanning aanmaken én dekkings-analyse |
-| `zip_format_reference.html` | Technische documentatie ZIP-formaten per app-type |
-| `traffic_counter_help.html` | Helpcentrum voor alle tools |
+| `telplanning.html` | planning maken en dekking beoordelen |
+| `telreconstructie.html` | nabewerking: hersnappen, richting, handmatige correctie |
+| `telrapport.html` | kaartvisualisatie en analyse, ook van verzamel-ZIP's |
 
-### Server-side (planningen)
+### Publiek en documentatie
 
-| Bestand | Functie |
+| Bestand | Rol |
 |---|---|
-| `planningen/planning_list.php` | Lijst van beschikbare opdrachten |
-| `planningen/planning_save.php` | Opdracht opslaan vanuit telplanning |
+| `index.html` | startscherm (NL/EN) |
+| `over.html` | introductie voor nieuwe bezoekers |
+| `traffic_counter_help.html` | handleiding — de functies per tool staan hier |
+| `zip_format_reference.html` | technische specificatie van alle ZIP's en CSV's (EN) |
 
-### Tools
+### Intern — bewust niet gelinkt
 
-| Bestand | Functie |
+| Bestand | Rol |
 |---|---|
-| `build_bezocht.py` | Upgrade pocket-ZIPs naar v2.3 segment-aware formaat (Python stdlib, in-place) |
+| `snap_methodology.html` | uitleg van de snap-methodiek (EN) |
+| `snaptrace.html` | rig: GPS-spoor tegen OSM bekijken |
+| `winkelstraat_rekenrig.html` | rig: rekenmodel winkelstraat |
 
-## Gebruik
+### Server
 
-Zet de HTML-bestanden in dezelfde map op een webserver. Geen installatie of buildstap nodig. Werkt in moderne mobiele browsers (Chrome/Safari op iOS en Android).
+`planningen/` — `planning_list.php`, `planning_save.php`, `planning_delete.php`.
+Nodig voor het bewaren van planningen vanuit `telplanning.html`: PHP 5.6+ en een
+schrijfbare map `/planningen/`. Zonder server werkt de rest gewoon.
 
-Vereist internetverbinding voor:
-- Google Fonts (Oswald, Share Tech Mono)
-- OpenStreetMap, CartoDB Positron en PDOK kaarttegels (Leaflet)
-- Nominatim reverse geocoding (straatnaam)
-- Overpass API (weggeometrie voor snapping)
+### Scripts
 
-Voor het opslaan van planningen op de server zijn PHP 5.6+ en een schrijfbare `/planningen/`-map vereist.
+| Script | Waar | Doel |
+|---|---|---|
+| `build_bezocht.py` | hier | upgradet oude pocket-ZIP's (v2.2) naar het segmentformaat; alleen voor oud materiaal |
+| `telonline_qgis_loader.py` | telonline.org | laadt een map met ZIP's in QGIS, één laag per teltype |
+| `relabel_modus.py`, `voeg_modusletter_toe.py` | buiten de suite | omzetting van het archief — klaar, bewaard voor een verdwaalde oude ZIP |
 
-## Workflow
+### Overige mappen
 
-```
-        veld                       desktop
-   ┌───────────────┐          ┌─────────────────┐
-   │ telapp        │   ZIP    │ telrapport      │
-   │ (in jaszak)   │ ───────▶ │ (kaart-analyse) │
-   └───────────────┘          └─────────────────┘
-          ▲                            │
-          │ opdracht                   │ dekkings-feedback
-          │                            ▼
-   ┌─────────────────────────────────────────┐
-   │ telplanning                             │
-   │ (gebiedselectie + dekkings-analyse)     │
-   └─────────────────────────────────────────┘
-```
+- `overdracht_v2_XX.md` — per release een overdracht; oudere in `_archief/`.
+- `VELDTEST_3.0.md` — draaiboek voor de veldtest op de iPhone vóór versie 3.0.
+- `_archief/overpass_rig/` — regressietests en `valideer.py`; zie de README daar.
+- `_archief/` verder — eerdere rigs en prototypes, alleen ter naslag.
 
-## Features per app
+## Plaatsen
 
-### Parkeertelling / Fietsparkeren
+Zet alles in één map op een webserver en klaar. De tools linken relatief naar
+elkaar, en de knop "Direct reconstrueren" geeft de ZIP via IndexedDB door —
+daarvoor moeten veld-app en reconstructor op dezelfde origin staan.
 
-- GPS-tracking met nauwkeurigheidsdrempel
-- Realtime snapping op OSM-weggeometrie via Overpass API met L/R-weging per highway-type
-- Kompas-fusie voor markerplaatsing loodrecht op de wegas
-- Mini-kaart met bezochte wegvakken
-- Crash recovery (localStorage)
-- Wake Lock: scherm blijft aan tijdens veldwerk
-- ZIP-export: CSV (sessie, telregels, straten, netwerk, gps), GPX, kaart-PNG (1920px)
-- Planningsopdracht laden via URL (`?plan=/planningen/x.json`)
+Wat er van buiten wordt opgehaald:
 
-### Capaciteitstelling
+- **Bibliotheken** via CDN (cdnjs, unpkg): Leaflet 1.9.4, JSZip 3.10.1,
+  PapaParse 5.4.1, Leaflet.draw 1.0.4 (alleen telplanning).
+- **Lettertypen**: Google Fonts (Oswald, Share Tech Mono).
+- **Kaarttegels**: OpenStreetMap, CARTO, PDOK. De CARTO-sleutel staat in drie
+  bestanden: `telrapport.html`, `telplanning.html`, `telreconstructie.html`.
+- **Wegennet**: Overpass API, twee endpoints (overpass-api.de en
+  private.coffee), met een gedeelde tegel-cache in IndexedDB.
+- **Straatnaam**: Nominatim, in de veld-apps.
+- **Weer**: Open-Meteo, in telrapport.
 
-- Twee modules: straat doorlopen (per parkeervak) en terrein op het oog (totaal-aantallen)
-- Categorieën: regulier / gehandicapt / laadpaal / gereserveerd
-- Automatische detectie van parkeerterreinen via OSM (`amenity=parking`)
-- NPR-integratie met regime-editor voor sunset-data
-- ZIP-export inclusief geometrie
+Tellingen zelf verlaten de browser niet: ze gaan alleen als ZIP naar de
+gebruiker. Wat wel naar buiten gaat zijn de verzoeken hierboven, en die
+verraden het gebied of de positie waar je telt.
 
-### Transect / Pocket
+## Conventies
 
-- Wandelende telling met OSM-snapping
-- Pocket: één-knops modus, lang indrukken voor undo
-- Pocket v2.2: `_bezocht.csv` met visit-duur per wegvak — voor flux-analyse
-- Pocket v2.3: wegvakken opgeknipt in ~40m segmenten — atomaire eenheid is `osm_way_id + segment_index`. Lange straten krijgen daardoor heat per segment in plaats van uniform per way.
+- **CSV**: puntkomma als scheidingsteken, punt als decimaalteken, UTF-8.
+- **ZIP-namen**: `_car` auto · `_fts` fiets · `_cap` capaciteit ·
+  `_pkt_<s|t|w|p>` pocket per sub-modus · `_sta` Static (sinds v2.73). Na reconstructie `<sessie_id>_recon.zip`
+  (de `sessie_id` zelf verandert niet). Een bewaarde kaart:
+  `TelVerzameling_<jjjjmmdd>.zip`. Het oude `_trn`-formaat wordt alleen nog
+  gelezen.
+- **Schema**: elke wijziging aan kolommen of sleutels eerst langs KNIME. De
+  specificatie in `zip_format_reference.html` wordt door een test tegen de
+  exportcode bewaakt.
+- **Gedeelde code**: blokken die in meer bestanden voorkomen (o.a.
+  `HIGHWAY_RE`, de Overpass-afhandeling, de tegel-cache, de segmentatie) moeten
+  byte-identiek blijven. `valideer.py` controleert dat.
+- **Taal**: interfaces en handleiding Nederlands; technische referentie Engels.
+- **Metadata**: Open Graph wel, Twitter/X-kaarten niet.
+- **Huisstijl**: Oswald, met Share Tech Mono als monospace.
 
-### Telrapport
+## Ontwikkelen
 
-- Sleep meerdere ZIPs tegelijk (gemengde teltypen mogelijk)
-- Warmtekaart per wegvak (auto: bezettingsgraad, fiets: √totaal)
-- Clustering voor losse stippen (transect/pocket) met gap-slider
-- Capaciteitsreferentielaag met nummerbadges
-- Tijdfilter (3-uurs venster)
-- Vier basemaps: OSM, CartoDB Positron, PDOK Topo grijs, PDOK Luchtfoto
-- Sessielijst-interacties: klik (toggle), shift-klik (alles aan/uit), rechtsklik (solo), hover (dim andere)
-- Pocket zero-visit detectie: dashed lijn voor wegen die zijn doorlopen zonder telling
-
-### Telplanning
-
-- **Maken**-modus: gebied tekenen, wegen selecteren, planning naar server
-- **Hertelling uit ZIP**: sleep een eerdere parkeer- of fietsZIP en reconstrueer er een planning uit — dezelfde straten (uit `_straten.csv`, geometrie uit `_netwerk.csv`), met datum/tijd voorgesteld op het eerstvolgende vergelijkbare moment (zelfde weekdag + tijd)
-- **Dekking**-modus: pocket-ZIPs laden, dagdeel-matrix (6×3 cellen), kleur per dekking
-- Wegtype-filters (8 categorieën)
-- Opdrachten direct starten in de juiste telapp
-
-## ZIP-formaat
-
-Per teltype een vaste set CSV-bestanden. Korte samenvatting:
-
-| app_type | _sessie | _straten | _netwerk | _capaciteit | _telregels | _gps | _bezocht |
-|---|---|---|---|---|---|---|---|
-| auto | ✓ | ✓ | ✓ | — | optioneel | optioneel | — |
-| fiets | ✓ | ✓ | ✓ | — | optioneel | optioneel | — |
-| capaciteit | ✓ | — | aanbevolen | ✓ | optioneel | optioneel | — |
-| transect | ✓ | — | — | — | ✓ | optioneel | — |
-| pocket | ✓ | — | aanbevolen | — | optioneel | aanbevolen | aanbevolen |
-
-Volledige specificatie in `zip_format_reference.html`.
-
-## KNIME-koppeling
-
-- Sleutel pocket v2.3: `(sessie_id, osm_way_id, segment_index)`
-- Sleutel andere apps: `(sessie_id, osm_way_id)` — geen segmenten
-- `osm_way_id` koppelt telregels ↔ netwerk
-- Straten gegroepeerd op `osmName`, niet op Nominatim-string
-- Datum-formaat: `YYYY-MM-DD`
-- Voor pocket-flux: `n_tellingen × 60 / duur_sec = passages/min` (uit `_bezocht.csv`, nu per segment)
-- Oude v2.2 pocket-ZIPs upgraden met `python build_bezocht.py FILE_OR_DIR`
-
-## Technische stijlgids
-
-- Font: Oswald (Share Tech Mono voor monospace)
-- Achtergrond: `#f0f0ec`
-- CSV: puntkomma-gescheiden, punt als decimaalteken, UTF-8
-- Navigatie: elke pagina heeft een ← Menu link naar `index.html`
-
-Kleurcodering app-types:
-
-| Type | Kleur |
-|---|---|
-| auto | `#c07800` amber |
-| fiets | `#2980b9` blauw |
-| capaciteit | `#8e44ad` paars |
-| transect | `#5500cc` violet |
-| pocket | `#d4007a` roze |
-
-## Versie
-
-Huidige release: **v2.18** — zie `overdracht_v2_18.md` voor de technische overdracht. Nieuw is **`parkeer_reconstructie.html`**: een standalone desktop-reconstructor die een parkeer-ZIP inleest, het wegennet vers ophaalt uit OSM (mét node-topologie), de hele route Viterbi-hersnapt, de looprichting reconstrueert en de tikken links/rechts 4 m uit de wegas plaatst — resultaat is een herschreven `_recon.zip`. De tool is **multi-teltype**: pocket-parkeren, auto (parkeertelling) en fiets (fietsparkeren) draaien op één gedeelde snap-motor met een dun profiel per teltype (o.a. een highway-voorkeur zodat fiets-tikken op het fietspad blijven). Kaart met grijs/luchtfoto-schakelaar en diep inzoomen op de parkeervakken. **Pocket** kreeg fetch-discipline (de storm bij slechte dekking is getemd, −78 %) en een **eerste-fetch-garantie**: de allereerste netwerk-fetch geeft nooit meer definitief op. **Static** (`traffic_counter.html`) exporteert nu een ZIP i.p.v. een losse CSV, zodat de export op iPhone werkt. De **richtingslaag** is tegen rig-data gevalideerd en de parameters zijn vastgelegd. Schema-signalen voor KNIME: Static levert een ZIP, en de `_recon.zip` bevat nieuwe kolommen (`lat_marker`/`lon_marker`/`zijde`/`recon_status`) — sign-off vereist vóór de recon-ZIP de pijplijn in gaat. Eerdere overdrachten (`overdracht_v2_10.md` … `overdracht_v2_17.md`) blijven als historie staan (v2.17 in `_archief/`).
+Wijzigingen zo additief mogelijk; alles wat niet bedoeld is te veranderen blijft
+byte-identiek aan de vorige release. Per release: `valideer.py` (JS-syntax,
+tagbalans, byte-identiteit, gedeelde blokken), de functionele tests uit
+`_archief/overpass_rig/`, en een nieuwe `overdracht_v2_XX.md`. Het versienummer
+onderaan `index.html` gaat elke release omhoog; `valideer.py` controleert dat.
