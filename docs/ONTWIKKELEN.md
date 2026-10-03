@@ -52,6 +52,7 @@ Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 | `over.html` | introductie voor nieuwe bezoekers |
 | `traffic_counter_help.html` | handleiding — de functies per tool staan hier |
 | `zip_format_reference.html` | technische specificatie van alle ZIP's en CSV's (EN) |
+| `privacy.html` | privacyverklaring (NL/EN); `valideer.py` controleert dat elk extern domein erin staat |
 
 ### Intern — bewust niet gelinkt
 
@@ -63,7 +64,7 @@ Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 
 ### Server
 
-`planningen/` — `planning_list.php`, `planning_save.php`, `planning_delete.php`.
+`planningen/` — `planning_list.php`, `planning_save.php`, `planning_delete.php`, afgeschermd met een wachtwoord via `planningen/.htaccess` (sinds v2.75; eenmalig inrichten, zie de uitleg in dat bestand).
 Nodig voor het bewaren van planningen vanuit `telplanning.html`: PHP 5.6+ en een
 schrijfbare map `/planningen/`. Zonder server werkt de rest gewoon.
 
@@ -77,8 +78,8 @@ schrijfbare map `/planningen/`. Zonder server werkt de rest gewoon.
 
 ### Overige mappen
 
-- `docs/overdracht/overdracht_v2_XX.md` — per release een overdracht; oudere in `_archief/`.
-- `VELDTEST_3.0.md` — draaiboek voor de veldtest op de iPhone vóór versie 3.0.
+- `docs/overdracht/overdracht_v2_XX.md` — per release een overdracht, alle versies.
+- `docs/VELDTEST_3.0.md` — draaiboek voor de veldtest op de iPhone vóór versie 3.0.
 - `_archief/overpass_rig/` — regressietests en `valideer.py`; zie de README daar.
 - `_archief/` verder — eerdere rigs en prototypes, alleen ter naslag.
 

@@ -1,0 +1,32 @@
+# Planningen afschermen (v2.75)
+# ------------------------------------------------------------------------
+# Alles in deze map (de PHP-scripts én de planning_*.json) vraagt een login.
+# Planningen bevatten de naam van de teller; zonder dit bestand waren ze voor
+# iedereen op te vragen en te verwijderen.
+#
+# Eenmalig inrichten:
+#  1. Maak een wachtwoordbestand BUITEN de webroot, bijvoorbeeld:
+#       htpasswd -c /home/<account>/.htpasswd-telonline jay
+#     Geen shell? Gebruik "Directory Privacy" / "Mapbeveiliging" in het
+#     hostingpaneel, of een htpasswd-generator, en zet het bestand buiten de
+#     webroot.
+#  2. Zet het VOLLEDIGE pad van dat bestand hieronder bij AuthUserFile.
+#  3. Controleer in een privévenster:
+#       https://telonline.org/planningen/planning_list.php
+#     moet om een wachtwoord vragen.
+#
+# Veilig bij fouten: klopt het pad niet, dan geeft de server een foutmelding
+# (500) en is de map dicht, niet open. Telplanning meldt dat dan.
+# Let op: vraagt hij in stap 3 NIETS, dan leest de server geen .htaccess
+# (bijvoorbeeld nginx) en is de map NIET afgeschermd.
+
+AuthType Basic
+AuthName "Telonline planningen"
+AuthUserFile /VOLLEDIG/PAD/NAAR/.htpasswd-telonline
+Require valid-user
+
+# Geen mappenoverzicht, en .ht*-bestanden nooit uitleveren
+Options -Indexes
+<FilesMatch "^\.ht">
+  Require all denied
+</FilesMatch>

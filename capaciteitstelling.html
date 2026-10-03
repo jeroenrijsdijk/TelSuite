@@ -834,6 +834,7 @@ function startSession() {
 function stopSession() {
   sessionEndTime = timestamp();
   sessionActive=false;
+  if (snap.fetchTimer){ clearTimeout(snap.fetchTimer); snap.fetchTimer=null; }   // v2.76: geen fetch meer na Stop
   if (watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; }
   if (geocodeIntervalId){ clearInterval(geocodeIntervalId); geocodeIntervalId=null; }
   releaseWakeLock();
@@ -1355,7 +1356,11 @@ function pasNetwerkToe(elements, lat, lon) {
   elements.forEach(function(el){
     if (!knownIds[el.id]) snap.networkElements.push(el);
   });
-  try { localStorage.setItem(LS_KEY+'_netwerk', JSON.stringify(snap.networkElements)); } catch(e) {}
+  // v2.76: alleen tijdens een lopende sessie. Een Overpass-antwoord dat na Stop
+  // binnenkwam schreef het wegennet opnieuw weg nadat de export het had gewist.
+  if (sessionActive) {
+    try { localStorage.setItem(LS_KEY+'_netwerk', JSON.stringify(snap.networkElements)); } catch(e) {}
+  }
   snap.status = snap.segs.length ? 'ok' : 'error';
   setSnapBadge();
   drawMiniMap();
@@ -1970,6 +1975,12 @@ function exportMapCanvas() {
 function exportZip() {
   var allEntries = entries.concat(terreinEntries||[]);
   if (!allEntries.length) return;
+  // v2.77: deze telstand al ingepakt? Bied dezelfde ZIP meteen opnieuw aan,
+  // binnen deze tik. Opnieuw inpakken (kaart, comprimeren) kan op de iPhone lang
+  // genoeg duren om het tikgebaar te laten verlopen, en dan weigert het deelvenster.
+  if (!sessionActive && _laatsteZip && _laatsteZip.sleutel === zipSleutel()) {
+    return bewaarZip(_laatsteZip.blob, _laatsteZip.naam);
+  }
   if (!sessionEndTime) sessionEndTime = timestamp();
   sessionEndTime = timestamp();
   var sid = sessionId || ('capaciteitstelling_' + filestamp());
@@ -1996,30 +2007,48 @@ function exportZip() {
     if (pngBlob) zip.file(sid + '_kaart.png', pngBlob);
     zip.generateAsync({type:'blob', compression:'DEFLATE', compressionOptions:{level:9}}).then(function(zipBlob) {
       var zipName = sid + '_cap.zip';
-      var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
-      _laatsteZip = { blob: zipBlob, naam: zipName };   // voor 'Direct reconstrueren'
+      // voor 'Direct reconstrueren', en om dezelfde ZIP opnieuw aan te bieden (v2.77)
+      _laatsteZip = { blob: zipBlob, naam: zipName, sleutel: zipSleutel() };
       var rb = document.getElementById('btnRecon'); if (rb) rb.style.display = '';
-      // Pas ná een bevestigde opslag de herstelkopie wissen — niet optimistisch
-      // vooraf, anders is de back-up al weg terwijl het deelvenster nog open staat.
-      function finalizeExport() {
-        csvDownloaded = true;
-        kaartDownloaded = true;
-        clearSession();
-      }
-      if (navigator.canShare && navigator.canShare({files:[zipFile]})) {
-        navigator.share({files:[zipFile], title:zipName})
-          .then(finalizeExport)
-          .catch(function(){
-            downloadBlob(zipBlob, zipName);
-            finalizeExport();
-          });
-      } else {
-        downloadBlob(zipBlob, zipName);
-        finalizeExport();
-      }
+      bewaarZip(zipBlob, zipName);   // v2.77: kopie pas weg als de ZIP bevestigd is opgeslagen
     });
   });
 }
+
+/* ── ZIP bewaren (v2.77) ──────────────────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren en
+   capaciteitstelling (bewaakt door valideer.py). Zelfde regel als pocket en
+   Static: de noodkopie gaat pas weg als de ZIP aantoonbaar is opgeslagen.
+   - deelvenster voltooid -> bevestigd;
+   - geen deelvenster (desktop): download aan de browser overgedragen -> bevestigd;
+   - deelvenster geannuleerd of mislukt (op de iPhone kan het tikgebaar na het
+     inpakken verlopen zijn) -> de kopie blijft, geen ongevraagde download, en
+     de ZIP-knop biedt dezelfde ZIP opnieuw aan, binnen de nieuwe tik.
+   Tot v2.77 viel een geannuleerd deelvenster terug op een download-link en
+   werd de kopie daarna altijd gewist, ook als die download niets opleverde. */
+function zipSleutel() {
+  // Zelfde sessie en zelfde inhoud -> dezelfde ZIP mag opnieuw aangeboden worden.
+  return [sessionId, entries.length, gpsLog.length,
+          (typeof terreinEntries !== 'undefined' && terreinEntries) ? terreinEntries.length : 0].join('|');
+}
+function bewaarZip(zipBlob, zipName) {
+  var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
+  function bevestigd() {
+    csvDownloaded = true;
+    kaartDownloaded = true;
+    clearSession();
+    setStatus('ZIP opgeslagen · ' + zipName);
+  }
+  if (navigator.canShare && navigator.canShare({files:[zipFile]})) {
+    return navigator.share({files:[zipFile], title:zipName}).then(bevestigd, function () {
+      setStatus('ZIP niet opgeslagen — tik op ⬇ Download ZIP om het opnieuw te proberen. De telling blijft bewaard.');
+    });
+  }
+  downloadBlob(zipBlob, zipName);
+  bevestigd();
+  return Promise.resolve();
+}
+/* ── einde gedeeld blok ZIP bewaren ── */
 
 function downloadBlob(blob, name) {
   var url = URL.createObjectURL(blob);

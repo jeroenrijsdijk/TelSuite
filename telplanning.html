@@ -1496,7 +1496,10 @@ function exportPlanning() {
     headers: { 'Content-Type': 'application/json' },
     body: json
   })
-  .then(function(r){ return r.json(); })
+  .then(function(r){
+    if (!r.ok && r.status !== 400) return { ok: false, error: planningServerMelding(r.status) };
+    return r.json();
+  })
   .then(function(res) {
     if (res.ok) {
       setStatus('Planning opgeslagen: ' + res.bestand + ' · ook gedownload');
@@ -1526,6 +1529,15 @@ function closeOpdrachten() {
 
 function closeOpdrachtenOnBg(e) {
   if (e.target === document.getElementById('opdrachten-overlay')) closeOpdrachten();
+}
+
+// v2.75: de map /planningen/ is afgeschermd met een wachtwoord (.htaccess).
+// Zonder login, of met een nog niet ingericht wachtwoordbestand, komt er een
+// weigering in plaats van JSON; dit maakt daar een leesbare melding van.
+function planningServerMelding(status) {
+  if (status === 401 || status === 403) return 'planningen zijn afgeschermd \u2014 log in met het wachtwoord van de planningmap';
+  if (status === 500) return 'serverfout (500) \u2014 is de afscherming van /planningen al ingericht? Zie planningen/.htaccess';
+  return 'status ' + status;
 }
 
 function loadOpdrachten() {
@@ -1567,7 +1579,7 @@ function loadOpdrachten() {
       });
     })
     .catch(function(e) {
-      list.innerHTML = '<div id="opdrachten-leeg">Ophalen mislukt (' + e + ')</div>';
+      list.innerHTML = '<div id="opdrachten-leeg">Ophalen mislukt (' + (typeof e === 'number' ? planningServerMelding(e) : e) + ')</div>';
     });
 }
 
@@ -1585,7 +1597,10 @@ function verwijderOpdracht(item) {
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ bestand: item.bestand })
   })
-    .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, body:j }; }); })
+    .then(function(r){
+      if (!r.ok && r.status !== 400 && r.status !== 404) return { ok: false, body: { error: planningServerMelding(r.status) } };
+      return r.json().then(function(j){ return { ok:r.ok, body:j }; });
+    })
     .then(function(res) {
       if (res.ok && res.body.ok) {
         loadOpdrachten();  // lijst opnieuw ophalen

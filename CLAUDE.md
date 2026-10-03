@@ -47,9 +47,17 @@ Deze CLAUDE.md is een samenvatting. Bij twijfel gelden de documenten in `docs/`.
 3. md5 van gedeelde blokken vergelijken als er meer dan één bestand meedoet.
 4. `git diff --stat`: alleen de bedoelde bestanden.
 5. PHP gewijzigd: `php -l`.
-
-`valideer.py` en de rigs in `_archief/` staan niet in deze repo. Gebruik ze
-als Jay ze lokaal heeft.
+6. De regressietests in `_archief/overpass_rig/` (zie de README daar). Draai
+   ze vanuit de repo-root, bijvoorbeeld `node _archief/overpass_rig/functest.js`.
+   - Tests die jszip of papaparse nodig hebben: installeer die **buiten** de
+     repo en draai met `NODE_PATH`. Nooit `node_modules` committen.
+   - `check_encoding.py` loopt ook door `.git/`. Draai hem op een export:
+     `git archive HEAD | tar -x -C <tijdelijke map>`.
+   - De Playwright-tests (`laadtest`, `hersteltest`, `statictest`,
+     `opruimtest`) hebben Chromium nodig. Sla ze over als dat er niet is, en
+     zeg dat.
+   - `valideer.py` vergelijkt twee releasemappen; pas `OUD_DIR`, `NIEUW_DIR`
+     en de verwachte sets aan.
 
 ## Werkwijze
 

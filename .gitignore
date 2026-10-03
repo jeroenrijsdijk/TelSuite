@@ -25,3 +25,6 @@ planningen/*.json
 # Python
 __pycache__/
 *.pyc
+
+# Node (testafhankelijkheden horen buiten de repo)
+node_modules/

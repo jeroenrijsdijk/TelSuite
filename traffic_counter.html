@@ -911,10 +911,10 @@
         if (navigator.canShare) {
           var file = new File([blob], filename, { type: mime });
           if (navigator.canShare({ files: [file] })) {
-            navigator.share({ files: [file] }).catch(function(){
-              // gebruiker annuleerde of gebaar verlopen — vangnet is de exportknop
-            });
-            return;
+            // v2.76: de uitkomst telt. Opgeslagen/gedeeld -> true; geannuleerd of
+            // gebaar verlopen -> false (vangnet is de exportknop).
+            return navigator.share({ files: [file] }).then(
+              function(){ return true; }, function(){ return false; });
           }
         }
       } catch (e) { /* val door naar de download-link */ }
@@ -929,6 +929,7 @@
     document.body.appendChild(a);
     a.click();
     setTimeout(function(){ try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
+    return Promise.resolve(true);   // v2.76: aan de browser overgedragen
   }
 
   // Bewaart de laatst gegenereerde ZIP zodat een tweede tik op Export 'm opnieuw
@@ -943,7 +944,7 @@
     // gesture) zonder hercompressie. Is er intussen door- of teruggeteld, dan is
     // de bewaarde ZIP verlopen en bouwen we hem opnieuw. Reset() wist alles.
     if (lastZipBlob && lastZipCount === history.length) {
-      saveBlob(lastZipBlob, lastZipName, 'application/zip');
+      saveBlob(lastZipBlob, lastZipName, 'application/zip').then(ok => { if (ok) exportBevestigd(); });
       return;
     }
     const D = SEP;
@@ -1052,8 +1053,7 @@
          lastZipBlob = blob;
          lastZipName = base + '.zip';
          lastZipCount = history.length;
-         saveBlob(lastZipBlob, lastZipName, 'application/zip');
-         if (state === 'ended') { geexporteerd = true; bewaarStatic(); }
+         saveBlob(lastZipBlob, lastZipName, 'application/zip').then(ok => { if (ok) exportBevestigd(); });
        });
   }
 
@@ -1113,8 +1113,17 @@
     return Math.max(0, ms);
   }
 
+  // v2.76: afgeronde telling, ZIP bevestigd weggeschreven -> noodkopie meteen weg.
+  // Tot v2.76 bleef hij staan tot je Static weer opende. Een tussentijdse export
+  // (telling loopt nog) laat de kopie staan.
+  function exportBevestigd() {
+    if (state !== 'ended') return;
+    geexporteerd = true;
+    try { localStorage.removeItem(LS_STATIC); } catch (e) {}
+  }
+
   function bewaarStatic() {
-    if (state === 'idle' || !startTime) return;
+    if (state === 'idle' || !startTime || geexporteerd) return;   // v2.76: na bevestigde export niet opnieuw
     if (state === 'running') laatstActief = new Date();
     try {
       localStorage.setItem(LS_STATIC, JSON.stringify({
@@ -1168,7 +1177,7 @@
     let d = null;
     try { d = JSON.parse(localStorage.getItem(LS_STATIC) || 'null'); } catch (e) {}
     if (!d || !d.startTime) return;
-    if (d.state === 'ended' && d.geexporteerd) { wisStatic(); return; }   // netjes afgerond
+    if (d.state === 'ended' && d.geexporteerd) { wisStatic(); return; }   // netjes afgerond (kopie uit v2.72–v2.75)
 
     startTime = new Date(d.startTime);
     sessieId = d.sessieId || maakSessieId(startTime);   // v2.72-opslag had er nog geen

@@ -570,7 +570,7 @@
   </div>
   <div class="card mode-both">
     <div class="card-title">Screen stays on</div>
-    <p>While counting, the screen stays on (Wake Lock). A finished and exported session is cleared automatically; a finished session that was never downloaded is offered again on the next visit.</p>
+    <p>While counting, the screen stays on (Wake Lock). The saved copy is removed as soon as the ZIP has actually been saved. If saving did not succeed (for instance a cancelled share sheet), the finished session is offered again on the next visit.</p>
   </div>
 </section>
 
@@ -763,6 +763,7 @@
   <div class="card mode-both">
     <div class="card-title">&#8595; Download ZIP</div>
     <p>Bundelt CSV, GPX en kaart-PNG in één zipbestand. Op iOS/Android opent het deelmenu (AirDrop, Drive, WhatsApp, etc.). Op desktop gewone download. Dit is de aanbevolen manier om resultaten naar de computer te krijgen.</p>
+    <p class="mt-8">De noodopslag verdwijnt pas als de ZIP echt is opgeslagen (sinds v2.77). Annuleer je het deelmenu, of verschijnt het niet, dan meldt de statusregel <em>ZIP niet opgeslagen</em> en blijft de telling bewaard. Tik dan nog eens op <strong>&#8595; Download ZIP</strong>: je krijgt dezelfde ZIP meteen opnieuw aangeboden.</p>
   </div>
   <table class="key-table">
     <tr><td>CSV — Tellog</td><td>Nr, tijdstip, type, zijde (L/R), straat, coördinaten marker + GPS, snapped, alle bearings</td></tr>
@@ -1221,6 +1222,7 @@
     <tr><td><strong>Verwijder</strong></td><td>Weggooien, na bevestiging.</td></tr>
     <tr><td><strong>Nieuwe telling</strong></td><td>Start je een nieuwe terwijl er een herstelde klaarstaat, dan vraagt de tool eerst of die weg mag.</td></tr>
   </table>
+  <p class="mt-8">De noodopslag verdwijnt zodra de ZIP echt is opgeslagen (sinds v2.76). Lukt opslaan niet, bijvoorbeeld omdat je het deelvenster op de iPhone annuleert, dan blijft hij staan en biedt de tool de telling de volgende keer weer aan.</p>
   <div class="card mode-both mt-12">
     <div class="card-title">Goed om te weten</div>
     <ul class="mt-4">
@@ -1299,6 +1301,10 @@
       <span class="file-desc">ZIP-formaat referentie — technische documentatie per app-type</span>
     </div>
     <div class="file-row">
+      <span class="file-name">privacy.html</span>
+      <span class="file-desc">Privacyverklaring — wat op je toestel blijft, wat naar welke dienst gaat, wat op de server staat</span>
+    </div>
+    <div class="file-row">
       <span class="file-name">traffic_counter_help.html</span>
       <span class="file-desc">This help file — covers all tools</span>
     </div>
@@ -1308,7 +1314,7 @@
       <span class="file-desc">PyQGIS-script: laadt een map met (gereconstrueerde) ZIP's recursief in QGIS, één laag per telptype (modus), plus een samengevoegde netwerklaag en de gelopen GPS-route. Te downloaden op <a href="https://telonline.org/telonline_qgis_loader.py" target="_blank">telonline.org/telonline_qgis_loader.py</a></span>
     </div>
   </div>
-  <p class="mt-12"><strong>Serverbestanden (planningen):</strong></p>
+  <p class="mt-12"><strong>Serverbestanden (planningen):</strong> sinds v2.75 afgeschermd met een wachtwoord (<code>/planningen/.htaccess</code>); telplanning vraagt dan om in te loggen.</p>
   <div class="file-list mt-6">
     <div class="file-row">
       <span class="file-name">/planningen/planning_list.php</span>

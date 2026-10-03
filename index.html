@@ -116,6 +116,7 @@
     margin: -2px 0 6px;
     padding: 0 6px;
   }
+  .intro-note a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }   /* v2.75 */
 
   /* ── Mode cards ── */
   .mode-card {
@@ -407,7 +408,7 @@
     <div class="sub" data-i18n="sub">Online traffic counting — choose your mode</div>
   </div>
 
-  <div class="intro-note" data-i18n="introNote">Standalone traffic-counting tools — each runs entirely in your browser. No install, no account; your data stays on your device.</div>
+  <div class="intro-note" data-i18n="introNote">Standalone traffic-counting tools — each runs entirely in your browser. No install, no account; your counts stay on your device. Map, road and street-name services do see where you count — <a href="privacy.html">privacy</a>.</div>
 
 <section class="groep" aria-labelledby="grp-verkeer">
   <div class="groep-kop">
@@ -482,9 +483,10 @@
 
   <div class="help-link">
     <a href="traffic_counter_help.html" data-i18n="helpLink">Help &amp; documentation</a>
+    &nbsp;&middot;&nbsp; <a href="privacy.html">Privacy</a>
   </div>
 
-  <div class="versie">v2.74</div>
+  <div class="versie">v2.77</div>
 
 </div>
 
@@ -495,7 +497,7 @@ const i18n = {
     introLink:     '&#10067; New here? What is this?',
     appName:       'Traffic Counting',
     sub:           'Online traffic counting — choose your mode',
-    introNote:     'Standalone traffic-counting tools — each runs entirely in your browser. No install, no account; your data stays on your device.',
+    introNote:     'Standalone traffic-counting tools — each runs entirely in your browser. No install, no account; your counts stay on your device. Map, road and street-name services do see where you count — <a href="privacy.html">privacy</a>.',
     staticLabel:   'Static mode',
     staticTitle:   'Stand Still<br>and Count',
     staticDesc:    'Fixed location at the roadside. One GPS fix. Counts per vehicle type and direction, with hourly extrapolation.',
@@ -533,7 +535,7 @@ const i18n = {
     introLink:     '&#10067; Nieuw hier? Wat is dit?',
     appName:       'Verkeerstellingen',
     sub:           'Online verkeersteller — kies je telling',
-    introNote:     'Standalone verkeerstellingen — alles draait in je browser. Geen installatie, geen account; je data blijft op je toestel.',
+    introNote:     'Standalone verkeerstellingen — alles draait in je browser. Geen installatie, geen account; je tellingen blijven op je toestel. De diensten voor kaart, wegennet en straatnaam zien wel waar je telt — <a href="privacy.html">privacy</a>.',
     staticLabel:   'Stilstaan aan de wegkant',
     staticTitle:   'Stilstaand tellen',
     staticDesc:    'Vaste locatie langs de weg. Eén GPS-fix. Tellingen per voertuigtype en richting, met extrapolatie naar een uur.',

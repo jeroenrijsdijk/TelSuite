@@ -893,6 +893,7 @@ function chooseTransect() { startTransect(); }
 
 function startTransect() {
   if (!magNieuwStarten()) return;   // v2.72
+  exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
   clearSession();
   currentModus = 'transect';
   telType = 'transect'; telLabel = 'Transect'; telIcon = '\u2194\uFE0F';
@@ -1083,6 +1084,7 @@ function chooseWinkelstraat() { startWinkelstraat(); }
 
 function startWinkelstraat() {
   if (!magNieuwStarten()) return;   // v2.72
+  exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
   clearSession();
   currentModus = 'winkelstraat';
   telType = 'winkelstraat'; telLabel = 'Winkelstraat'; telIcon = '\uD83D\uDED2';
@@ -1196,6 +1198,7 @@ function chooseParkeren() { startParkeren(); }
 
 function startParkeren() {
   if (!magNieuwStarten()) return;   // v2.72
+  exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
   clearSession();
   currentModus = 'parkeren';
   telType = 'parkeren'; telLabel = 'Parkeren'; telIcon = '\uD83C\uDD7F\uFE0F';
@@ -1377,8 +1380,21 @@ function pkBack() {
 // klaar (preview sluiten) of bij een nieuwe sessie \u2014 nooit blind na generateAsync.
 var LS_KEY_POCKET = 'pocket_sessie';
 
+// v2.76: is de telling afgerond en de ZIP bevestigd weggeschreven, dan hoort de
+// noodkopie weg te blijven. Tot v2.76 schreef saveSession() hem bij de eerstvolgende
+// app-wissel of paginawissel opnieuw (telHistory is na Stop nog gevuld), en bood
+// pocket bij heropenen een telling aan die allang gedownload was.
+var exportAfgerond = false;
+
+// De ZIP is aantoonbaar weggeschreven (deelblad voltooid, download overgedragen)
+// of de gebruiker sloot het voorbeeldscherm: noodkopie weg, en weg houden.
+function exportBevestigd() {
+  exportAfgerond = true;
+  clearSession();
+}
+
 function saveSession() {
-  if (!telHistory.length) return;
+  if (!telHistory.length || exportAfgerond) return;
   try {
     localStorage.setItem(LS_KEY_POCKET, JSON.stringify({
       modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
@@ -1528,6 +1544,7 @@ function confirmOther() {
 
 function startTelling(type, icon, label) {
   if (!magNieuwStarten()) return;   // v2.72
+  exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
   clearSession();
   telType    = type;
   telLabel   = label;
@@ -2003,10 +2020,10 @@ function saveBlob(blob, filename, mime) {
       if (navigator.canShare) {
         var file = new File([blob], filename, { type: mime });
         if (navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file] }).catch(function(){
-            // gebruiker annuleerde of gebaar verlopen — vangnet is de preview-knop
-          });
-          return;
+          // v2.76: de uitkomst telt. Opgeslagen/gedeeld -> true; geannuleerd of
+          // gebaar verlopen -> false (vangnet is de preview-knop).
+          return navigator.share({ files: [file] }).then(
+            function(){ return true; }, function(){ return false; });
         }
       }
     } catch (e) { /* val door naar de download-link */ }
@@ -2021,6 +2038,7 @@ function saveBlob(blob, filename, mime) {
   document.body.appendChild(a);
   a.click();
   setTimeout(function(){ try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
+  return Promise.resolve(true);   // v2.76: aan de browser overgedragen
 }
 
 // Bewaart de laatst gegenereerde ZIP zodat de preview-knop 'm opnieuw kan
@@ -2258,7 +2276,7 @@ function stopTelling() {
     lastZipBlob = blob;
     lastZipName = sid + '.zip';
     // Automatische poging — werkt waar de user-gesture nog leeft
-    saveBlob(blob, lastZipName, 'application/zip');
+    saveBlob(blob, lastZipName, 'application/zip').then(function (ok) { if (ok) exportBevestigd(); });
     // Preview pas tonen als de blob klaar is (niet via blinde timer); zo botst
     // 'ie niet met een eventueel geopend share-deelblad.
     showPreview();
@@ -2412,7 +2430,7 @@ function showPreview() {
 
 function closePreview() {
   document.getElementById('preview-overlay').classList.remove('visible');
-  clearSession();   // export bevestigd gezien \u2192 herstelkopie mag weg
+  exportBevestigd();   // export bevestigd gezien \u2192 herstelkopie weg, en weg houden (v2.76)
   if (pkDirect) startParkeren();   // v2.70: directe ingang, geen keuzemenu
 }
 
@@ -2420,7 +2438,8 @@ function closePreview() {
 // user-gesture, dus dit slaagt ook als de automatische poging in stopTelling
 // faalde door een verlopen gebaar (typisch iOS na de async zip-generatie).
 function savePreviewZip() {
-  if (lastZipBlob) saveBlob(lastZipBlob, lastZipName, 'application/zip');
+  if (lastZipBlob) saveBlob(lastZipBlob, lastZipName, 'application/zip')
+    .then(function (ok) { if (ok) exportBevestigd(); });
 }
 
 // Stuur de zojuist gebouwde ZIP door naar de reconstructor en open die.
