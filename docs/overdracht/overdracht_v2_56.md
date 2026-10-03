@@ -1,6 +1,6 @@
 # Overdracht v2.56 — verzamel-ZIP genoemd in over.html
 
-E�n bestand, één alinea. `over.html`, +563 bytes.
+Eén bestand, één alinea. `over.html`, +563 bytes.
 
 ## Wat er staat
 
