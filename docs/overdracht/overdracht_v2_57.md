@@ -1,6 +1,6 @@
 # Overdracht v2.57 — TL;DR bovenaan over.html
 
-E�n bestand, één blok. `over.html`, +1.156 bytes. Geen nieuwe CSS, geen nieuwe
+Eén bestand, één blok. `over.html`, +1.156 bytes. Geen nieuwe CSS, geen nieuwe
 klassen (26 voor en na).
 
 ## Plaats

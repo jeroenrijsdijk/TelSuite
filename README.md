@@ -1,131 +1,87 @@
-# Telonline Verkeerstellingen
+# TelSuite — browser-based traffic counting
 
-Losse HTML-tools voor Nederlandse verkeers- en parkeertellingen, online op
-**telonline.org**. Elk hulpmiddel is één HTML-bestand: geen framework, geen
-buildstap, geen account, geen backend (op het opslaan van planningen na).
-Veldwerk op de telefoon (iPhone/Safari), verwerking op de desktop.
+Free, GPS-aware tools for traffic counting and parking surveys, running entirely
+in the browser. Live at **[telonline.org](https://telonline.org)**.
 
-Dit bestand is de plattegrond. Wat er nu speelt, welke afspraken vastliggen en
-wat er op de backlog staat, staat in **`OVERDRACHT_STAND_VAN_ZAKEN.md`** —
-begin daar bij een nieuwe sessie.
+Every tool is a single HTML file: no framework, no build step, no account, no
+installation. Fieldwork happens on a phone; processing and reporting on a
+desktop. The interfaces are in Dutch; the technical reference is in English.
 
-## Werkwijze
+## How it works
 
 ```
-  telplanning ──opdracht──▶ veld-app ──ZIP──▶ telreconstructie ──_recon.zip──▶ telrapport
-  (vooraf)                  (telefoon)         (optioneel, desktop)             (kaart + analyse)
-       ▲                                                                              │
-       └──────────────────────────── dekking terug ───────────────────────────────────┘
+  telplanning ──assignment──▶ field app ──ZIP──▶ telreconstructie ──_recon.zip──▶ telrapport
+  (before)                    (phone)            (optional, desktop)              (map + analysis)
+       ▲                                                                                │
+       └──────────────────────────────── coverage feedback ─────────────────────────────┘
 ```
 
-Tellen levert per sessie een ZIP met semikolon-CSV's. Reconstrueren is
-optioneel: het legt de route opnieuw op het wegennet, bepaalt de looprichting en
-zet parkeertikken aan de juiste kant van de weg. Telrapport leest ruwe en
-gereconstrueerde ZIP's door elkaar. QGIS is een alternatief eindpunt (zie
-Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
+Each counting session produces a ZIP with semicolon-delimited CSV files.
+Reconstruction is optional: it re-snaps the walked route onto the OSM road
+network, determines walking direction and places parking observations on the
+correct side of the street. The report tool reads raw and reconstructed ZIPs
+alike. The ZIPs also load into QGIS or a KNIME pipeline.
 
-## Bestanden
+## Tools
 
-### Veld (telefoon)
+**Field (phone)**
 
-| Bestand | Rol |
+| File | Purpose |
 |---|---|
-| `traffic_counter.html` | Static — tellen vanaf een vast punt |
-| `parkeertelling.html` | autoparkeren, lopend langs een traject |
-| `fietsparkeren.html` | fietsparkeren, idem |
-| `capaciteitstelling.html` | parkeercapaciteit per vak en per terrein |
-| `pocket_count.html` | Pocket — telefoon in de zak; vier sub-modi: simpel, transect, winkelstraat, parkeren. `pocket_count.html#parkeren` start meteen in parkeren |
+| `traffic_counter.html` | count from a fixed point |
+| `parkeertelling.html` | car parking, walking a route |
+| `fietsparkeren.html` | bicycle parking, walking a route |
+| `capaciteitstelling.html` | parking capacity per bay and per lot |
+| `pocket_count.html` | phone-in-pocket counting: simple, transect, shopping street, parking |
 
-### Desktop
+**Desktop**
 
-| Bestand | Rol |
+| File | Purpose |
 |---|---|
-| `telplanning.html` | planning maken en dekking beoordelen |
-| `telreconstructie.html` | nabewerking: hersnappen, richting, handmatige correctie |
-| `telrapport.html` | kaartvisualisatie en analyse, ook van verzamel-ZIP's |
+| `telplanning.html` | plan a survey and assess coverage |
+| `telreconstructie.html` | post-processing: re-snapping, direction, manual correction |
+| `telrapport.html` | map visualisation and analysis |
 
-### Publiek en documentatie
+**Documentation**: `traffic_counter_help.html` (manual, Dutch),
+`zip_format_reference.html` (ZIP and CSV specification, English),
+`snap_methodology.html` (how GPS points are matched to roads, English).
 
-| Bestand | Rol |
-|---|---|
-| `index.html` | startscherm (NL/EN) |
-| `over.html` | introductie voor nieuwe bezoekers |
-| `traffic_counter_help.html` | handleiding — de functies per tool staan hier |
-| `zip_format_reference.html` | technische specificatie van alle ZIP's en CSV's (EN) |
+## Privacy
 
-### Intern — bewust niet gelinkt
+Count data never leaves the browser; it is only handed to you as a ZIP.
+The tools do make requests to public services (map tiles, OpenStreetMap
+Overpass, Nominatim, Open-Meteo), and those requests reveal the area you are
+working in.
 
-| Bestand | Rol |
-|---|---|
-| `snap_methodology.html` | uitleg van de snap-methodiek (EN) |
-| `snaptrace.html` | rig: GPS-spoor tegen OSM bekijken |
-| `winkelstraat_rekenrig.html` | rig: rekenmodel winkelstraat |
+## Running it yourself
 
-### Server
+Put all files in one folder on any web server. The tools link to each other
+relatively; field app and reconstruction tool must share an origin, because
+the "reconstruct now" hand-off uses IndexedDB.
 
-`planningen/` — `planning_list.php`, `planning_save.php`, `planning_delete.php`.
-Nodig voor het bewaren van planningen vanuit `telplanning.html`: PHP 5.6+ en een
-schrijfbare map `/planningen/`. Zonder server werkt de rest gewoon.
+Saving plannings from `telplanning.html` needs PHP (5.6+) and a writable
+`planningen/` folder. **These endpoints have no authentication** — protect the
+folder on your server (for example with HTTP basic auth) if it is reachable
+from the internet. Everything else works without a server-side component.
 
-### Scripts
+External dependencies, loaded at runtime: Leaflet, JSZip, PapaParse and
+Leaflet.draw via CDN; map tiles from OpenStreetMap, CARTO and PDOK; road
+network from Overpass; street names from Nominatim. The CARTO API key in the
+source is restricted to the author's domain — use your own key when self-hosting.
+Please respect the [Nominatim](https://operations.osmfoundation.org/policies/nominatim/)
+and Overpass usage policies.
 
-| Script | Waar | Doel |
-|---|---|---|
-| `build_bezocht.py` | hier | upgradet oude pocket-ZIP's (v2.2) naar het segmentformaat; alleen voor oud materiaal |
-| `telonline_qgis_loader.py` | telonline.org | laadt een map met ZIP's in QGIS, één laag per teltype |
-| `relabel_modus.py`, `voeg_modusletter_toe.py` | buiten de suite | omzetting van het archief — klaar, bewaard voor een verdwaalde oude ZIP |
+## Development
 
-### Overige mappen
+Developer notes are in Dutch: start with [`docs/ONTWIKKELEN.md`](docs/ONTWIKKELEN.md)
+and [`docs/OVERDRACHT_STAND_VAN_ZAKEN.md`](docs/OVERDRACHT_STAND_VAN_ZAKEN.md).
+Release notes per version live in `docs/overdracht/`.
 
-- `overdracht_v2_XX.md` — per release een overdracht; oudere in `_archief/`.
-- `VELDTEST_3.0.md` — draaiboek voor de veldtest op de iPhone vóór versie 3.0.
-- `_archief/overpass_rig/` — regressietests en `valideer.py`; zie de README daar.
-- `_archief/` verder — eerdere rigs en prototypes, alleen ter naslag.
+## License
 
-## Plaatsen
+Copyright © 2026 Jeroen Rijsdijk
 
-Zet alles in één map op een webserver en klaar. De tools linken relatief naar
-elkaar, en de knop "Direct reconstrueren" geeft de ZIP via IndexedDB door —
-daarvoor moeten veld-app en reconstructor op dezelfde origin staan.
-
-Wat er van buiten wordt opgehaald:
-
-- **Bibliotheken** via CDN (cdnjs, unpkg): Leaflet 1.9.4, JSZip 3.10.1,
-  PapaParse 5.4.1, Leaflet.draw 1.0.4 (alleen telplanning).
-- **Lettertypen**: Google Fonts (Oswald, Share Tech Mono).
-- **Kaarttegels**: OpenStreetMap, CARTO, PDOK. De CARTO-sleutel staat in drie
-  bestanden: `telrapport.html`, `telplanning.html`, `telreconstructie.html`.
-- **Wegennet**: Overpass API, twee endpoints (overpass-api.de en
-  private.coffee), met een gedeelde tegel-cache in IndexedDB.
-- **Straatnaam**: Nominatim, in de veld-apps.
-- **Weer**: Open-Meteo, in telrapport.
-
-Tellingen zelf verlaten de browser niet: ze gaan alleen als ZIP naar de
-gebruiker. Wat wel naar buiten gaat zijn de verzoeken hierboven, en die
-verraden het gebied of de positie waar je telt.
-
-## Conventies
-
-- **CSV**: puntkomma als scheidingsteken, punt als decimaalteken, UTF-8.
-- **ZIP-namen**: `_car` auto · `_fts` fiets · `_cap` capaciteit ·
-  `_pkt_<s|t|w|p>` pocket per sub-modus · `_sta` Static (sinds v2.73). Na reconstructie `<sessie_id>_recon.zip`
-  (de `sessie_id` zelf verandert niet). Een bewaarde kaart:
-  `TelVerzameling_<jjjjmmdd>.zip`. Het oude `_trn`-formaat wordt alleen nog
-  gelezen.
-- **Schema**: elke wijziging aan kolommen of sleutels eerst langs KNIME. De
-  specificatie in `zip_format_reference.html` wordt door een test tegen de
-  exportcode bewaakt.
-- **Gedeelde code**: blokken die in meer bestanden voorkomen (o.a.
-  `HIGHWAY_RE`, de Overpass-afhandeling, de tegel-cache, de segmentatie) moeten
-  byte-identiek blijven. `valideer.py` controleert dat.
-- **Taal**: interfaces en handleiding Nederlands; technische referentie Engels.
-- **Metadata**: Open Graph wel, Twitter/X-kaarten niet.
-- **Huisstijl**: Oswald, met Share Tech Mono als monospace.
-
-## Ontwikkelen
-
-Wijzigingen zo additief mogelijk; alles wat niet bedoeld is te veranderen blijft
-byte-identiek aan de vorige release. Per release: `valideer.py` (JS-syntax,
-tagbalans, byte-identiteit, gedeelde blokken), de functionele tests uit
-`_archief/overpass_rig/`, en een nieuwe `overdracht_v2_XX.md`. Het versienummer
-onderaan `index.html` gaat elke release omhoog; `valideer.py` controleert dat.
+TelSuite is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See [`LICENSE`](LICENSE).
