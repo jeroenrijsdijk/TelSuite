@@ -7,7 +7,9 @@ Every tool is a single HTML file: no framework, no build step, no account, no
 installation. Fieldwork happens on a phone; processing and reporting on a
 desktop. The interfaces are in Dutch; the technical reference is in English.
 
-# Let me know if you use it! 
+## Do you use it? 
+
+Please share some results with me if you are allowed to share it, so we can improve the package.
 
 ## How it works
 
