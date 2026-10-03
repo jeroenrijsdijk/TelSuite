@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy — telonline.org</title>
+<meta name="description" content="Welke gegevens telonline.org verwerkt: tellingen blijven op je toestel; voor kaart, wegennet en straatnaam gaan positie en IP-adres naar OpenStreetMap-diensten.">
+<link rel="canonical" href="https://telonline.org/privacy.html">
+<!-- Open Graph (no Twitter/X cards by preference) -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Privacy — telonline.org">
+<meta property="og:url" content="https://telonline.org/privacy.html">
+<meta property="og:site_name" content="telonline.org">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
+  :root {
+    --bg:      #f0f0ec;
+    --panel:   #ffffff;
+    --border:  #b0b0a8;
+    --text:    #111111;
+    --dim:     #555555;
+    --subdim:  #888880;
+    --green:   #0a8a30;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Oswald', 'Arial Narrow', Arial, sans-serif; font-weight: 500;
+    padding: 32px 16px 48px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  .kop {
+    border-bottom: 3px solid var(--text); padding-bottom: 12px; margin-bottom: 20px;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  }
+  h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: 5px; text-transform: uppercase; }
+  .kop a { font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); text-decoration: none; }
+  h2 {
+    font-size: 0.95rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--text);
+  }
+  p, li { font-size: 0.95rem; line-height: 1.55; color: #222; }
+  p + p { margin-top: 8px; }
+  ul { margin: 6px 0 0 20px; }
+  ul + p { margin-top: 10px; }
+  li + li { margin-top: 4px; }
+  .kort {
+    background: var(--panel); border: 3px solid var(--border); border-left: 8px solid var(--green);
+    border-radius: 12px; padding: 16px 18px;
+  }
+  .kort p { font-size: 1rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; background: var(--panel); }
+  th, td { text-align: left; vertical-align: top; padding: 9px 10px; border: 1px solid var(--border); font-size: 0.86rem; line-height: 1.45; }
+  th { font-size: 0.72rem; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+  .tabel { overflow-x: auto; }
+  code, .domein { font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 0.85em; }
+  .domein { display: block; color: var(--dim); }
+  .invullen { background: #fff3c4; padding: 0 4px; }
+  .en { margin-top: 40px; padding-top: 8px; border-top: 3px solid var(--text); }
+  .voet { margin-top: 32px; font-size: 0.8rem; color: var(--subdim); letter-spacing: 1px; }
+  .voet a { color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="kop">
+  <h1>Privacy</h1>
+  <a href="index.html">&larr; telonline.org</a>
+</div>
+
+<div class="kort">
+  <p><strong>Kort:</strong> je tellingen blijven op je toestel. Geen account, geen analytics, geen advertenties, geen cookies. Voor de kaart, het wegennet en de straatnaam vraagt je browser gegevens op bij openbare diensten; die zien daarbij je IP-adres en, voor het wegennet en de straatnaam, de plek waar je telt.</p>
+</div>
+
+<h2>Op je toestel</h2>
+<ul>
+  <li><strong>Tellingen.</strong> Tijdens het tellen bewaart de browser de telling na elke tik (de noodopslag), zodat een crash of een weggeveegde tab niets kost. Zodra de ZIP is opgeslagen, ruimt de tool de noodopslag op. Is opslaan niet gelukt (bijvoorbeeld een geannuleerd deelvenster), dan blijft hij staan en biedt de tool de telling de volgende keer weer aan.</li>
+  <li><strong>Wegennet.</strong> Een cache van opgehaalde OpenStreetMap-wegen, zodat een gebied niet steeds opnieuw opgehaald hoeft te worden. Openbare kaartdata, maar hij laat wel zien in welke gebieden je hebt geteld. Hij blijft staan tot je hem leegt: in telreconstructie (knop <em>OSM-cache legen</em>) of via de websitegegevens van je browser.</li>
+  <li><strong>Voorkeuren.</strong> Je taalkeuze en, als je die invult, de naam van de teller.</li>
+  <li><strong>Exports.</strong> De ZIP's die je downloadt, beheer je zelf. Er wordt niets naar telonline.org geüpload.</li>
+</ul>
+<p>Dit staat in de opslag van je browser (<code>localStorage</code> en, voor het wegennet, <code>IndexedDB</code>), niet in cookies. Je wist het via de instellingen van je browser (in Safari: Instellingen &rarr; Safari &rarr; Geavanceerd &rarr; Websitegegevens).</p>
+
+<h2>Naar andere diensten</h2>
+<p>Zoals bij elk webverzoek ontvangt elke dienst hieronder je IP-adres en gegevens over je browser. telonline.org heeft met deze diensten geen afspraken en bepaalt niet wat zij bewaren; hun eigen privacybeleid geldt.</p>
+<div class="tabel">
+<table>
+  <tr><th>Dienst</th><th>Wat</th><th>Waarvoor</th></tr>
+  <tr><td>OpenStreetMap Nominatim<span class="domein">nominatim.openstreetmap.org</span></td><td>je positie</td><td>de straatnaam bij je telpunt (veld-apps)</td></tr>
+  <tr><td>Overpass API<span class="domein">overpass-api.de</span><span class="domein">overpass.private.coffee</span></td><td>een gebied rond je positie</td><td>het wegennet, om tikken aan een straat te koppelen</td></tr>
+  <tr><td>Kaarttegels<span class="domein">tile.openstreetmap.org</span><span class="domein">basemaps.cartocdn.com</span><span class="domein">service.pdok.nl</span></td><td>het gebied dat je bekijkt</td><td>de achtergrondkaart (OpenStreetMap, CARTO, PDOK)</td></tr>
+  <tr><td>Open-Meteo<span class="domein">api.open-meteo.com</span><span class="domein">archive-api.open-meteo.com</span><span class="domein">historical-forecast-api.open-meteo.com</span></td><td>plek en tijdstip van een telling</td><td>het weer bij een telling (alleen in telrapport)</td></tr>
+  <tr><td>Programmacode<span class="domein">cdnjs.cloudflare.com</span><span class="domein">unpkg.com</span></td><td>&mdash;</td><td>bibliotheken (Leaflet, JSZip, PapaParse)</td></tr>
+  <tr><td>Google Fonts<span class="domein">fonts.googleapis.com</span><span class="domein">fonts.gstatic.com</span></td><td>&mdash;</td><td>de lettertypen van de site</td></tr>
+</table>
+</div>
+
+<h2>Op de server van telonline.org</h2>
+<ul>
+  <li><strong>Planningen</strong> die je in telplanning opslaat: naam van de opdracht, datum, tijdstip, teller en de wegen. De map met planningen is afgeschermd met een wachtwoord. Een planning verwijder je in telplanning.</li>
+  <li><strong>Serverlogs</strong> van de hostingprovider: IP-adres, tijdstip en opgevraagde pagina, zoals bij elke website. Die worden bewaard volgens het beleid van de hostingprovider.</li>
+</ul>
+
+<h2>Je rechten en contact</h2>
+<p>Je kunt vragen welke gegevens over jou op de server staan (planningen, serverlogs) en die laten corrigeren of verwijderen. Neem daarvoor contact op met de beheerder: <span class="invullen" data-invullen="contact">[naam en e-mailadres van de beheerder]</span>. Ben je het niet eens met hoe we met je gegevens omgaan, dan kun je een klacht indienen bij de Autoriteit Persoonsgegevens.</p>
+
+<div class="en" lang="en">
+<h2>In English</h2>
+<p><strong>In short:</strong> your counts stay on your device. No account, no analytics, no ads, no cookies. For the map, the road network and street names your browser asks public services, which see your IP address and, for roads and street names, where you are counting.</p>
+<p><strong>On your device:</strong> the count in progress (emergency copy after every tap, cleared as soon as the ZIP has been saved, kept if saving did not succeed), a cache of OpenStreetMap roads for areas you counted in (kept until you clear it), your language choice, the counter name if you enter one, and the ZIPs you download. Nothing is uploaded to telonline.org. This lives in browser storage (<code>localStorage</code>, <code>IndexedDB</code>), not in cookies.</p>
+<p><strong>Other services</strong> (each receives your IP address and browser details): OpenStreetMap Nominatim (your position &rarr; street name), Overpass API (an area around your position &rarr; road network), map tiles from OpenStreetMap, CARTO and PDOK (the area you view), Open-Meteo (place and time of a count &rarr; weather, telrapport only), cdnjs and unpkg (code libraries), Google Fonts (typefaces). Their own privacy policies apply.</p>
+<p><strong>On the telonline.org server:</strong> plans saved from telplanning (assignment name, date, time, counter, roads), in a password-protected folder; and the hosting provider's server logs.</p>
+<p><strong>Your rights:</strong> ask the operator (see the contact above) what is stored about you on the server, and have it corrected or deleted. You may lodge a complaint with the Dutch Data Protection Authority (Autoriteit Persoonsgegevens).</p>
+</div>
+
+<p class="voet">Laatst bijgewerkt / last updated: 27 september 2026 &middot; <a href="index.html">telonline.org</a> &middot; <a href="traffic_counter_help.html">handleiding</a></p>
+
+</div>
+</body>
+</html>
