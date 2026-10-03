@@ -1,0 +1,27 @@
+# OS-bestanden
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Lokale testdata — kan looproutes, posities en tijdstippen bevatten
+*.csv
+*.zip
+*.gpx
+*.kml
+*.kmz
+*.geojson
+*.png
+!docs/img/*.png
+
+# Op de server opgeslagen planningen (kunnen namen van tellers bevatten)
+planningen/*.json
+
+# Python
+__pycache__/
+*.pyc
