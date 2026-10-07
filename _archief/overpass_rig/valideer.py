@@ -12,10 +12,9 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v2.77'
-# v2.77: parkeer-apps wissen de noodkopie alleen nog na een bevestigd opgeslagen ZIP.
-VERWACHT_GEWIJZIGD = {'index.html', 'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
-                      'traffic_counter_help.html'}
+RELEASE = 'v3.0'
+# v3.0: de in het veld geteste v2.77, alleen het versienummer is anders.
+VERWACHT_GEWIJZIGD = {'index.html'}
 VERWACHT_VERWIJDERD = set()
 
 VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',

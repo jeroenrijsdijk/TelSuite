@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v2.77.** Release-kandidaat voor 3.0: eerst de veldtest in `VELDTEST_3.0.md`, dan wat daaruit komt, dan 3.0.
+**Laatste release: v3.0.** De veldtest (`VELDTEST_3.0.md`) was op 7 oktober 2026 helemaal groen, op iPhone en Android. 3.0 is daarom de geteste v2.77, alleen met een ander versienummer. Vanaf hier: v3.1, v3.2, … Elke release krijgt op GitHub automatisch een ZIP (zie §3).
 
 ---
 
@@ -99,7 +99,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 - **Round-trip:** Jay bewerkt bestanden handmatig en levert ze terug; Claude integreert en valideert. Een regel context bij teruggave ("ik heb secties X en Y aangeraakt") maakt het sneller.
 - **Validatie elke release:** inline JS extraheren → `node --check`; HTML-tagbalans; functionele test waar zinvol; **byte-identiteit** (alleen de bedoelde bestanden mogen wijzigen).
-- **Elke release** krijgt een `overdracht_v2_XX.md` en een volledige ZIP.
+- **Elke release** krijgt een `overdracht_vX_Y.md` en een volledige ZIP. Sinds v3.0 maakt GitHub die ZIP zelf: na de merge naar `main` ziet `.github/workflows/release.yml` het nieuwe nummer in `index.html` en maakt een release met tag, `telsuite-<versie>.zip` en de overdracht als tekst. Wat niet in de ZIP gaat (ontwikkelspul en `planningen/.htaccess`) staat in `.gitattributes`.
 - **Laadtest bij wijzigingen aan de opstart van een pagina** (sinds v2.69): `laadtest.py` laadt elke pagina echt in Chromium en faalt op elke JS-fout bij het opstarten. `node --check` en de tagbalans zagen de dode herstelfunctie van pocket niet.
 - **Versienummer ophogen bij elke release** (sinds v2.68, op verzoek van Jay): het staat zichtbaar onderaan `index.html` (`<div class="versie">`). Eén nummer op vier plekken: `RELEASE` in `valideer.py`, `index.html`, "Laatste release" hier, en de naam van de overdracht. `valideer.py` faalt als één ervan afwijkt of als het nummer niet hoger is dan in de vorige release. Daardoor staat `index.html` voortaan in élke release bij de gewijzigde bestanden.
 - **Additief werken**: bestaande logica byte-identiek laten waar mogelijk.
@@ -109,7 +109,6 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ## 4. Nog te doen door Jay (buiten de code)
 
-0. **Veldtest vóór 3.0** — `VELDTEST_3.0.md`: ongeveer 40 minuten op de iPhone (Static, pocket-parkeren via de eigen ingang, pocket zonder internet, parkeertelling) plus 10 minuten telrapport en reconstructor. Afwijkingen noteren; die worden gerepareerd en dat wordt 3.0.
 0a. **Planningmap afschermen (v2.75), vóór het online zetten** — een wachtwoordbestand maken buiten de webroot en het volledige pad invullen bij `AuthUserFile` in `planningen/.htaccess`. Controle in een privévenster: `https://telonline.org/planningen/planning_list.php` moet om een wachtwoord vragen. Vraagt hij niets, dan leest de server geen `.htaccess` en is de map open. Zolang het pad niet klopt, geeft de map een 500-fout (dicht, niet open) en meldt telplanning dat.
 0b. **Contactgegevens in `privacy.html` invullen** — het gele veld bij *Je rechten en contact* (naam en e-mailadres van de beheerder). `valideer.py` meldt het zolang het er staat.
 1. **Screenshots voor `over.html`** — nog niet geleverd. Drie bestanden, exact deze namen, naast `over.html`:
@@ -175,7 +174,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v2.77 in één oogopslag
+## 6. Releases v2.32 → v3.0 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -225,6 +224,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v2.75 | **Privacyverklaring** `privacy.html` (NL/EN), gekoppeld vanaf voorpagina en `over.html`; voorpaginazin eerlijk ("je tellingen" blijven op je toestel, kaart/wegennet/straatnaam zien waar je telt); **planningmap afgeschermd** met wachtwoord (`.htaccess`), telplanning meldt 401/500 leesbaar; `valideer.py`: elk extern domein moet in de privacyverklaring staan |
 | v2.76 | **Noodopslag weg na de download**: pocket schreef hem na Stop + Sluiten bij de eerstvolgende app-wissel opnieuw weg (heropenen bood een al gedownloade telling aan); parkeer-apps lieten het wegennet van de sessie staan; Static hield zijn kopie tot je Static weer opende, en **wiste een niet-opgeslagen afgeronde telling** als het deelblad geannuleerd was. Nu: weg zodra de ZIP bevestigd is opgeslagen, blijft als dat niet lukte. Privacyverklaring noemt de wegennet-cache. Nieuwe `opruimtest.py` |
 | v2.77 | **Parkeer-apps volgen de opruimregel**: geannuleerd deelvenster wist de noodkopie niet meer en start geen ongevraagde download; ZIP-knop biedt dezelfde ZIP opnieuw aan binnen de tik (belangrijk op de iPhone); gedeeld blok `bewaarZip` |
+| **v3.0** | **Veldtest groen op iPhone en Android → v2.77 wordt 3.0**, byte-identiek op het versienummer na. Nieuw: GitHub maakt per versie automatisch een release met `telsuite-<versie>.zip` |
 
 ---
 

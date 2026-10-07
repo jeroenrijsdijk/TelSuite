@@ -1,0 +1,83 @@
+# Release per versie (sinds v3.0)
+#
+# Het versienummer onderaan index.html (<div class="versie">) is de bron van
+# waarheid. Na elke push naar main kijkt deze workflow of er al een tag met dat
+# nummer bestaat. Zo niet, dan maakt hij een GitHub Release met:
+#   - de tag (bijv. v3.0) op de gepushte commit;
+#   - telsuite-<versie>.zip: precies wat op de server hoort. Wat er NIET in
+#     gaat, staat in .gitattributes (export-ignore);
+#   - als tekst de overdracht docs/overdracht/overdracht_<versie>.md.
+# Een push zonder nieuw versienummer (bijv. alleen documentatie) doet niets.
+# Mislukt er iets, dan kun je hem met de hand opnieuw starten via
+# Actions -> Release -> Run workflow.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versienummer lezen
+        id: versie
+        run: |
+          VERSIE=$(grep -oP '<div class="versie">\Kv\d+\.\d+(?=</div>)' index.html || true)
+          if [ -z "$VERSIE" ] || [ "$(printf '%s\n' "$VERSIE" | wc -l)" != 1 ]; then
+            echo "::error file=index.html::verwacht precies één <div class=\"versie\">vX.Y</div>, gevonden: '$VERSIE'"
+            exit 1
+          fi
+          echo "versie=$VERSIE" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSIE" > /dev/null; then
+            echo "Tag $VERSIE bestaat al: geen nieuwe release."
+            echo "nieuw=nee" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nieuwe versie $VERSIE: release maken."
+            echo "nieuw=ja" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: ZIP bouwen en controleren
+        if: steps.versie.outputs.nieuw == 'ja'
+        env:
+          VERSIE: ${{ steps.versie.outputs.versie }}
+        run: |
+          ZIP="telsuite-$VERSIE.zip"
+          git archive --format=zip -o "$ZIP" HEAD
+          unzip -Z1 "$ZIP" | sort > inhoud.txt
+          cat inhoud.txt
+          # Vangnet naast .gitignore: nooit telgegevens of sporen in een release.
+          if grep -iE '\.(csv|zip|gpx|kml|kmz|geojson|png|json)$' inhoud.txt; then
+            echo "::error::de ZIP bevat bestanden die data kunnen zijn (zie hierboven)"
+            exit 1
+          fi
+          grep -qx 'index.html' inhoud.txt || { echo "::error::index.html ontbreekt in de ZIP"; exit 1; }
+          echo "zip=$ZIP" >> "$GITHUB_ENV"
+
+      - name: Release maken
+        if: steps.versie.outputs.nieuw == 'ja'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSIE: ${{ steps.versie.outputs.versie }}
+        run: |
+          NOTITIE="docs/overdracht/overdracht_${VERSIE//./_}.md"
+          if [ ! -f "$NOTITIE" ]; then
+            echo "::warning::$NOTITIE ontbreekt; release zonder overdracht als tekst"
+            NOTITIE=$(mktemp)
+            echo "TelSuite $VERSIE" > "$NOTITIE"
+          fi
+          gh release create "$VERSIE" "$zip" \
+            --target "$GITHUB_SHA" \
+            --title "TelSuite $VERSIE" \
+            --notes-file "$NOTITIE"

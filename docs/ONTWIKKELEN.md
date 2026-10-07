@@ -78,8 +78,8 @@ schrijfbare map `/planningen/`. Zonder server werkt de rest gewoon.
 
 ### Overige mappen
 
-- `docs/overdracht/overdracht_v2_XX.md` — per release een overdracht, alle versies.
-- `docs/VELDTEST_3.0.md` — draaiboek voor de veldtest op de iPhone vóór versie 3.0.
+- `docs/overdracht/overdracht_vX_Y.md` — per release een overdracht, alle versies.
+- `docs/VELDTEST_3.0.md` — draaiboek voor de veldtest vóór versie 3.0 (groen op 7 oktober 2026); voorbeeld voor een volgende.
 - `_archief/overpass_rig/` — regressietests en `valideer.py`; zie de README daar.
 - `_archief/` verder — eerdere rigs en prototypes, alleen ter naslag.
 
@@ -128,5 +128,19 @@ verraden het gebied of de positie waar je telt.
 Wijzigingen zo additief mogelijk; alles wat niet bedoeld is te veranderen blijft
 byte-identiek aan de vorige release. Per release: `valideer.py` (JS-syntax,
 tagbalans, byte-identiteit, gedeelde blokken), de functionele tests uit
-`_archief/overpass_rig/`, en een nieuwe `docs/overdracht/overdracht_v2_XX.md`. Het versienummer
+`_archief/overpass_rig/`, en een nieuwe `docs/overdracht/overdracht_vX_Y.md`. Het versienummer
 onderaan `index.html` gaat elke release omhoog; `valideer.py` controleert dat.
+
+## Release-ZIP
+
+Sinds v3.0 maakt GitHub per versie zelf een release. Na elke push naar `main`
+leest `.github/workflows/release.yml` het versienummer onderaan `index.html`.
+Is dat nummer nog niet getagd, dan komt er een release met die tag,
+`telsuite-<versie>.zip` en de overdracht als tekst. Te vinden onder *Releases*
+op GitHub. Zonder nieuw nummer gebeurt er niets.
+
+De ZIP is `git archive` van de commit: precies wat op de server hoort. Wat er
+niet in gaat, staat in `.gitattributes` (`export-ignore`): ontwikkelspul
+(`_archief/`, `docs/`, `.github/`, `CLAUDE.md`, …) en `planningen/.htaccess`,
+zodat een upload het echte wachtwoordpad op de server niet overschrijft. Komt er
+een bestand bij dat niet op de server hoort, zet het dan in `.gitattributes`.

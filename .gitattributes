@@ -1,0 +1,14 @@
+# Wat NIET in de release-ZIP gaat (sinds v3.0).
+# De ZIP wordt gebouwd met `git archive` (zie .github/workflows/release.yml) en
+# bevat alles wat op de server hoort. Ontwikkelspul blijft eruit.
+.gitattributes      export-ignore
+.gitignore          export-ignore
+.github             export-ignore
+CLAUDE.md           export-ignore
+_archief            export-ignore
+docs                export-ignore
+build_bezocht.py    export-ignore
+
+# Op de server staat hier het echte AuthUserFile-pad. Een upload van de ZIP mag
+# dat niet overschrijven; eenmalig inrichten, zie het bestand zelf.
+planningen/.htaccess export-ignore
