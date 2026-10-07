@@ -1,5 +1,10 @@
 # Veldtest vóór 3.0
 
+> **Uitkomst (7 oktober 2026): alles groen, op iPhone en op Android.** Gedraaid
+> op v2.77; er hoefde niets gerepareerd te worden. v2.77 is daarom ongewijzigd
+> 3.0 geworden (zie `overdracht/overdracht_v3_0.md`). Dit draaiboek blijft staan
+> als voorbeeld voor een volgende veldtest.
+
 Doel: zien of wat sinds v2.64 gebouwd is ook op een echte iPhone werkt, in
 Safari en buiten. De automatische tests draaien in Chromium met nagebootste GPS
 en een nagebootst wegennet. Dit draaiboek dekt wat die niet kunnen zien.

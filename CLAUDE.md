@@ -66,8 +66,12 @@ Deze CLAUDE.md is een samenvatting. Bij twijfel gelden de documenten in `docs/`.
 - Zeg het als een wens te complex wordt voor wat hij oplevert.
 - Elke release:
   - versienummer onderaan `index.html` ophogen;
-  - een nieuwe `docs/overdracht/overdracht_v2_XX.md` schrijven;
+  - een nieuwe `docs/overdracht/overdracht_vX_Y.md` schrijven (sinds 3.0:
+    v3.1, v3.2, …);
   - `docs/OVERDRACHT_STAND_VAN_ZAKEN.md` bijwerken;
-  - één commit (of een PR) per release.
+  - één PR naar `main` per release. Na de merge maakt
+    `.github/workflows/release.yml` zelf de GitHub Release met
+    `telsuite-<versie>.zip`. Een nieuw bestand dat niet op de server hoort,
+    krijgt `export-ignore` in `.gitattributes`.
 - Het planning-endpoint in `planningen/` heeft geen authenticatie. De
   afscherming gebeurt op de server, niet in de repo.
