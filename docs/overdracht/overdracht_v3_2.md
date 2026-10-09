@@ -154,14 +154,17 @@ internet in de testomgeving). De bron is gecontroleerd tegen de
 GetCapabilities van PDOK: `grijs` en `Actueel_ortho25`, matrixset
 `EPSG:28992`.
 
-## 6. Nog te doen door Jay
+## 6. Controle in QGIS 4 (Jay, 9 oktober 2026)
 
-In QGIS 4 het project openen en controleren:
+| vraag | uitkomst |
+|---|---|
+| laadt PDOK grijs? | ja |
+| staat het kaartbeeld goed? | ja |
+| teksten in de opmaak normaal (niet dun, niet vet)? | ja, prima |
+| opmaak als PDF | netjes |
 
-- laadt PDOK grijs?
-- staat het kaartbeeld goed?
-- zijn de teksten in de opmaak normaal, niet dun en niet vet?
-- de opmaak eens als PDF exporteren.
+Daarmee is ook de keuze `fontWeight="50"` voor de opmaakteksten in QGIS 4
+bevestigd.
 
 ## 7. Gewijzigde bestanden
 
