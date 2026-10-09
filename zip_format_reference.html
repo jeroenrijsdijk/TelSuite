@@ -815,5 +815,29 @@ sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_m
   </table>
 </div>
 
+<!-- ── GeoPackage export (v3.1) ── -->
+<div class="summary-section">
+  <h2>GeoPackage export from telrapport</h2>
+  <p style="color:var(--dim);max-width:72ch">Since v3.1, <code>telrapport.html</code> can save the current map as <code>telrapport_&lt;yyyymmdd&gt;_&lt;hhmm&gt;.gpkg</code>. This is an output for viewing in QGIS, not an input: no tool in the suite reads it back, and the ZIPs (and the KNIME pipeline) are unchanged.</p>
+  <ul style="max-width:72ch">
+    <li><strong>What you see is what you get.</strong> The layers are read from what telrapport has drawn: sessions, types and time windows that are switched off are left out, and clusters use the current cluster distance. The <code>sessies</code> table lists every loaded session, with <code>op_kaart</code> = 0 for the hidden ones.</li>
+    <li><strong>Coordinates</strong> are EPSG:4326 (WGS84), as in the ZIPs. Points are at the position shown on the map (the marker position where there is one).</li>
+    <li><strong>Styling travels with the data.</strong> Each map layer has a default style in the standard <code>layer_styles</code> table (<code>useAsDefault</code> = 1), so QGIS applies it on load: colours and categories from telrapport, clusters as pie charts sized like on the map (diameter 10&nbsp;px + 5.6&nbsp;px&nbsp;&middot;&nbsp;&radic;total) with the total as label. The QML is written in QGIS 3.34 form and also loads in QGIS 4.</li>
+    <li>Not yet included: capacity polygons and Static counts. The export says so when they are on the map.</li>
+  </ul>
+  <table>
+    <thead><tr><th>layer</th><th>geometry</th><th>columns</th></tr></thead>
+    <tbody>
+      <tr><td><code>waarnemingen</code></td><td>POINT</td><td><code>sessie_id</code>, <code>app_type</code>, <code>modus</code>, <code>type</code>, <code>categorie</code> (<code>app_type|type</code>, the styling key), <code>type_label</code>, <code>tijdstip</code>, <code>straat</code>, <code>osm_way_id</code>, <code>zijde</code>, <code>richting</code>, <code>snapped</code>, <code>gecorrigeerd</code> &mdash; empty where the source ZIP has no such column</td></tr>
+      <tr><td><code>clusters</code></td><td>POINT</td><td><code>sessie_id</code>, <code>app_type</code>, <code>modus</code>, <code>totaal</code>, <code>samenstelling</code> (readable), plus one integer column per <code>&lt;app_type&gt;_&lt;type&gt;</code> present in the export (e.g. <code>auto_goed</code>, <code>pocket_bezet</code>); their sum is <code>totaal</code>. Centroid of the cluster.</td></tr>
+      <tr><td><code>wegvakken</code></td><td>LINESTRING</td><td><code>way_id</code>, <code>seg_idx</code>, <code>naam</code>, <code>highway</code>, <code>lengte_m</code>, <code>status</code> (<code>geteld</code> / <code>bezocht, geen waarnemingen</code> / <code>netwerk</code>), <code>app_type</code>, <code>waarde</code> + <code>eenheid</code> (<code>p/m&middot;u</code>, <code>% bezet</code> or <code>aantal</code>), <code>totaal</code>, <code>klasse</code> (styling key, e.g. <code>pmu|2</code>), <code>klasse_label</code>, <code>kleur</code> (as on the map)</td></tr>
+      <tr><td><code>route</code></td><td>LINESTRING</td><td><code>sessie_id</code>, <code>app_type</code>, <code>kleur</code> &mdash; the GPS track of each session</td></tr>
+      <tr><td><code>sessies</code></td><td>&mdash; (attributes)</td><td><code>sessie_id</code>, <code>app_type</code>, <code>modus</code>, <code>datum</code>, <code>start_tijd</code>, <code>eind_tijd</code>, <code>teller</code>, <code>reconstructie</code>, <code>label</code>, <code>op_kaart</code></td></tr>
+      <tr><td><code>export_info</code></td><td>&mdash; (attributes)</td><td><code>sleutel</code> / <code>waarde</code>: source, <code>formaat_versie</code> (1), creation time, CRS, cluster distance, time filter, basemap, what was left out</td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--dim);max-width:72ch">Layers without features are omitted. The file is built in the browser with sql.js (loaded from cdnjs on first use); nothing is uploaded.</p>
+</div>
+
 </body>
 </html>

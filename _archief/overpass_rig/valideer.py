@@ -12,9 +12,10 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.0'
-# v3.0: de in het veld geteste v2.77, alleen het versienummer is anders.
-VERWACHT_GEWIJZIGD = {'index.html'}
+RELEASE = 'v3.1'
+# v3.1: telrapport bewaart de kaart als GeoPackage met opmaak voor QGIS.
+VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html', 'zip_format_reference.html',
+                      'privacy.html'}
 VERWACHT_VERWIJDERD = set()
 
 VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',

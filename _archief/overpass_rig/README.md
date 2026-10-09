@@ -33,6 +33,9 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/hersteltest.py       # harde crash + doortellen, alle veld-apps, 133 tests
     python3 _archief/overpass_rig/statictest.py        # Static door de keten: export, telrapport, verzameling, reconstructor, 24 tests
     python3 _archief/overpass_rig/opruimtest.py        # noodopslag weg na bevestigde download, en alleen dan, 52 tests
+    python3 _archief/overpass_rig/gpkgtest.py          # GeoPackage uit telrapport: van veld-app tot QGIS, 54 tests
+                                                       # (ook sql.js@1.14.2 in node_modules; het QGIS-deel draait als
+                                                       #  PyQGIS er is, via gpkg_qgis.py, anders overgeslagen)
                                                        # (playwright + leaflet/jszip/papaparse/fontsource in node_modules)
 
 `valideer.py` vergelijkt met een vorige release; pas OUD_DIR/NIEUW_DIR en de

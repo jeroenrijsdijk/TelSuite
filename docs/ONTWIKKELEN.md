@@ -92,7 +92,8 @@ daarvoor moeten veld-app en reconstructor op dezelfde origin staan.
 Wat er van buiten wordt opgehaald:
 
 - **Bibliotheken** via CDN (cdnjs, unpkg): Leaflet 1.9.4, JSZip 3.10.1,
-  PapaParse 5.4.1, Leaflet.draw 1.0.4 (alleen telplanning).
+  PapaParse 5.4.1, Leaflet.draw 1.0.4 (alleen telplanning), sql.js 1.14.2 (alleen
+  telrapport, en pas bij de eerste GeoPackage-export).
 - **Lettertypen**: Google Fonts (Oswald, Share Tech Mono).
 - **Kaarttegels**: OpenStreetMap, CARTO, PDOK. De CARTO-sleutel staat in drie
   bestanden: `telrapport.html`, `telplanning.html`, `telreconstructie.html`.

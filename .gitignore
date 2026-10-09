@@ -16,6 +16,9 @@ desktop.ini
 *.kml
 *.kmz
 *.geojson
+*.gpkg
+*.qgz
+*.qgs
 *.png
 !docs/img/*.png
 

@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.0.** De veldtest (`VELDTEST_3.0.md`) was op 7 oktober 2026 helemaal groen, op iPhone en Android. 3.0 is daarom de geteste v2.77, alleen met een ander versienummer. Vanaf hier: v3.1, v3.2, … Elke release krijgt op GitHub automatisch een ZIP (zie §3).
+**Laatste release: v3.1.** Telrapport bewaart de kaart als GeoPackage met opmaak voor QGIS (`overdracht_v3_1.md`). 3.0 was de in het veld geteste v2.77; sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
 
 ---
 
@@ -109,6 +109,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ## 4. Nog te doen door Jay (buiten de code)
 
+0. **GeoPackage in QGIS 4 bekijken (v3.1)** — in telrapport een paar tellingen laden, *bewaar kaart als GeoPackage (QGIS)*, het bestand in QGIS 4 slepen en alle lagen kiezen. Verwacht: stippen in de kleuren van telrapport, clusterbollen als taartdiagram met een wit cijfer, gekleurde wegvakken en een gestreept GPS-spoor, elk met een legenda. Getest is tegen QGIS 3.34; QGIS 4 kon hier niet. Wijkt iets af (vooral de cijfers in de bollen: vet en wit?), dan een schermafbeelding.
 0a. **Planningmap afschermen (v2.75), vóór het online zetten** — een wachtwoordbestand maken buiten de webroot en het volledige pad invullen bij `AuthUserFile` in `planningen/.htaccess`. Controle in een privévenster: `https://telonline.org/planningen/planning_list.php` moet om een wachtwoord vragen. Vraagt hij niets, dan leest de server geen `.htaccess` en is de map open. Zolang het pad niet klopt, geeft de map een 500-fout (dicht, niet open) en meldt telplanning dat.
 0b. **Contactgegevens in `privacy.html` invullen** — het gele veld bij *Je rechten en contact* (naam en e-mailadres van de beheerder). `valideer.py` meldt het zolang het er staat.
 1. **Screenshots voor `over.html`** — nog niet geleverd. Drie bestanden, exact deze namen, naast `over.html`:
@@ -159,6 +160,10 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - **Autorit-reconstructie — geparkeerd** (v2.67: Jay telt zelden vanuit de auto). De highway-voorkeur, het grootste obstakel, is sinds v2.67 opgelost. Wat nog ontbreekt: een tijdspoort plus verdichten, een rit-profiel met herkenning, en bij lange ritten een corridor-fetch en een ruimtelijke index. Analyse en volgorde in `overdracht_v2_66.md` §4.
 - Zijde-offset live in pocket-parkeren? De ingrediënten zijn er (de gesnapte positie en de wegrichting kent pocket al), zo'n vijftien regels. Twee bezwaren: het voegt `lat_marker`/`lon_marker`/`zijde` toe aan het rauwe pocket-schema en vraagt dus KNIME-afstemming, én "links" is bij pocket relatief aan de looprichting, die de app op het moment van tikken minder zeker kent dan de reconstructor achteraf uit de hele route — precies de reden dat de reconstructor bestaat. Winst is vooral cosmetisch: ongereconstrueerde pocket-parkeertellingen zien er in telrapport dan net zo uit als parkeertellingen.
 - "Save as .png" in telrapport: het kaartbeeld exporteren. De knop is triviaal, het plaatje niet. Tegels zijn niet CORS-schoon (`L.tileLayer` zet geen `crossOrigin`), vectoren zitten in vijf SVG-panes, labels zijn acht `divIcon`-varianten. Drie routes: handgetekend canvas zonder ondergrond (patroon van de veld-apps), eigen tegel-compositor (~150 regels, geen afhankelijkheid), of `html2canvas` van een CDN. Voorstel: tegel-compositor met automatische terugval naar zonder-ondergrond bij een SecurityError. Eerst de CORS-test draaien op OSM/CARTO/PDOK; de bronvermelding moet sowieso in de PNG gebakken worden.
+  *v3.1:* voor het rapportpad is er nu de GeoPackage voor QGIS (daar zitten ondergrond, schaalstok en PDF-export al in). Een PNG uit telrapport blijft nuttig voor het snelle plaatje.
+- **GeoPackage stap 2: QGIS-project in de GeoPackage** (tabel `qgis_projects`): ondergrond, laagvolgorde, RD New, ingezoomd op de telling, en een printopmaak met titel, legenda, schaalstok en noordpijl. Eerst een proef: hoe vindt QGIS de lagen terug als het project in hetzelfde bestand zit en je dat bestand verplaatst?
+- **GeoPackage: capaciteitsterreinen en Static** als eigen lagen (`terreinen`, `telposten`). Nu meldt de export dat ze niet meegaan.
+- QGIS-loader (`telonline_qgis_loader.py`) op QGIS 4 testen (Qt6, opgeschoonde Python-API); eventueel dezelfde stijlsjablonen gebruiken als de GeoPackage-export, zodat de opmaak op één plek bestaat.
 - Parkeren uit pocket halen naar een eigen tool. Sinds v2.69 heeft het een eigen ingang op de voorpagina (`#parkeren`), wat het grootste deel van de wens dekt. Een echte afsplitsing loont pas als parkeren een eigen kant op gaat (bijv. de zijde-offset live), want dan moeten GPS, snap, fetch-discipline en noodopslag in twee bestanden gelijk blijven.
 - `over.html` volgt de nieuwe indeling van de voorpagina nog niet (v2.69). De handleiding is in v2.74 bijgewerkt.
 - Volle opslag wordt niet gemeld: `setItem` faalt stil in een `try/catch`, en vanaf dat moment is er geen noodkopie meer. Een zichtbare waarschuwing ("noodopslag vol, download tussendoor") in alle vier de apps.
@@ -174,7 +179,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.0 in één oogopslag
+## 6. Releases v2.32 → v3.1 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -225,6 +230,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v2.76 | **Noodopslag weg na de download**: pocket schreef hem na Stop + Sluiten bij de eerstvolgende app-wissel opnieuw weg (heropenen bood een al gedownloade telling aan); parkeer-apps lieten het wegennet van de sessie staan; Static hield zijn kopie tot je Static weer opende, en **wiste een niet-opgeslagen afgeronde telling** als het deelblad geannuleerd was. Nu: weg zodra de ZIP bevestigd is opgeslagen, blijft als dat niet lukte. Privacyverklaring noemt de wegennet-cache. Nieuwe `opruimtest.py` |
 | v2.77 | **Parkeer-apps volgen de opruimregel**: geannuleerd deelvenster wist de noodkopie niet meer en start geen ongevraagde download; ZIP-knop biedt dezelfde ZIP opnieuw aan binnen de tik (belangrijk op de iPhone); gedeeld blok `bewaarZip` |
 | **v3.0** | **Veldtest groen op iPhone en Android → v2.77 wordt 3.0**, byte-identiek op het versienummer na. Nieuw: GitHub maakt per versie automatisch een release met `telsuite-<versie>.zip` |
+| v3.1 | **Kaart bewaren als GeoPackage voor QGIS**: waarnemingen, clusterbollen (taartdiagram), wegvakken en GPS-spoor, met de opmaak van telrapport ingebouwd (`layer_styles`); wat je ziet gaat mee; sql.js via cdnjs; nieuwe `gpkgtest.py` (ook tegen QGIS 3.34) |
 
 ---
 

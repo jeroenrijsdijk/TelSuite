@@ -564,6 +564,12 @@
           </button>
         </div>
         <div class="toggle-row" style="margin-top:6px">
+          <button class="dot-btn" id="export-gpkg-btn" style="color:#fff;flex:1"
+            title="Wat nu op de kaart staat als GeoPackage, met opmaak: in QGIS slepen en het staat er goed op"
+            onclick="exportGeoPackage()">
+            <span class="dot" style="background:#93b7be;border:1px solid #888"></span>bewaar kaart als GeoPackage (QGIS)</button>
+        </div>
+        <div class="toggle-row" style="margin-top:6px">
           <button class="dot-btn" id="capnetwerk-toggle" style="color:#fff;flex:1"
             onclick="toggleCapNetwerk(this)">
             <span class="dot" style="background:#1a1918;border:1px solid #888"></span>capaciteitscontouren
@@ -1672,6 +1678,7 @@ function loadTransectZip(sid, sm, telCSV, gpsCSV) {
       }).bindTooltip((APP_CONFIG.transect.labels[type]||type)+' → '+richting+' · '+datum, {direction:'top'});
       m.addTo(map);
       m._tikType = type;      // v2.60: type bij de marker, niet in de tooltiptekst
+      m._rij = r;             // v3.1: voor de GeoPackage-export (niet _telregel, zie pocket)
       if (!dotLayers[sid][type]) dotLayers[sid][type] = [];
       dotLayers[sid][type].push(m);
 
@@ -1894,6 +1901,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
         + (cb ? ' · snap '+r.conf_level : ''), {direction:'top'});
     m.addTo(map);
     m._tikType = rowType;   // v2.60: type bij de marker, niet in de tooltiptekst
+    m._rij = r;             // v3.1: voor de GeoPackage-export. Bewust niet _telregel: die maakt een stip versleepbaar in de correctiemodus
     if (!dotLayers[sid][rowType]) dotLayers[sid][rowType] = [];
     dotLayers[sid][rowType].push(m);
 
@@ -2659,6 +2667,7 @@ function drawClusters(sid) {
             if (clusterShiftSolo(e, [sid])) return;
             showPtClusterDetail(counts, {[sid]:counts}, total, appType);
           });
+        m._cluster = { counts: counts, total: total };   // v3.1: voor de GeoPackage-export
         m.addTo(map);
         clusterLayers[sid].push(m);
       });
@@ -2707,8 +2716,9 @@ function drawClusters(sid) {
         }),
         iconSize: [0,0], iconAnchor: [0,0]
       });
-      const m = L.marker([centLat, centLon], { icon, pane:'cluster-badges', interactive:true })
-        .bindTooltip(clusterTip(typeLine), { permanent:false, direction:'top', offset:[0,-size/2],
+      const m = L.marker([centLat, centLon], { icon, pane:'cluster-badges', interactive:true });
+      m._cluster = { counts, total };   // v3.1: voor de GeoPackage-export
+      m.bindTooltip(clusterTip(typeLine), { permanent:false, direction:'top', offset:[0,-size/2],
           className:'cluster-label' })
         .on('mousedown', shiftBoxZoomBlokkeren)
         .on('click', (e)=>{
@@ -5436,6 +5446,505 @@ async function loadFile(file) {
   }
   // Onbekend type: stil overslaan (multi-select kan andere bestanden bevatten)
 }
+
+/* ── GeoPackage-export (v3.1) ──────────────────────────────────────────────────
+   "bewaar kaart als GeoPackage": wat nu op de kaart staat, als één .gpkg die in
+   QGIS meteen opgemaakt binnenkomt. Geen tweede rekenpad: de lagen worden
+   gelezen uit wat telrapport al getekend heeft (stippen, clusterbollen,
+   wegvakken, GPS-routes). Wat je hebt uitgezet, gaat dus ook niet mee.
+
+   Hoe QGIS de opmaak vindt: een GeoPackage mag een tabel layer_styles hebben.
+   Staat daar per laag een stijl met useAsDefault = 1, dan past QGIS die bij het
+   inladen zelf toe. De stijlen zijn minimale QML (alleen symbolen, labels en het
+   taartdiagram); kleuren en categorieën komen uit APP_CONFIG en INTENSITEIT,
+   dezelfde bron als de kaart hier. De QML heeft de vorm van QGIS 3.34, zodat hij
+   ook in QGIS 4 werkt.
+
+   SQLite in de browser: sql.js van cdnjs, pas geladen bij de eerste export.
+   Coördinaten in WGS84 (EPSG:4326), net als in de ZIP's.
+   Nog niet mee: capaciteitsterreinen en Static; de export meldt het als die op
+   de kaart staan.                                                              */
+var GPKG_SQLJS_BASIS = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.14.2/';
+var GPKG_FORMAAT_VERSIE = 1;
+var _sqlJsBelofte = null;
+
+function laadSqlJs() {
+  if (_sqlJsBelofte) return _sqlJsBelofte;
+  _sqlJsBelofte = new Promise(function (ok, fout) {
+    var s = document.createElement('script');
+    s.src = GPKG_SQLJS_BASIS + 'sql-wasm.js';
+    s.onload = function () {
+      initSqlJs({ locateFile: function (f) { return GPKG_SQLJS_BASIS + f; } }).then(ok, fout);
+    };
+    s.onerror = function () { fout(new Error('sql.js niet geladen')); };
+    document.head.appendChild(s);
+  });
+  // Mislukt (offline)? Dan probeert de volgende klik het opnieuw.
+  _sqlJsBelofte.catch(function () { _sqlJsBelofte = null; });
+  return _sqlJsBelofte;
+}
+
+/* Schrijver: lagen in, bytes uit. Weet niets van telrapport.
+   laag = { naam, omschrijving, geometrie: 'POINT' | 'LINESTRING' | null,
+            velden: [[naam, 'TEXT'|'INTEGER'|'REAL'], ...],
+            rijen: [{ geom: {punt:[lon,lat]} | {lijn:[[lon,lat],...]}, waarden: {veld: waarde} }],
+            qml: tekst of null }                                                 */
+var GPKG = (function () {
+  var WGS84 = 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,'
+            + 'AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,'
+            + 'AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],'
+            + 'AUTHORITY["EPSG","4326"]]';
+
+  // GeoPackage-geometrie: kop "GP" + versie + vlaggen + srs_id (+ envelop) + WKB.
+  // Little-endian. Punten zonder envelop (zo raadt de standaard aan), lijnen met.
+  function geomBlob(g) {
+    var pts = g.punt ? [g.punt] : g.lijn;
+    var env = g.punt ? 0 : 1;
+    var n = 8 + (env ? 32 : 0) + 5 + (g.punt ? 0 : 4) + 16 * pts.length;
+    var dv = new DataView(new ArrayBuffer(n)), o = 0;
+    dv.setUint8(o++, 0x47); dv.setUint8(o++, 0x50);   // "GP"
+    dv.setUint8(o++, 0);                               // versie 1
+    dv.setUint8(o++, (env << 1) | 1);                  // envelop-soort, little-endian
+    dv.setInt32(o, 4326, true); o += 4;
+    if (env) {
+      var b = omhulsel(pts);
+      [b[0], b[2], b[1], b[3]].forEach(function (v) { dv.setFloat64(o, v, true); o += 8; });
+    }
+    dv.setUint8(o++, 1);                               // WKB little-endian
+    dv.setUint32(o, g.punt ? 1 : 2, true); o += 4;     // 1 = Point, 2 = LineString
+    if (!g.punt) { dv.setUint32(o, pts.length, true); o += 4; }
+    pts.forEach(function (p) {
+      dv.setFloat64(o, p[0], true); dv.setFloat64(o + 8, p[1], true); o += 16;
+    });
+    return new Uint8Array(dv.buffer);
+  }
+
+  function omhulsel(pts) {   // [minx, miny, maxx, maxy]
+    var b = [Infinity, Infinity, -Infinity, -Infinity];
+    pts.forEach(function (p) {
+      if (p[0] < b[0]) b[0] = p[0]; if (p[1] < b[1]) b[1] = p[1];
+      if (p[0] > b[2]) b[2] = p[0]; if (p[1] > b[3]) b[3] = p[1];
+    });
+    return b;
+  }
+
+  var SCHEMA = [
+    'CREATE TABLE gpkg_spatial_ref_sys (srs_name TEXT NOT NULL, srs_id INTEGER NOT NULL PRIMARY KEY, '
+      + 'organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL, definition TEXT NOT NULL, description TEXT)',
+    'CREATE TABLE gpkg_contents (table_name TEXT NOT NULL PRIMARY KEY, data_type TEXT NOT NULL, '
+      + 'identifier TEXT UNIQUE, description TEXT DEFAULT \'\', last_change DATETIME NOT NULL '
+      + 'DEFAULT (strftime(\'%Y-%m-%dT%H:%M:%fZ\',\'now\')), min_x DOUBLE, min_y DOUBLE, max_x DOUBLE, '
+      + 'max_y DOUBLE, srs_id INTEGER, CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id))',
+    'CREATE TABLE gpkg_geometry_columns (table_name TEXT NOT NULL, column_name TEXT NOT NULL, '
+      + 'geometry_type_name TEXT NOT NULL, srs_id INTEGER NOT NULL, z TINYINT NOT NULL, m TINYINT NOT NULL, '
+      + 'CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name), '
+      + 'CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name), '
+      + 'CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id))',
+    // Dezelfde vorm als QGIS hem zelf aanmaakt; QGIS zoekt hier de standaardstijl.
+    'CREATE TABLE layer_styles (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, f_table_catalog TEXT(256), '
+      + 'f_table_schema TEXT(256), f_table_name TEXT(256), f_geometry_column TEXT(256), styleName TEXT(30), '
+      + 'styleQML TEXT, styleSLD TEXT, useAsDefault BOOLEAN, description TEXT, owner TEXT(30), ui TEXT(30), '
+      + 'update_time DATETIME DEFAULT (strftime(\'%Y-%m-%dT%H:%M:%fZ\',\'now\')))'
+  ];
+
+  function maak(SQL, lagen) {
+    var db = new SQL.Database();
+    try {
+      db.run('PRAGMA application_id = 1196444487');   // "GPKG"
+      db.run('PRAGMA user_version = 10200');          // GeoPackage 1.2
+      db.run('BEGIN');
+      SCHEMA.forEach(function (s) { db.run(s); });
+      db.run('INSERT INTO gpkg_spatial_ref_sys VALUES (?,?,?,?,?,?)',
+             ['Undefined cartesian SRS', -1, 'NONE', -1, 'undefined', '']);
+      db.run('INSERT INTO gpkg_spatial_ref_sys VALUES (?,?,?,?,?,?)',
+             ['Undefined geographic SRS', 0, 'NONE', 0, 'undefined', '']);
+      db.run('INSERT INTO gpkg_spatial_ref_sys VALUES (?,?,?,?,?,?)',
+             ['WGS 84 geodetic', 4326, 'EPSG', 4326, WGS84, '']);
+      lagen.forEach(function (l) { schrijfLaag(db, l); });
+      db.run('INSERT INTO gpkg_contents (table_name, data_type, identifier) VALUES (?,?,?)',
+             ['layer_styles', 'attributes', 'layer_styles']);
+      db.run('COMMIT');
+      return db.export();
+    } finally {
+      db.close();
+    }
+  }
+
+  function schrijfLaag(db, l) {
+    var kol = ['fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL'];
+    if (l.geometrie) kol.push('geom ' + l.geometrie);
+    l.velden.forEach(function (v) { kol.push('"' + v[0] + '" ' + v[1]); });
+    db.run('CREATE TABLE "' + l.naam + '" (' + kol.join(', ') + ')');
+
+    var namen = (l.geometrie ? ['geom'] : []).concat(l.velden.map(function (v) { return '"' + v[0] + '"'; }));
+    var st = db.prepare('INSERT INTO "' + l.naam + '" (' + namen.join(', ') + ') VALUES ('
+                        + namen.map(function () { return '?'; }).join(', ') + ')');
+    var alle = [];
+    l.rijen.forEach(function (r) {
+      var w = l.velden.map(function (v) {
+        var x = r.waarden[v[0]];
+        return (x === undefined || x === '' && v[1] !== 'TEXT') ? null : x;
+      });
+      if (l.geometrie) {
+        w.unshift(geomBlob(r.geom));
+        alle = alle.concat(r.geom.punt ? [r.geom.punt] : r.geom.lijn);
+      }
+      st.run(w);
+    });
+    st.free();
+
+    if (l.geometrie) {
+      var b = omhulsel(alle);
+      db.run('INSERT INTO gpkg_contents (table_name, data_type, identifier, description, min_x, min_y, max_x, max_y, srs_id) '
+             + 'VALUES (?,?,?,?,?,?,?,?,4326)', [l.naam, 'features', l.naam, l.omschrijving || '', b[0], b[1], b[2], b[3]]);
+      db.run('INSERT INTO gpkg_geometry_columns VALUES (?,?,?,4326,0,0)', [l.naam, 'geom', l.geometrie]);
+    } else {
+      db.run('INSERT INTO gpkg_contents (table_name, data_type, identifier, description) VALUES (?,?,?,?)',
+             [l.naam, 'attributes', l.naam, l.omschrijving || '']);
+    }
+    if (l.qml) {
+      db.run('INSERT INTO layer_styles (f_table_catalog, f_table_schema, f_table_name, f_geometry_column, '
+             + 'styleName, styleQML, styleSLD, useAsDefault, description, owner, ui) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+             ['', '', l.naam, 'geom', l.naam, l.qml, '', 1, 'telrapport', '', '']);
+    }
+  }
+
+  return { maak: maak, geomBlob: geomBlob };
+})();
+
+/* Minimale QML. Alleen wat de opmaak bepaalt; de rest vult QGIS zelf in.
+   Maten in millimeters: 1 px op het scherm hier ≈ 0,265 mm in QGIS.          */
+var GPKG_QML = (function () {
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function rgba(hex, alfa) {
+    var h = String(hex || '#777777').replace('#', '');
+    if (h.length === 3) h = h.replace(/(.)/g, '$1$1');
+    return parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) + ','
+         + parseInt(h.slice(4, 6), 16) + ',' + Math.round(255 * (alfa === undefined ? 1 : alfa));
+  }
+  function opt(n, v) { return '<Option name="' + n + '" value="' + esc(v) + '" type="QString"/>'; }
+  function kop(labels) {
+    return '<!DOCTYPE qgis><qgis version="3.34.0" styleCategories="Symbology|Labeling|Diagrams" labelsEnabled="'
+         + (labels ? 1 : 0) + '">';
+  }
+  function punt(naam, kleur, rand, randMm, mm, alfa) {
+    return '<symbol type="marker" name="' + naam + '" alpha="1" clip_to_extent="1" force_rhr="0">'
+         + '<layer class="SimpleMarker" enabled="1" pass="0" locked="0"><Option type="Map">'
+         + opt('name', 'circle') + opt('color', rgba(kleur, alfa)) + opt('outline_color', rgba(rand))
+         + opt('outline_width', randMm) + opt('size', mm) + '</Option></layer></symbol>';
+  }
+  function lijn(naam, kleur, mm, streep, alfa) {
+    return '<symbol type="line" name="' + naam + '" alpha="1" clip_to_extent="1" force_rhr="0">'
+         + '<layer class="SimpleLine" enabled="1" pass="0" locked="0"><Option type="Map">'
+         + opt('line_color', rgba(kleur, alfa)) + opt('line_width', mm) + opt('line_width_unit', 'MM')
+         + opt('line_style', streep ? 'dash' : 'solid') + opt('capstyle', 'round') + opt('joinstyle', 'round')
+         + '</Option></layer></symbol>';
+  }
+  // cats: [{ waarde, label, symbool(naam) }]
+  function categorieen(veld, cats) {
+    return '<renderer-v2 type="categorizedSymbol" attr="' + esc(veld) + '" symbollevels="0" enableorderby="0" forceraster="0">'
+         + '<categories>' + cats.map(function (c, i) {
+             return '<category value="' + esc(c.waarde) + '" label="' + esc(c.label) + '" symbol="' + i
+                  + '" render="true" type="string"/>';
+           }).join('') + '</categories>'
+         + '<symbols>' + cats.map(function (c, i) { return c.symbool(String(i)); }).join('') + '</symbols>'
+         + '</renderer-v2>';
+  }
+
+  // Stippen: rand en maat zoals op de kaart hier (straal 4–5 px).
+  function waarnemingen(cats) {
+    return kop(false) + categorieen('categorie', cats.map(function (c) {
+      return { waarde: c.waarde, label: c.label,
+               symbool: function (n) { return punt(n, c.kleur, '#111111', '0.2', '2.4', 0.85); } };
+    })) + '</qgis>';
+  }
+
+  // Clusterbol als taartdiagram, grootte als hier: diameter = 10 px + 5,6 px · √totaal.
+  // QGIS schaalt "op oppervlak" (de wortel uit de waarde) tussen 0 en het maximum,
+  // dus die formule komt er exact uit. Het totaal staat als label in het midden.
+  function clusters(kolommen, maxTotaal) {
+    var basis = 2.65, perWortel = 1.48;                 // 10 px en 5,6 px
+    var max = Math.max(1, maxTotaal), groot = (basis + perWortel * Math.sqrt(max)).toFixed(2);
+    return kop(true)
+      + '<renderer-v2 type="nullSymbol"/>'   // geen stip: het diagram is het symbool
+      + '<labeling type="simple"><settings calloutType="simple">'
+      // Vet via de stijlnaam, niet via fontWeight: dat getal is in QGIS 3 (Qt5, 75 = vet)
+      // iets anders dan in QGIS 4 (Qt6, 700 = vet). De naam werkt in allebei.
+      + '<text-style fieldName="totaal" isExpression="0" fontFamily="Arial" namedStyle="Bold" fontSize="8" '
+      + 'fontSizeUnit="Point" textColor="255,255,255,255" textOpacity="1">'
+      + '<text-buffer bufferDraw="1" bufferSize="0.15" bufferSizeUnits="MM" bufferColor="17,17,17,140" '
+      + 'bufferOpacity="1" bufferNoFill="1"/></text-style>'
+      + '<placement placement="1" quadOffset="4" dist="0" offsetType="0"/>'
+      + '<rendering obstacle="0" displayAll="1" upsidedownLabels="0"/></settings></labeling>'
+      + '<LinearlyInterpolatedDiagramRenderer diagramType="Pie" attributeLegend="1" classificationField="totaal" '
+      + 'lowerValue="0" upperValue="' + max + '" lowerWidth="' + basis + '" lowerHeight="' + basis + '" '
+      + 'upperWidth="' + groot + '" upperHeight="' + groot + '">'
+      + '<DiagramCategory enabled="1" diagramOrientation="Up" sizeType="MM" scaleDependency="Area" '
+      + 'penColor="#000000" penWidth="0.3" penAlpha="255" lineSizeType="MM" backgroundAlpha="255" opacity="0.85" '
+      + 'rotationOffset="270" direction="1" showAxis="0" labelPlacementMethod="Height" minimumSize="0" '
+      + 'width="-1" height="-1" barWidth="5" spacing="0" spacingUnit="MM" minScaleDenominator="0" '
+      + 'maxScaleDenominator="0" scaleBasedVisibility="0">'
+      + '<fontProperties description="Arial,8,-1,5,50,0,0,0,0,0" style=""/>'
+      + kolommen.map(function (k) {
+          return '<attribute field="&quot;' + esc(k.veld) + '&quot;" color="' + esc(k.kleur)
+               + '" label="' + esc(k.label) + '" colorOpacity="1"/>';
+        }).join('')
+      + '</DiagramCategory></LinearlyInterpolatedDiagramRenderer>'
+      + '<DiagramLayerSettings placement="1" showAll="1" priority="5" zIndex="0" obstacle="0" dist="0" linePlacementFlags="1"/>'
+      + '</qgis>';
+  }
+
+  // cats: [{ waarde, label, kleur, mm, streep, alfa }]
+  function lijnen(veld, cats) {
+    return kop(false) + categorieen(veld, cats.map(function (c) {
+      return { waarde: c.waarde, label: c.label,
+               symbool: function (n) { return lijn(n, c.kleur, c.mm, c.streep, c.alfa); } };
+    })) + '</qgis>';
+  }
+
+  return { waarnemingen: waarnemingen, clusters: clusters, lijnen: lijnen };
+})();
+
+/* ── Telrapport → lagen ──────────────────────────────────────────────────────── */
+var GPKG_APP_LABEL = { auto: 'parkeren', fiets: 'fietsparkeren', pocket: 'pocket', transect: 'transect' };
+
+function gpkgSessieLabel(sid) {
+  var s = sessions[sid], m = (s && s.meta) || {};
+  return [fmtDatum(m.datum, m.start_tijd), (m.start_tijd || '').slice(0, 5), m.teller,
+          GPKG_APP_LABEL[s && s.appType] || (s && s.appType)].filter(Boolean).join(' · ');
+}
+
+function gpkgVeldnaam(app, type) {
+  return (app + '_' + type).toLowerCase().replace(/[^a-z0-9_]/g, '_');
+}
+
+// Type-volgorde: die van APP_CONFIG, onbekende types alfabetisch erachter (als clusterPunten).
+function gpkgTypeVolgorde(app, types) {
+  var vast = (APP_CONFIG[app] && APP_CONFIG[app].types) || [];
+  return vast.filter(function (t) { return types.indexOf(t) >= 0; })
+    .concat(types.filter(function (t) { return vast.indexOf(t) < 0; }).sort());
+}
+
+function gpkgLagen() {
+  var lijst = [], nietMee = [];
+  var appVolgorde = ['auto', 'fiets', 'pocket', 'transect'];
+
+  // ── waarnemingen: elke stip die op de kaart staat, op de plek waar hij staat
+  var wRijen = [], wTypes = {};
+  Object.keys(dotLayers).forEach(function (sid) {
+    var s = sessions[sid]; if (!s) return;
+    Object.keys(dotLayers[sid] || {}).forEach(function (sleutel) {
+      (dotLayers[sid][sleutel] || []).forEach(function (m) {
+        if (!map.hasLayer(m)) return;
+        var t = String(m._tikType || sleutel), ll = m.getLatLng();
+        var r = m._telregel || m._rij || {};
+        (wTypes[s.appType] = wTypes[s.appType] || {})[t] = true;
+        wRijen.push({ geom: { punt: [ll.lng, ll.lat] }, waarden: {
+          sessie_id: sid, app_type: s.appType, modus: (s.meta.modus || '').trim(),
+          type: t, categorie: s.appType + '|' + t,
+          type_label: ((APP_CONFIG[s.appType] || {}).labels || {})[t] || t,
+          tijdstip: r.tijdstip || '', straat: r.straat || '', osm_way_id: r.osm_way_id || '',
+          zijde: r.zijde || '', richting: r.richting || '',
+          snapped: r.snapped === undefined || r.snapped === '' ? null : +(r.snapped === '1' || r.snapped === 1),
+          gecorrigeerd: r.manually_corrected === '1' ? 1 : 0
+        }});
+      });
+    });
+  });
+  var appsW = appVolgorde.filter(function (a) { return wTypes[a]; });
+  if (wRijen.length) {
+    var wCats = [];
+    appsW.forEach(function (a) {
+      gpkgTypeVolgorde(a, Object.keys(wTypes[a])).forEach(function (t) {
+        var cfg = APP_CONFIG[a] || {};
+        wCats.push({ waarde: a + '|' + t,
+                     label: ((cfg.labels || {})[t] || t) + (appsW.length > 1 ? ' (' + GPKG_APP_LABEL[a] + ')' : ''),
+                     kleur: (cfg.colors || {})[t] || '#555555' });
+      });
+    });
+    lijst.push({ naam: 'waarnemingen', geometrie: 'POINT', omschrijving: 'Getelde waarnemingen, op hun plek op de kaart',
+      velden: [['sessie_id', 'TEXT'], ['app_type', 'TEXT'], ['modus', 'TEXT'], ['type', 'TEXT'],
+               ['categorie', 'TEXT'], ['type_label', 'TEXT'], ['tijdstip', 'TEXT'], ['straat', 'TEXT'],
+               ['osm_way_id', 'TEXT'], ['zijde', 'TEXT'], ['richting', 'TEXT'],
+               ['snapped', 'INTEGER'], ['gecorrigeerd', 'INTEGER']],
+      rijen: wRijen, qml: GPKG_QML.waarnemingen(wCats) });
+  }
+
+  // ── clusters: de bollen zoals drawClusters ze berekende (marker._cluster)
+  var cRijen = [], cTypes = {};
+  Object.keys(clusterLayers).forEach(function (sid) {
+    var s = sessions[sid]; if (!s) return;
+    (clusterLayers[sid] || []).forEach(function (m) {
+      if (!m._cluster || !map.hasLayer(m)) return;
+      var ll = m.getLatLng(), counts = m._cluster.counts, w = {
+        sessie_id: sid, app_type: s.appType, modus: (s.meta.modus || '').trim(), totaal: m._cluster.total,
+        samenstelling: clusterPunten(counts, APP_CONFIG[s.appType]).map(function (p) { return p.type + ' ' + p.n; }).join(' · ')
+      };
+      Object.keys(counts).forEach(function (t) {
+        (cTypes[s.appType] = cTypes[s.appType] || {})[t] = true;
+        w[gpkgVeldnaam(s.appType, t)] = counts[t];
+      });
+      cRijen.push({ geom: { punt: [ll.lng, ll.lat] }, waarden: w });
+    });
+  });
+  if (cRijen.length) {
+    var kolommen = [], appsC = appVolgorde.filter(function (a) { return cTypes[a]; });
+    appsC.forEach(function (a) {
+      var cfg = APP_CONFIG[a] || {};
+      gpkgTypeVolgorde(a, Object.keys(cTypes[a])).forEach(function (t) {
+        kolommen.push({ veld: gpkgVeldnaam(a, t), kleur: (cfg.colors || {})[t] || '#777777',
+                        label: ((cfg.labels || {})[t] || t) + (appsC.length > 1 ? ' (' + GPKG_APP_LABEL[a] + ')' : '') });
+      });
+    });
+    // Een cluster telt alleen zijn eigen types; de andere kolommen zijn 0, niet leeg,
+    // zodat het taartdiagram en een optelling in QGIS gewoon werken.
+    cRijen.forEach(function (r) { kolommen.forEach(function (k) { if (r.waarden[k.veld] === undefined) r.waarden[k.veld] = 0; }); });
+    var maxT = cRijen.reduce(function (a, r) { return Math.max(a, r.waarden.totaal); }, 1);
+    lijst.push({ naam: 'clusters', geometrie: 'POINT',
+      omschrijving: 'Clusterbollen (zwaartepunt, telling per type), clusterafstand ' + gapThreshold + ' m',
+      velden: [['sessie_id', 'TEXT'], ['app_type', 'TEXT'], ['modus', 'TEXT'], ['totaal', 'INTEGER'], ['samenstelling', 'TEXT']]
+        .concat(kolommen.map(function (k) { return [k.veld, 'INTEGER']; })),
+      rijen: cRijen, qml: GPKG_QML.clusters(kolommen, maxT) });
+  }
+
+  // ── wegvakken: kleur en klasse zoals recolorOne ze nu toont
+  var GRENS = ['< 10', '10–30', '30–60', '60–100', '≥ 100'];
+  var DICHT = ['zeer laag', 'laag', 'gemiddeld', 'hoog', 'zeer hoog'];
+  var vRijen = [], vCats = {};
+  Object.keys(wayLayers).forEach(function (k) {
+    var line = wayLayers[k], wd = wayData[k];
+    if (!wd || !map.hasLayer(line)) return;
+    var g = wd.geometry || [];
+    if (g.length < 2 || (g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) return;
+    var heat = wayHeat(k), w = {
+      way_id: String(wd.wayId || parseKey(k).wid), seg_idx: wd.segIdx || 0, highway: wd.highway || '',
+      naam: cleanNaam(wd.osmName || (wd.sessions[0] && wd.sessions[0].naam) || '').replace(/^—$/, ''),
+      lengte_m: Math.round(segmentLengthM(g) * 10) / 10
+    }, cat;
+    if (heat) {
+      var soort, idx, label;
+      if (heat.appType === 'pocket') {
+        idx = intensityClass(heat.pmu).index; soort = 'pmu';
+        w.waarde = heat.pmu; w.eenheid = 'p/m·u';
+        label = INTENSITEIT[idx].label + ' (' + GRENS[idx] + ' p/m·u)';
+      } else if (heat.appType === 'auto') {
+        idx = intensityClass(heat.t * 100).index; soort = 'bezet';
+        w.waarde = Math.round(heat.t * 1000) / 10; w.eenheid = '% bezet';
+        label = GRENS[idx] + ' % bezet';
+      } else {
+        idx = intensityClass(heat.t * 100).index; soort = 'dichtheid';
+        w.waarde = heat.total; w.eenheid = 'aantal';
+        label = 'dichtheid ' + DICHT[idx];
+      }
+      w.status = 'geteld'; w.app_type = heat.appType; w.totaal = heat.total === undefined ? null : heat.total;
+      w.klasse = soort + '|' + idx; w.klasse_label = label;
+      w.kleur = heat.kleur || heatColor(heat.t);
+      cat = { waarde: w.klasse, label: label, kleur: INTENSITEIT[idx].kleur, mm: '1.06', orde: idx + 10 * ['pmu', 'bezet', 'dichtheid'].indexOf(soort) };
+    } else if (wd.sessions.some(function (s) { return s.zeroVisited && sessions[s.sid] && sessions[s.sid].visible; })) {
+      w.status = 'bezocht, geen waarnemingen'; w.klasse = 'bezocht'; w.klasse_label = w.status; w.kleur = '#6b7280';
+      cat = { waarde: 'bezocht', label: w.status, kleur: '#6b7280', mm: '0.53', streep: true, alfa: 0.8, orde: 90 };
+    } else {
+      w.status = 'netwerk'; w.klasse = 'netwerk'; w.klasse_label = 'wegennet, niet geteld'; w.kleur = '#3a3d42';
+      cat = { waarde: 'netwerk', label: w.klasse_label, kleur: '#3a3d42', mm: '0.53', alfa: 0.5, orde: 99 };
+    }
+    vCats[cat.waarde] = cat;
+    vRijen.push({ geom: { lijn: g.map(function (p) { return [p[1], p[0]]; }) }, waarden: w });
+  });
+  if (vRijen.length) {
+    lijst.push({ naam: 'wegvakken', geometrie: 'LINESTRING', omschrijving: 'Wegvakken met de klasse en kleur van de kaart',
+      velden: [['way_id', 'TEXT'], ['seg_idx', 'INTEGER'], ['naam', 'TEXT'], ['highway', 'TEXT'], ['lengte_m', 'REAL'],
+               ['status', 'TEXT'], ['app_type', 'TEXT'], ['waarde', 'REAL'], ['eenheid', 'TEXT'], ['totaal', 'INTEGER'],
+               ['klasse', 'TEXT'], ['klasse_label', 'TEXT'], ['kleur', 'TEXT']],
+      rijen: vRijen,
+      qml: GPKG_QML.lijnen('klasse', Object.keys(vCats).map(function (c) { return vCats[c]; })
+                                      .sort(function (a, b) { return a.orde - b.orde; })) });
+  }
+
+  // ── route: het GPS-spoor per telling
+  var rRijen = [], rCats = [];
+  Object.keys(gpsLayers).forEach(function (sid) {
+    var pl = gpsLayers[sid];
+    if (!pl || !sessions[sid] || !map.hasLayer(pl)) return;
+    var pts = pl.getLatLngs().map(function (ll) { return [ll.lng, ll.lat]; });
+    if (pts.length < 2) return;
+    var kleur = (pl.options && pl.options.color) || '#4a9eff';
+    rRijen.push({ geom: { lijn: pts }, waarden: { sessie_id: sid, app_type: sessions[sid].appType, kleur: kleur } });
+    rCats.push({ waarde: sid, label: gpkgSessieLabel(sid), kleur: kleur, mm: '0.4', streep: true, alfa: 0.7 });
+  });
+  if (rRijen.length) {
+    lijst.push({ naam: 'route', geometrie: 'LINESTRING', omschrijving: 'GPS-spoor per telling',
+      velden: [['sessie_id', 'TEXT'], ['app_type', 'TEXT'], ['kleur', 'TEXT']],
+      rijen: rRijen, qml: GPKG_QML.lijnen('sessie_id', rCats) });
+  }
+
+  var nKaart = lijst.length;
+
+  // ── sessies: alle geladen tellingen, met op_kaart = 1 voor wat er nu te zien is
+  lijst.push({ naam: 'sessies', geometrie: null, omschrijving: 'Geladen tellingen',
+    velden: [['sessie_id', 'TEXT'], ['app_type', 'TEXT'], ['modus', 'TEXT'], ['datum', 'TEXT'], ['start_tijd', 'TEXT'],
+             ['eind_tijd', 'TEXT'], ['teller', 'TEXT'], ['reconstructie', 'TEXT'], ['label', 'TEXT'], ['op_kaart', 'INTEGER']],
+    rijen: Object.keys(sessions).map(function (sid) {
+      var s = sessions[sid], m = s.meta || {};
+      return { waarden: { sessie_id: sid, app_type: s.appType, modus: (m.modus || '').trim(), datum: m.datum || '',
+        start_tijd: m.start_tijd || '', eind_tijd: m.eind_tijd || '', teller: m.teller || '',
+        reconstructie: m.reconstructie || '', label: gpkgSessieLabel(sid), op_kaart: s.visible ? 1 : 0 } };
+    }) });
+
+  // Wat op de kaart staat maar (nog) niet in deze export past
+  var nCap = Object.keys(capLayers).filter(function (sid) {
+    return (capLayers[sid] || []).some(function (l) { return map.hasLayer(l); });
+  }).length;
+  var nSta = Object.keys(standStillMarkers).filter(function (sid) { return map.hasLayer(standStillMarkers[sid]); }).length;
+  if (nCap) nietMee.push(nCap + ' capaciteitstelling(en)');
+  if (nSta) nietMee.push(nSta + ' Static-telling(en)');
+
+  lijst.push({ naam: 'export_info', geometrie: null, omschrijving: 'Hoe deze export gemaakt is',
+    velden: [['sleutel', 'TEXT'], ['waarde', 'TEXT']],
+    rijen: [['bron', 'telrapport (telonline.org)'], ['formaat_versie', String(GPKG_FORMAAT_VERSIE)],
+            ['gemaakt', new Date().toISOString().slice(0, 19)], ['coordinaten', 'EPSG:4326 (WGS84)'],
+            ['clusterafstand_m', String(gapThreshold)], ['clusters_aan', clustersVisible ? '1' : '0'],
+            ['tijdfilter', timeFilterActive ? document.getElementById('timebar-window').textContent + ' · ' + currentDayFilter : 'uit'],
+            ['ondergrond', currentBasemap], ['niet_meegenomen', nietMee.join(', ')]]
+      .map(function (p) { return { waarden: { sleutel: p[0], waarde: p[1] } }; }) });
+
+  return { lijst: lijst, nKaart: nKaart, nietMee: nietMee };
+}
+
+async function exportGeoPackage() {
+  if (editModeActive) {
+    alert('Sluit eerst de correctiemodus af. Daarna staan alle stippen weer op hun plek.');
+    return;
+  }
+  var lagen = gpkgLagen();
+  if (!lagen.nKaart) { alert('Er staat niets op de kaart om te bewaren.'); return; }
+  var knop = document.getElementById('export-gpkg-btn');
+  var tekst = knop ? knop.lastChild.textContent : '';
+  if (knop) knop.lastChild.textContent = 'GeoPackage maken…';
+  try {
+    var SQL;
+    try { SQL = await laadSqlJs(); }
+    catch (e) {
+      alert('De GeoPackage-module (sql.js, van cdnjs) kon niet geladen worden. Ben je online? Probeer het dan nog eens.');
+      return;
+    }
+    var bytes = GPKG.maak(SQL, lagen.lijst);
+    var nu = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
+    var naam = 'telrapport_' + nu.getFullYear() + p(nu.getMonth() + 1) + p(nu.getDate()) + '_' + p(nu.getHours()) + p(nu.getMinutes()) + '.gpkg';
+    var url = URL.createObjectURL(new Blob([bytes], { type: 'application/geopackage+sqlite3' }));
+    var a = document.createElement('a');
+    a.href = url; a.download = naam;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    if (lagen.nietMee.length) {
+      alert('GeoPackage bewaard. Nog niet in deze export: ' + lagen.nietMee.join(' en ') + '.');
+    }
+  } finally {
+    if (knop) knop.lastChild.textContent = tekst;
+  }
+}
+/* ── einde GeoPackage-export ── */
 
 const dz=document.getElementById('dropzone'), fi=document.getElementById('file-input');
 const di=document.getElementById('dir-input');
