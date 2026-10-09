@@ -75,3 +75,8 @@ Deze CLAUDE.md is een samenvatting. Bij twijfel gelden de documenten in `docs/`.
     krijgt `export-ignore` in `.gitattributes`.
 - Het planning-endpoint in `planningen/` heeft geen authenticatie. De
   afscherming gebeurt op de server, niet in de repo.
+- **Geen sessielink in commits of PR's.** De repo is openbaar. Zet geen
+  `Claude-Session:`-regel en geen `https://claude.ai/code/session_…` in
+  commitberichten, PR-beschrijvingen of reacties (afspraak met Jay, v3.2).
+  `Co-Authored-By: Claude …` mag blijven. Controleer na het aanmaken van een
+  PR of er toch een sessielink in de beschrijving is gezet, en haal die weg.
