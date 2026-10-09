@@ -57,17 +57,30 @@ de rest zelf in. Kleuren en categorieën komen uit `APP_CONFIG` en
 `INTENSITEIT`, dezelfde bron als de kaart. De legenda toont alleen wat er in
 het bestand staat.
 
-**QGIS 3 én 4.** De QML heeft de vorm van QGIS 3.34. QGIS 4 leest die. Eén
-valkuil vermeden: vet zetten gaat via de stijlnaam (`namedStyle="Bold"`), niet
-via `fontWeight`. Dat getal betekent in Qt5 (QGIS 3, 75 = vet) iets anders dan
-in Qt6 (QGIS 4, 700 = vet).
+**QGIS 3 én 4.** De QML heeft de vorm van QGIS 3.34. QGIS 4 leest die.
+
+**Vet cijfer: via HTML.** Eerst ging het vet zetten via de stijlnaam
+(`namedStyle="Bold"`). In QGIS 3.34 werkte dat. In QGIS 4 waren de cijfers wel
+wit, maar niet vet (Jay, eerste proef). Onderzocht in QGIS 3.34:
+
+- Ontbreekt `fontWeight`, dan leest QGIS gewicht 0, dus "Thin".
+- De stijlnaam zet dat daarna recht, maar daar valt in QGIS 4 kennelijk niet op
+  te bouwen.
+- `forcedBold` doet bij het tekenen niets.
+- `fontWeight` zelf is precies het getal dat verschilt: in Qt5 (QGIS 3) is
+  75 vet, in Qt6 (QGIS 4) is 700 vet.
+
+Daarom is het label nu de expressie `'<b>' || "totaal" || '</b>'` met
+HTML-opmaak aan. Qt tekent `<b>` zelf vet, in Qt5 en Qt6, ongeacht het
+basisgewicht. In QGIS 3.34 even vet als met de stijlnaam. De test bewaakt
+het.
 
 **Taartgrootte als hier.** Telrapport: diameter = 10 px + 5,6 px · √totaal.
 QGIS schaalt "op oppervlak" (de wortel uit de waarde) lineair tussen 0 en het
 maximum. Met 2,65 mm bij 0 en 2,65 + 1,48 · √max mm bij het maximum komt
 precies dezelfde formule eruit.
 
-**Labels.** Wit, vet, 8 pt, met een rand van 0,15 mm. Een dikkere rand (0,6 mm)
+**Labels.** Wit, vet (zie hierboven), 8 pt, met een rand van 0,15 mm. Een dikkere rand (0,6 mm)
 maakte het cijfer bij deze maat zwart; zonder rand verdwijnt het op lichte
 bollen (grijs *leeg*, geel *fout*).
 
@@ -109,7 +122,7 @@ door sleepmarkers. De knop zegt: sluit eerst de correctiemodus af.
 
 ## 4. Tests
 
-Nieuw: `gpkgtest.py`, **54 tests**, met `gpkg_qgis.py` als helper voor de
+Nieuw: `gpkgtest.py`, **55 tests**, met `gpkg_qgis.py` als helper voor de
 QGIS-kant.
 
 - **A.** Maakt echte tellingen met de veld-apps: parkeertelling,
@@ -136,13 +149,15 @@ QGIS-kant.
   - de categorie-opmaak wordt toegepast, met de bedoelde waarden, labels en
     kleuren;
   - clusters hebben het taartdiagram met een punt per typekolom, geen stip
-    eronder, en het totaal als label;
+    eronder, en het totaal als label, vet via HTML `<b>`;
   - de kaart wordt naar een PNG gerenderd.
 
   Zonder PyQGIS wordt dit deel overgeslagen, en dat wordt gemeld.
 
 Gedraaid tegen **QGIS 3.34.4** (Ubuntu, zonder scherm). QGIS 4 was hier niet te
-installeren. Die controle doet Jay (stand van zaken §4).
+installeren. Jay heeft de eerste versie in QGIS 4 bekeken: "geweldig mooi",
+alleen de cijfers waren niet vet. Dat is daarna gerepareerd (zie §2); de
+herstelde versie nog één keer in QGIS 4 bekijken.
 
 ## 5. Gewijzigde bestanden
 
@@ -161,7 +176,7 @@ installeren. Die controle doet Jay (stand van zaken §4).
 
 ```
 valideer.py        ALLES OK — 5 verwachte bestanden gewijzigd; 12 groepen gedeelde blokken OK
-gpkgtest.py        54/54 (QGIS-deel tegen QGIS 3.34.4)
+gpkgtest.py        55/55 (QGIS-deel tegen QGIS 3.34.4)
 opruimtest.py      52/52
 hersteltest.py     133/133
 laadtest.py        46/46

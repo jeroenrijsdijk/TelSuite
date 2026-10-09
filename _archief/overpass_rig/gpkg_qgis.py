@@ -39,6 +39,9 @@ for naam in ['waarnemingen', 'clusters', 'wegvakken', 'route', 'sessies', 'expor
         ds = d.diagramSettings()[0]
         info['diagram'] = {'soort': d.rendererName(), 'velden': list(ds.categoryAttributes),
                            'kleuren': [c.name() for c in ds.categoryColors]}
+    if l.labelsEnabled() and l.labeling():
+        ls = l.labeling().settings()
+        info['label'] = {'veld': ls.fieldName, 'expressie': ls.isExpression, 'html': ls.format().allowHtmlFormatting()}
     uit['lagen'][naam] = info
     lagen[naam] = l
 

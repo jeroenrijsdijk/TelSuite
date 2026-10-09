@@ -5670,9 +5670,12 @@ var GPKG_QML = (function () {
     return kop(true)
       + '<renderer-v2 type="nullSymbol"/>'   // geen stip: het diagram is het symbool
       + '<labeling type="simple"><settings calloutType="simple">'
-      // Vet via de stijlnaam, niet via fontWeight: dat getal is in QGIS 3 (Qt5, 75 = vet)
-      // iets anders dan in QGIS 4 (Qt6, 700 = vet). De naam werkt in allebei.
-      + '<text-style fieldName="totaal" isExpression="0" fontFamily="Arial" namedStyle="Bold" fontSize="8" '
+      // Vet via HTML (<b>), niet via fontWeight of de stijlnaam. fontWeight is in QGIS 3
+      // (Qt5, 75 = vet) een ander getal dan in QGIS 4 (Qt6, 700 = vet); ontbreekt het,
+      // dan leest QGIS 0 = "Thin". De stijlnaam "Bold" redt dat in QGIS 3.34, maar in
+      // QGIS 4 bleek het cijfer niet vet (Jay, v3.1). <b> tekent Qt zelf vet, in beide.
+      + '<text-style fieldName="\'&lt;b&gt;\' || &quot;totaal&quot; || \'&lt;/b&gt;\'" isExpression="1" allowHtml="1" '
+      + 'fontFamily="Arial" namedStyle="Bold" fontSize="8" '
       + 'fontSizeUnit="Point" textColor="255,255,255,255" textOpacity="1">'
       + '<text-buffer bufferDraw="1" bufferSize="0.15" bufferSizeUnits="MM" bufferColor="17,17,17,140" '
       + 'bufferOpacity="1" bufferNoFill="1"/></text-style>'

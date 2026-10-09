@@ -280,6 +280,9 @@ else:
             and sorted(v.strip('"') for v in d.get('velden', [])) == sorted(nkol), d)
         eis('clusters: geen stip eronder, wel het totaal als label', L['clusters']['opmaak'] == 'nullSymbol' and L['clusters']['labels'],
             (L['clusters']['opmaak'], L['clusters']['labels']))
+        lb = L['clusters'].get('label') or {}
+        eis('clusters: het cijfer is vet via HTML <b> (fontWeight verschilt tussen QGIS 3 en 4)',
+            lb.get('html') and lb.get('expressie') and '<b>' in lb.get('veld', '') and '"totaal"' in lb.get('veld', ''), lb)
         eis('kaart gerenderd: %s' % png, q.get('png') and os.path.getsize(png) > 20000)
         db.close()
 
