@@ -109,7 +109,6 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ## 4. Nog te doen door Jay (buiten de code)
 
-0. **QGIS-project in QGIS 4 bekijken (v3.2)**: in telrapport een paar tellingen laden, *bewaar kaart als GeoPackage (QGIS)*, een naam kiezen, en in QGIS 4 *Project → Openen vanuit → GeoPackage*. Verwacht: PDOK grijs als ondergrond, ingezoomd op de telling, en onder *Opmaak* "A4 liggend" met de kaart op een rond schaalgetal, legenda, schaalstok en noordpijl. Let op: laadt PDOK? Zijn de teksten normaal, niet dun en niet vet? Exporteer de opmaak een keer als PDF. (De GeoPackage zelf is in v3.1 in QGIS 4 bekeken: in orde, de cijfers zijn daarna vet gemaakt.)
 0a. **Planningmap afschermen (v2.75), vóór het online zetten** — een wachtwoordbestand maken buiten de webroot en het volledige pad invullen bij `AuthUserFile` in `planningen/.htaccess`. Controle in een privévenster: `https://telonline.org/planningen/planning_list.php` moet om een wachtwoord vragen. Vraagt hij niets, dan leest de server geen `.htaccess` en is de map open. Zolang het pad niet klopt, geeft de map een 500-fout (dicht, niet open) en meldt telplanning dat.
 0b. **Contactgegevens in `privacy.html` invullen** — het gele veld bij *Je rechten en contact* (naam en e-mailadres van de beheerder). `valideer.py` meldt het zolang het er staat.
 1. **Screenshots voor `over.html`** — nog niet geleverd. Drie bestanden, exact deze namen, naast `over.html`:
@@ -231,7 +230,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v2.77 | **Parkeer-apps volgen de opruimregel**: geannuleerd deelvenster wist de noodkopie niet meer en start geen ongevraagde download; ZIP-knop biedt dezelfde ZIP opnieuw aan binnen de tik (belangrijk op de iPhone); gedeeld blok `bewaarZip` |
 | **v3.0** | **Veldtest groen op iPhone en Android → v2.77 wordt 3.0**, byte-identiek op het versienummer na. Nieuw: GitHub maakt per versie automatisch een release met `telsuite-<versie>.zip` |
 | v3.1 | **Kaart bewaren als GeoPackage voor QGIS**: waarnemingen, clusterbollen (taartdiagram), wegvakken en GPS-spoor, met de opmaak van telrapport ingebouwd (`layer_styles`); wat je ziet gaat mee; sql.js via cdnjs; nieuwe `gpkgtest.py` (ook tegen QGIS 3.34) |
-| v3.2 | **QGIS-project in de GeoPackage**: RD New, PDOK BRT-A grijs (luchtfoto en OSM klaar), lagen in volgorde, printopmaak A4 liggend op een rond schaalgetal met legenda, schaalstok en noordpijl; je kiest de bestandsnaam bij het opslaan (het project onthoudt hem); sessielabels gerepareerd; `gpkgtest.py` 80 tests |
+| v3.2 | **QGIS-project in de GeoPackage** (in QGIS 4 nagelopen door Jay: PDOK laadt, beeld en teksten goed, PDF netjes): RD New, PDOK BRT-A grijs (luchtfoto en OSM klaar), lagen in volgorde, printopmaak A4 liggend op een rond schaalgetal met legenda, schaalstok en noordpijl; je kiest de bestandsnaam bij het opslaan (het project onthoudt hem); sessielabels gerepareerd; `gpkgtest.py` 80 tests |
 
 ---
 
