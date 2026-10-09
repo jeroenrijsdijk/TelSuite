@@ -44,1323 +44,762 @@
 }
 </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
-
-  :root {
-    --bg:     #f0f0ec;
-    --panel:  #ffffff;
-    --border: #b0b0a8;
-    --text:   #111111;
-    --dim:    #555555;
-    --sub:    #888880;
-    --green:  #0a8a30;
-    --red:    #c8000a;
-    --orange: #b35c00;
-    --teal:   #0a7570;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Oswald', sans-serif;
-    max-width: 580px;
-    margin: 0 auto;
-    padding: 20px 16px 48px;
-  }
-
-  header {
-    display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 3px solid var(--text); padding-bottom: 10px; margin-bottom: 28px;
-  }
-  header h1 { font-size: 1.2rem; letter-spacing: 3px; text-transform: uppercase; font-weight: 700; }
-  .back-links { display: flex; flex-wrap: wrap; gap: 8px; }
-  .back {
-    font-size: 0.68rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
-    color: var(--dim); text-decoration: none; border: 2px solid var(--border);
-    border-radius: 4px; padding: 5px 10px; transition: color 0.15s, border-color 0.15s;
-  }
-  .back:hover { color: var(--text); border-color: var(--text); }
-
-  /* ── Table of contents ── */
-  .toc {
-    background: var(--panel); border: 2px solid var(--border); border-radius: 8px;
-    padding: 14px 18px; margin-bottom: 32px;
-  }
-  .toc-title { font-size: 0.68rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--sub); margin-bottom: 10px; }
-  .toc ul { list-style: none; padding-left: 0; }
-  .toc li { font-size: 0.85rem; font-weight: 500; color: var(--dim); line-height: 1.9; }
-  .toc a { color: var(--dim); text-decoration: none; transition: color 0.15s; }
-  .toc a:hover { color: var(--text); }
-
-  section { margin-bottom: 32px; }
-  h2 {
-    font-size: 0.72rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
-    color: var(--sub); border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 14px;
-  }
-  h3 {
-    font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
-    color: var(--text); margin: 16px 0 8px;
-  }
-
-  p { font-size: 0.88rem; font-weight: 500; line-height: 1.65; color: var(--dim); margin-bottom: 8px; }
-
-  .card { background: var(--panel); border: 2px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
-  .card-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text); margin-bottom: 6px; }
-  .card p { margin-bottom: 0; }
-
-  .card.mode-static   { border-left: 5px solid var(--green); }
-  .card.mode-both     { border-left: 5px solid var(--orange); }
-
-  .tag {
-    display: inline-block; background: var(--text); color: #fff;
-    font-family: 'Share Tech Mono', monospace; font-size: 0.68rem; padding: 2px 7px;
-    border-radius: 3px; margin: 2px 2px 2px 0; letter-spacing: 1px;
-  }
-  .tag.green  { background: var(--green); }
-  .tag.red    { background: var(--red); }
-  .tag.orange { background: var(--orange); }
-  .tag.dim    { background: var(--dim); }
-
-  .mode-badge {
-    display: inline-block; font-size: 0.6rem; letter-spacing: 2px; padding: 2px 7px;
-    border-radius: 3px; vertical-align: middle; margin-left: 4px; font-weight: 700;
-  }
-  .mb-static   { background: #d4f0da; color: var(--green); border: 1px solid #7dcc90; }
-  .mb-both     { background: #fde8cc; color: var(--orange); border: 1px solid #e8b070; }
-
-  .key-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-  .key-table td {
-    font-size: 0.82rem; font-weight: 500; color: var(--dim); padding: 6px 4px;
-    border-bottom: 1px solid var(--border); vertical-align: top;
-  }
-  .key-table td:first-child {
-    font-family: 'Share Tech Mono', monospace; color: var(--text); font-size: 0.78rem;
-    white-space: nowrap; width: 120px; padding-right: 12px;
-  }
-  .key-table tr:last-child td { border-bottom: none; }
-
-  .status-example {
-    border-radius: 5px; padding: 7px 12px; font-size: 0.68rem; font-weight: 700;
-    letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;
-  }
-  .s-idle    { background: #e0e0d8; color: var(--dim);    border: 2px solid var(--border); }
-  .s-running { background: #d4f0da; color: var(--green);  border: 2px solid #7dcc90; }
-  .s-ended   { background: #fde8cc; color: var(--orange); border: 2px solid #e8b070; }
-
-  .file-list { display: flex; flex-direction: column; gap: 6px; }
-  .file-row {
-    display: flex; align-items: baseline; gap: 10px; background: var(--panel);
-    border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
-  }
-  .file-name { font-family: 'Share Tech Mono', monospace; font-size: 0.75rem; color: var(--text); white-space: nowrap; }
-  .file-desc { font-size: 0.8rem; font-weight: 500; color: var(--dim); }
-
-  /* ── Methodiek: aanwijzing-blokken met 'Onze keuze' cards ── */
-  .method-item { margin-bottom: 22px; }
-  .method-item h4 {
-    font-size: 0.8rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
-    color: var(--text); margin-bottom: 6px;
-  }
-  .method-item p { margin-bottom: 8px; }
-  .choice-card {
-    background: var(--panel); border: 2px solid var(--border); border-radius: 8px;
-    border-left: 5px solid var(--teal); padding: 10px 14px; margin-top: 6px;
-  }
-  .choice-label {
-    font-size: 0.62rem; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
-    color: var(--teal); margin-bottom: 4px;
-  }
-  .choice-card p { font-size: 0.85rem; color: var(--text); margin: 0; }
-  .choice-card p + p { margin-top: 4px; }
-  .choice-card ul { font-size: 0.85rem; color: var(--text); margin: 4px 0 0 18px; padding: 0; }
-  .choice-card ul li { margin-bottom: 2px; }
-
-  .branding {
-    display: flex; align-items: center; justify-content: center;
-    gap: 8px; padding-top: 24px; border-top: 2px solid var(--border); margin-top: 8px;
-  }
-  .branding-logo {
-    width: 26px; height: 26px; border-radius: 50%;
-    background: linear-gradient(135deg, #cc785c, #a05a3c);
-    display: flex; align-items: center; justify-content: center; font-size: 0.78rem;
-  }
-  .branding-text .built { font-size: 0.55rem; letter-spacing: 2px; text-transform: uppercase; color: var(--sub); display: block; }
-  .branding-text .name  {
-    font-size: 0.8rem; font-weight: 700; letter-spacing: 1px;
-    background: linear-gradient(90deg, #a05a3c, #cc785c);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  }
-  /* ── Inline-styles → classes (v2.16 opschoning) ──────────────────────── */
-  /* spacing-utilities */
-  .mt-4  { margin-top: 4px; }
-  .mt-6  { margin-top: 6px; }
-  .mt-8  { margin-top: 8px; }
-  .mt-10 { margin-top: 10px; }
-  .mt-12 { margin-top: 12px; }
-  .mt-16 { margin-top: 16px; }
-  .mr-6  { margin-right: 6px; }
-  .nowrap { white-space: nowrap; }
-
-  /* kleine, gedimde toelichtingsregel */
-  .note { font-size: 0.85em; color: var(--dim); }
-
-  /* uitgelichte formule-regel (mono, gecentreerd, verzonken vlak) */
-  .formula { font-family: 'Share Tech Mono', monospace; font-size: 0.9rem; color: var(--text);
-    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-    padding: 12px 14px; text-align: center; margin: 10px 0; letter-spacing: 0.5px; }
-
-  /* compacte genummerde stappenlijst */
-  .list-tight { margin: 6px 0 0 16px; line-height: 2; }
-
-  /* TOC-groepslabel (sectiekleur blijft inline) */
-  .subhead { font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;
-    text-transform: uppercase; margin: 14px 0 6px; }
-  .subhead.first { margin-top: 4px; }
-
-  /* sectie-divider: rule + optionele flex-titelbalk */
-  .divider { margin: 40px 0 32px; border-top: 3px solid var(--text); padding-top: 20px; }
-  .divider.flow { display: flex; align-items: center; gap: 12px; }
-  .divider-line { flex: 1; height: 1px; background: var(--border); }
-  .divider-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 3px;
-    text-transform: uppercase; }                                  /* kleur inline */
-  .divider-back { font-size: 0.65rem; font-weight: 700; letter-spacing: 2px;
-    text-transform: uppercase; color: var(--dim); text-decoration: none;
-    border: 2px solid var(--border); padding: 4px 10px; }
-
-  /* callout-card accenten (border-left), in lijn met .card.mode-* */
-  .card.bl-green   { border-left: 5px solid var(--green); }
-  .card.bl-orange  { border-left: 5px solid var(--orange); }
-  .card.bl-emerald { border-left: 5px solid #27ae60; }
-  .card.bl-red     { border-left: 5px solid #c0392b; }
-  .card.bl-blue    { border-left: 5px solid #2471a3; }
-  .card.bl-cyan    { border-left: 5px solid #0097a7; }
-  .card.bl-purple  { border-left: 5px solid #8e44ad; }
-  .card.bl-magenta { border-left: 5px solid #d4007a; }
-
-  /* legenda-stippen (geometrie in class, kleur inline) */
-  .dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; vertical-align: -2px; }
-  .dot-fill { border: 2px solid rgba(0,0,0,0.25); }
-  .dot-ring { box-sizing: border-box; background: transparent; border: 3px solid; }
-
-  /* kleur-swatch (vierkant, kleur inline) */
-  .swatch { display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin-right: 6px; }
+/* ── kale stijl (v3.3): gewone HTML, systeemletter; kleur alleen waar die iets uitlegt ── */
+body{font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;max-width:46em;margin:2em auto;padding:0 1em;color:#222;background:#fff}
+h1,h2,h3,h4{line-height:1.25}h2{margin-top:2.5em;padding-bottom:.2em;border-bottom:1px solid #bbb}h4{margin-bottom:.3em}
+table{display:block;overflow-x:auto;border-collapse:collapse;margin:.6em 0}td,th{border:1px solid #ccc;padding:.25em .5em;vertical-align:top;text-align:left}
+code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,samp,a{overflow-wrap:break-word}img{max-width:100%;height:auto}
+.kleur{display:inline-block;width:.8em;height:.8em;border:1px solid #666;vertical-align:-.05em;margin-right:.35em}.rond{border-radius:50%}td:has(>.kleur){white-space:nowrap}
+/* ── einde kale stijl ── */
 </style>
 </head>
 <body>
-
 <header>
-  <h1>traffic counter - count and report</h1>
+<h1>traffic counter - count and report</h1>
 </header>
-
-
 <!-- Over deze Telonline Verkeerstellingen -->
 <section id="Over">
-  <h2>Telonline Verkeerstellingen</h2>
-  <p>Traffic Counter is a browser-based field tool for counting traffic. All data is stored locally in the browser and exported to a semicolon-delimited CSV ready for telrapport.html, Excel or KNIME. No account or internet connection required for counting — internet is only used for map tiles and address lookup.</p>
-  <p>Dit pakket bestaat uit 2 delen: TELLEN en RAPPORTAGE/BEWERKING/PLANNING.</p>
-
-  <div class="card mode-static">
-    <div class="card-title">Tellen</div>
-    <p>Er zijn 5 teltools beschikbaar &mdash; Pocket kent daarbinnen 4 sub-modi (simpel, transect, winkelstraat, parkeren). Op de voorpagina staan ze in twee groepen: <strong>Verkeer tellen</strong> &mdash; wat komt er langs (Static, en Pocket in beweging) &mdash; en <strong>Parkeren tellen</strong> &mdash; wat staat er (Pocket-parkeren, parkeertelling, fietsparkeren, capaciteit). Pocket-parkeren heeft daar een eigen ingang.</p>
-    <div class="back-links">
-      <a class="back" href="traffic_counter.html">Static</a>
-      <a class="back" href="pocket_count.html#parkeren">Pocket-parkeren</a>
-      <a class="back" href="parkeertelling.html">Autoparkeren</a>
-      <a class="back" href="fietsparkeren.html">Fietsparkeren</a>
-      <a class="back" href="capaciteitstelling.html">Capaciteitstelling</a>
-      <a class="back" href="pocket_count.html">Pocket</a>
-    </div>
-  </div>
-  <div class="card mode-static">
-    <div class="card-title">Planning &amp; Rapportage</div>
-    <p>Na het tellen verwerk je de resultaten. Drie tools, op de voorpagina onder <strong>Achter je bureau</strong>:</p>
-    <ul>
-      <li><a class="back" href="telplanning.html">Telplanning</a> — maak en verstuur opdrachten tot het tellen van straten.</li>
-      <li><a class="back" href="telreconstructie.html">Telreconstructie</a> — de tussenstap: herbereken een parkeer- of pocket-ZIP op logica. De gelopen GPS route en de aangeklikte punten worden opnieuw op het netwerk gefit.</li>
-      <li><a class="back" href="telrapport.html">Telrapport</a> — laad de ge&euml;xporteerde ZIP's, visualiseer op de kaart en analyseer per type, tijd en wegvak.</li>
-    </ul>
-  </div>
-  <p>Traffic Counter is gebouwd op Open Source - Openstreetmap (https://www.openstreetmap.org/copyright/en) en Leaflet.</p>
-
-
+<h3>Telonline Verkeerstellingen</h3>
+<p>Traffic Counter is a browser-based field tool for counting traffic. All data is stored locally in the browser and exported to a semicolon-delimited CSV ready for telrapport.html, Excel or KNIME. No account or internet connection required for counting — internet is only used for map tiles and address lookup.</p>
+<p>Dit pakket bestaat uit 2 delen: TELLEN en RAPPORTAGE/BEWERKING/PLANNING.</p>
+<h4>Tellen</h4>
+<p>Er zijn 5 teltools beschikbaar — Pocket kent daarbinnen 4 sub-modi (simpel, transect, winkelstraat, parkeren). Op de voorpagina staan ze in twee groepen: <strong>Verkeer tellen</strong> — wat komt er langs (Static, en Pocket in beweging) — en <strong>Parkeren tellen</strong> — wat staat er (Pocket-parkeren, parkeertelling, fietsparkeren, capaciteit). Pocket-parkeren heeft daar een eigen ingang.</p>
+<p>
+<a href="traffic_counter.html">Static</a> · <a href="pocket_count.html#parkeren">Pocket-parkeren</a> · <a href="parkeertelling.html">Autoparkeren</a> · <a href="fietsparkeren.html">Fietsparkeren</a> · <a href="capaciteitstelling.html">Capaciteitstelling</a> · <a href="pocket_count.html">Pocket</a>
+</p>
+<h4>Planning &amp; Rapportage</h4>
+<p>Na het tellen verwerk je de resultaten. Drie tools, op de voorpagina onder <strong>Achter je bureau</strong>:</p>
+<ul>
+<li><a href="telplanning.html">Telplanning</a> — maak en verstuur opdrachten tot het tellen van straten.</li>
+<li><a href="telreconstructie.html">Telreconstructie</a> — de tussenstap: herbereken een parkeer- of pocket-ZIP op logica. De gelopen GPS route en de aangeklikte punten worden opnieuw op het netwerk gefit.</li>
+<li><a href="telrapport.html">Telrapport</a> — laad de geëxporteerde ZIP's, visualiseer op de kaart en analyseer per type, tijd en wegvak.</li>
+</ul>
+<p>Traffic Counter is gebouwd op Open Source - Openstreetmap (https://www.openstreetmap.org/copyright/en) en Leaflet.</p>
 </section>
 <header>
 <h1>Traffic Counter Help</h1>
 </header>
-
 <!-- Table of contents -->
-<div class="toc">
-  <div class="toc-title">Contents</div>
-  <p class="subhead first" style="color:var(--teal)">Methodiek</p>
-  <ul>
-    <li><a href="#methodiek">Generieke telregels &amp; onze keuzes</a></li>
-  </ul>
-  <p class="subhead" style="color:var(--green)">Traffic Counter</p>
-  <ul>
-    <li><a href="#overview">Overview</a></li>
-    <li><a href="#session">Starting and ending a session</a></li>
-    <li><a href="#counting">Counting vehicles</a></li>
-    <li><a href="#directions">Directions &amp; compass</a></li>
-    <li><a href="#gps">GPS &amp; location</a></li>
-    <li><a href="#notes">Location / Notes field</a></li>
-    <li><a href="#csv">Export (ZIP)</a></li>
-    <li><a href="#recovery">Interruptions &amp; continuing</a></li>
-    <li><a href="#keyboard">Keyboard shortcuts</a></li>
-    <li><a href="#tips">Field tips</a></li>
-  </ul>
-  <p class="subhead" style="color:var(--orange)">Parkeertelling (auto &amp; fiets)</p>
-  <ul>
-    <li><a href="#park-overzicht">Wat doen de parkeertellingen?</a></li>
-    <li><a href="#park-eerstegebruik">Hints bij het eerste gebruik</a></li>
-    <li><a href="#park-types">Auto vs. Fietsparkeren</a></li>
-    <li><a href="#park-sessie">Sessie starten en stoppen</a></li>
-    <li><a href="#park-tellen">Tellen: knoppen &amp; kantelmodus</a></li>
-    <li><a href="#park-minimap">Mini-kaart &amp; bearing</a></li>
-    <li><a href="#park-gps">GPS &amp; OSM wegsnapping</a></li>
-    <li><a href="#park-recovery">Crash recovery</a></li>
-    <li><a href="#park-export">Exporteren (ZIP / CSV / GPX / PNG)</a></li>
-    <li><a href="#park-tips">Veldtips</a></li>
-  </ul>
-  <p class="subhead" style="color:#8e44ad">Capaciteitstelling</p>
-  <ul>
-    <li><a href="#cap-overzicht">Wat doet de capaciteitstelling?</a></li>
-    <li><a href="#cap-straat">Module 1 — Straat doorlopen</a></li>
-    <li><a href="#cap-terrein">Module 2 — Terrein op het oog</a></li>
-    <li><a href="#cap-export">Export</a></li>
-  </ul>
-  <p class="subhead" style="color:#c0392b">Move and Count Simple (Pocket)</p>
-  <ul>
-    <li><a href="#pocket-overzicht">Wat doet de Pocket-telling?</a></li>
-    <li><a href="#pocket-welke-modus">Welke modus: Simpel of uitgebreid?</a></li>
-    <li><a href="#pocket-keuzescherm">Het moduskeuzescherm</a></li>
-    <li><a href="#pocket-gebruik">Simpel — bediening</a></li>
-    <li><a href="#pocket-transect">Transect — richtingtelling</a></li>
-    <li><a href="#pocket-winkelstraat">Winkelstraat — tegemoet &amp; stilstaand</a></li>
-    <li><a href="#pocket-parkeren">Parkeren — bezet/leeg links/rechts</a></li>
-    <li><a href="#pocket-export">Export &amp; bezocht.csv</a></li>
-  </ul>
-  <p class="subhead" style="color:#2980b9">Telrapport</p>
-  <ul>
-    <li><a href="#rapport-overzicht">Wat doet het telrapport?</a></li>
-    <li><a href="#rapport-laden">ZIPs laden</a></li>
-    <li><a href="#rapport-kaart">Kaartvisualisatie</a></li>
-    <li><a href="#rapport-weekprofiel">Drukte &amp; weekprofiel</a></li>
-    <li><a href="#rapport-tijdfilter">Tijdfilter</a></li>
-    <li><a href="#rapport-sessies">Sessielijst &amp; interacties</a></li>
-    <li><a href="#rapport-kaarten">Kaartopties</a></li>
-  </ul>
-  <p class="subhead" style="color:#27ae60">Telplanning</p>
-  <ul>
-    <li><a href="#planning-overzicht">Wat doet de telplanning?</a></li>
-    <li><a href="#planning-gebruik">Gebiedselectie &amp; wegen</a></li>
-    <li><a href="#planning-opdrachten">Opdrachten starten vanuit de app</a></li>
-    <li><a href="#planning-dekking">Dekkings-modus</a></li>
-  </ul>
-  <p class="subhead">Algemeen</p>
-  <ul>
-    <li><a href="#herstel">Onderbreking, herstel &amp; doortellen</a></li>
-    <li><a href="#reconstructie">Telreconstructie in het kort</a></li>
-    <li><a href="#files">Bestanden</a></li>
-  </ul>
-</div>
-
+<h2>Contents</h2><ul><li>Methodiek<ul>
+<li><a href="#methodiek">Generieke telregels &amp; onze keuzes</a></li>
+</ul></li><li>Traffic Counter<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#session">Starting and ending a session</a></li>
+<li><a href="#counting">Counting vehicles</a></li>
+<li><a href="#directions">Directions &amp; compass</a></li>
+<li><a href="#gps">GPS &amp; location</a></li>
+<li><a href="#notes">Location / Notes field</a></li>
+<li><a href="#csv">Export (ZIP)</a></li>
+<li><a href="#recovery">Interruptions &amp; continuing</a></li>
+<li><a href="#keyboard">Keyboard shortcuts</a></li>
+<li><a href="#tips">Field tips</a></li>
+</ul></li><li>Parkeertelling (auto &amp; fiets)<ul>
+<li><a href="#park-overzicht">Wat doen de parkeertellingen?</a></li>
+<li><a href="#park-eerstegebruik">Hints bij het eerste gebruik</a></li>
+<li><a href="#park-types">Auto vs. Fietsparkeren</a></li>
+<li><a href="#park-sessie">Sessie starten en stoppen</a></li>
+<li><a href="#park-tellen">Tellen: knoppen &amp; kantelmodus</a></li>
+<li><a href="#park-minimap">Mini-kaart &amp; bearing</a></li>
+<li><a href="#park-gps">GPS &amp; OSM wegsnapping</a></li>
+<li><a href="#park-recovery">Crash recovery</a></li>
+<li><a href="#park-export">Exporteren (ZIP / CSV / GPX / PNG)</a></li>
+<li><a href="#park-tips">Veldtips</a></li>
+</ul></li><li>Capaciteitstelling<ul>
+<li><a href="#cap-overzicht">Wat doet de capaciteitstelling?</a></li>
+<li><a href="#cap-straat">Module 1 — Straat doorlopen</a></li>
+<li><a href="#cap-terrein">Module 2 — Terrein op het oog</a></li>
+<li><a href="#cap-export">Export</a></li>
+</ul></li><li>Move and Count Simple (Pocket)<ul>
+<li><a href="#pocket-overzicht">Wat doet de Pocket-telling?</a></li>
+<li><a href="#pocket-welke-modus">Welke modus: Simpel of uitgebreid?</a></li>
+<li><a href="#pocket-keuzescherm">Het moduskeuzescherm</a></li>
+<li><a href="#pocket-gebruik">Simpel — bediening</a></li>
+<li><a href="#pocket-transect">Transect — richtingtelling</a></li>
+<li><a href="#pocket-winkelstraat">Winkelstraat — tegemoet &amp; stilstaand</a></li>
+<li><a href="#pocket-parkeren">Parkeren — bezet/leeg links/rechts</a></li>
+<li><a href="#pocket-export">Export &amp; bezocht.csv</a></li>
+</ul></li><li>Telrapport<ul>
+<li><a href="#rapport-overzicht">Wat doet het telrapport?</a></li>
+<li><a href="#rapport-laden">ZIPs laden</a></li>
+<li><a href="#rapport-kaart">Kaartvisualisatie</a></li>
+<li><a href="#rapport-weekprofiel">Drukte &amp; weekprofiel</a></li>
+<li><a href="#rapport-tijdfilter">Tijdfilter</a></li>
+<li><a href="#rapport-sessies">Sessielijst &amp; interacties</a></li>
+<li><a href="#rapport-kaarten">Kaartopties</a></li>
+</ul></li><li>Telplanning<ul>
+<li><a href="#planning-overzicht">Wat doet de telplanning?</a></li>
+<li><a href="#planning-gebruik">Gebiedselectie &amp; wegen</a></li>
+<li><a href="#planning-opdrachten">Opdrachten starten vanuit de app</a></li>
+<li><a href="#planning-dekking">Dekkings-modus</a></li>
+</ul></li><li>Algemeen<ul>
+<li><a href="#herstel">Onderbreking, herstel &amp; doortellen</a></li>
+<li><a href="#reconstructie">Telreconstructie in het kort</a></li>
+<li><a href="#files">Bestanden</a></li>
+</ul></li></ul>
 <!-- Methodiek (Nederlands) -->
 <section id="methodiek" lang="nl">
-  <h2>Methodiek</h2>
-  <p>Een telling is een meting volgens een afgesproken telprotocol. Voordat je begint spreek je af hoe je gaat tellen. Een eventuele tweede teller, of een volgende telling moet met dezelfde werkinstructie tot vergelijkbare cijfers komen.</p>
-    <div class="choice-card">
-      <div class="choice-label">Uitgangspunt</div>
-      <p>Wees consequent in je manier van tellen, keer op keer. Als je afwijkt, leg dat dan vast.</p>
-    </div>
-  <br>
-
-  <div class="method-item">
-    <h4>Wat is een voetganger?</h4>
-    <p>Wat tel je precies? Een "voetganger" lijkt duidelijk, maar telt een vader met kinderwagen als één of als meer?</p>
-    <div class="choice-card">
-      <div class="choice-label">Onze keuze</div>
-      <ul>
-        <li>Voetganger = elke persoon die zich op eigen benen voortbeweegt, inclusief inzittenden van kinderwagens en rolstoelen. Een ouder met kind in een kinderwagen = 2 voetgangers.</li>
-        <li>Ook Voetganger: Fiets aan de hand, skater, skateboard, stepje met en zonder motor.</li>
-        <li>Fiets: Fiets, E-Bike, E-bakfiets, speed-pedelec, fatbike & klonen.</li>
-        <li>Brommer: Brommer, scooter, bezorgscooter, snorscooter.</li>
-      </ul>
-    </div>
-  </div>
-  <br>
-
-  <div class="method-item">
-    <h4>Spreek een logisch start- en eindpunt af</h4>
-    <p>De GPS neemt meestal op, toch is het handig om voor "Start en Einde" punten te gebruiken die buiten zichtbaar zijn.</p>
-    <div class="choice-card">
-      <div class="choice-label">Onze keuze</div>
-      <ul>
-        <li>Wegvak: van kruising tot kruising, of tot punt waar configuratie wijzigt. Het systeem gebruikt de straatnaam in Openstreetmap(OSM). Als die straatnaam niet juist, wijzig die dan in OSM. Leeg de OSM cache in de reconstructor om de wijziging mee te nemen.</li>
-        <li>Kruising: namen van takken volgens NOZW of richtingnummers van VRI.</li>
-        <li>Richting: oost = richting oost. Of Oost naar Zuid. Of volgens QGIS: North is 0, East is 90, South is 180, and West is 270.</li>
-        <li>Gebied (parkeren): begrens met herkenbare randen — een straathoek, een poort, het einde van een parkeerstrook.</li>
-        <li>Pocket: de GPS legt de route vast; kies een herkenbaar start- en eindpunt, met een logische route, zodat het eenvoudig is om bij een herhaling exact dezelfde route te volgen.</li>
-      </ul>
-    </div>
-  </div>
-
-    <div class="method-item">
-    <h4>Beschrijf keuzes</h4>
-    <p>Naast w&aacute;t en w&aacute;&aacute;r je telt, leg je vooraf de lastige grensgevallen vast — de gevallen waar twee tellers anders zouden beslissen. Juist die randgevallen bepalen of twee tellingen werkelijk vergelijkbaar zijn. We kijken vaak naar wijzigingen van een paar procent - alleen consequent tellen brengt dat goed in beeld.</p>
-    <div class="choice-card">
-      <div class="choice-label">Onze keuze</div>
-      <ul>
-        <li>Wegvak: een voertuig hoort bij het wegvak waarop het rijdt op het moment dat het de tellijn passeert.</li>
-        <li>Parkeervak: een vak is "bezet" wanneer de auto duidelijk bij dat vak hoort. Bij twijfel kijken we of het middelpunt van de auto in het vak staat. Voor een losse aanhanger of container geldt hetzelfde.</li>
-        <li>Foutparkeren: voertuigen die buiten een vak, op de stoep of in een bocht staan, tellen als foutparkeerder.</li>
-      </ul>
-    </div>
-  </div>
-
-  <div class="method-item">
-    <h4>Definieer het moment en de telduur</h4>
-    <div class="choice-card">
-      <div class="choice-label">Onze keuze</div>
-      <ul>
-        <li>Tel ten minste 15 minuten om tot uur-waarde te mogen ophogen.</li>
-        <li>Route: wandel bij voorkeur ongeveer dezelfde (en constante) snelheid, en loop veel en vaak dezelfde routes.</li> 
-        <li>Pro-tip: Neem in elke route een wegvak mee dat je al eerder liep. Dit helpt voor de vergelijkbaarheid. De GPS zorgt voor vastleggen van datum en tijdstip.</li>
-      </ul>
-    </div>
-  </div>
-
-  <div class="method-item">
-    <h4>Twee waarnemers? Verdeel het werk.</h4>
-    <p>Spreek van tevoren af  wie welke beweging doet. Verdeel de bewegingen (richtingen, vakken, modaliteiten) expliciet, en zorg dat de scheiding ondubbelzinnig is.</p>
-    <div class="choice-card">
-      <div class="choice-label">Onze keuze</div>
-      <p>We verdelen vooraf op modaliteit of op richting. E&eacute;n teller doet bijvoorbeeld al het gemotoriseerde verkeer en de ander alle fietsers en voetgangers; of we splitsen op richting (noord–zuid vs. oost–west). De scheiding moet z&oacute; scherp zijn dat geen enkele beweging door beiden of door niemand wordt geteld.</p>
-    </div>
-  </div>
-
-  <div class="method-item">
-    <h4>Onverwacht? Schrijf het op!</h4>
-    <p>Bouwwerkzaamheden in de straat, tijdens de telling?  Als je het niet noteert,  zul je later moeten raden waarom de telling zo afweek van het gebruikelijke.</p>
-    <div class="choice-card">
-      <div class="choice-label">Onze keuze</div>
-      <p>Bij elke sessie vullen we het notitieveld in met waarneembare context: weer, wegwerkzaamheden, evenementen, schoolvakantie, maandag-maar-2e-paasdag, of opvallend rustige/drukke omstandigheden. Geen bijzonderheden? Vul dat dan ook in!</p>
-    </div>
-  </div>
-  
-  <div class="method-item">
-    <h1>Denk aan je eigen veiligheid</h1>
-    <div class="choice-card">
-      <div class="card-title"><span class="tag red">belangrijk</span> Tellen kan zeer inspannend zijn. Hou altijd je eigen veiligheid in het oog!</div>
-    </div>
-  </div>
+<h3>Methodiek</h3>
+<p>Een telling is een meting volgens een afgesproken telprotocol. Voordat je begint spreek je af hoe je gaat tellen. Een eventuele tweede teller, of een volgende telling moet met dezelfde werkinstructie tot vergelijkbare cijfers komen.</p>
+<p><strong>Uitgangspunt</strong></p>
+<p>Wees consequent in je manier van tellen, keer op keer. Als je afwijkt, leg dat dan vast.</p>
+<h4>Wat is een voetganger?</h4>
+<p>Wat tel je precies? Een "voetganger" lijkt duidelijk, maar telt een vader met kinderwagen als één of als meer?</p>
+<p><strong>Onze keuze</strong></p>
+<ul>
+<li>Voetganger = elke persoon die zich op eigen benen voortbeweegt, inclusief inzittenden van kinderwagens en rolstoelen. Een ouder met kind in een kinderwagen = 2 voetgangers.</li>
+<li>Ook Voetganger: Fiets aan de hand, skater, skateboard, stepje met en zonder motor.</li>
+<li>Fiets: Fiets, E-Bike, E-bakfiets, speed-pedelec, fatbike &amp; klonen.</li>
+<li>Brommer: Brommer, scooter, bezorgscooter, snorscooter.</li>
+</ul>
+<h4>Spreek een logisch start- en eindpunt af</h4>
+<p>De GPS neemt meestal op, toch is het handig om voor "Start en Einde" punten te gebruiken die buiten zichtbaar zijn.</p>
+<p><strong>Onze keuze</strong></p>
+<ul>
+<li>Wegvak: van kruising tot kruising, of tot punt waar configuratie wijzigt. Het systeem gebruikt de straatnaam in Openstreetmap(OSM). Als die straatnaam niet juist, wijzig die dan in OSM. Leeg de OSM cache in de reconstructor om de wijziging mee te nemen.</li>
+<li>Kruising: namen van takken volgens NOZW of richtingnummers van VRI.</li>
+<li>Richting: oost = richting oost. Of Oost naar Zuid. Of volgens QGIS: North is 0, East is 90, South is 180, and West is 270.</li>
+<li>Gebied (parkeren): begrens met herkenbare randen — een straathoek, een poort, het einde van een parkeerstrook.</li>
+<li>Pocket: de GPS legt de route vast; kies een herkenbaar start- en eindpunt, met een logische route, zodat het eenvoudig is om bij een herhaling exact dezelfde route te volgen.</li>
+</ul>
+<h4>Beschrijf keuzes</h4>
+<p>Naast wát en wáár je telt, leg je vooraf de lastige grensgevallen vast — de gevallen waar twee tellers anders zouden beslissen. Juist die randgevallen bepalen of twee tellingen werkelijk vergelijkbaar zijn. We kijken vaak naar wijzigingen van een paar procent - alleen consequent tellen brengt dat goed in beeld.</p>
+<p><strong>Onze keuze</strong></p>
+<ul>
+<li>Wegvak: een voertuig hoort bij het wegvak waarop het rijdt op het moment dat het de tellijn passeert.</li>
+<li>Parkeervak: een vak is "bezet" wanneer de auto duidelijk bij dat vak hoort. Bij twijfel kijken we of het middelpunt van de auto in het vak staat. Voor een losse aanhanger of container geldt hetzelfde.</li>
+<li>Foutparkeren: voertuigen die buiten een vak, op de stoep of in een bocht staan, tellen als foutparkeerder.</li>
+</ul>
+<h4>Definieer het moment en de telduur</h4>
+<p><strong>Onze keuze</strong></p>
+<ul>
+<li>Tel ten minste 15 minuten om tot uur-waarde te mogen ophogen.</li>
+<li>Route: wandel bij voorkeur ongeveer dezelfde (en constante) snelheid, en loop veel en vaak dezelfde routes.</li>
+<li>Pro-tip: Neem in elke route een wegvak mee dat je al eerder liep. Dit helpt voor de vergelijkbaarheid. De GPS zorgt voor vastleggen van datum en tijdstip.</li>
+</ul>
+<h4>Twee waarnemers? Verdeel het werk.</h4>
+<p>Spreek van tevoren af  wie welke beweging doet. Verdeel de bewegingen (richtingen, vakken, modaliteiten) expliciet, en zorg dat de scheiding ondubbelzinnig is.</p>
+<p><strong>Onze keuze</strong></p>
+<p>We verdelen vooraf op modaliteit of op richting. Eén teller doet bijvoorbeeld al het gemotoriseerde verkeer en de ander alle fietsers en voetgangers; of we splitsen op richting (noord–zuid vs. oost–west). De scheiding moet zó scherp zijn dat geen enkele beweging door beiden of door niemand wordt geteld.</p>
+<h4>Onverwacht? Schrijf het op!</h4>
+<p>Bouwwerkzaamheden in de straat, tijdens de telling?  Als je het niet noteert,  zul je later moeten raden waarom de telling zo afweek van het gebruikelijke.</p>
+<p><strong>Onze keuze</strong></p>
+<p>Bij elke sessie vullen we het notitieveld in met waarneembare context: weer, wegwerkzaamheden, evenementen, schoolvakantie, maandag-maar-2e-paasdag, of opvallend rustige/drukke omstandigheden. Geen bijzonderheden? Vul dat dan ook in!</p>
+<h1>Denk aan je eigen veiligheid</h1>
+<h4><b>belangrijk</b> Tellen kan zeer inspannend zijn. Hou altijd je eigen veiligheid in het oog!</h4>
 </section>
-
-
 <!-- Overview -->
 <section id="overview">
-  <h2>Overview</h2>
-  <p>Traffic Counter is a browser-based field tool for counting traffic. All data is stored locally in the browser and exported to a semicolon-delimited CSV ready for analysis software, like Excel or KNIME.</p>
-  <p>No account or internet connection required for counting — internet is only used for map tiles and address lookup.</p>
-  <div class="card mode-static">
-    <div class="card-title"><span class="mode-badge mb-static">STATIC</span> Static MODE</div>
-    <p>Stand at a fixed location on the roadside,</p>
-    <p>One GPS fix is taken at the start,</p>
-    <p>Counts are totalled per vehicle type and direction, with hourly extrapolation in the CSV.</p>
-  </div>
+<h3>Overview</h3>
+<p>Traffic Counter is a browser-based field tool for counting traffic. All data is stored locally in the browser and exported to a semicolon-delimited CSV ready for analysis software, like Excel or KNIME.</p>
+<p>No account or internet connection required for counting — internet is only used for map tiles and address lookup.</p>
+<h4>STATIC Static MODE</h4>
+<p>Stand at a fixed location on the roadside,</p>
+<p>One GPS fix is taken at the start,</p>
+<p>Counts are totalled per vehicle type and direction, with hourly extrapolation in the CSV.</p>
 </section>
-
 <!-- Session -->
 <section id="session">
-  <h2>Starting and ending a session</h2>
-  <div class="card mode-both">
-    <div class="card-title"><span class="tag green">START</span> button</div>
-    <p>Begins the session clock and activates the counting buttons, and starts acquiring a one-time GPS fix.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title"><span class="tag red">END</span> button</div>
-    <p>Stops the clock, locks the counting buttons, and automatically downloads the CSV file.</p>
-  </div>
-  <p>The status bar shows the current state at all times:</p>
-  <div class="status-example s-idle">Press Start to begin counting</div>
-  <div class="status-example s-running">Counting in progress...</div>
-  <div class="status-example s-ended">Session ended — downloading CSV...</div>
-  <p>The <strong>Export CSV</strong> button in the footer lets you download the data at any point during a session without ending it.</p>
+<h3>Starting and ending a session</h3>
+<h4><b>START</b> button</h4>
+<p>Begins the session clock and activates the counting buttons, and starts acquiring a one-time GPS fix.</p>
+<h4><b>END</b> button</h4>
+<p>Stops the clock, locks the counting buttons, and automatically downloads the CSV file.</p>
+<p>The status bar shows the current state at all times:</p>
+<p><samp>Press Start to begin counting</samp></p>
+<p><samp>Counting in progress...</samp></p>
+<p><samp>Session ended — downloading CSV...</samp></p>
+<p>The <strong>Export CSV</strong> button in the footer lets you download the data at any point during a session without ending it.</p>
 </section>
-
 <!-- Counting -->
 <section id="counting">
-  <h2>Counting vehicles</h2>
-  <p>Five vehicle types are available, top to bottom: <strong>Car, Truck/Van, Motorcycle, Bicycle, Pedestrian</strong>. Each row shows two <span class="tag">+1</span> buttons — one per direction — and a small <span class="tag dim">-</span> button on the right side for quick per-row corrections.</p>
-  <p>The phone vibrates briefly on every tap as tactile confirmation, so you can count without looking at the screen.</p>
-  <div class="card mode-both">
-    <div class="card-title">Undo Last button</div>
-    <p>Removes the most recent count tap regardless of vehicle type or direction. The corresponding log entry is struck through. The button is greyed out until at least one count has been made.</p>
-  </div>
+<h3>Counting vehicles</h3>
+<p>Five vehicle types are available, top to bottom: <strong>Car, Truck/Van, Motorcycle, Bicycle, Pedestrian</strong>. Each row shows two <b>+1</b> buttons — one per direction — and a small <b>-</b> button on the right side for quick per-row corrections.</p>
+<p>The phone vibrates briefly on every tap as tactile confirmation, so you can count without looking at the screen.</p>
+<h4>Undo Last button</h4>
+<p>Removes the most recent count tap regardless of vehicle type or direction. The corresponding log entry is struck through. The button is greyed out until at least one count has been made.</p>
 </section>
-
 <!-- Directions -->
 <section id="directions">
-  <h2>Directions &amp; compass</h2>
-  <p>The two direction labels (default: West / East) are free-text fields. Type anything that describes your situation — <em>North</em>, <em>Inbound</em>, <em>Towards Station</em>. These labels appear in the CSV columns.</p>
-  <div class="card mode-both">
-    <div class="card-title"><span class="tag">Compass</span> button</div>
-    <p>Point your phone along the road in one direction of travel, then tap Compass. The app reads the device compass, averages 5 readings for stability, and fills in the two opposing cardinal directions automatically (e.g. SW / NE). The button turns green when directions are set. On iOS 13+ you will be asked for motion sensor permission.</p>
-  </div>
+<h3>Directions &amp; compass</h3>
+<p>The two direction labels (default: West / East) are free-text fields. Type anything that describes your situation — <em>North</em>, <em>Inbound</em>, <em>Towards Station</em>. These labels appear in the CSV columns.</p>
+<h4><b>Compass</b> button</h4>
+<p>Point your phone along the road in one direction of travel, then tap Compass. The app reads the device compass, averages 5 readings for stability, and fills in the two opposing cardinal directions automatically (e.g. SW / NE). The button turns green when directions are set. On iOS 13+ you will be asked for motion sensor permission.</p>
 </section>
-
 <!-- GPS -->
 <section id="gps">
-  <h2>GPS &amp; location</h2>
-  <p>When you press Start, the app watches for GPS fixes and waits until the accuracy is <strong>25 metres or better</strong> before locking in the position. It then calls the OpenStreetMap Nominatim API to look up the street name and city. The session panel shows live progress:</p>
-  <table class="key-table">
-    <tr><td>Waiting for GPS fix...</td><td>Searching, no fix yet</td></tr>
-    <tr><td>GPS: +/-48m, improving...</td><td>Fix found but still refining</td></tr>
-    <tr><td>Kerkstraat, Amsterdam</td><td>Reliable fix, address resolved</td></tr>
-    <tr><td>52.373, 4.892 (+/-18m)</td><td>Reliable fix, no internet for address</td></tr>
-    <tr><td>... (low accuracy)</td><td>Timed out after 30s, best fix used</td></tr>
-  </table>
-  <p class="mt-10">The GPS fix, accuracy, street, city, country, and a reliability flag are all written to the CSV. The fix is marked reliable if accuracy was 25m or better.</p>
+<h3>GPS &amp; location</h3>
+<p>When you press Start, the app watches for GPS fixes and waits until the accuracy is <strong>25 metres or better</strong> before locking in the position. It then calls the OpenStreetMap Nominatim API to look up the street name and city. The session panel shows live progress:</p>
+<table>
+<tr><td>Waiting for GPS fix...</td><td>Searching, no fix yet</td></tr>
+<tr><td>GPS: +/-48m, improving...</td><td>Fix found but still refining</td></tr>
+<tr><td>Kerkstraat, Amsterdam</td><td>Reliable fix, address resolved</td></tr>
+<tr><td>52.373, 4.892 (+/-18m)</td><td>Reliable fix, no internet for address</td></tr>
+<tr><td>... (low accuracy)</td><td>Timed out after 30s, best fix used</td></tr>
+</table>
+<p>The GPS fix, accuracy, street, city, country, and a reliability flag are all written to the CSV. The fix is marked reliable if accuracy was 25m or better.</p>
 </section>
-
 <!-- Notes -->
 <section id="notes">
-  <h2>Location / Notes field</h2>
-  <p>A free-text input below the status bar, always editable. Use it to describe the measurement location, weather conditions, nearby roadworks, or your name. The content is saved as the first data row in every CSV export.</p>
+<h3>Location / Notes field</h3>
+<p>A free-text input below the status bar, always editable. Use it to describe the measurement location, weather conditions, nearby roadworks, or your name. The content is saved as the first data row in every CSV export.</p>
 </section>
-
 <!-- CSV -->
 <section id="csv">
-  <h2>Export (ZIP)</h2>
-  <p>END (or <strong>Export CSV</strong>) produces one ZIP named after the session id, which ends in <code>_sta</code> and is fixed from the moment you press Start. Since v2.73 it has the same shape as the other tools:</p>
-  <table class="key-table">
-    <tr><td><code>_sessie.csv</code></td><td>One row: date, start/end, total, direction labels, the counting point (lat/lon, accuracy, street, city), notes, active duration in seconds and the per-hour factor</td></tr>
-    <tr><td><code>_telregels.csv</code></td><td>One row per vehicle: date <em>and</em> time, type (car/truck/moto/bike/ped), direction <code>a</code>/<code>b</code></td></tr>
-    <tr><td><code>_onderbrekingen.csv</code></td><td>Only after an interruption: one row per gap (from, to, seconds)</td></tr>
-    <tr><td><code>_overzicht.csv</code></td><td>The human-readable overview described below &mdash; the same file the app exported before v2.73</td></tr>
-  </table>
-  <p class="mt-8">All CSV files use <strong>semicolons</strong> as column delimiters. All timestamps are in your local device timezone. Telrapport reads the ZIP directly, and also older Static ZIPs and loose CSVs.</p>
-
-  <h3>Overview CSV structure</h3>
-  <table class="key-table">
-    <tr><td>Header block</td><td>Export time, notes, start/end times, duration, GPS data (lat, lon, accuracy, street, city, country, reliability), extrapolation factor</td></tr>
-    <tr><td>Summary table</td><td>Counts per vehicle type and direction, plus per-hour extrapolations if session was 30s or longer</td></tr>
-    <tr><td>Timestamp log</td><td>Every individual tap: time, vehicle type, direction</td></tr>
-  </table>
-
-  <div class="card mode-both">
-    <div class="card-title">Hourly extrapolation</div>
-    <p>Calculated as <code>count x (3600 / observed seconds)</code>. Requires a session of at least 30 seconds. The exact factor and observed duration are written to the CSV so you can verify or adjust the calculation in KNIME. <strong>Interruptions are not observed time</strong>: they are left out of the duration and the factor (see below).</p>
-  </div>
+<h3>Export (ZIP)</h3>
+<p>END (or <strong>Export CSV</strong>) produces one ZIP named after the session id, which ends in <code>_sta</code> and is fixed from the moment you press Start. Since v2.73 it has the same shape as the other tools:</p>
+<table>
+<tr><td><code>_sessie.csv</code></td><td>One row: date, start/end, total, direction labels, the counting point (lat/lon, accuracy, street, city), notes, active duration in seconds and the per-hour factor</td></tr>
+<tr><td><code>_telregels.csv</code></td><td>One row per vehicle: date <em>and</em> time, type (car/truck/moto/bike/ped), direction <code>a</code>/<code>b</code></td></tr>
+<tr><td><code>_onderbrekingen.csv</code></td><td>Only after an interruption: one row per gap (from, to, seconds)</td></tr>
+<tr><td><code>_overzicht.csv</code></td><td>The human-readable overview described below — the same file the app exported before v2.73</td></tr>
+</table>
+<p>All CSV files use <strong>semicolons</strong> as column delimiters. All timestamps are in your local device timezone. Telrapport reads the ZIP directly, and also older Static ZIPs and loose CSVs.</p>
+<h3>Overview CSV structure</h3>
+<table>
+<tr><td>Header block</td><td>Export time, notes, start/end times, duration, GPS data (lat, lon, accuracy, street, city, country, reliability), extrapolation factor</td></tr>
+<tr><td>Summary table</td><td>Counts per vehicle type and direction, plus per-hour extrapolations if session was 30s or longer</td></tr>
+<tr><td>Timestamp log</td><td>Every individual tap: time, vehicle type, direction</td></tr>
+</table>
+<h4>Hourly extrapolation</h4>
+<p>Calculated as <code>count x (3600 / observed seconds)</code>. Requires a session of at least 30 seconds. The exact factor and observed duration are written to the CSV so you can verify or adjust the calculation in KNIME. <strong>Interruptions are not observed time</strong>: they are left out of the duration and the factor (see below).</p>
 </section>
-
 <!-- Interruptions (v2.72) -->
 <section id="recovery">
-  <h2>Interruptions &amp; continuing</h2>
-  <p>The count is saved on the phone after every tap and every 10 seconds. If the browser crashes, the tab is swiped away or the page reloads, nothing is lost: on reopening, a brown bar shows the restored count with three choices.</p>
-  <table class="key-table">
-    <tr><td><strong>&#9654; Continue</strong></td><td>Carry on in the same session. The time between the last sign of life and Continue is recorded as an interruption.</td></tr>
-    <tr><td><strong>&#8595; Download</strong></td><td>Export what was counted, up to the last known moment.</td></tr>
-    <tr><td><strong>&#10005; Discard</strong></td><td>Throw the restored count away (asks first).</td></tr>
-  </table>
-  <div class="card mode-both mt-12">
-    <div class="card-title">Why interruptions are left out</div>
-    <p>Static turns a count into vehicles per hour. Ten minutes in which nobody counted would pull that figure down. So the on-screen clock, <em>Observed duration</em> and the <em>Extrapolation factor</em> only count active time, and the export lists each interruption. Start and end time remain the real clock times.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Screen stays on</div>
-    <p>While counting, the screen stays on (Wake Lock). The saved copy is removed as soon as the ZIP has actually been saved. If saving did not succeed (for instance a cancelled share sheet), the finished session is offered again on the next visit.</p>
-  </div>
+<h3>Interruptions &amp; continuing</h3>
+<p>The count is saved on the phone after every tap and every 10 seconds. If the browser crashes, the tab is swiped away or the page reloads, nothing is lost: on reopening, a brown bar shows the restored count with three choices.</p>
+<table>
+<tr><td><strong>▶ Continue</strong></td><td>Carry on in the same session. The time between the last sign of life and Continue is recorded as an interruption.</td></tr>
+<tr><td><strong>↓ Download</strong></td><td>Export what was counted, up to the last known moment.</td></tr>
+<tr><td><strong>✕ Discard</strong></td><td>Throw the restored count away (asks first).</td></tr>
+</table>
+<h4>Why interruptions are left out</h4>
+<p>Static turns a count into vehicles per hour. Ten minutes in which nobody counted would pull that figure down. So the on-screen clock, <em>Observed duration</em> and the <em>Extrapolation factor</em> only count active time, and the export lists each interruption. Start and end time remain the real clock times.</p>
+<h4>Screen stays on</h4>
+<p>While counting, the screen stays on (Wake Lock). The saved copy is removed as soon as the ZIP has actually been saved. If saving did not succeed (for instance a cancelled share sheet), the finished session is offered again on the next visit.</p>
 </section>
-
 <!-- Keyboard -->
 <section id="keyboard">
-  <h2>Keyboard shortcuts (desktop)</h2>
-  <table class="key-table">
-    <tr><td>Space / Enter</td><td>Start session (when idle) or End session (when running)</td></tr>
-    <tr><td>Z</td><td>Undo last tap</td></tr>
-    <tr><td>Q / A</td><td>Car — direction A / direction B</td></tr>
-    <tr><td>W / S</td><td>Truck — direction A / direction B</td></tr>
-    <tr><td>E / D</td><td>Motorcycle — direction A / direction B</td></tr>
-    <tr><td>R / F</td><td>Bicycle — direction A / direction B</td></tr>
-    <tr><td>T / G</td><td>Pedestrian — direction A / direction B</td></tr>
-  </table>
+<h3>Keyboard shortcuts (desktop)</h3>
+<table>
+<tr><td>Space / Enter</td><td>Start session (when idle) or End session (when running)</td></tr>
+<tr><td>Z</td><td>Undo last tap</td></tr>
+<tr><td>Q / A</td><td>Car — direction A / direction B</td></tr>
+<tr><td>W / S</td><td>Truck — direction A / direction B</td></tr>
+<tr><td>E / D</td><td>Motorcycle — direction A / direction B</td></tr>
+<tr><td>R / F</td><td>Bicycle — direction A / direction B</td></tr>
+<tr><td>T / G</td><td>Pedestrian — direction A / direction B</td></tr>
+</table>
 </section>
-
 <!-- Field tips -->
 <section id="tips">
-  <h2>Field tips</h2>
-  <div class="card mode-both">
-    <div class="card-title">Before you start</div>
-    <p>Fill in the Notes field with the location name. Set direction labels, or use the Compass button while pointing along the road. In Static mode, wait for the GPS fix to reach a good accuracy before pressing Start.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Bright sunlight</div>
-    <p>The app uses a light background with high-contrast saturated colors for outdoor readability. Each vehicle type has a solid colored +1 button, so you can tap by color recognition without reading the label.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Correcting mistakes</div>
-    <p>Use the small <span class="tag dim">-</span> buttons on the right of each row to subtract from a specific vehicle/direction. Use <strong>Undo Last</strong> to remove the most recent tap of any type.</p>
-  </div>
+<h3>Field tips</h3>
+<h4>Before you start</h4>
+<p>Fill in the Notes field with the location name. Set direction labels, or use the Compass button while pointing along the road. In Static mode, wait for the GPS fix to reach a good accuracy before pressing Start.</p>
+<h4>Bright sunlight</h4>
+<p>The app uses a light background with high-contrast saturated colors for outdoor readability. Each vehicle type has a solid colored +1 button, so you can tap by color recognition without reading the label.</p>
+<h4>Correcting mistakes</h4>
+<p>Use the small <b>-</b> buttons on the right of each row to subtract from a specific vehicle/direction. Use <strong>Undo Last</strong> to remove the most recent tap of any type.</p>
 </section>
-
 <!-- ══════════════════════════════════════════════════════
      PARKEERTELLING
      ══════════════════════════════════════════════════════ -->
-<div class="divider flow">
-  <div class="divider-label nowrap" style="color:var(--orange)">Parkeertelling</div>
-  <div class="divider-line"></div>
-  <a class="divider-back mr-6" href="parkeertelling.html">Autoparkeren</a>
-  <a class="divider-back" href="fietsparkeren.html">Fietsparkeren</a>
-</div>
-
+<h2>Parkeertelling</h2><p><a href="parkeertelling.html">Autoparkeren</a> · <a href="fietsparkeren.html">Fietsparkeren</a></p>
 <!-- Overzicht -->
 <section id="park-overzicht">
-  <h2>Wat doen de parkeertellingen?</h2>
-  <p>De parkeertellingen zijn veldtools, gemaakt om tijdens het lopen parkeerbezetting te tellen. Je loopt een straat of route en registreert per parkeervak de bezetting — links en rechts van de straat apart. De app snapt je positie op OSM-wegdata, plaatst markers loodrecht op de wegas en exporteert de resultaten in een ZIP met CSV, GPX en kaart-PNG.</p>
-  <p>Er zijn twee aparte apps: <strong>parkeertelling.html</strong> voor autoparkeren en <strong>fietsparkeren.html</strong> voor fietsparkeren. Beide zijn identiek qua bediening.</p>
+<h3>Wat doen de parkeertellingen?</h3>
+<p>De parkeertellingen zijn veldtools, gemaakt om tijdens het lopen parkeerbezetting te tellen. Je loopt een straat of route en registreert per parkeervak de bezetting — links en rechts van de straat apart. De app snapt je positie op OSM-wegdata, plaatst markers loodrecht op de wegas en exporteert de resultaten in een ZIP met CSV, GPX en kaart-PNG.</p>
+<p>Er zijn twee aparte apps: <strong>parkeertelling.html</strong> voor autoparkeren en <strong>fietsparkeren.html</strong> voor fietsparkeren. Beide zijn identiek qua bediening.</p>
 </section>
-
 <!-- Eerste gebruik -->
 <section id="park-eerstegebruik">
-  <h2>Hints bij het eerste gebruik</h2>
-  <p>De parkeertellingen bieden twee invoermethoden. Kies de methode die past bij jouw werkwijze en druk op Start — wisselen van methode tijdens een sessie is mogelijk.</p>
-
-  <div class="card bl-green">
-    <div class="card-title">Methode A — Knoppen (klassiek)</div>
-    <p>Het scherm toont twee kolommen met telknoppen, links en rechts van de weg. Tik de knop van het juiste type aan de juiste kant. Geschikt als je langzaam loopt en goed op het scherm kunt kijken.</p>
-    <p><strong>Stap voor stap:</strong></p>
-    <ol class="list-tight">
-      <li>Open de app en voer je naam in bij <em>Teller</em></li>
-      <li>Druk op de knop <strong>Knoppen</strong></li>
-      <li>Druk op <strong>Start</strong> — wacht tot de GPS positie voldoende nauwkeurig is. Dat is als de GPS-stip groen is</li>
-      <li>Loop langs de geparkeerde voertuigen en tik per voertuig de juiste knop (links of rechts van de weg)</li>
-      <li>Druk op <strong>Stop</strong> en download de ZIP</li>
-    </ol>
-    <p class="note mt-8">Tip: activeer het kompas voor betere plaatsnauwkeurigheid.</p>
-  </div>
-
-  <div class="card bl-blue mt-16">
-    <div class="card-title">Methode B — Kantelmodus (handsfree)</div>
-    <p>Je kantelt de telefoon naar links of rechts om de zijde te kiezen, en tikt op het scherm om de bezetting te registreren. Je hoeft niet naar het scherm te kijken — ideaal voor een hoog tempo.</p>
-    <p><strong>Stap voor stap:</strong></p>
-    <ol class="list-tight">
-      <li>Open de app en voer je naam in bij <em>Teller</em></li>
-      <li>Druk op de modusknop <strong>Kantelen</strong> — op iOS volgt een toestemmingsverzoek voor bewegingssensoren, geef toestemming</li>
-      <li>Activeer het kompas (knop onder de mini-kaart)</li>
-      <li>Kies het type voertuig in de typestrip (standaard: het meest voorkomende type)</li>
-      <li>Druk op <strong>Start</strong></li>
-      <li>Houd de telefoon in de looprichting. <strong>Kantel links</strong> voor een voertuig aan de linkerkant, <strong>kantel rechts</strong> voor rechts. De mini-kaart toont L of R als bevestiging</li>
-      <li>Tik op de tikzone om te registreren — je voelt een trilling</li>
-      <li>Druk op <strong>Stop</strong> en download de ZIP</li>
-    </ol>
-    <p class="note mt-8">Tip: een kantelhoek van 15° is de drempel. Houd de telefoon bij neutrale positie (rechtop) even stil voor je wisselt van zijde.</p>
-    <p class="note mt-6"><strong>Belangrijk:</strong> vergrendel de schermrotatie op je telefoon voordat je begint. Anders kan het scherm meedraaien bij het kantelen en wordt de tikzone onbereikbaar. Op iOS: schuif omhoog vanuit de rechterbovenhoek → rotatieslot (het cirkelpijltje). Op Android: schuif omlaag vanuit de bovenkant → tik op Auto-rotatie om het uit te zetten.</p>
-  </div>
+<h3>Hints bij het eerste gebruik</h3>
+<p>De parkeertellingen bieden twee invoermethoden. Kies de methode die past bij jouw werkwijze en druk op Start — wisselen van methode tijdens een sessie is mogelijk.</p>
+<h4>Methode A — Knoppen (klassiek)</h4>
+<p>Het scherm toont twee kolommen met telknoppen, links en rechts van de weg. Tik de knop van het juiste type aan de juiste kant. Geschikt als je langzaam loopt en goed op het scherm kunt kijken.</p>
+<p><strong>Stap voor stap:</strong></p>
+<ol>
+<li>Open de app en voer je naam in bij <em>Teller</em></li>
+<li>Druk op de knop <strong>Knoppen</strong></li>
+<li>Druk op <strong>Start</strong> — wacht tot de GPS positie voldoende nauwkeurig is. Dat is als de GPS-stip groen is</li>
+<li>Loop langs de geparkeerde voertuigen en tik per voertuig de juiste knop (links of rechts van de weg)</li>
+<li>Druk op <strong>Stop</strong> en download de ZIP</li>
+</ol>
+<p>Tip: activeer het kompas voor betere plaatsnauwkeurigheid.</p>
+<h4>Methode B — Kantelmodus (handsfree)</h4>
+<p>Je kantelt de telefoon naar links of rechts om de zijde te kiezen, en tikt op het scherm om de bezetting te registreren. Je hoeft niet naar het scherm te kijken — ideaal voor een hoog tempo.</p>
+<p><strong>Stap voor stap:</strong></p>
+<ol>
+<li>Open de app en voer je naam in bij <em>Teller</em></li>
+<li>Druk op de modusknop <strong>Kantelen</strong> — op iOS volgt een toestemmingsverzoek voor bewegingssensoren, geef toestemming</li>
+<li>Activeer het kompas (knop onder de mini-kaart)</li>
+<li>Kies het type voertuig in de typestrip (standaard: het meest voorkomende type)</li>
+<li>Druk op <strong>Start</strong></li>
+<li>Houd de telefoon in de looprichting. <strong>Kantel links</strong> voor een voertuig aan de linkerkant, <strong>kantel rechts</strong> voor rechts. De mini-kaart toont L of R als bevestiging</li>
+<li>Tik op de tikzone om te registreren — je voelt een trilling</li>
+<li>Druk op <strong>Stop</strong> en download de ZIP</li>
+</ol>
+<p>Tip: een kantelhoek van 15° is de drempel. Houd de telefoon bij neutrale positie (rechtop) even stil voor je wisselt van zijde.</p>
+<p><strong>Belangrijk:</strong> vergrendel de schermrotatie op je telefoon voordat je begint. Anders kan het scherm meedraaien bij het kantelen en wordt de tikzone onbereikbaar. Op iOS: schuif omhoog vanuit de rechterbovenhoek → rotatieslot (het cirkelpijltje). Op Android: schuif omlaag vanuit de bovenkant → tik op Auto-rotatie om het uit te zetten.</p>
 </section>
-
 <!-- Types -->
 <section id="park-types">
-  <h2>Auto vs. Fietsparkeren</h2>
-  <div class="card bl-orange">
-    <div class="card-title">🚗 Autoparkeren — parkeertelling.html</div>
-    <p>
-      <span class="tag" style="background:#27ae60;">Goed</span> geparkeerd &middot;
-      <span class="tag" style="background:#c0392b;">Fout</span> geparkeerd &middot;
-      <span class="tag" style="background:#2980b9;">Leeg</span> parkeervak &middot;
-      <span class="tag" style="background:#d68910;">Spec.</span> gehandicapt / laden&amp;lossen
+<h3>Auto vs. Fietsparkeren</h3>
+<h4>🚗 Autoparkeren — parkeertelling.html</h4>
+<p>
+<b>Goed</b> geparkeerd ·
+      <b>Fout</b> geparkeerd ·
+      <b>Leeg</b> parkeervak ·
+      <b>Spec.</b> gehandicapt / laden&amp;lossen
     </p>
-    <p class="mt-6">CSV-prefix: <code>parkeertelling_</code></p>
-  </div>
-  <div class="card bl-cyan">
-    <div class="card-title">🚲 Fietsparkeren — fietsparkeren.html</div>
-    <p>
-      <span class="tag" style="background:#27ae60;">Fiets</span> normaal geparkeerd &middot;
-      <span class="tag" style="background:#e67e22;">Brommer</span> brommer/scooter &middot;
-      <span class="tag" style="background:#2980b9;">Breed</span> bredere fiets, zoals bakfiets &middot;
-      <span class="tag" style="background:#c0392b;">Wrak</span> fietswrak
+<p>CSV-prefix: <code>parkeertelling_</code></p>
+<h4>🚲 Fietsparkeren — fietsparkeren.html</h4>
+<p>
+<b>Fiets</b> normaal geparkeerd ·
+      <b>Brommer</b> brommer/scooter ·
+      <b>Breed</b> bredere fiets, zoals bakfiets ·
+      <b>Wrak</b> fietswrak
     </p>
-    <p class="mt-6">CSV-prefix: <code>fietsparkeren_</code></p>
-  </div>
+<p>CSV-prefix: <code>fietsparkeren_</code></p>
 </section>
-
 <!-- Sessie -->
 <section id="park-sessie">
-  <h2>Sessie starten en stoppen</h2>
-  <div class="card mode-both">
-    <div class="card-title"><span class="tag green">&#9654; Start</span></div>
-    <p>Activeert de GPS. Telknoppen worden actief zodra de GPS-nauwkeurigheid 25 meter of beter is. Een oranje knipperende dot geeft aan dat de app nog op een goede fix wacht. Knoppen blijven 3 seconden actief bij een korte GPS-uitval.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title"><span class="tag red">&#9632; Stop</span></div>
-    <p>Stopt de sessie. De ZIP-knop bovenaan de downloadrij wordt actief. Download-knoppen voor CSV, GPX en kaart blijven apart beschikbaar.</p>
-  </div>
-  <p>De <strong>Wake Lock</strong> — het slotje-icoontje in de header — houdt het scherm aan tijdens de sessie.</p>
+<h3>Sessie starten en stoppen</h3>
+<h4><b>▶ Start</b></h4>
+<p>Activeert de GPS. Telknoppen worden actief zodra de GPS-nauwkeurigheid 25 meter of beter is. Een oranje knipperende dot geeft aan dat de app nog op een goede fix wacht. Knoppen blijven 3 seconden actief bij een korte GPS-uitval.</p>
+<h4><b>■ Stop</b></h4>
+<p>Stopt de sessie. De ZIP-knop bovenaan de downloadrij wordt actief. Download-knoppen voor CSV, GPX en kaart blijven apart beschikbaar.</p>
+<p>De <strong>Wake Lock</strong> — het slotje-icoontje in de header — houdt het scherm aan tijdens de sessie.</p>
 </section>
-
 <!-- Tellen -->
 <section id="park-tellen">
-  <h2>Tellen: knoppen &amp; kantelmodus</h2>
-  <p>Er zijn twee invoermethoden, te kiezen via de knoppen boven de Start-knop.</p>
-  <div class="card mode-both">
-    <div class="card-title">Knoppen-modus</div>
-    <p>Het telscherm heeft twee kolommen gescheiden door een "WEG"-divider. <strong>Links</strong> = linkerkant van de straat in jouw looprichting, <strong>Rechts</strong> = rechterkant.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Kantelmodus</div>
-    <p>De knoppen verdwijnen. In hun plaats verschijnt een typestrip (kies het type) en een grote tikzone. Kantel de telefoon links of rechts — de tikzone toont L of R. Tik de tikzone om te registreren. Een trilling bevestigt de registratie. Bij een neutrale stand (rechtop) geeft de app een dubbele trilling zonder te registreren.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Knoplayout</div>
-    <p>Het eerste type beslaat de volle breedte (meest gebruikt). De twee middelste types staan naast elkaar op halve breedte. Het laatste type beslaat de volle breedte onderaan.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Ongedaan maken</div>
-    <p>"&#8617; ongedaan maken" verwijdert de meest recente telling — ongeacht type of zijde. De marker op de kaart verdwijnt mee.</p>
-  </div>
+<h3>Tellen: knoppen &amp; kantelmodus</h3>
+<p>Er zijn twee invoermethoden, te kiezen via de knoppen boven de Start-knop.</p>
+<h4>Knoppen-modus</h4>
+<p>Het telscherm heeft twee kolommen gescheiden door een "WEG"-divider. <strong>Links</strong> = linkerkant van de straat in jouw looprichting, <strong>Rechts</strong> = rechterkant.</p>
+<h4>Kantelmodus</h4>
+<p>De knoppen verdwijnen. In hun plaats verschijnt een typestrip (kies het type) en een grote tikzone. Kantel de telefoon links of rechts — de tikzone toont L of R. Tik de tikzone om te registreren. Een trilling bevestigt de registratie. Bij een neutrale stand (rechtop) geeft de app een dubbele trilling zonder te registreren.</p>
+<h4>Knoplayout</h4>
+<p>Het eerste type beslaat de volle breedte (meest gebruikt). De twee middelste types staan naast elkaar op halve breedte. Het laatste type beslaat de volle breedte onderaan.</p>
+<h4>Ongedaan maken</h4>
+<p>"↩ ongedaan maken" verwijdert de meest recente telling — ongeacht type of zijde. De marker op de kaart verdwijnt mee.</p>
 </section>
-
 <!-- Mini-kaart -->
 <section id="park-minimap">
-  <h2>Mini-kaart &amp; bearing</h2>
-  <p>Rechts in het straatpaneel staat een rond mini-kaartje van 90×90 px. Het toont de wegen binnen 100 meter, geroteerd zodat jouw looprichting altijd omhoog wijst. Bezochte wegvakken kleuren zandgeel.</p>
-  <p>De driehoekige pijl in het midden geeft de betrouwbaarheid van de bearing aan:</p>
-  <table class="key-table">
-    <tr><td>&#9650; Groen</td><td>Bewegend + kompas actief — meest betrouwbaar</td></tr>
-    <tr><td>&#9650; Geelgroen</td><td>Bewegend, alleen GPS</td></tr>
-    <tr><td>&#9650; Geel</td><td>Stilstaand, kompas dominant</td></tr>
-    <tr><td>&#9650; Oranje</td><td>Stilstaand, uit GPS-history</td></tr>
-    <tr><td>&#9650; Rood</td><td>Geen richting beschikbaar — tel nog niet</td></tr>
-  </table>
-  <div class="card mode-both">
-    <div class="card-title">Kompasknop</div>
-    <p>Op iOS vraagt de "kompas"-knop toestemming voor DeviceOrientation. Eenmaal actief middelt de app GPS-bearing (60%) en kompas (40%) bij beweging, en is kompas-dominant (80%) bij stilstand. Kalibreer het kompas met een acht-beweging als de pijl structureel afwijkt.</p>
-  </div>
+<h3>Mini-kaart &amp; bearing</h3>
+<p>Rechts in het straatpaneel staat een rond mini-kaartje van 90×90 px. Het toont de wegen binnen 100 meter, geroteerd zodat jouw looprichting altijd omhoog wijst. Bezochte wegvakken kleuren zandgeel.</p>
+<p>De driehoekige pijl in het midden geeft de betrouwbaarheid van de bearing aan:</p>
+<table>
+<tr><td>▲ Groen</td><td>Bewegend + kompas actief — meest betrouwbaar</td></tr>
+<tr><td>▲ Geelgroen</td><td>Bewegend, alleen GPS</td></tr>
+<tr><td>▲ Geel</td><td>Stilstaand, kompas dominant</td></tr>
+<tr><td>▲ Oranje</td><td>Stilstaand, uit GPS-history</td></tr>
+<tr><td>▲ Rood</td><td>Geen richting beschikbaar — tel nog niet</td></tr>
+</table>
+<h4>Kompasknop</h4>
+<p>Op iOS vraagt de "kompas"-knop toestemming voor DeviceOrientation. Eenmaal actief middelt de app GPS-bearing (60%) en kompas (40%) bij beweging, en is kompas-dominant (80%) bij stilstand. Kalibreer het kompas met een acht-beweging als de pijl structureel afwijkt.</p>
 </section>
-
 <!-- GPS -->
 <section id="park-gps">
-  <h2>GPS &amp; OSM wegsnapping</h2>
-  <p>De gekleurde stip in de statusbalk toont de GPS-status: grijs = inactief, oranje knipperend = fix onvoldoende (&gt;25m), groen = actief.</p>
-  <p>Wegvakken worden opgehaald via Overpass API (straal 300m). Markers komen <strong>4 meter loodrecht op de dichtstbijzijnde wegas</strong>. Een indicator onder de straatnaam toont de snapstatus.</p>
-  <p>Bij onbereikbaarheid van Openstreetmap/Overpass worden markers op de GPS-positie geplaatst.</p>
+<h3>GPS &amp; OSM wegsnapping</h3>
+<p>De gekleurde stip in de statusbalk toont de GPS-status: grijs = inactief, oranje knipperend = fix onvoldoende (&gt;25m), groen = actief.</p>
+<p>Wegvakken worden opgehaald via Overpass API (straal 300m). Markers komen <strong>4 meter loodrecht op de dichtstbijzijnde wegas</strong>. Een indicator onder de straatnaam toont de snapstatus.</p>
+<p>Bij onbereikbaarheid van Openstreetmap/Overpass worden markers op de GPS-positie geplaatst.</p>
 </section>
-
 <!-- Recovery -->
 <section id="park-recovery">
-  <h2>Crash recovery</h2>
-  <div class="card mode-both">
-    <div class="card-title">Automatisch opslaan</div>
-    <p>De app slaat de sessie op in de localStorage van de telefoon. Bij een crash of per ongeluk gesloten tab gaat niets verloren.</p>
-  </div>
-  <p>Bij heropenen verschijnt een herstelmelding als er een niet-afgesloten sessie is. Download-knoppen worden direct actief zodat de data exporteerbaar is, en met <strong>&#9654; Doortellen</strong> ga je verder in dezelfde sessie: zelfde sessie-id, zelfde starttijd, alles in één ZIP. Druk je toch op Start, dan vraagt de app eerst of de herstelde telling weg mag. Zie <a href="#herstel">Onderbreking, herstel &amp; doortellen</a>.</p>
+<h3>Crash recovery</h3>
+<h4>Automatisch opslaan</h4>
+<p>De app slaat de sessie op in de localStorage van de telefoon. Bij een crash of per ongeluk gesloten tab gaat niets verloren.</p>
+<p>Bij heropenen verschijnt een herstelmelding als er een niet-afgesloten sessie is. Download-knoppen worden direct actief zodat de data exporteerbaar is, en met <strong>▶ Doortellen</strong> ga je verder in dezelfde sessie: zelfde sessie-id, zelfde starttijd, alles in één ZIP. Druk je toch op Start, dan vraagt de app eerst of de herstelde telling weg mag. Zie <a href="#herstel">Onderbreking, herstel &amp; doortellen</a>.</p>
 </section>
-
 <!-- Export -->
 <section id="park-export">
-  <h2>Exporteren (ZIP / CSV / GPX / PNG)</h2>
-  <div class="card mode-both">
-    <div class="card-title">&#8595; Download ZIP</div>
-    <p>Bundelt CSV, GPX en kaart-PNG in één zipbestand. Op iOS/Android opent het deelmenu (AirDrop, Drive, WhatsApp, etc.). Op desktop gewone download. Dit is de aanbevolen manier om resultaten naar de computer te krijgen.</p>
-    <p class="mt-8">De noodopslag verdwijnt pas als de ZIP echt is opgeslagen (sinds v2.77). Annuleer je het deelmenu, of verschijnt het niet, dan meldt de statusregel <em>ZIP niet opgeslagen</em> en blijft de telling bewaard. Tik dan nog eens op <strong>&#8595; Download ZIP</strong>: je krijgt dezelfde ZIP meteen opnieuw aangeboden.</p>
-  </div>
-  <table class="key-table">
-    <tr><td>CSV — Tellog</td><td>Nr, tijdstip, type, zijde (L/R), straat, coördinaten marker + GPS, snapped, alle bearings</td></tr>
-    <tr><td>CSV — Samenvatting</td><td>Totalen per type, gesplitst naar L en R</td></tr>
-    <tr><td>CSV — Per straat</td><td>Aantallen per straatnaam</td></tr>
-    <tr><td>CSV — GPS-track</td><td>Alle GPS-punten: tijdstip, coördinaten, nauwkeurigheid, heading</td></tr>
-    <tr><td>GPX</td><td>Waypoints per geteld object + tracklog looproute</td></tr>
-    <tr><td>PNG</td><td>1920px breed, Mercator-correct, route + markers + wegvakken, header met totalen</td></tr>
-  </table>
+<h3>Exporteren (ZIP / CSV / GPX / PNG)</h3>
+<h4>↓ Download ZIP</h4>
+<p>Bundelt CSV, GPX en kaart-PNG in één zipbestand. Op iOS/Android opent het deelmenu (AirDrop, Drive, WhatsApp, etc.). Op desktop gewone download. Dit is de aanbevolen manier om resultaten naar de computer te krijgen.</p>
+<p>De noodopslag verdwijnt pas als de ZIP echt is opgeslagen (sinds v2.77). Annuleer je het deelmenu, of verschijnt het niet, dan meldt de statusregel <em>ZIP niet opgeslagen</em> en blijft de telling bewaard. Tik dan nog eens op <strong>↓ Download ZIP</strong>: je krijgt dezelfde ZIP meteen opnieuw aangeboden.</p>
+<table>
+<tr><td>CSV — Tellog</td><td>Nr, tijdstip, type, zijde (L/R), straat, coördinaten marker + GPS, snapped, alle bearings</td></tr>
+<tr><td>CSV — Samenvatting</td><td>Totalen per type, gesplitst naar L en R</td></tr>
+<tr><td>CSV — Per straat</td><td>Aantallen per straatnaam</td></tr>
+<tr><td>CSV — GPS-track</td><td>Alle GPS-punten: tijdstip, coördinaten, nauwkeurigheid, heading</td></tr>
+<tr><td>GPX</td><td>Waypoints per geteld object + tracklog looproute</td></tr>
+<tr><td>PNG</td><td>1920px breed, Mercator-correct, route + markers + wegvakken, header met totalen</td></tr>
+</table>
 </section>
-
 <!-- Tips -->
 <section id="park-tips">
-  <h2>Veldtips</h2>
-  <div class="card mode-both">
-    <div class="card-title">Wacht op de groene pijl</div>
-    <p>Tel pas als de pijl in de mini-kaart groen of geelgroen is. Rood of oranje betekent dat de bearing onbetrouwbaar is en markers verkeerd geplaatst kunnen worden.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Looprichting</div>
-    <p>Houd de telefoon recht vooruit gericht met de bovenkant naar voren, zodat het kompas de juiste richting aangeeft. Loop de route in één richting — bij een U-vormige route is een nieuwe sessie voor de terugweg nauwkeuriger.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Accu</div>
-    <p>Doorlopend GPS- en schermgebruik kosten veel energie. Neem een powerbank mee bij langere sessies.</p>
-  </div>
+<h3>Veldtips</h3>
+<h4>Wacht op de groene pijl</h4>
+<p>Tel pas als de pijl in de mini-kaart groen of geelgroen is. Rood of oranje betekent dat de bearing onbetrouwbaar is en markers verkeerd geplaatst kunnen worden.</p>
+<h4>Looprichting</h4>
+<p>Houd de telefoon recht vooruit gericht met de bovenkant naar voren, zodat het kompas de juiste richting aangeeft. Loop de route in één richting — bij een U-vormige route is een nieuwe sessie voor de terugweg nauwkeuriger.</p>
+<h4>Accu</h4>
+<p>Doorlopend GPS- en schermgebruik kosten veel energie. Neem een powerbank mee bij langere sessies.</p>
 </section>
-
 <!-- ══════════════════════════════════════════════════════
      CAPACITEITSTELLING
      ══════════════════════════════════════════════════════ -->
-<div class="divider">
-  <div class="divider-label" style="color:#8e44ad">Capaciteitstelling</div>
-</div>
-
+<h2>Capaciteitstelling</h2>
 <!-- Overzicht -->
 <section id="cap-overzicht">
-  <h2>Wat doet de capaciteitstelling?</h2>
-  <p>In de capaciteitstelling tellen we het <strong>aantal beschikbare</strong> parkeerplaatsen — per type. Door capaciteit en de getelde parkeerbezetting te koppelen via de OSM-wegvak-ID bereken je de bezettingsgraad.</p>
-  <p>De app heeft twee modules, te kiezen via de knoppen boven de Start-knop.</p>
+<h3>Wat doet de capaciteitstelling?</h3>
+<p>In de capaciteitstelling tellen we het <strong>aantal beschikbare</strong> parkeerplaatsen — per type. Door capaciteit en de getelde parkeerbezetting te koppelen via de OSM-wegvak-ID bereken je de bezettingsgraad.</p>
+<p>De app heeft twee modules, te kiezen via de knoppen boven de Start-knop.</p>
 </section>
-
 <!-- Straat -->
 <section id="cap-straat">
-  <h2>Module 1: Straat doorlopen</h2>
-  <p>Identiek aan de parkeertelling qua bediening: GPS, OSM-snapping, knoppen of kantelmodus, L/R. Het verschil zit in de types parkeerplaats:</p>
-  <div class="card bl-purple">
-    <p>
-      <span class="tag" style="background:#2471a3;">Regulier</span> standaard parkeervak &middot;
-      <span class="tag" style="background:#27ae60;">Gehandicapt</span> gehandicaptenparkeerplaats &middot;
-      <span class="tag" style="background:#e67e22;">Laadpaal</span> elektrisch laadpunt &middot;
-      <span class="tag" style="background:#8e44ad;">Gereserveerd</span> vergunning / privé
+<h3>Module 1: Straat doorlopen</h3>
+<p>Identiek aan de parkeertelling qua bediening: GPS, OSM-snapping, knoppen of kantelmodus, L/R. Het verschil zit in de types parkeerplaats:</p>
+<p>
+<b>Regulier</b> standaard parkeervak ·
+      <b>Gehandicapt</b> gehandicaptenparkeerplaats ·
+      <b>Laadpaal</b> elektrisch laadpunt ·
+      <b>Gereserveerd</b> vergunning / privé
     </p>
-  </div>
-  <p class="mt-10">Elke tik = één parkeervak. De zijde (L/R) en het type worden per vak geregistreerd. De export bevat één rij per wayId/zijde/soort-combinatie.</p>
+<p>Elke tik = één parkeervak. De zijde (L/R) en het type worden per vak geregistreerd. De export bevat één rij per wayId/zijde/soort-combinatie.</p>
 </section>
-
 <!-- Terrein -->
 <section id="cap-terrein">
-  <h2>Module 2: Groter terrein tellen op het oog</h2>
-  <p>Voor grote parkeerterreinen die je niet stap voor stap doorloopt. Je staat op of bij het terrein, telt met het oog, en voert de aantallen handmatig in.</p>
-  <div class="card mode-both">
-    <div class="card-title">Werkwijze</div>
-    <ol class="list-tight">
-      <li>Klik op de <strong>Terrein</strong>-knop</li>
-      <li>Druk op <strong>Start</strong> — de kaart centreert op jouw GPS-positie</li>
-      <li>De app zoekt automatisch parkeerterreinen (<code>amenity=parking</code>) binnen 400 m via OpenStreetMap en tekent deze als paarse contouren op de kaart</li>
-      <li>Tik een terrein aan op de kaart</li>
-      <li>Vul het aantal parkeerplaatsen per type in en druk op <strong>Opslaan</strong></li>
-      <li>Het label verschijnt op de kaart met het totaal aantal plekken</li>
-      <li>Herhaal voor meerdere terreinen binnen dezelfde sessie</li>
-      <li>Druk op <strong>Stop</strong> en exporteer de ZIP</li>
-    </ol>
-  </div>
-  <p class="note mt-8">Staat een terrein niet in OSM? Dan is het niet zichtbaar op de kaart. Je kunt het terrein later in JOSM of iD toevoegen aan OSM.</p>
+<h3>Module 2: Groter terrein tellen op het oog</h3>
+<p>Voor grote parkeerterreinen die je niet stap voor stap doorloopt. Je staat op of bij het terrein, telt met het oog, en voert de aantallen handmatig in.</p>
+<h4>Werkwijze</h4>
+<ol>
+<li>Klik op de <strong>Terrein</strong>-knop</li>
+<li>Druk op <strong>Start</strong> — de kaart centreert op jouw GPS-positie</li>
+<li>De app zoekt automatisch parkeerterreinen (<code>amenity=parking</code>) binnen 400 m via OpenStreetMap en tekent deze als paarse contouren op de kaart</li>
+<li>Tik een terrein aan op de kaart</li>
+<li>Vul het aantal parkeerplaatsen per type in en druk op <strong>Opslaan</strong></li>
+<li>Het label verschijnt op de kaart met het totaal aantal plekken</li>
+<li>Herhaal voor meerdere terreinen binnen dezelfde sessie</li>
+<li>Druk op <strong>Stop</strong> en exporteer de ZIP</li>
+</ol>
+<p>Staat een terrein niet in OSM? Dan is het niet zichtbaar op de kaart. Je kunt het terrein later in JOSM of iD toevoegen aan OSM.</p>
 </section>
-
 <!-- Export -->
 <section id="cap-export">
-  <h2>Export</h2>
-  <p>De ZIP bevat een <code>_capaciteit.csv</code> met één rij per wayId/zijde/soort-combinatie:</p>
-  <table class="key-table">
-    <tr><td><code>sessie_id</code></td><td>Koppelsleutel voor sessie-metadata</td></tr>
-    <tr><td><code>osm_way_id</code></td><td>OSM-wegvak of terrein-ID</td></tr>
-    <tr><td><code>naam</code></td><td>Straatnaam of terrainnaam uit OSM</td></tr>
-    <tr><td><code>zijde</code></td><td>L, R of nvt (terrein)</td></tr>
-    <tr><td><code>soort</code></td><td>regulier / gehandicapt / laadpaal / gereserveerd</td></tr>
-    <tr><td><code>capaciteit</code></td><td>Aantal plekken van dit soort</td></tr>
-  </table>
-  <p class="mt-10">In KNIME: join <code>capaciteit.csv</code> en <code>straten.csv</code> van de parkeertelling op <code>osm_way_id + zijde</code> → directe bezettingsgraad per soort plek.</p>
+<h3>Export</h3>
+<p>De ZIP bevat een <code>_capaciteit.csv</code> met één rij per wayId/zijde/soort-combinatie:</p>
+<table>
+<tr><td><code>sessie_id</code></td><td>Koppelsleutel voor sessie-metadata</td></tr>
+<tr><td><code>osm_way_id</code></td><td>OSM-wegvak of terrein-ID</td></tr>
+<tr><td><code>naam</code></td><td>Straatnaam of terrainnaam uit OSM</td></tr>
+<tr><td><code>zijde</code></td><td>L, R of nvt (terrein)</td></tr>
+<tr><td><code>soort</code></td><td>regulier / gehandicapt / laadpaal / gereserveerd</td></tr>
+<tr><td><code>capaciteit</code></td><td>Aantal plekken van dit soort</td></tr>
+</table>
+<p>In KNIME: join <code>capaciteit.csv</code> en <code>straten.csv</code> van de parkeertelling op <code>osm_way_id + zijde</code> → directe bezettingsgraad per soort plek.</p>
 </section>
-
 <!-- ══════════════════════════════════════════════════════
      POCKET
      ══════════════════════════════════════════════════════ -->
-<div class="divider flow">
-  <div class="divider-label nowrap" style="color:#c0392b">Move and Count Simple</div>
-  <div class="divider-line"></div>
-  <a class="divider-back" href="pocket_count.html">pocket_count.html</a>
-</div>
-
+<h2>Move and Count Simple</h2><p><a href="pocket_count.html">pocket_count.html</a></p>
 <section id="pocket-overzicht">
-  <h2>Wat doet de Pocket-telling?</h2>
-  <p>Een ultra-eenvoudige app om één type passant te tellen zonder naar het scherm te kijken. Je kiest het vervoertype, stopt de telefoon in je jaszak en tikt. Ideaal voor langere wandelingen in een winkelcentrum, langs een drukke passage of op een fietsbrug.</p>
-  <p>De telling heeft OSM-wegsnapping ingebouwd — als er bereik is worden de observaties automatisch gekoppeld aan het dichtstbijzijnde wegvak, zodat de resultaten direct bruikbaar zijn in telrapport.html.</p>
-  <p>Pocket kent vier sub-modi, gekozen via het moduskeuzescherm bij het opstarten: <strong>Simpel</strong> (één type, jaszak-tellen), <strong>Transect</strong> (moving-observer richtingtelling per voertuigtype), <strong>Winkelstraat</strong> (tegemoetkomend vs. stilstaand publiek) en <strong>Parkeren</strong> (bezet/leeg, links/rechts). Alle vier delen dezelfde snap-motor, crash-recovery en ZIP-export — alleen het telscherm zelf verschilt.</p>
+<h3>Wat doet de Pocket-telling?</h3>
+<p>Een ultra-eenvoudige app om één type passant te tellen zonder naar het scherm te kijken. Je kiest het vervoertype, stopt de telefoon in je jaszak en tikt. Ideaal voor langere wandelingen in een winkelcentrum, langs een drukke passage of op een fietsbrug.</p>
+<p>De telling heeft OSM-wegsnapping ingebouwd — als er bereik is worden de observaties automatisch gekoppeld aan het dichtstbijzijnde wegvak, zodat de resultaten direct bruikbaar zijn in telrapport.html.</p>
+<p>Pocket kent vier sub-modi, gekozen via het moduskeuzescherm bij het opstarten: <strong>Simpel</strong> (één type, jaszak-tellen), <strong>Transect</strong> (moving-observer richtingtelling per voertuigtype), <strong>Winkelstraat</strong> (tegemoetkomend vs. stilstaand publiek) en <strong>Parkeren</strong> (bezet/leeg, links/rechts). Alle vier delen dezelfde snap-motor, crash-recovery en ZIP-export — alleen het telscherm zelf verschilt.</p>
 </section>
-
 <section id="pocket-welke-modus">
-  <h2>Welke modus: Simpel of uitgebreid?</h2>
-  <div class="card bl-red">
-    <div class="card-title">Bijna altijd: Simpel</div>
-    <p>Voor het overgrote deel van het veldwerk is <strong>Simpel</strong> de juiste keuze. Eén type per sessie, één tik per waarneming, verder niets om over na te denken — precies wat je wilt als je niet naar het scherm kijkt en gewoon door je zak heen tikt. Kies Simpel als je alleen een aantal nodig hebt, of als je toch al van plan was om richting/categorie later via een tweede sessie of een aparte telling te scheiden.</p>
-  </div>
-  <div class="card bl-orange mt-10">
-    <div class="card-title">Als het echt koninklijk goed moet: de uitgebreide modi</div>
-    <p>Transect, Winkelstraat en Parkeren kosten iets meer aandacht bij het tikken (twee kolommen, twee categorieën, of een 2×2-grid in plaats van één knop) — daar staat tegenover dat je in <strong>één sessie</strong> een onderscheid vastlegt dat je anders achteraf niet meer kunt reconstrueren. Kies een uitgebreide modus wanneer:</p>
-    <ul class="mt-6">
-      <li><strong>Transect</strong> — je écht richting nodig hebt (verkeerskundig ontwerp, capaciteitsvraagstukken, doorstroming) en niet alleen een totaal.</li>
-      <li><strong>Winkelstraat</strong> — het onderscheid tussen doorlopend en blijvend publiek de kern van de vraag is (verblijfswaarde, aantrekkelijkheid van een winkelgebied).</li>
-      <li><strong>Parkeren</strong> — je onderweg al bezetting per kant van de straat wilt vastleggen zonder een volledige parkeertelling (parkeertelling.html) op te tuigen.</li>
-    </ul>
-    <p class="note mt-8">Vuistregel: als je achteraf denkt "was het maar richting X geweest" of "hadden we dat nu maar apart gehouden", was het een uitgebreide-modus-sessie. Twijfel je vooraf, kies dan toch Simpel — een simpele telling is altijd bruikbaar, een verkeerd gekozen uitgebreide modus dwingt je middenin een sessie terug naar het moduskeuzescherm (met dataverlies-waarschuwing, zie hieronder).</p>
-  </div>
+<h3>Welke modus: Simpel of uitgebreid?</h3>
+<h4>Bijna altijd: Simpel</h4>
+<p>Voor het overgrote deel van het veldwerk is <strong>Simpel</strong> de juiste keuze. Eén type per sessie, één tik per waarneming, verder niets om over na te denken — precies wat je wilt als je niet naar het scherm kijkt en gewoon door je zak heen tikt. Kies Simpel als je alleen een aantal nodig hebt, of als je toch al van plan was om richting/categorie later via een tweede sessie of een aparte telling te scheiden.</p>
+<h4>Als het echt koninklijk goed moet: de uitgebreide modi</h4>
+<p>Transect, Winkelstraat en Parkeren kosten iets meer aandacht bij het tikken (twee kolommen, twee categorieën, of een 2×2-grid in plaats van één knop) — daar staat tegenover dat je in <strong>één sessie</strong> een onderscheid vastlegt dat je anders achteraf niet meer kunt reconstrueren. Kies een uitgebreide modus wanneer:</p>
+<ul>
+<li><strong>Transect</strong> — je écht richting nodig hebt (verkeerskundig ontwerp, capaciteitsvraagstukken, doorstroming) en niet alleen een totaal.</li>
+<li><strong>Winkelstraat</strong> — het onderscheid tussen doorlopend en blijvend publiek de kern van de vraag is (verblijfswaarde, aantrekkelijkheid van een winkelgebied).</li>
+<li><strong>Parkeren</strong> — je onderweg al bezetting per kant van de straat wilt vastleggen zonder een volledige parkeertelling (parkeertelling.html) op te tuigen.</li>
+</ul>
+<p>Vuistregel: als je achteraf denkt "was het maar richting X geweest" of "hadden we dat nu maar apart gehouden", was het een uitgebreide-modus-sessie. Twijfel je vooraf, kies dan toch Simpel — een simpele telling is altijd bruikbaar, een verkeerd gekozen uitgebreide modus dwingt je middenin een sessie terug naar het moduskeuzescherm (met dataverlies-waarschuwing, zie hieronder).</p>
 </section>
-
 <section id="pocket-keuzescherm">
-  <h2>Het moduskeuzescherm</h2>
-  <p>Bij het opstarten toont Pocket vier grote knoppen: <strong>👆 Simpel</strong>, <strong>↔️ Transect</strong>, <strong>🛍️ Winkelstraat</strong> en <strong>🅿️ Parkeren</strong>. Je keuze bepaalt welk telscherm opent en welke waarde in de kolom <code>modus</code> van <code>_sessie.csv</code> terechtkomt — de rest van de app (snap-motor, crash-recovery, ZIP-export) werkt voor alle vier identiek.</p>
-  <div class="card mode-both">
-    <div class="card-title">Terug naar het keuzescherm</div>
-    <p>Elk telscherm heeft een <strong>&#8249; Terug</strong>-knop. Staan er al tikken op de teller, dan vraagt de app eerst een bevestiging — terug gaan zonder eerst te downloaden kost je die tikken. Download dus eerst als je van modus wilt wisselen halverwege een sessie.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Onderbroken telling</div>
-    <p>Staat er nog een onderbroken telling in de telefoon, dan staat bovenaan het keuzescherm een herstelmelding met <strong>&#9654; Doortellen</strong>, <strong>Download</strong> en <strong>Verwijder</strong>. Doortellen gaat verder in dezelfde modus, met dezelfde tikken, route en starttijd. Tik je in plaats daarvan een modus aan, dan vraagt pocket eerst of de onderbroken telling weg mag.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Wake Lock</div>
-    <p>Het scherm blijft aan zolang een van de vier telschermen actief is. Op browsers die Wake Lock niet ondersteunen (iOS Safari vóór versie 16.4) is dit niet gegarandeerd — zet dan handmatig de schermtime-out uit.</p>
-  </div>
+<h3>Het moduskeuzescherm</h3>
+<p>Bij het opstarten toont Pocket vier grote knoppen: <strong>👆 Simpel</strong>, <strong>↔️ Transect</strong>, <strong>🛍️ Winkelstraat</strong> en <strong>🅿️ Parkeren</strong>. Je keuze bepaalt welk telscherm opent en welke waarde in de kolom <code>modus</code> van <code>_sessie.csv</code> terechtkomt — de rest van de app (snap-motor, crash-recovery, ZIP-export) werkt voor alle vier identiek.</p>
+<h4>Terug naar het keuzescherm</h4>
+<p>Elk telscherm heeft een <strong>‹ Terug</strong>-knop. Staan er al tikken op de teller, dan vraagt de app eerst een bevestiging — terug gaan zonder eerst te downloaden kost je die tikken. Download dus eerst als je van modus wilt wisselen halverwege een sessie.</p>
+<h4>Onderbroken telling</h4>
+<p>Staat er nog een onderbroken telling in de telefoon, dan staat bovenaan het keuzescherm een herstelmelding met <strong>▶ Doortellen</strong>, <strong>Download</strong> en <strong>Verwijder</strong>. Doortellen gaat verder in dezelfde modus, met dezelfde tikken, route en starttijd. Tik je in plaats daarvan een modus aan, dan vraagt pocket eerst of de onderbroken telling weg mag.</p>
+<h4>Wake Lock</h4>
+<p>Het scherm blijft aan zolang een van de vier telschermen actief is. Op browsers die Wake Lock niet ondersteunen (iOS Safari vóór versie 16.4) is dit niet gegarandeerd — zet dan handmatig de schermtime-out uit.</p>
 </section>
-
 <section id="pocket-gebruik">
-  <h2>Simpel — bediening</h2>
-  <p>De standaardmodus: één type per sessie, één grote telknop, jaszak-tellen. Kies Simpel bij twijfel — zie <a href="#pocket-welke-modus">hierboven</a>.</p>
-  <div class="card bl-red">
-    <div class="card-title">Vervoertype kiezen</div>
-    <p>Na het kiezen van Simpel toont het scherm vier grote knoppen: <strong>Auto</strong>, <strong>Fiets</strong>, <strong>Voetganger</strong> en <strong>Iets Anders</strong>. Bij "Iets Anders" vul je zelf in wat je telt — dat label verschijnt in de CSV.</p>
-  </div>
-  <div class="card bl-red">
-    <div class="card-title">Tellen</div>
-    <p>Het hele scherm wordt de telknop, gekleurd in de kleur van het gekozen type. <strong>Tikken</strong> = +1, het getal pulseert kort. <strong>Lang indrukken (0,6 sec)</strong> = undo — een balk vult zich links bovenin als voortgangsindicator.</p>
-  </div>
-  <div class="card bl-red">
-    <div class="card-title">De twee stippen &amp; de straatnaam</div>
-    <p>Onder het getal staan <strong>twee stippen</strong> en de naam van de straat waarop de app je op dit moment plaatst. Ze meten verschillende dingen: de <strong>gevulde stip</strong> zegt of je op de <em>juiste straat</em> staat, de <strong>open ring</strong> zegt hoe <em>stabiel het GPS-signaal</em> zelf is. Ze hangen samen — een slecht signaal maakt de straatkeuze onzeker — maar het is nuttig om ze los te zien.</p>
-    <p class="mt-8"><strong>Gevulde stip — juiste straat (snap-zekerheid).</strong> Hoe zeker de koppeling tussen je GPS-positie en het wegvak is. Dit is de zwakste schakel van drie dingen: de marge tot het op-één-na-dichtste wegvak (twee parallelle paadjes vlak naast elkaar → minder zeker), de afstand van je GPS-punt tot het wegvak, en de GPS-nauwkeurigheid die je telefoon zelf meldt.</p>
-    <table class="key-table mt-8">
-      <tr><td class="nowrap"><span class="dot dot-fill" style="background:rgb(0,200,0)"></span>&nbsp; Groen</td><td>Eenduidig — tikken landen vrijwel zeker op de juiste straat.</td></tr>
-      <tr><td class="nowrap"><span class="dot dot-fill" style="background:rgb(255,176,0)"></span>&nbsp; Amber</td><td>Twijfel — meerdere wegvakken dichtbij, matige GPS, of nog onbesliste keuze tussen twee straten.</td></tr>
-      <tr><td class="nowrap"><span class="dot dot-fill" style="background:rgb(240,40,0)"></span>&nbsp; Rood</td><td>Geen bruikbare koppeling — geen bereik, geen wegvak in de buurt, of nog geen anker. Tikken erven hooguit de laatst bekende straat.</td></tr>
-      <tr><td class="nowrap"><span class="dot dot-fill" style="background:#888"></span>&nbsp; Grijs</td><td>Nog niets — begin van de sessie, voordat de eerste fix is verwerkt.</td></tr>
-    </table>
-    <p class="mt-12"><strong>Open ring — GPS-stabiliteit.</strong> Hoe betrouwbaar het signaal zelf is, los van welke straat gekozen wordt. De app kijkt over de laatste ~15 seconden naar drie dingen: <em>sprongen</em> (een fix die qua snelheid niet past bij je eigen recente tempo — dit kalibreert mee, dus fietsen telt niet als sprong), <em>zigzag</em> (koers die alle kanten op springt terwijl je recht zou moeten gaan), en de gemelde <em>nauwkeurigheid</em>.</p>
-    <table class="key-table mt-8">
-      <tr><td class="nowrap"><span class="dot dot-ring" style="border-color:rgb(0,200,0)"></span>&nbsp; Groen</td><td>Stabiel — soepele beweging, goede nauwkeurigheid.</td></tr>
-      <tr><td class="nowrap"><span class="dot dot-ring" style="border-color:rgb(255,176,0)"></span>&nbsp; Amber</td><td>Rommelig — een enkele sprong, wat zigzag, of matige nauwkeurigheid.</td></tr>
-      <tr><td class="nowrap"><span class="dot dot-ring" style="border-color:rgb(240,40,0)"></span>&nbsp; Rood</td><td>Onbetrouwbaar — aanhoudende sprongen/zigzag of slechte nauwkeurigheid (bijv. tussen hoge gevels).</td></tr>
-      <tr><td class="nowrap"><span class="dot dot-ring" style="border-color:#888"></span>&nbsp; Grijs</td><td>Nog niets — begin van de sessie, te weinig fixes om iets te zeggen.</td></tr>
-    </table>
-    <p class="mt-12">Belangrijk: de stippen zeggen iets over de <em>locatie</em> van de telling, niet over de telling zelf. Je aantal klopt altijd — de stippen waarschuwen alleen dat de straat-toewijzing onzeker kan zijn. Bij twijfel helpt het om even op een eenduidig punt te starten (een kruising of een duidelijk vrijliggende straat), of bij een rode ring even stil te staan tot het signaal bijtrekt. Beide worden sinds v2.8/v2.9 per tik meegeschreven in <code>_telregels.csv</code>: <code>conf</code>/<code>conf_level</code> (straat) en <code>gps_stab</code>/<code>gps_level</code> (signaal).</p>
-  </div>
+<h3>Simpel — bediening</h3>
+<p>De standaardmodus: één type per sessie, één grote telknop, jaszak-tellen. Kies Simpel bij twijfel — zie <a href="#pocket-welke-modus">hierboven</a>.</p>
+<h4>Vervoertype kiezen</h4>
+<p>Na het kiezen van Simpel toont het scherm vier grote knoppen: <strong>Auto</strong>, <strong>Fiets</strong>, <strong>Voetganger</strong> en <strong>Iets Anders</strong>. Bij "Iets Anders" vul je zelf in wat je telt — dat label verschijnt in de CSV.</p>
+<h4>Tellen</h4>
+<p>Het hele scherm wordt de telknop, gekleurd in de kleur van het gekozen type. <strong>Tikken</strong> = +1, het getal pulseert kort. <strong>Lang indrukken (0,6 sec)</strong> = undo — een balk vult zich links bovenin als voortgangsindicator.</p>
+<h4>De twee stippen &amp; de straatnaam</h4>
+<p>Onder het getal staan <strong>twee stippen</strong> en de naam van de straat waarop de app je op dit moment plaatst. Ze meten verschillende dingen: de <strong>gevulde stip</strong> zegt of je op de <em>juiste straat</em> staat, de <strong>open ring</strong> zegt hoe <em>stabiel het GPS-signaal</em> zelf is. Ze hangen samen — een slecht signaal maakt de straatkeuze onzeker — maar het is nuttig om ze los te zien.</p>
+<p><strong>Gevulde stip — juiste straat (snap-zekerheid).</strong> Hoe zeker de koppeling tussen je GPS-positie en het wegvak is. Dit is de zwakste schakel van drie dingen: de marge tot het op-één-na-dichtste wegvak (twee parallelle paadjes vlak naast elkaar → minder zeker), de afstand van je GPS-punt tot het wegvak, en de GPS-nauwkeurigheid die je telefoon zelf meldt.</p>
+<table>
+<tr><td><span style="background:rgb(0,200,0)" class="kleur rond"></span>&nbsp; Groen</td><td>Eenduidig — tikken landen vrijwel zeker op de juiste straat.</td></tr>
+<tr><td><span style="background:rgb(255,176,0)" class="kleur rond"></span>&nbsp; Amber</td><td>Twijfel — meerdere wegvakken dichtbij, matige GPS, of nog onbesliste keuze tussen twee straten.</td></tr>
+<tr><td><span style="background:rgb(240,40,0)" class="kleur rond"></span>&nbsp; Rood</td><td>Geen bruikbare koppeling — geen bereik, geen wegvak in de buurt, of nog geen anker. Tikken erven hooguit de laatst bekende straat.</td></tr>
+<tr><td><span style="background:#888" class="kleur rond"></span>&nbsp; Grijs</td><td>Nog niets — begin van de sessie, voordat de eerste fix is verwerkt.</td></tr>
+</table>
+<p><strong>Open ring — GPS-stabiliteit.</strong> Hoe betrouwbaar het signaal zelf is, los van welke straat gekozen wordt. De app kijkt over de laatste ~15 seconden naar drie dingen: <em>sprongen</em> (een fix die qua snelheid niet past bij je eigen recente tempo — dit kalibreert mee, dus fietsen telt niet als sprong), <em>zigzag</em> (koers die alle kanten op springt terwijl je recht zou moeten gaan), en de gemelde <em>nauwkeurigheid</em>.</p>
+<table>
+<tr><td><span style="background:none;border:2px solid rgb(0,200,0)" class="kleur rond"></span>&nbsp; Groen</td><td>Stabiel — soepele beweging, goede nauwkeurigheid.</td></tr>
+<tr><td><span style="background:none;border:2px solid rgb(255,176,0)" class="kleur rond"></span>&nbsp; Amber</td><td>Rommelig — een enkele sprong, wat zigzag, of matige nauwkeurigheid.</td></tr>
+<tr><td><span style="background:none;border:2px solid rgb(240,40,0)" class="kleur rond"></span>&nbsp; Rood</td><td>Onbetrouwbaar — aanhoudende sprongen/zigzag of slechte nauwkeurigheid (bijv. tussen hoge gevels).</td></tr>
+<tr><td><span style="background:none;border:2px solid #888" class="kleur rond"></span>&nbsp; Grijs</td><td>Nog niets — begin van de sessie, te weinig fixes om iets te zeggen.</td></tr>
+</table>
+<p>Belangrijk: de stippen zeggen iets over de <em>locatie</em> van de telling, niet over de telling zelf. Je aantal klopt altijd — de stippen waarschuwen alleen dat de straat-toewijzing onzeker kan zijn. Bij twijfel helpt het om even op een eenduidig punt te starten (een kruising of een duidelijk vrijliggende straat), of bij een rode ring even stil te staan tot het signaal bijtrekt. Beide worden sinds v2.8/v2.9 per tik meegeschreven in <code>_telregels.csv</code>: <code>conf</code>/<code>conf_level</code> (straat) en <code>gps_stab</code>/<code>gps_level</code> (signaal).</p>
 </section>
-
 <section id="pocket-transect">
-  <h2>Transect — richtingtelling</h2>
-  <p>Moving-observer telling op vijf voertuigtypes, elk met een eigen richting A/B — vergelijkbaar met de Static-tool, maar lopend en met OSM-snapping. Geen live kaart (consistent met de rest van Pocket); je stuurt puur op de tellers.</p>
-  <div class="card bl-orange">
-    <div class="card-title">Vijf typekaarten, elk met twee richtingen</div>
-    <p>Voor <strong>🚗 auto, 🚌 vrachtwagen, 🏍️ motor, 🚲 fiets, 🚶 voetganger</strong> staat een kaart met twee grote knoppen — <code>&gt;&lt;</code> links, <code>&gt;&gt;</code> rechts — voor richting A en richting B. Elke knop telt +1 op zijn kant; het kleine <code>−</code>-knopje aan de binnenkant van elke teller maakt de laatste tik van dát type/die richting ongedaan. Een trilling bevestigt elke tik.</p>
-  </div>
-  <div class="card bl-orange">
-    <div class="card-title">Richtingen benoemen</div>
-    <p>Boven de tellers staan twee invoervelden (standaard "Richting A" / "Richting B") die je vrij kunt overtypen — bijvoorbeeld naar straatnamen of "Noord"/"Zuid". De <strong>Kompas</strong>-knop vult ze automatisch: hij middelt een paar seconden kompaslezingen, bepaalt de looprichting en zoekt via reverse-geocoding een plaatsnaam 5&nbsp;km in elke richting (bijv. "Van Rotterdam naar Delft"). Verschillen de gevonden namen niet, dan valt de app terug op kompasrichtingen (Noord/Zuidoost/&hellip;).</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Totaal &amp; export</div>
-    <p>Boven de tellers staat het lopende totaal over alle typen en richtingen samen. In <code>_telregels.csv</code> komt de richting (<code>a</code>/<code>b</code>) in de kolom <code>richting</code> terecht; <code>_sessie.csv</code> bewaart de labels die je aan A en B gaf in <code>richting_a</code>/<code>richting_b</code>.</p>
-  </div>
-  <p class="note mt-8">De snap-zekerheid/GPS-stabiliteit-stippen van Simpel worden in dit scherm niet getoond — de snap draait wel gewoon op de achtergrond (elke tik krijgt een <code>osm_way_id</code>), alleen de live indicator ontbreekt. Bij twijfel over de dekking: even op een duidelijk punt starten blijft de beste gewoonte.</p>
+<h3>Transect — richtingtelling</h3>
+<p>Moving-observer telling op vijf voertuigtypes, elk met een eigen richting A/B — vergelijkbaar met de Static-tool, maar lopend en met OSM-snapping. Geen live kaart (consistent met de rest van Pocket); je stuurt puur op de tellers.</p>
+<h4>Vijf typekaarten, elk met twee richtingen</h4>
+<p>Voor <strong>🚗 auto, 🚌 vrachtwagen, 🏍️ motor, 🚲 fiets, 🚶 voetganger</strong> staat een kaart met twee grote knoppen — <code>&gt;&lt;</code> links, <code>&gt;&gt;</code> rechts — voor richting A en richting B. Elke knop telt +1 op zijn kant; het kleine <code>−</code>-knopje aan de binnenkant van elke teller maakt de laatste tik van dát type/die richting ongedaan. Een trilling bevestigt elke tik.</p>
+<h4>Richtingen benoemen</h4>
+<p>Boven de tellers staan twee invoervelden (standaard "Richting A" / "Richting B") die je vrij kunt overtypen — bijvoorbeeld naar straatnamen of "Noord"/"Zuid". De <strong>Kompas</strong>-knop vult ze automatisch: hij middelt een paar seconden kompaslezingen, bepaalt de looprichting en zoekt via reverse-geocoding een plaatsnaam 5&nbsp;km in elke richting (bijv. "Van Rotterdam naar Delft"). Verschillen de gevonden namen niet, dan valt de app terug op kompasrichtingen (Noord/Zuidoost/…).</p>
+<h4>Totaal &amp; export</h4>
+<p>Boven de tellers staat het lopende totaal over alle typen en richtingen samen. In <code>_telregels.csv</code> komt de richting (<code>a</code>/<code>b</code>) in de kolom <code>richting</code> terecht; <code>_sessie.csv</code> bewaart de labels die je aan A en B gaf in <code>richting_a</code>/<code>richting_b</code>.</p>
+<p>De snap-zekerheid/GPS-stabiliteit-stippen van Simpel worden in dit scherm niet getoond — de snap draait wel gewoon op de achtergrond (elke tik krijgt een <code>osm_way_id</code>), alleen de live indicator ontbreekt. Bij twijfel over de dekking: even op een duidelijk punt starten blijft de beste gewoonte.</p>
 </section>
-
 <section id="pocket-winkelstraat">
-  <h2>Winkelstraat — tegemoet &amp; stilstaand</h2>
-  <p>Voetgangerstelling met precies twee categorieën: <strong>🚶 Tegemoet</strong> (komt je voorbij lopen) en <strong>🧍 Stilstaand</strong> (staat/hangt rond — bij een etalage, terras, of gewoon pratend). Het onderscheid is de kern van deze modus: waar loopt publiek gewoon door, en waar blijft het hangen.</p>
-  <div class="card bl-purple">
-    <div class="card-title">Twee grote tegels</div>
-    <p>Het scherm toont twee kleurvakken, elk met eigen teller. Tik de tegel om +1 te registreren; het kleine <code>−</code>-hoekje op elke tegel maakt de laatste tik van die categorie ongedaan. Boven de tegels staat het totaal van beide samen.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Snelheid wordt meegelogd</div>
-    <p>Elke tik legt ook je eigen looptempo op dat moment vast (uit de GPS). Dat is geen toevalligheid: tegemoet-tikken van een snel lopende waarnemer en stilstaand-tikken van een langzaam lopende waarnemer zijn systematisch anders bemonsterd, en die snelheid is precies wat nodig is om dat in KNIME schoon te ontrafelen (Wardrop &amp; Charlesworth-achtige decompositie van tegemoetkomende flux versus stilstaande voorraad).</p>
-  </div>
-  <p class="note mt-8">In <code>_telregels.csv</code> komt de categorie in de kolom <code>type</code> (<code>tegemoet</code>/<code>stilstaand</code>) en het looptempo in <code>snelheid</code> (m/s). Dit zijn ook precies de categorieën die de plakkerigheid-analyse in telrapport en de losse plakkerigheid-proeftuin gebruiken om winkelstraat-ZIP's te herkennen.</p>
+<h3>Winkelstraat — tegemoet &amp; stilstaand</h3>
+<p>Voetgangerstelling met precies twee categorieën: <strong>🚶 Tegemoet</strong> (komt je voorbij lopen) en <strong>🧍 Stilstaand</strong> (staat/hangt rond — bij een etalage, terras, of gewoon pratend). Het onderscheid is de kern van deze modus: waar loopt publiek gewoon door, en waar blijft het hangen.</p>
+<h4>Twee grote tegels</h4>
+<p>Het scherm toont twee kleurvakken, elk met eigen teller. Tik de tegel om +1 te registreren; het kleine <code>−</code>-hoekje op elke tegel maakt de laatste tik van die categorie ongedaan. Boven de tegels staat het totaal van beide samen.</p>
+<h4>Snelheid wordt meegelogd</h4>
+<p>Elke tik legt ook je eigen looptempo op dat moment vast (uit de GPS). Dat is geen toevalligheid: tegemoet-tikken van een snel lopende waarnemer en stilstaand-tikken van een langzaam lopende waarnemer zijn systematisch anders bemonsterd, en die snelheid is precies wat nodig is om dat in KNIME schoon te ontrafelen (Wardrop &amp; Charlesworth-achtige decompositie van tegemoetkomende flux versus stilstaande voorraad).</p>
+<p>In <code>_telregels.csv</code> komt de categorie in de kolom <code>type</code> (<code>tegemoet</code>/<code>stilstaand</code>) en het looptempo in <code>snelheid</code> (m/s). Dit zijn ook precies de categorieën die de plakkerigheid-analyse in telrapport en de losse plakkerigheid-proeftuin gebruiken om winkelstraat-ZIP's te herkennen.</p>
 </section>
-
 <section id="pocket-parkeren">
-  <h2>Parkeren — bezet/leeg links/rechts</h2>
-  <p>De pocket-variant van een parkeertelling: lopend of fietsend langs geparkeerde voertuigen, met alleen de status bezet/leeg — geen fout/spec-onderscheid zoals in de volwaardige parkeertelling.html. Kies deze modus voor een snelle bezettingsindruk onderweg; kies parkeertelling.html wanneer je de volledige typering (goed/fout/leeg/spec) nodig hebt.</p>
-  <div class="card bl-blue">
-    <div class="card-title">2×2-grid</div>
-    <p>Vier vaste vakken: <strong>Links·Bezet</strong>, <strong>Rechts·Bezet</strong> (bovenrij), <strong>Links·Leeg</strong>, <strong>Rechts·Leeg</strong> (onderrij) — kolom is de kant van de straat, rij is de status. Tik het vak om +1 te registreren; het <code>−</code>-hoekje van elk vak (naar het midden van het grid gericht, zodat alle vier makkelijk bereikbaar blijven) maakt de laatste tik van dat vak ongedaan.</p>
-  </div>
-  <div class="card bl-blue">
-    <div class="card-title">Eigen ingang op de voorpagina</div>
-    <p>De kaart <strong>Pocket &mdash; parkeren</strong> op de voorpagina opent <code>pocket_count.html#parkeren</code>. Via die ingang is pocket een parkeer-app: je komt meteen op het parkeerscherm, <strong>&#8249; Terug</strong> gaat naar de voorpagina, en na opslaan begint een nieuwe, lege telling. Het keuzemenu met de vier modi zie je niet. Tip: zet deze pagina als eigen icoon op je beginscherm (Delen &rarr; Zet op beginscherm).</p>
-  </div>
-  <p class="note mt-8">In <code>_telregels.csv</code> komt de status (<code>bezet</code>/<code>leeg</code>) in de kolom <code>type</code>, de kant (<code>links</code>/<code>rechts</code>) in <code>richting</code> — bestaande kolommen, geen schemawijziging. De sessie krijgt <code>app_type=pocket</code>, <code>modus=parkeren</code>; in QGIS en telrapport valt deze telling dus onder dezelfde parkeren-herkenning als parkeertelling.html, alleen zonder fout/spec-detail.</p>
+<h3>Parkeren — bezet/leeg links/rechts</h3>
+<p>De pocket-variant van een parkeertelling: lopend of fietsend langs geparkeerde voertuigen, met alleen de status bezet/leeg — geen fout/spec-onderscheid zoals in de volwaardige parkeertelling.html. Kies deze modus voor een snelle bezettingsindruk onderweg; kies parkeertelling.html wanneer je de volledige typering (goed/fout/leeg/spec) nodig hebt.</p>
+<h4>2×2-grid</h4>
+<p>Vier vaste vakken: <strong>Links·Bezet</strong>, <strong>Rechts·Bezet</strong> (bovenrij), <strong>Links·Leeg</strong>, <strong>Rechts·Leeg</strong> (onderrij) — kolom is de kant van de straat, rij is de status. Tik het vak om +1 te registreren; het <code>−</code>-hoekje van elk vak (naar het midden van het grid gericht, zodat alle vier makkelijk bereikbaar blijven) maakt de laatste tik van dat vak ongedaan.</p>
+<h4>Eigen ingang op de voorpagina</h4>
+<p>De kaart <strong>Pocket — parkeren</strong> op de voorpagina opent <code>pocket_count.html#parkeren</code>. Via die ingang is pocket een parkeer-app: je komt meteen op het parkeerscherm, <strong>‹ Terug</strong> gaat naar de voorpagina, en na opslaan begint een nieuwe, lege telling. Het keuzemenu met de vier modi zie je niet. Tip: zet deze pagina als eigen icoon op je beginscherm (Delen → Zet op beginscherm).</p>
+<p>In <code>_telregels.csv</code> komt de status (<code>bezet</code>/<code>leeg</code>) in de kolom <code>type</code>, de kant (<code>links</code>/<code>rechts</code>) in <code>richting</code> — bestaande kolommen, geen schemawijziging. De sessie krijgt <code>app_type=pocket</code>, <code>modus=parkeren</code>; in QGIS en telrapport valt deze telling dus onder dezelfde parkeren-herkenning als parkeertelling.html, alleen zonder fout/spec-detail.</p>
 </section>
-
 <section id="pocket-export">
-  <h2>Export &amp; bezocht.csv</h2>
-  <p>Druk op <strong>Stop &amp; Download</strong> — een ZIP wordt direct aangeboden. De ZIP bevat:</p>
-  <table class="key-table">
-    <tr><td><code>_sessie.csv</code></td><td>Datum, start/eindtijd, type, totaal, <code>modus</code> (simpel/transect/winkelstraat/parkeren), bij Transect ook <code>richting_a</code>/<code>richting_b</code></td></tr>
-    <tr><td><code>_telregels.csv</code></td><td>Per tik: tijdstip, type, lat/lon, osm_way_id, straat. Kolommen <code>richting</code> en <code>snelheid</code> dragen per modus een andere betekenis — zie de sub-secties hierboven</td></tr>
-    <tr><td><code>_gps.csv</code></td><td>GPS-spoor: tijdstip, lat/lon, nauwkeurigheid, osm_way_id, straat per punt</td></tr>
-    <tr><td><code>_netwerk.csv</code></td><td>Geometrie van alle wegvakken die de snap-engine heeft gezien (WKT LINESTRING)</td></tr>
-    <tr><td><code>_bezocht.csv</code></td><td><strong>Nieuw v2.2</strong> — per bezoek aan een wegvak: duur, GPS-punten, aantal tellingen</td></tr>
-  </table>
-  <div class="card bl-red mt-12">
-    <div class="card-title">Wat staat er in <code>_bezocht.csv</code>?</div>
-    <p>Per regel één <em>bezoek</em>: een aaneengesloten verblijf op één wegvak. Een wegvak kan meerdere bezoeken hebben binnen één sessie (heen- en terugweg, of bij twee aparte passages).</p>
-    <p style="margin-top:6px;font-family:var(--mono);font-size:0.85em;">sessie_id;datum;osm_way_id;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen</p>
-    <p class="mt-8">Drempels (vluchtige snap-flips bij kruisingen worden uitgefilterd):</p>
-    <ul class="mt-4">
-      <li>Gat in tijd &gt; 30s breekt een bezoek</li>
-      <li>Minimum 5 seconden of 3 GPS-punten om mee te tellen</li>
-    </ul>
-    <p class="mt-8">Flux uitrekenen in KNIME: <code>n_tellingen × 60 / duur_sec = passages/min</code></p>
-  </div>
-
-  <p class="mt-12">Laad de ZIP in telrapport.html voor directe kaartvisualisatie, of in telplanning.html (Dekkings-modus) voor dagdeel-dekking.</p>
+<h3>Export &amp; bezocht.csv</h3>
+<p>Druk op <strong>Stop &amp; Download</strong> — een ZIP wordt direct aangeboden. De ZIP bevat:</p>
+<table>
+<tr><td><code>_sessie.csv</code></td><td>Datum, start/eindtijd, type, totaal, <code>modus</code> (simpel/transect/winkelstraat/parkeren), bij Transect ook <code>richting_a</code>/<code>richting_b</code></td></tr>
+<tr><td><code>_telregels.csv</code></td><td>Per tik: tijdstip, type, lat/lon, osm_way_id, straat. Kolommen <code>richting</code> en <code>snelheid</code> dragen per modus een andere betekenis — zie de sub-secties hierboven</td></tr>
+<tr><td><code>_gps.csv</code></td><td>GPS-spoor: tijdstip, lat/lon, nauwkeurigheid, osm_way_id, straat per punt</td></tr>
+<tr><td><code>_netwerk.csv</code></td><td>Geometrie van alle wegvakken die de snap-engine heeft gezien (WKT LINESTRING)</td></tr>
+<tr><td><code>_bezocht.csv</code></td><td><strong>Nieuw v2.2</strong> — per bezoek aan een wegvak: duur, GPS-punten, aantal tellingen</td></tr>
+</table>
+<h4>Wat staat er in <code>_bezocht.csv</code>?</h4>
+<p>Per regel één <em>bezoek</em>: een aaneengesloten verblijf op één wegvak. Een wegvak kan meerdere bezoeken hebben binnen één sessie (heen- en terugweg, of bij twee aparte passages).</p>
+<p><code>sessie_id;datum;osm_way_id;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen</code></p>
+<p>Drempels (vluchtige snap-flips bij kruisingen worden uitgefilterd):</p>
+<ul>
+<li>Gat in tijd &gt; 30s breekt een bezoek</li>
+<li>Minimum 5 seconden of 3 GPS-punten om mee te tellen</li>
+</ul>
+<p>Flux uitrekenen in KNIME: <code>n_tellingen × 60 / duur_sec = passages/min</code></p>
+<p>Laad de ZIP in telrapport.html voor directe kaartvisualisatie, of in telplanning.html (Dekkings-modus) voor dagdeel-dekking.</p>
 </section>
-
 <!-- ══════════════════════════════════════════════════════
      TELRAPPORT
      ══════════════════════════════════════════════════════ -->
-<div class="divider flow">
-  <div class="divider-label nowrap" style="color:#2980b9">Telrapport</div>
-  <div class="divider-line"></div>
-  <a class="divider-back" href="telrapport.html">telrapport.html</a>
-</div>
-
+<h2>Telrapport</h2><p><a href="telrapport.html">telrapport.html</a></p>
 <section id="rapport-overzicht">
-  <h2>Wat doet het telrapport?</h2>
-  <p>Telrapport.html is de gecombineerde kaartvisualisatie voor alle teltypen. Sleep één of meerdere ZIP-bestanden tegelijk in het venster — ook gemengde types zijn mogelijk. Het app-type wordt automatisch herkend.</p>
+<h3>Wat doet het telrapport?</h3>
+<p>Telrapport.html is de gecombineerde kaartvisualisatie voor alle teltypen. Sleep één of meerdere ZIP-bestanden tegelijk in het venster — ook gemengde types zijn mogelijk. Het app-type wordt automatisch herkend.</p>
 </section>
-
 <section id="rapport-laden">
-  <h2>ZIPs laden</h2>
-  <p>Sleep ZIP-bestanden op de kaart of gebruik de uploadknop rechtsonder. Meerdere ZIPs van dezelfde locatie maar verschillende momenten kunnen tegelijk worden geladen — de tijdfilter helpt dan om ze apart te bekijken.</p>
-  <p><strong>Static-tellingen</strong> (stilstaand) laden in drie vormen: de ZIP van v2.73 en later, de oudere <code>traffic_count_&hellip;.zip</code> en een losse CSV. Ze verschijnen als punt op de kaart en gaan ook mee in een verzameling.</p>
-  <p>De kapaciteitsreferentielaag (<code>cap_netwerk.csv</code> en <code>cap_capaciteit.csv</code> op de server) wordt automatisch geladen als achtergrond — paarse contouren voor de bekende parkeerzones.</p>
+<h3>ZIPs laden</h3>
+<p>Sleep ZIP-bestanden op de kaart of gebruik de uploadknop rechtsonder. Meerdere ZIPs van dezelfde locatie maar verschillende momenten kunnen tegelijk worden geladen — de tijdfilter helpt dan om ze apart te bekijken.</p>
+<p><strong>Static-tellingen</strong> (stilstaand) laden in drie vormen: de ZIP van v2.73 en later, de oudere <code>traffic_count_….zip</code> en een losse CSV. Ze verschijnen als punt op de kaart en gaan ook mee in een verzameling.</p>
+<p>De kapaciteitsreferentielaag (<code>cap_netwerk.csv</code> en <code>cap_capaciteit.csv</code> op de server) wordt automatisch geladen als achtergrond — paarse contouren voor de bekende parkeerzones.</p>
 </section>
-
 <section id="rapport-gpkg">
-  <h2>Kaart bewaren als GeoPackage (QGIS)</h2>
-  <p>Onder <em>Kaart</em> staat <strong>bewaar kaart als GeoPackage (QGIS)</strong>. Je krijgt één bestand met de kaart zoals je hem nu ziet: de stippen, de clusterbollen, de gekleurde wegvakken en het GPS-spoor. Wat je hebt uitgezet (een telling, een type, een tijdvenster) gaat niet mee.</p>
-  <p><strong>Kies de naam bij het opslaan.</strong> In Edge en Chrome opent een <em>Opslaan als</em>-venster; in andere browsers vraagt telrapport de naam en downloadt het bestand. In het bestand zit een QGIS-project dat zijn lagen onder precies die naam zoekt. <strong>Hernoem het bestand daarna niet</strong>: verplaatsen naar een andere map mag wel. (Ook als je het toch hernoemt, kun je het bestand nog in QGIS slepen; alleen het project vindt zijn lagen dan niet.)</p>
-  <p>Er zijn twee manieren om het in QGIS te openen:</p>
-  <ul>
-    <li><strong>Het project</strong>: <em>Project → Openen vanuit → GeoPackage</em>, of in het Browser-paneel het bestand openklappen en dubbelklikken op <em>telrapport</em>. Je krijgt de hele kaart in één keer: de lagen in de goede volgorde, in RD (EPSG:28992), met PDOK BRT-A grijs als ondergrond (luchtfoto en OpenStreetMap staan uitgevinkt klaar), ingezoomd op de telling. Onder <em>Project → Opmaak</em> staat <strong>A4 liggend</strong>: kaart op een rond schaalgetal, titel, legenda, schaalstok, noordpijl en bronvermelding, klaar om als PDF of afbeelding te exporteren.</li>
-    <li><strong>Slepen</strong>: sleep het bestand in QGIS en kies de lagen. Elke laag komt binnen met opmaak (dezelfde kleuren als hier, de clusterbollen als taartdiagram met het totaal erin). Handig als je de lagen in een bestaand project wilt hebben.</li>
-  </ul>
-  <p>In het bestand staan ook een tabel <code>sessies</code> (alle geladen tellingen) en <code>export_info</code> (met welke instellingen de export gemaakt is). Capaciteitsterreinen gaan nog niet mee; de knop meldt het als ze op de kaart staan. Static-tellingen horen er niet in. In de correctiemodus werkt de knop niet: sluit die eerst af.</p>
-  <p>De eerste keer laadt de knop een hulpbibliotheek (sql.js, via cdnjs). Daarvoor moet je online zijn. Je tellingen gaan daarbij nergens heen: het bestand wordt in je browser gemaakt. De ondergrond haalt QGIS later zelf op bij PDOK of OpenStreetMap.</p>
+<h3>Kaart bewaren als GeoPackage (QGIS)</h3>
+<p>Onder <em>Kaart</em> staat <strong>bewaar kaart als GeoPackage (QGIS)</strong>. Je krijgt één bestand met de kaart zoals je hem nu ziet: de stippen, de clusterbollen, de gekleurde wegvakken en het GPS-spoor. Wat je hebt uitgezet (een telling, een type, een tijdvenster) gaat niet mee.</p>
+<p><strong>Kies de naam bij het opslaan.</strong> In Edge en Chrome opent een <em>Opslaan als</em>-venster; in andere browsers vraagt telrapport de naam en downloadt het bestand. In het bestand zit een QGIS-project dat zijn lagen onder precies die naam zoekt. <strong>Hernoem het bestand daarna niet</strong>: verplaatsen naar een andere map mag wel. (Ook als je het toch hernoemt, kun je het bestand nog in QGIS slepen; alleen het project vindt zijn lagen dan niet.)</p>
+<p>Er zijn twee manieren om het in QGIS te openen:</p>
+<ul>
+<li><strong>Het project</strong>: <em>Project → Openen vanuit → GeoPackage</em>, of in het Browser-paneel het bestand openklappen en dubbelklikken op <em>telrapport</em>. Je krijgt de hele kaart in één keer: de lagen in de goede volgorde, in RD (EPSG:28992), met PDOK BRT-A grijs als ondergrond (luchtfoto en OpenStreetMap staan uitgevinkt klaar), ingezoomd op de telling. Onder <em>Project → Opmaak</em> staat <strong>A4 liggend</strong>: kaart op een rond schaalgetal, titel, legenda, schaalstok, noordpijl en bronvermelding, klaar om als PDF of afbeelding te exporteren.</li>
+<li><strong>Slepen</strong>: sleep het bestand in QGIS en kies de lagen. Elke laag komt binnen met opmaak (dezelfde kleuren als hier, de clusterbollen als taartdiagram met het totaal erin). Handig als je de lagen in een bestaand project wilt hebben.</li>
+</ul>
+<p>In het bestand staan ook een tabel <code>sessies</code> (alle geladen tellingen) en <code>export_info</code> (met welke instellingen de export gemaakt is). Capaciteitsterreinen gaan nog niet mee; de knop meldt het als ze op de kaart staan. Static-tellingen horen er niet in. In de correctiemodus werkt de knop niet: sluit die eerst af.</p>
+<p>De eerste keer laadt de knop een hulpbibliotheek (sql.js, via cdnjs). Daarvoor moet je online zijn. Je tellingen gaan daarbij nergens heen: het bestand wordt in je browser gemaakt. De ondergrond haalt QGIS later zelf op bij PDOK of OpenStreetMap.</p>
 </section>
-
 <section id="rapport-kaart">
-  <h2>Kaartvisualisatie per type</h2>
-  <table class="key-table">
-    <tr><td>auto</td><td>Warmtekaart groen→rood op bezettingsgraad % per wegvak</td></tr>
-    <tr><td>fiets</td><td>Warmtekaart groen→rood op √(totaal) per wegvak</td></tr>
-    <tr><td>capaciteit</td><td>Paarse polygonen met nummerbadge — klik voor uitsplitsing per soort. Hover toont hoeveel observaties er geometrisch binnen het vlak vallen</td></tr>
-    <tr><td>transect</td><td>Gekleurde stippen per voertuigtype, geclustered op afstand. Als OSM-snapping beschikbaar was: wegvak-clustering met warmtekaart</td></tr>
-    <tr><td>pocket</td><td>Gekleurde stippen, geclustered op afstand. <strong>GPS-spoor</strong> in sessiekleur (dashed). Bij <code>_netwerk.csv</code> + <code>_gps.csv</code>: zero-visit detectie voor bezochte wegen zonder tellingen</td></tr>
-  </table>
-  <div class="card mode-both">
-    <div class="card-title">Gecombineerde clustering (transect + pocket)</div>
-    <p>Meerdere sessies van hetzelfde gebied worden samen geclusterd. Een cluster met punten uit twee sessies krijgt een diagonaal tweekleurig icoon. Klik voor een uitsplitsing per sessie en per type. De gap-slider bepaalt de clusterradius in meters.</p>
-  </div>
-  <div class="card mode-both">
-    <div class="card-title">Hover op wegvak of parkeervlak</div>
-    <p>Hover op een wegvak toont straatnaam en per zichtbare sessie het aantal bezette plekken of fietsen. Hover op een parkeervlak toont de capaciteit plus het aantal observaties dat geometrisch binnen het vlak valt (spatial join).</p>
-  </div>
-  <div class="card mode-both bl-magenta">
-    <div class="card-title">Pocket zero-visit (nieuw v2.2)</div>
-    <p>Heb je een straat doorgelopen zonder iets te tellen? Telrapport toont dat als <strong>dashed lijn in sessiekleur</strong> met een kleine <strong>"0"-badge</strong> op het wegvak. Een straat met enkel telpunten = gewone heat-kleur; bezocht zonder tellingen = dashed met 0; niet bezocht = niet zichtbaar.</p>
-    <p class="note mt-6">Detectie via GPS-punten + netwerk-geometrie. Drempel: ≥3 GPS-hits binnen 15m van het wegvak, en geen telregels op dat wegvak.</p>
-  </div>
+<h3>Kaartvisualisatie per type</h3>
+<table>
+<tr><td>auto</td><td>Warmtekaart groen→rood op bezettingsgraad % per wegvak</td></tr>
+<tr><td>fiets</td><td>Warmtekaart groen→rood op √(totaal) per wegvak</td></tr>
+<tr><td>capaciteit</td><td>Paarse polygonen met nummerbadge — klik voor uitsplitsing per soort. Hover toont hoeveel observaties er geometrisch binnen het vlak vallen</td></tr>
+<tr><td>transect</td><td>Gekleurde stippen per voertuigtype, geclustered op afstand. Als OSM-snapping beschikbaar was: wegvak-clustering met warmtekaart</td></tr>
+<tr><td>pocket</td><td>Gekleurde stippen, geclustered op afstand. <strong>GPS-spoor</strong> in sessiekleur (dashed). Bij <code>_netwerk.csv</code> + <code>_gps.csv</code>: zero-visit detectie voor bezochte wegen zonder tellingen</td></tr>
+</table>
+<h4>Gecombineerde clustering (transect + pocket)</h4>
+<p>Meerdere sessies van hetzelfde gebied worden samen geclusterd. Een cluster met punten uit twee sessies krijgt een diagonaal tweekleurig icoon. Klik voor een uitsplitsing per sessie en per type. De gap-slider bepaalt de clusterradius in meters.</p>
+<h4>Hover op wegvak of parkeervlak</h4>
+<p>Hover op een wegvak toont straatnaam en per zichtbare sessie het aantal bezette plekken of fietsen. Hover op een parkeervlak toont de capaciteit plus het aantal observaties dat geometrisch binnen het vlak valt (spatial join).</p>
+<h4>Pocket zero-visit (nieuw v2.2)</h4>
+<p>Heb je een straat doorgelopen zonder iets te tellen? Telrapport toont dat als <strong>dashed lijn in sessiekleur</strong> met een kleine <strong>"0"-badge</strong> op het wegvak. Een straat met enkel telpunten = gewone heat-kleur; bezocht zonder tellingen = dashed met 0; niet bezocht = niet zichtbaar.</p>
+<p>Detectie via GPS-punten + netwerk-geometrie. Drempel: ≥3 GPS-hits binnen 15m van het wegvak, en geen telregels op dat wegvak.</p>
 </section>
-
 <section id="rapport-weekprofiel">
-  <h2>Drukte &amp; weekprofiel — hoe de p/m·u wordt berekend</h2>
-  <p>Klik op een <strong>pocket-segment</strong> op de kaart en het <strong>weekprofiel</strong> opent: een dag&times;uur-warmtekaart plus een tabel met alle tellingen op dat segment. Elke waarde is een <strong>passages per meter per uur</strong> (p/m&middot;u) — een dichtheids-genormaliseerde stroom, zodat metingen van verschillende duur én segmenten van verschillende lengte onderling vergelijkbaar zijn.</p>
-
-  <p class="note"><strong>Vernieuwd (v2.22):</strong> het weekprofiel is er nu voor <em>alle vier</em> de pocket-modi (transect, parkeren, winkelstraat, simpel), op de gedeelde <strong>p/m&middot;u</strong>-maat — zodat de vertrouwde klassegrenzen leesbaar blijven (Druk rond 60, Zeer druk rond 100). Een tempo-maat pool't vanzelf correct — teller (tikken) en noemer (tijd) schalen samen — dus herhaalde bezoeken tellen niet dubbel. In de <em>Tonen</em>-groep staat een <strong>modusfilter</strong>: kies bijvoorbeeld alleen de winkelstraat-tellingen en de kaart, popups én statistieken volgen. Voor parkeren geldt: <em>per uur</em> is daar een survey-intensiteit (hoe lang je liep), niet bezetting; de <strong>bezettingsgraad</strong> (%bezet) in de detailregel blijft de eerlijke bezettingsmaat.</p>
-
-  <div class="formula">p/m&middot;u = tikken &divide; ( segmentlengte_m &times; aanwezigheidstijd_uur )</div>
-
-  <p>Lees het als: <em>als je je aanwezigheid zou uitrekken naar een vol uur en naar één meter van het segment, hoeveel passages zou je dan tellen.</em> Drie ingrediënten, elk uit een eigen bron in de ZIP:</p>
-  <table class="key-table">
-    <tr><td>tikken</td><td>Aantal tikken toegeschreven aan de cel/sessie — uit <code>_bezocht.csv</code> (<code>n_tellingen</code>)</td></tr>
-    <tr><td>segmentlengte</td><td>Geometrische lengte van het OSM-segment in meters — uit <code>_netwerk.csv</code> (Cartesisch op WGS84 met cos(lat)-correctie; fallback 40&nbsp;m)</td></tr>
-    <tr><td>aanwezigheidstijd</td><td>Presence-tijd op het segment, in uren — uit de visit-vensters in <code>_bezocht.csv</code> (<code>duur_sec</code>)</td></tr>
-  </table>
-
-  <div class="card mode-both">
-    <div class="card-title">Meerdere metingen in één cel → poolen, geen gemiddelde</div>
-    <p>Staan er meerdere tellingen in dezelfde cel, dan telt de tool álle tikken bij elkaar op en álle aanwezigheids-seconden bij elkaar op, en past dán pas één keer de formule toe. Dat is wiskundig een <strong>tijd-gewogen</strong> gemiddelde van de losse tarieven — niet het rekenkundig gemiddelde. Een drukke meting van 45&nbsp;s weegt dus zwaarder dan een rustige van 20&nbsp;s.</p>
-    <p class="note mt-6">Voorbeeld, segment 43&nbsp;m: meting A 20 tikken / 30&nbsp;s (&asymp; 55.8 p/m&middot;u), meting B 5 tikken / 60&nbsp;s (&asymp; 7.0 p/m&middot;u). Gepoold: 25 tikken / (43 &times; 90/3600) &asymp; <strong>23.3</strong> p/m&middot;u. Het rekenkundig gemiddelde zou 31.4 zijn geweest — een misleidende waarde. Zo blijven cel, &sum;-rij, &sum;-kolom en de sessietabel-&sum; onderling consistent: overal poolt de tool de onderliggende secs+taps en herberekent, nooit een gemiddelde van tarieven.</p>
-  </div>
-
-  <div class="card mode-both">
-    <div class="card-title">De "dag"-as is dag-van-de-week</div>
-    <p>De verticale as is <strong>ma&hellip;zo</strong>, geen kalenderdatum. Alle woensdagen op 11:00 vallen samen in cel <code>wo&times;11</code> — je poolt dus ook over weken heen. Dat is precies het weekprofiel-idee: waar en wanneer is het structureel druk. Visits die een uurgrens overschrijden (bv. 23:55&ndash;00:05) worden proportioneel over de uur-emmers gesplitst; omdat losse tikken geen tijdstempel dragen, worden ook de tikken naar rato van tijd verdeeld — een aanvaardbare benadering.</p>
-  </div>
-
-  <div class="card bl-magenta">
-    <div class="card-title">Op reconstructie-ZIP's: alles op de heringedeelde linkjes (v2.19)</div>
-    <p>Bied je een <code>_recon</code>-ZIP aan, dan zijn <strong>alle drie</strong> de ingrediënten de gereconstrueerde versie. Teller en presence komen uit de door <code>telreconstructie.html</code> herbouwde <code>_bezocht.csv</code> (uit de Viterbi-route): de visits dragen de heringedeelde <code>osm_way_id</code>/<code>segment_index</code>. De segmentlengte komt uit het verse <code>_netwerk.csv</code> (inclusief herfetch), dus ook nieuw opgehaalde ways hebben geometrie. Telrapport gebruikt nooit de bewaarde <code>_&hellip;_origineel.csv</code>-varianten.</p>
-    <p class="note mt-6">Gevolg: tikken die in het veld rond passages en kruispunten fout snapten, zitten nú in de p/m&middot;u van de júíste segmenten — een raw-ZIP en een recon-ZIP van dezelfde telling geven daar bewust andere waarden. Ook de noemer wordt schoner: spook-"gelopen" segmenten (presence maar geen echte tikken) staan niet meer in de herbouwde <code>_bezocht.csv</code> en slepen dus geen fantoom-aanwezigheidstijd meer mee.</p>
-    <p class="note mt-6"><strong>Nieuw in v2.20:</strong> wandel-recon-ZIP's (transect/winkelstraat/simpel) leveren een <code>_segmentsamenvatting.csv</code> — tellingen per link&times;richting&times;categorie. In deze popup verschijnt daaruit een extra tabel <strong>categorie&times;richting</strong> met per categorie de p/m&middot;u, die de segment-p/m&middot;u netjes opdeelt (presence via join op <code>_bezocht.csv</code>).</p>
-  </div>
-
-  <h3>Intensiteitsklassen</h3>
-  <p>Eén centrale schaal kleurt zowel de kaartstippen als de weekprofiel-cellen (kleurenblind-veilig, blauw&rarr;geel&rarr;rood):</p>
-  <table class="key-table">
-    <tr><td><span class="swatch" style="background:#4575b4"></span>0&ndash;10</td><td>Rustig</td></tr>
-    <tr><td><span class="swatch" style="background:#74add1"></span>10&ndash;30</td><td>Matig</td></tr>
-    <tr><td><span class="swatch" style="background:#fee090"></span>30&ndash;60</td><td>Druk</td></tr>
-    <tr><td><span class="swatch" style="background:#f46d43"></span>60&ndash;100</td><td>Zeer druk</td></tr>
-    <tr><td><span class="swatch" style="background:#d73027"></span>100+</td><td>Extreem druk</td></tr>
-  </table>
+<h3>Drukte &amp; weekprofiel — hoe de p/m·u wordt berekend</h3>
+<p>Klik op een <strong>pocket-segment</strong> op de kaart en het <strong>weekprofiel</strong> opent: een dag×uur-warmtekaart plus een tabel met alle tellingen op dat segment. Elke waarde is een <strong>passages per meter per uur</strong> (p/m·u) — een dichtheids-genormaliseerde stroom, zodat metingen van verschillende duur én segmenten van verschillende lengte onderling vergelijkbaar zijn.</p>
+<p><strong>Vernieuwd (v2.22):</strong> het weekprofiel is er nu voor <em>alle vier</em> de pocket-modi (transect, parkeren, winkelstraat, simpel), op de gedeelde <strong>p/m·u</strong>-maat — zodat de vertrouwde klassegrenzen leesbaar blijven (Druk rond 60, Zeer druk rond 100). Een tempo-maat pool't vanzelf correct — teller (tikken) en noemer (tijd) schalen samen — dus herhaalde bezoeken tellen niet dubbel. In de <em>Tonen</em>-groep staat een <strong>modusfilter</strong>: kies bijvoorbeeld alleen de winkelstraat-tellingen en de kaart, popups én statistieken volgen. Voor parkeren geldt: <em>per uur</em> is daar een survey-intensiteit (hoe lang je liep), niet bezetting; de <strong>bezettingsgraad</strong> (%bezet) in de detailregel blijft de eerlijke bezettingsmaat.</p>
+p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
+<p>Lees het als: <em>als je je aanwezigheid zou uitrekken naar een vol uur en naar één meter van het segment, hoeveel passages zou je dan tellen.</em> Drie ingrediënten, elk uit een eigen bron in de ZIP:</p>
+<table>
+<tr><td>tikken</td><td>Aantal tikken toegeschreven aan de cel/sessie — uit <code>_bezocht.csv</code> (<code>n_tellingen</code>)</td></tr>
+<tr><td>segmentlengte</td><td>Geometrische lengte van het OSM-segment in meters — uit <code>_netwerk.csv</code> (Cartesisch op WGS84 met cos(lat)-correctie; fallback 40&nbsp;m)</td></tr>
+<tr><td>aanwezigheidstijd</td><td>Presence-tijd op het segment, in uren — uit de visit-vensters in <code>_bezocht.csv</code> (<code>duur_sec</code>)</td></tr>
+</table>
+<h4>Meerdere metingen in één cel → poolen, geen gemiddelde</h4>
+<p>Staan er meerdere tellingen in dezelfde cel, dan telt de tool álle tikken bij elkaar op en álle aanwezigheids-seconden bij elkaar op, en past dán pas één keer de formule toe. Dat is wiskundig een <strong>tijd-gewogen</strong> gemiddelde van de losse tarieven — niet het rekenkundig gemiddelde. Een drukke meting van 45&nbsp;s weegt dus zwaarder dan een rustige van 20&nbsp;s.</p>
+<p>Voorbeeld, segment 43&nbsp;m: meting A 20 tikken / 30&nbsp;s (≈ 55.8 p/m·u), meting B 5 tikken / 60&nbsp;s (≈ 7.0 p/m·u). Gepoold: 25 tikken / (43 × 90/3600) ≈ <strong>23.3</strong> p/m·u. Het rekenkundig gemiddelde zou 31.4 zijn geweest — een misleidende waarde. Zo blijven cel, ∑-rij, ∑-kolom en de sessietabel-∑ onderling consistent: overal poolt de tool de onderliggende secs+taps en herberekent, nooit een gemiddelde van tarieven.</p>
+<h4>De "dag"-as is dag-van-de-week</h4>
+<p>De verticale as is <strong>ma…zo</strong>, geen kalenderdatum. Alle woensdagen op 11:00 vallen samen in cel <code>wo×11</code> — je poolt dus ook over weken heen. Dat is precies het weekprofiel-idee: waar en wanneer is het structureel druk. Visits die een uurgrens overschrijden (bv. 23:55–00:05) worden proportioneel over de uur-emmers gesplitst; omdat losse tikken geen tijdstempel dragen, worden ook de tikken naar rato van tijd verdeeld — een aanvaardbare benadering.</p>
+<h4>Op reconstructie-ZIP's: alles op de heringedeelde linkjes (v2.19)</h4>
+<p>Bied je een <code>_recon</code>-ZIP aan, dan zijn <strong>alle drie</strong> de ingrediënten de gereconstrueerde versie. Teller en presence komen uit de door <code>telreconstructie.html</code> herbouwde <code>_bezocht.csv</code> (uit de Viterbi-route): de visits dragen de heringedeelde <code>osm_way_id</code>/<code>segment_index</code>. De segmentlengte komt uit het verse <code>_netwerk.csv</code> (inclusief herfetch), dus ook nieuw opgehaalde ways hebben geometrie. Telrapport gebruikt nooit de bewaarde <code>_…_origineel.csv</code>-varianten.</p>
+<p>Gevolg: tikken die in het veld rond passages en kruispunten fout snapten, zitten nú in de p/m·u van de júíste segmenten — een raw-ZIP en een recon-ZIP van dezelfde telling geven daar bewust andere waarden. Ook de noemer wordt schoner: spook-"gelopen" segmenten (presence maar geen echte tikken) staan niet meer in de herbouwde <code>_bezocht.csv</code> en slepen dus geen fantoom-aanwezigheidstijd meer mee.</p>
+<p><strong>Nieuw in v2.20:</strong> wandel-recon-ZIP's (transect/winkelstraat/simpel) leveren een <code>_segmentsamenvatting.csv</code> — tellingen per link×richting×categorie. In deze popup verschijnt daaruit een extra tabel <strong>categorie×richting</strong> met per categorie de p/m·u, die de segment-p/m·u netjes opdeelt (presence via join op <code>_bezocht.csv</code>).</p>
+<h3>Intensiteitsklassen</h3>
+<p>Eén centrale schaal kleurt zowel de kaartstippen als de weekprofiel-cellen (kleurenblind-veilig, blauw→geel→rood):</p>
+<table>
+<tr><td><span style="background:#4575b4" class="kleur"></span>0–10</td><td>Rustig</td></tr>
+<tr><td><span style="background:#74add1" class="kleur"></span>10–30</td><td>Matig</td></tr>
+<tr><td><span style="background:#fee090" class="kleur"></span>30–60</td><td>Druk</td></tr>
+<tr><td><span style="background:#f46d43" class="kleur"></span>60–100</td><td>Zeer druk</td></tr>
+<tr><td><span style="background:#d73027" class="kleur"></span>100+</td><td>Extreem druk</td></tr>
+</table>
 </section>
-
 <section id="rapport-tijdfilter">
-  <h2>Tijdfilter</h2>
-  <p>De <strong>Tijdfilter</strong>-knop in de sidebar opent een slider onderaan de kaart. Het venster is altijd 3 uur breed (uur − 1 t/m uur + 1). Sessies buiten het venster worden verborgen. Stippen op de tijdbalk tonen sessies buiten het venster die wél geografisch in het huidige kaartbereik vallen.</p>
+<h3>Tijdfilter</h3>
+<p>De <strong>Tijdfilter</strong>-knop in de sidebar opent een slider onderaan de kaart. Het venster is altijd 3 uur breed (uur − 1 t/m uur + 1). Sessies buiten het venster worden verborgen. Stippen op de tijdbalk tonen sessies buiten het venster die wél geografisch in het huidige kaartbereik vallen.</p>
 </section>
-
 <section id="rapport-sessies">
-  <h2>Sessielijst &amp; interacties (nieuw v2.2)</h2>
-  <p>Elke geladen sessie krijgt een rij in de sidebar met een <strong>kleurstreep links</strong> die overeenkomt met de stippen op de kaart. Datum, type-icoon, teller-ID en totaal staan compact naast elkaar. Een uitgeschakelde sessie fade naar 40% opacity, zowel de rij als de kleurstreep.</p>
-  <table class="key-table">
-    <tr><td>Klik</td><td>Toggle deze sessie aan/uit</td></tr>
-    <tr><td>Shift+klik</td><td>Alles aan/uit — als alles aan staat → alles uit behalve deze; anders → alles aan</td></tr>
-    <tr><td>Rechtsklik</td><td>Solo — alleen deze sessie zichtbaar. Nogmaals rechtsklikken → alles weer aan</td></tr>
-    <tr><td>Hover</td><td>Dim alle andere sessies naar 15% opacity (dots, clusters, GPS-spoor) — handig om één sessie te isoleren in een drukke kaart</td></tr>
-  </table>
-  <p class="note mt-8">Hover-tooltip op de rij vat het samen: "klik: aan/uit · shift-klik: alles aan/uit · rechtsklik: solo".</p>
+<h3>Sessielijst &amp; interacties (nieuw v2.2)</h3>
+<p>Elke geladen sessie krijgt een rij in de sidebar met een <strong>kleurstreep links</strong> die overeenkomt met de stippen op de kaart. Datum, type-icoon, teller-ID en totaal staan compact naast elkaar. Een uitgeschakelde sessie fade naar 40% opacity, zowel de rij als de kleurstreep.</p>
+<table>
+<tr><td>Klik</td><td>Toggle deze sessie aan/uit</td></tr>
+<tr><td>Shift+klik</td><td>Alles aan/uit — als alles aan staat → alles uit behalve deze; anders → alles aan</td></tr>
+<tr><td>Rechtsklik</td><td>Solo — alleen deze sessie zichtbaar. Nogmaals rechtsklikken → alles weer aan</td></tr>
+<tr><td>Hover</td><td>Dim alle andere sessies naar 15% opacity (dots, clusters, GPS-spoor) — handig om één sessie te isoleren in een drukke kaart</td></tr>
+</table>
+<p>Hover-tooltip op de rij vat het samen: "klik: aan/uit · shift-klik: alles aan/uit · rechtsklik: solo".</p>
 </section>
-
 <section id="rapport-kaarten">
-  <h2>Kaartopties (nieuw v2.2)</h2>
-  <p>De sidebar heeft drie inklapbare groepen — <strong>Tonen</strong>, <strong>Weergave</strong> en <strong>Kaart</strong>. De <em>Kaart</em>-groep bevat de capaciteitscontouren-toggle en vier basemap-keuzes.</p>
-  <table class="key-table">
-    <tr><td>OSM</td><td>OpenStreetMap — algemene context</td></tr>
-    <tr><td>Positron</td><td>CartoDB Positron — bijna wit, ideaal als data-overlay achtergrond</td></tr>
-    <tr><td>Topo</td><td>PDOK BRT-Achtergrondkaart grijs — Nederlandse Kadaster-cartografie</td></tr>
-    <tr><td>Lucht</td><td>PDOK Luchtfoto 25cm — fysieke parkeervakken en stallingen zichtbaar</td></tr>
-  </table>
-  <p class="mt-8">De <strong>basis</strong>-slider regelt de opacity van de gekozen basemap (0–100%). Wisselen tussen kaarten behoudt je opacity-instelling — zet de luchtfoto bv. op 70% om straatnamen er doorheen te laten schemeren.</p>
-  <p class="note mt-6">PDOK-tiles kunnen bij eerste zoom op een nieuw gebied een halve seconde latency hebben. Voor snelle navigatie: OSM of Positron.</p>
+<h3>Kaartopties (nieuw v2.2)</h3>
+<p>De sidebar heeft drie inklapbare groepen — <strong>Tonen</strong>, <strong>Weergave</strong> en <strong>Kaart</strong>. De <em>Kaart</em>-groep bevat de capaciteitscontouren-toggle en vier basemap-keuzes.</p>
+<table>
+<tr><td>OSM</td><td>OpenStreetMap — algemene context</td></tr>
+<tr><td>Positron</td><td>CartoDB Positron — bijna wit, ideaal als data-overlay achtergrond</td></tr>
+<tr><td>Topo</td><td>PDOK BRT-Achtergrondkaart grijs — Nederlandse Kadaster-cartografie</td></tr>
+<tr><td>Lucht</td><td>PDOK Luchtfoto 25cm — fysieke parkeervakken en stallingen zichtbaar</td></tr>
+</table>
+<p>De <strong>basis</strong>-slider regelt de opacity van de gekozen basemap (0–100%). Wisselen tussen kaarten behoudt je opacity-instelling — zet de luchtfoto bv. op 70% om straatnamen er doorheen te laten schemeren.</p>
+<p>PDOK-tiles kunnen bij eerste zoom op een nieuw gebied een halve seconde latency hebben. Voor snelle navigatie: OSM of Positron.</p>
 </section>
-
 <!-- ══════════════════════════════════════════════════════
      TELPLANNING
      ══════════════════════════════════════════════════════ -->
-<div class="divider flow">
-  <div class="divider-label nowrap" style="color:#27ae60">Telplanning</div>
-  <div class="divider-line"></div>
-  <a class="divider-back" href="telplanning.html">telplanning.html</a>
-</div>
-
+<h2>Telplanning</h2><p><a href="telplanning.html">telplanning.html</a></p>
 <section id="planning-overzicht">
-  <h2>Wat doet de telplanning?</h2>
-  <p>Telplanning heeft twee modi, kiesbaar via tabs in de header: <strong>📋 Maken</strong> (planning aanmaken) en <strong>🗺️ Dekking</strong> (kijken wat al geteld is).</p>
-  <p>In <em>Maken</em>-modus teken je een gebied op de kaart en selecteer je de straten die geteld moeten worden. De planning wordt als JSON op de server opgeslagen en is direct te starten vanuit de <strong>Opdrachten</strong>-knop in de telapp.</p>
-  <p>In <em>Dekking</em>-modus laad je pocket-ZIPs en zie je per dagdeel welke wegvakken al voldoende zijn geteld en welke nog.</p>
+<h3>Wat doet de telplanning?</h3>
+<p>Telplanning heeft twee modi, kiesbaar via tabs in de header: <strong>📋 Maken</strong> (planning aanmaken) en <strong>🗺️ Dekking</strong> (kijken wat al geteld is).</p>
+<p>In <em>Maken</em>-modus teken je een gebied op de kaart en selecteer je de straten die geteld moeten worden. De planning wordt als JSON op de server opgeslagen en is direct te starten vanuit de <strong>Opdrachten</strong>-knop in de telapp.</p>
+<p>In <em>Dekking</em>-modus laad je pocket-ZIPs en zie je per dagdeel welke wegvakken al voldoende zijn geteld en welke nog.</p>
 </section>
-
 <section id="planning-gebruik">
-  <h2>Gebiedselectie &amp; wegen</h2>
-  <div class="card bl-emerald">
-    <div class="card-title">Contour tekenen</div>
-    <p>Klik op <strong>Teken contour</strong> en teken een polygoon op de kaart. De app haalt alle wegen op via Overpass — exact binnen de contour én een buffer van 50m eromheen. Wegen binnen de contour starten geselecteerd (gekleurd), bufferwegen starten niet-geselecteerd (grijs) maar zijn klikbaar om snel toe te voegen. Je kunt meerdere contouren tekenen om gebieden samen te voegen.</p>
-  </div>
-  <div class="card bl-emerald">
-    <div class="card-title">Wegtype-filters</div>
-    <p>Acht wegtype-knoppen (primary t/m footway) tonen of verbergen wegcategorieën. De teller rechts toont het aantal zichtbare wegen per type. Werkt in beide modi.</p>
-  </div>
-  <div class="card bl-emerald">
-    <div class="card-title">Selectie (Maken-modus)</div>
-    <p>Klik op een weg om hem in of uit de planning te zetten. Bulkknoppen: <strong>Alles aan</strong>, <strong>Alles uit</strong>, <strong>Omkeren</strong> (handig om een subset te selecteren: eerst alles aan, uitzonderingen aanklikken, dan omkeren).</p>
-  </div>
-  <div class="card bl-emerald">
-    <div class="card-title">Maak Telling</div>
-    <p>Vul naam, datum, tijdstip, teller-ID en teltype (auto/fiets) in en klik <strong>Maak Telling</strong>. De JSON wordt gedownload én automatisch opgeslagen op de server in de <code>/planningen/</code> map.</p>
-  </div>
+<h3>Gebiedselectie &amp; wegen</h3>
+<h4>Contour tekenen</h4>
+<p>Klik op <strong>Teken contour</strong> en teken een polygoon op de kaart. De app haalt alle wegen op via Overpass — exact binnen de contour én een buffer van 50m eromheen. Wegen binnen de contour starten geselecteerd (gekleurd), bufferwegen starten niet-geselecteerd (grijs) maar zijn klikbaar om snel toe te voegen. Je kunt meerdere contouren tekenen om gebieden samen te voegen.</p>
+<h4>Wegtype-filters</h4>
+<p>Acht wegtype-knoppen (primary t/m footway) tonen of verbergen wegcategorieën. De teller rechts toont het aantal zichtbare wegen per type. Werkt in beide modi.</p>
+<h4>Selectie (Maken-modus)</h4>
+<p>Klik op een weg om hem in of uit de planning te zetten. Bulkknoppen: <strong>Alles aan</strong>, <strong>Alles uit</strong>, <strong>Omkeren</strong> (handig om een subset te selecteren: eerst alles aan, uitzonderingen aanklikken, dan omkeren).</p>
+<h4>Maak Telling</h4>
+<p>Vul naam, datum, tijdstip, teller-ID en teltype (auto/fiets) in en klik <strong>Maak Telling</strong>. De JSON wordt gedownload én automatisch opgeslagen op de server in de <code>/planningen/</code> map.</p>
 </section>
-
 <section id="planning-opdrachten">
-  <h2>Opdrachten starten vanuit de app</h2>
-  <p>Klik in telplanning.html op <strong>Opdrachten</strong> — een lijst van alle beschikbare planningen verschijnt. Tik een opdracht aan → de juiste telapp opent met de planningslijnen als paarse referentielaag op de kaart, teller-ID is vooringevuld, en de kaart zoomt automatisch in op het planningsgebied.</p>
-  <p class="note">Vereist: <code>planning_list.php</code> en <code>planning_save.php</code> in de map <code>/planningen/</code> op de server.</p>
+<h3>Opdrachten starten vanuit de app</h3>
+<p>Klik in telplanning.html op <strong>Opdrachten</strong> — een lijst van alle beschikbare planningen verschijnt. Tik een opdracht aan → de juiste telapp opent met de planningslijnen als paarse referentielaag op de kaart, teller-ID is vooringevuld, en de kaart zoomt automatisch in op het planningsgebied.</p>
+<p>Vereist: <code>planning_list.php</code> en <code>planning_save.php</code> in de map <code>/planningen/</code> op de server.</p>
 </section>
-
 <section id="planning-dekking">
-  <h2>Dekkings-modus (nieuw v2.2)</h2>
-  <p>Klik op de tab <strong>🗺️ Dekking</strong>. De sidebar wisselt van vorm. Workflow:</p>
-  <ol>
-    <li>Teken contour zoals in Maken-modus — Overpass levert de wegen in het gebied</li>
-    <li>Sleep één of meerdere pocket-ZIPs in de "Tellingen laden"-dropzone</li>
-    <li>De app extraheert <code>_bezocht.csv</code> uit elke ZIP en classificeert elk bezoek naar <strong>dagdeel</strong> en <strong>dagtype</strong> (weekdag/zaterdag/zondag)</li>
-    <li>De matrix toont 18 cellen (6 dagdelen × 3 dagtypes) met het aantal bezoeken per cel</li>
-    <li>Klik een cel om de kaart te kleuren naar dekking voor dat dagdeel</li>
-  </ol>
-  <div class="card bl-emerald">
-    <div class="card-title">Kleurschema dekking</div>
-    <table class="key-table mt-6">
-      <tr><td><span class="swatch" style="background:#e74c3c"></span>rood, dashed</td><td>nog niet bezocht in deze cel</td></tr>
-      <tr><td><span class="swatch" style="background:#f39c12"></span>oranje</td><td>1× bezocht</td></tr>
-      <tr><td><span class="swatch" style="background:#27ae60"></span>groen</td><td>2× bezocht</td></tr>
-      <tr><td><span class="swatch" style="background:#1e8449"></span>donkergroen</td><td>3× of vaker bezocht</td></tr>
-    </table>
-  </div>
-  <div class="card bl-emerald">
-    <div class="card-title">Dagdelen</div>
-    <table class="key-table mt-6">
-      <tr><td>ochtendspits</td><td>07:00 – 09:30</td></tr>
-      <tr><td>ochtend</td><td>09:30 – 12:00</td></tr>
-      <tr><td>middag</td><td>12:00 – 15:00</td></tr>
-      <tr><td>avondspits</td><td>15:00 – 18:30</td></tr>
-      <tr><td>avond</td><td>18:30 – 22:00</td></tr>
-      <tr><td>nacht</td><td>22:00 – 07:00</td></tr>
-    </table>
-  </div>
-  <p class="mt-8">De heatmap-kleuring binnen de matrix zelf geeft direct het patroon: welke cellen zijn al goed gevuld, welke zijn nog leeg. Met één blik weet je waar de prioriteit ligt.</p>
-
+<h3>Dekkings-modus (nieuw v2.2)</h3>
+<p>Klik op de tab <strong>🗺️ Dekking</strong>. De sidebar wisselt van vorm. Workflow:</p>
+<ol>
+<li>Teken contour zoals in Maken-modus — Overpass levert de wegen in het gebied</li>
+<li>Sleep één of meerdere pocket-ZIPs in de "Tellingen laden"-dropzone</li>
+<li>De app extraheert <code>_bezocht.csv</code> uit elke ZIP en classificeert elk bezoek naar <strong>dagdeel</strong> en <strong>dagtype</strong> (weekdag/zaterdag/zondag)</li>
+<li>De matrix toont 18 cellen (6 dagdelen × 3 dagtypes) met het aantal bezoeken per cel</li>
+<li>Klik een cel om de kaart te kleuren naar dekking voor dat dagdeel</li>
+</ol>
+<h4>Kleurschema dekking</h4>
+<table>
+<tr><td><span style="background:#e74c3c" class="kleur"></span>rood, dashed</td><td>nog niet bezocht in deze cel</td></tr>
+<tr><td><span style="background:#f39c12" class="kleur"></span>oranje</td><td>1× bezocht</td></tr>
+<tr><td><span style="background:#27ae60" class="kleur"></span>groen</td><td>2× bezocht</td></tr>
+<tr><td><span style="background:#1e8449" class="kleur"></span>donkergroen</td><td>3× of vaker bezocht</td></tr>
+</table>
+<h4>Dagdelen</h4>
+<table>
+<tr><td>ochtendspits</td><td>07:00 – 09:30</td></tr>
+<tr><td>ochtend</td><td>09:30 – 12:00</td></tr>
+<tr><td>middag</td><td>12:00 – 15:00</td></tr>
+<tr><td>avondspits</td><td>15:00 – 18:30</td></tr>
+<tr><td>avond</td><td>18:30 – 22:00</td></tr>
+<tr><td>nacht</td><td>22:00 – 07:00</td></tr>
+</table>
+<p>De heatmap-kleuring binnen de matrix zelf geeft direct het patroon: welke cellen zijn al goed gevuld, welke zijn nog leeg. Met één blik weet je waar de prioriteit ligt.</p>
 </section>
-
 <!-- ══════════════════════════════════════════════════════
      ALGEMEEN (v2.74)
      ══════════════════════════════════════════════════════ -->
-<div class="divider">
-  <div class="divider-label" style="color:var(--dim)">Algemeen</div>
-</div>
-
+<h2>Algemeen</h2>
 <section id="herstel">
-  <h2>Onderbreking, herstel &amp; doortellen</h2>
-  <p>Alle vijf de teltools slaan de telling na elke tik op in de telefoon, en nog eens als het scherm uitgaat of je van app wisselt. Een crash, een weggeveegde tab of een per ongeluk herladen pagina kost dus geen tellingen.</p>
-  <table class="key-table">
-    <tr><td><strong>Herstelmelding</strong></td><td>Verschijnt bij het heropenen van de tool als er een niet-afgesloten telling is.</td></tr>
-    <tr><td><strong>&#9654; Doortellen</strong></td><td>Verder in dezelfde telling: zelfde sessie en starttijd, alles in één ZIP. De onderbreking is zichtbaar als gat in het GPS-spoor; Static telt de onderbroken tijd niet mee in de uurintensiteit.</td></tr>
-    <tr><td><strong>Download</strong></td><td>De telling tot het moment van onderbreken exporteren, zonder door te tellen.</td></tr>
-    <tr><td><strong>Verwijder</strong></td><td>Weggooien, na bevestiging.</td></tr>
-    <tr><td><strong>Nieuwe telling</strong></td><td>Start je een nieuwe terwijl er een herstelde klaarstaat, dan vraagt de tool eerst of die weg mag.</td></tr>
-  </table>
-  <p class="mt-8">De noodopslag verdwijnt zodra de ZIP echt is opgeslagen (sinds v2.76). Lukt opslaan niet, bijvoorbeeld omdat je het deelvenster op de iPhone annuleert, dan blijft hij staan en biedt de tool de telling de volgende keer weer aan.</p>
-  <div class="card mode-both mt-12">
-    <div class="card-title">Goed om te weten</div>
-    <ul class="mt-4">
-      <li>Bij een harde crash gaan GPS-punten van na de laatste tik verloren; bij scherm-uit of een app-wissel niet.</li>
-      <li>In een privévenster van Safari verdwijnt de opslag zodra de tab sluit.</li>
-      <li>Safari kan websitegegevens wissen van een site die je ruim een week niet hebt bezocht. Download een herstelde telling dus snel.</li>
-      <li>De opslag is ongeveer 5&nbsp;MB voor heel telonline.org. Een normale sessie gebruikt daar een fractie van.</li>
-    </ul>
-  </div>
+<h3>Onderbreking, herstel &amp; doortellen</h3>
+<p>Alle vijf de teltools slaan de telling na elke tik op in de telefoon, en nog eens als het scherm uitgaat of je van app wisselt. Een crash, een weggeveegde tab of een per ongeluk herladen pagina kost dus geen tellingen.</p>
+<table>
+<tr><td><strong>Herstelmelding</strong></td><td>Verschijnt bij het heropenen van de tool als er een niet-afgesloten telling is.</td></tr>
+<tr><td><strong>▶ Doortellen</strong></td><td>Verder in dezelfde telling: zelfde sessie en starttijd, alles in één ZIP. De onderbreking is zichtbaar als gat in het GPS-spoor; Static telt de onderbroken tijd niet mee in de uurintensiteit.</td></tr>
+<tr><td><strong>Download</strong></td><td>De telling tot het moment van onderbreken exporteren, zonder door te tellen.</td></tr>
+<tr><td><strong>Verwijder</strong></td><td>Weggooien, na bevestiging.</td></tr>
+<tr><td><strong>Nieuwe telling</strong></td><td>Start je een nieuwe terwijl er een herstelde klaarstaat, dan vraagt de tool eerst of die weg mag.</td></tr>
+</table>
+<p>De noodopslag verdwijnt zodra de ZIP echt is opgeslagen (sinds v2.76). Lukt opslaan niet, bijvoorbeeld omdat je het deelvenster op de iPhone annuleert, dan blijft hij staan en biedt de tool de telling de volgende keer weer aan.</p>
+<h4>Goed om te weten</h4>
+<ul>
+<li>Bij een harde crash gaan GPS-punten van na de laatste tik verloren; bij scherm-uit of een app-wissel niet.</li>
+<li>In een privévenster van Safari verdwijnt de opslag zodra de tab sluit.</li>
+<li>Safari kan websitegegevens wissen van een site die je ruim een week niet hebt bezocht. Download een herstelde telling dus snel.</li>
+<li>De opslag is ongeveer 5&nbsp;MB voor heel telonline.org. Een normale sessie gebruikt daar een fractie van.</li>
+</ul>
 </section>
-
 <section id="reconstructie">
-  <h2>Telreconstructie in het kort</h2>
-  <p>De reconstructor legt een parkeer- of pocket-telling achteraf opnieuw op het wegennet: route-consistent snappen, looprichting, en de kant van de weg voor parkeertikken. Het resultaat is <code>&lt;sessie_id&gt;_recon.zip</code>; de sessie-id zelf verandert niet.</p>
-  <table class="key-table">
-    <tr><td><strong>Wegtype-voorkeur</strong></td><td>Een autotelling blijft op de rijbaan, een fietstelling op het fietspad, ook als de GPS naar de andere kant trekt (sinds v2.67). Is er alleen het andere wegtype, dan wordt dat alsnog gekozen. Lopende tellingen hebben geen voorkeur.</td></tr>
-    <tr><td><strong>Versiestempel</strong></td><td>Elke gereconstrueerde ZIP draagt in <code>_sessie.csv</code> (kolom <code>reconstructie</code>) en in <code>_reconstructie_log.csv</code> de release waarin de reconstructor voor het laatst veranderde.</td></tr>
-    <tr><td><strong>Static</strong></td><td>Een stilstaand-telling is één vaste plek zonder route; de reconstructor weigert die met een melding. Open hem direct in telrapport.</td></tr>
-  </table>
+<h3>Telreconstructie in het kort</h3>
+<p>De reconstructor legt een parkeer- of pocket-telling achteraf opnieuw op het wegennet: route-consistent snappen, looprichting, en de kant van de weg voor parkeertikken. Het resultaat is <code>&lt;sessie_id&gt;_recon.zip</code>; de sessie-id zelf verandert niet.</p>
+<table>
+<tr><td><strong>Wegtype-voorkeur</strong></td><td>Een autotelling blijft op de rijbaan, een fietstelling op het fietspad, ook als de GPS naar de andere kant trekt (sinds v2.67). Is er alleen het andere wegtype, dan wordt dat alsnog gekozen. Lopende tellingen hebben geen voorkeur.</td></tr>
+<tr><td><strong>Versiestempel</strong></td><td>Elke gereconstrueerde ZIP draagt in <code>_sessie.csv</code> (kolom <code>reconstructie</code>) en in <code>_reconstructie_log.csv</code> de release waarin de reconstructor voor het laatst veranderde.</td></tr>
+<tr><td><strong>Static</strong></td><td>Een stilstaand-telling is één vaste plek zonder route; de reconstructor weigert die met een melding. Open hem direct in telrapport.</td></tr>
+</table>
 </section>
-
 <!-- ══════════════════════════════════════════════════════
      BESTANDEN (gecombineerd)
      ══════════════════════════════════════════════════════ -->
-<div class="divider">
-  <div class="divider-label" style="color:var(--dim)">Bestanden</div>
-</div>
-
+<h2>Bestanden</h2>
 <!-- Files -->
 <section id="files">
-  <h2>Bestanden / Files</h2>
-  <p>All files must be placed in the same folder on your server for navigation to work correctly.</p>
-  <div class="file-list">
-    <div class="file-row">
-      <span class="file-name">index.html</span>
-      <span class="file-desc">Startscherm — overzicht van alle tools</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">over.html</span>
-      <span class="file-desc">Introductiepagina — wat is telonline.org, voor wie, en de workflow in drie stappen (tellen → nabewerken → telrapport)</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">traffic_counter.html</span>
-      <span class="file-desc">Static — tellen vanaf een vast punt; export als ZIP in de vorm van de suite (sessie-id eindigt op <code>_sta</code>)</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">parkeertelling.html</span>
-      <span class="file-desc">Parking survey — walking count for cars &amp; bikes</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">fietsparkeren.html</span>
-      <span class="file-desc">Fietsparkeren — wandelende fietsparkeerobservaties</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">capaciteitstelling.html</span>
-      <span class="file-desc">Capaciteitstelling — parkeercapaciteit per vak of terrein</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">telrapport.html</span>
-      <span class="file-desc">Telrapport — gecombineerde kaartvisualisatie voor alle teltypen</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">telreconstructie.html</span>
-      <span class="file-desc">Telreconstructie — desktop post-verwerking: route-consistente hersnap, richtingslaag, handmatige link-correctie</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">pocket_count.html</span>
-      <span class="file-desc">Pocket — tellen met de telefoon in de hand of zak; vier sub-modi, en een eigen ingang voor parkeren (<code>#parkeren</code>)</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">telplanning.html</span>
-      <span class="file-desc">Telplanning — gebiedselectie, opdrachten, dekkings-analyse</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">zip_format_reference.html</span>
-      <span class="file-desc">ZIP-formaat referentie — technische documentatie per app-type</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">privacy.html</span>
-      <span class="file-desc">Privacyverklaring — wat op je toestel blijft, wat naar welke dienst gaat, wat op de server staat</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">traffic_counter_help.html</span>
-      <span class="file-desc">This help file — covers all tools</span>
-    </div>
-
-    <div class="file-row">
-      <span class="file-name">telonline_qgis_loader.py</span>
-      <span class="file-desc">PyQGIS-script: laadt een map met (gereconstrueerde) ZIP's recursief in QGIS, één laag per telptype (modus), plus een samengevoegde netwerklaag en de gelopen GPS-route. Te downloaden op <a href="https://telonline.org/telonline_qgis_loader.py" target="_blank">telonline.org/telonline_qgis_loader.py</a></span>
-    </div>
-  </div>
-  <p class="mt-12"><strong>Serverbestanden (planningen):</strong> sinds v2.75 afgeschermd met een wachtwoord (<code>/planningen/.htaccess</code>); telplanning vraagt dan om in te loggen.</p>
-  <div class="file-list mt-6">
-    <div class="file-row">
-      <span class="file-name">/planningen/planning_list.php</span>
-      <span class="file-desc">Lijst beschikbare opdrachten ophalen</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">/planningen/planning_save.php</span>
-      <span class="file-desc">Opdracht opslaan vanuit telplanning</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">/planningen/planning_delete.php</span>
-      <span class="file-desc">Opdracht verwijderen</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">/cap_netwerk.csv</span>
-      <span class="file-desc">Capaciteitsreferentielaag — geometrie per wegvak/terrein</span>
-    </div>
-    <div class="file-row">
-      <span class="file-name">/cap_capaciteit.csv</span>
-      <span class="file-desc">Capaciteitsaantallen per osm_way_id</span>
-    </div>
-  </div>
-  <p class="mt-12">Externe afhankelijkheden (internet nodig): Leaflet, JSZip en PapaParse via CDN; kaarttegels van OpenStreetMap, CARTO en PDOK; Nominatim (straatnaam); Overpass API (wegennet); Open-Meteo (weer, in telrapport).</p>
-  <p class="mt-12">Many thanks to developers and contributors to Openstreetmap, all built by a community of people like you. If you see errors, report or correct them.</p>
+<h3>Bestanden / Files</h3>
+<p>All files must be placed in the same folder on your server for navigation to work correctly.</p>
+<table><tr><td><code>index.html</code></td><td>Startscherm — overzicht van alle tools</td></tr><tr><td><code>over.html</code></td><td>Introductiepagina — wat is telonline.org, voor wie, en de workflow in drie stappen (tellen → nabewerken → telrapport)</td></tr><tr><td><code>traffic_counter.html</code></td><td>Static — tellen vanaf een vast punt; export als ZIP in de vorm van de suite (sessie-id eindigt op <code>_sta</code>)</td></tr><tr><td><code>parkeertelling.html</code></td><td>Parking survey — walking count for cars &amp; bikes</td></tr><tr><td><code>fietsparkeren.html</code></td><td>Fietsparkeren — wandelende fietsparkeerobservaties</td></tr><tr><td><code>capaciteitstelling.html</code></td><td>Capaciteitstelling — parkeercapaciteit per vak of terrein</td></tr><tr><td><code>telrapport.html</code></td><td>Telrapport — gecombineerde kaartvisualisatie voor alle teltypen</td></tr><tr><td><code>telreconstructie.html</code></td><td>Telreconstructie — desktop post-verwerking: route-consistente hersnap, richtingslaag, handmatige link-correctie</td></tr><tr><td><code>pocket_count.html</code></td><td>Pocket — tellen met de telefoon in de hand of zak; vier sub-modi, en een eigen ingang voor parkeren (<code>#parkeren</code>)</td></tr><tr><td><code>telplanning.html</code></td><td>Telplanning — gebiedselectie, opdrachten, dekkings-analyse</td></tr><tr><td><code>zip_format_reference.html</code></td><td>ZIP-formaat referentie — technische documentatie per app-type</td></tr><tr><td><code>privacy.html</code></td><td>Privacyverklaring — wat op je toestel blijft, wat naar welke dienst gaat, wat op de server staat</td></tr><tr><td><code>traffic_counter_help.html</code></td><td>This help file — covers all tools</td></tr><tr><td><code>telonline_qgis_loader.py</code></td><td>PyQGIS-script: laadt een map met (gereconstrueerde) ZIP's recursief in QGIS, één laag per telptype (modus), plus een samengevoegde netwerklaag en de gelopen GPS-route. Te downloaden op <a href="https://telonline.org/telonline_qgis_loader.py" target="_blank">telonline.org/telonline_qgis_loader.py</a></td></tr></table>
+<p><strong>Serverbestanden (planningen):</strong> sinds v2.75 afgeschermd met een wachtwoord (<code>/planningen/.htaccess</code>); telplanning vraagt dan om in te loggen.</p>
+<table><tr><td><code>/planningen/planning_list.php</code></td><td>Lijst beschikbare opdrachten ophalen</td></tr><tr><td><code>/planningen/planning_save.php</code></td><td>Opdracht opslaan vanuit telplanning</td></tr><tr><td><code>/planningen/planning_delete.php</code></td><td>Opdracht verwijderen</td></tr><tr><td><code>/cap_netwerk.csv</code></td><td>Capaciteitsreferentielaag — geometrie per wegvak/terrein</td></tr><tr><td><code>/cap_capaciteit.csv</code></td><td>Capaciteitsaantallen per osm_way_id</td></tr></table>
+<p>Externe afhankelijkheden (internet nodig): Leaflet, JSZip en PapaParse via CDN; kaarttegels van OpenStreetMap, CARTO en PDOK; Nominatim (straatnaam); Overpass API (wegennet); Open-Meteo (weer, in telrapport).</p>
+<p>Many thanks to developers and contributors to Openstreetmap, all built by a community of people like you. If you see errors, report or correct them.</p>
 </section>
-
-<div class="branding">
-  <div class="branding-logo">*</div>
-  <div class="branding-text">
-    <span class="built">Built by me and</span>
-    <span class="name">Claude - Anthropic</span>
-  </div>
-</div>
-
+*
+Built by me and
+Claude - Anthropic
 </body>
 </html>
