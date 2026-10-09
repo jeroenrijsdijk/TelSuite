@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.2.** In de GeoPackage uit telrapport zit nu ook een QGIS-project: RD New, PDOK-ondergrond en een printopmaak A4 (`overdracht_v3_2.md`). v3.1 bracht de GeoPackage zelf; 3.0 was de in het veld geteste v2.77. Sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
+**Laatste release: v3.3.** Handleiding, `over.html` en `privacy.html` zijn kale HTML: zelfde tekst, één klein gedeeld stijlblok, kleur alleen waar die iets uitlegt (`overdracht_v3_3.md`). v3.2 zette een QGIS-project in de GeoPackage uit telrapport, v3.1 bracht de GeoPackage zelf; 3.0 was de in het veld geteste v2.77. Sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
 
 ---
 
@@ -23,7 +23,7 @@ Suite van single-file HTML-tools voor Nederlandse verkeers- en parkeertellingen,
 | `telreconstructie.html` | nabewerking (hersnap, richting, handmatige correctie) |
 | `telrapport.html` | kaartvisualisatie + analyse |
 | `telplanning.html` | planning & dekking vooraf |
-| `traffic_counter_help.html` | handleiding (NL, deels EN-mix) |
+| `traffic_counter_help.html` | handleiding (NL, deels EN-mix); kale HTML sinds v3.3, net als `over.html` en `privacy.html` |
 | `zip_format_reference.html` | technische ZIP-documentatie (EN) |
 | `snap_methodology.html`, `snaptrace.html`, `winkelstraat_rekenrig.html` | interne reference/rig-tools, bewust niet gelinkt |
 
@@ -91,6 +91,8 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 **Overpass-antwoorden worden geclassificeerd** (v2.49, gedeeld blok `ovpKeur`, byte-identiek in 6 bestanden): `ok` / `leeg` / `oud` / `limiet` / `fout`. Een leeg gebied is een geldig antwoord en wordt niet opnieuw bevraagd. Een rate-limit — ook als Overpass die als HTTP 200 met `remark` in de body stuurt — leidt tot 30s stilte zonder mirror-hop. Alle apps delen nu één backoff-model (`ovpBackoffMs`, 500·2ⁿ⁻¹, max 8s).
 
+**Documentatiepagina's zijn kaal** (v3.3, op verzoek van Jay: "veel css en kleurtjes voor een pakket dat toch een beetje voor verkeerskundigen is"). Handleiding, `over.html` en `privacy.html` zijn gewone HTML met één gedeeld stijlblok (`/* ── kale stijl (v3.3)` … `einde kale stijl ── */`), byte-identiek in alle drie, en zonder Google Fonts. Kleur alleen waar die iets uitlegt: kleurstalen (`class="kleur"`, `rond`) met hun kleur in `style`. `valideer.py` bewaakt het blok en dat er geen opmaak terugsluipt (losse `style=""`, extra `<style>`, Google Fonts). Nieuwe stukken tekst dus als `<h3>`/`<h4>`/`<p>`/`<ul>`/`<table>`, niet als kaartje. De tools houden Oswald.
+
 **Handoff "Direct reconstrueren"**: ZIP-blob via IndexedDB store `handoff` → `telreconstructie.html?handoff=1`. Knop aanwezig in alle vier veld-apps die door de reconstructor gaan.
 
 ---
@@ -135,7 +137,8 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - Terugvalcode voor oude formats opruimen (telrapport r.998/1044/1736/1872/2090, telplanning r.885). Die op r.1872 haalt geometrie via Overpass op als `_netwerk.csv` ontbreekt — een van de laatste netwerkverzoeken in de suite, en alleen voor ZIP's die niet meer bestaan. Wel met een expliciete melding erbij, zodat een niet-omgezette ZIP luid faalt in plaats van stil.
 - Tegenstrijdig commentaar in `capaciteitstelling.html`: `exportZip()` zegt dat `_terrein.csv` een eigen schema heeft (osm_id+osm_type, geen zijde), terwijl `buildTerreinCsvString()` bewust dezelfde header als `_capaciteit.csv` schrijft. Eén van de twee moet weg.
 - `zoekTerreinen` in `capaciteitstelling.html` ontdubbelen op afstand tot het vorige zoekcentrum: vuurt nu één Overpass-verzoek per kaartpan, zonder cache.
-- Veiligheidsblok-kop in de handleiding: `<h1>` → `<h4>` voor consistentie (Jay's keuze — hij schreef die sectie zelf).
+- Veiligheidsblok-kop in de handleiding: `<h1>` → `<h4>` voor consistentie (Jay's keuze — hij schreef die sectie zelf). In de kale opmaak (v3.3) is het een van de drie gewone `<h1>`'s op de pagina.
+- Ook kaal maken? `zip_format_reference.html` en `snap_methodology.html` hebben nog de oude opmaak (Jay's keuze; v3.3 deed alleen de drie pagina's voor gebruikers).
 - Engelse variant van `over.html`.
 
 
@@ -178,7 +181,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.2 in één oogopslag
+## 6. Releases v2.32 → v3.3 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -231,6 +234,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | **v3.0** | **Veldtest groen op iPhone en Android → v2.77 wordt 3.0**, byte-identiek op het versienummer na. Nieuw: GitHub maakt per versie automatisch een release met `telsuite-<versie>.zip` |
 | v3.1 | **Kaart bewaren als GeoPackage voor QGIS**: waarnemingen, clusterbollen (taartdiagram), wegvakken en GPS-spoor, met de opmaak van telrapport ingebouwd (`layer_styles`); wat je ziet gaat mee; sql.js via cdnjs; nieuwe `gpkgtest.py` (ook tegen QGIS 3.34) |
 | v3.2 | **QGIS-project in de GeoPackage** (in QGIS 4 nagelopen door Jay: PDOK laadt, beeld en teksten goed, PDF netjes): RD New, PDOK BRT-A grijs (luchtfoto en OSM klaar), lagen in volgorde, printopmaak A4 liggend op een rond schaalgetal met legenda, schaalstok en noordpijl; je kiest de bestandsnaam bij het opslaan (het project onthoudt hem); sessielabels gerepareerd; `gpkgtest.py` 80 tests |
+| v3.3 | **Kale documentatiepagina's**: handleiding, `over.html` en `privacy.html` in gewone HTML met één gedeeld stijlblok (96,7 → 76,4 kB voor de handleiding), tekst woord voor woord gelijk (nieuwe `tekstgelijk.py`); geen Google Fonts meer op die pagina's; op de telefoon geen zijwaarts schuiven meer; `valideer.py` bewaakt het stijlblok |
 
 ---
 

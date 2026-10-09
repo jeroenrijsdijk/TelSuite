@@ -37,6 +37,12 @@ Draaien vanuit de suite-map:
                                                        # (ook sql.js@1.14.2 in node_modules; het QGIS-deel draait als
                                                        #  PyQGIS er is, via gpkg_qgis.py, anders overgeslagen)
                                                        # (playwright + leaflet/jszip/papaparse/fontsource in node_modules)
+    python3 _archief/overpass_rig/tekstgelijk.py oud.html nieuw.html  # zelfde tekst, woord voor woord (bij opmaakwijzigingen)
+
+`tekstgelijk.py` is voor een opmaakwijziging zonder tekstwijziging, zoals de kale
+documentatiepagina's in v3.3. Het vergelijkt alle tekst in `<title>` en `<body>`,
+ook verborgen tekst, en slaat script, stijl en witruimte over. De scheidingstekens
+`· — ( )` tellen niet mee; geef met `--negeer` een andere set.
 
 `valideer.py` vergelijkt met een vorige release; pas OUD_DIR/NIEUW_DIR en de
 verwachte sets (gewijzigd/verwijderd) aan.

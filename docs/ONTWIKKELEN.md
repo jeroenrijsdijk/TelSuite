@@ -94,7 +94,8 @@ Wat er van buiten wordt opgehaald:
 - **Bibliotheken** via CDN (cdnjs, unpkg): Leaflet 1.9.4, JSZip 3.10.1,
   PapaParse 5.4.1, Leaflet.draw 1.0.4 (alleen telplanning), sql.js 1.14.2 (alleen
   telrapport, en pas bij de eerste GeoPackage-export).
-- **Lettertypen**: Google Fonts (Oswald, Share Tech Mono).
+- **Lettertypen**: Google Fonts (Oswald, Share Tech Mono), in de tools. De
+  documentatiepagina's gebruiken sinds v3.3 de systeemletter.
 - **Kaarttegels**: OpenStreetMap, CARTO, PDOK. De CARTO-sleutel staat in drie
   bestanden: `telrapport.html`, `telplanning.html`, `telreconstructie.html`.
 - **Wegennet**: Overpass API, twee endpoints (overpass-api.de en
@@ -122,7 +123,14 @@ verraden het gebied of de positie waar je telt.
   byte-identiek blijven. `valideer.py` controleert dat.
 - **Taal**: interfaces en handleiding Nederlands; technische referentie Engels.
 - **Metadata**: Open Graph wel, Twitter/X-kaarten niet.
-- **Huisstijl**: Oswald, met Share Tech Mono als monospace.
+- **Huisstijl**: Oswald, met Share Tech Mono als monospace, in de tools.
+- **Documentatiepagina's** (`traffic_counter_help.html`, `over.html`,
+  `privacy.html`, sinds v3.3): kale HTML. Koppen, alinea's, lijsten en tabellen,
+  met één gedeeld stijlblok (`/* ── kale stijl (v3.3)` … `einde kale stijl ── */`)
+  dat in alle drie byte-identiek is. Kleur alleen waar die iets uitlegt: de
+  kleurstalen (`class="kleur"`, rond met `rond`) met hun kleur in `style`. Geen
+  andere classes, behalve wat een functie heeft (`domein`, `invullen` en `tabel` in
+  privacy.html). `valideer.py` bewaakt dat.
 
 ## Ontwikkelen
 

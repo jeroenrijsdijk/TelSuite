@@ -12,10 +12,13 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.2'
-# v3.2: QGIS-project (lagen, ondergrond, A4-opmaak) in de GeoPackage uit telrapport.
-VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html', 'zip_format_reference.html'}
+RELEASE = 'v3.3'
+# v3.3: handleiding, over.html en privacy.html kaal (gewone HTML, gedeeld stijlblok).
+VERWACHT_GEWIJZIGD = {'index.html', 'traffic_counter_help.html', 'over.html', 'privacy.html'}
 VERWACHT_VERWIJDERD = set()
+
+# v3.3: documentatiepagina's in kale HTML, met hetzelfde stijlblok
+KAAL = ['traffic_counter_help.html', 'over.html', 'privacy.html']
 
 VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
         'link', 'meta', 'param', 'source', 'track', 'wbr'}
@@ -182,6 +185,9 @@ groepen = [
                           'pocket_count.html'],
      'function cacheWaysInTiles(elements, lat, lon, radiusM) {',
      '  } catch (e) { /* cache is best-effort: nooit het tellen verstoren */ }\n}'),
+    # v3.3: de kale stijl van de documentatiepagina's
+    ('kale stijl', KAAL,
+     '/* ── kale stijl (v3.3)', '/* ── einde kale stijl ── */'),
 ]
 for naam, bestanden, a, z in groepen:
     h = {blok(os.path.join(NIEUW_DIR, f), a, z) for f in bestanden}
@@ -191,6 +197,28 @@ for naam, bestanden, a, z in groepen:
                                             'OK' if ok else 'DRIFT'))
     if not ok:
         fouten += 1
+
+print('\n== documentatiepagina\'s kaal ==')
+# v3.3: één <style>, dat begint met het gedeelde blok; daarna hooguit een paar
+# regels die de pagina functioneel nodig heeft. Geen Google Fonts, geen style=""
+# behalve een kleur in een kleurstaal of een verborgen plaatshouder.
+for f in KAAL:
+    s = io.open(os.path.join(NIEUW_DIR, f), encoding='utf-8').read()
+    stijlen = re.findall(r'<style>\s*(.*?)</style>', s, re.S)
+    rest = stijlen[0].split('/* ── einde kale stijl ── */', 1)[-1].strip() if stijlen else ''
+    los = [x for x in re.findall(r'style="([^"]*)"', s)
+           if not re.fullmatch(r'background:[^;]+(;border:2px solid [^;]+)?|background:none;border:2px solid [^;]+|display:none', x)]
+    problemen = []
+    if len(stijlen) != 1 or not stijlen[0].startswith('/* ── kale stijl (v3.3)'):
+        problemen.append('%d <style>-blokken, of niet beginnend met het gedeelde blok' % len(stijlen))
+    if len(rest.splitlines()) > 5:
+        problemen.append('%d regels eigen CSS na het gedeelde blok' % len(rest.splitlines()))
+    if re.search(r'(@import|<link)[^;>]*fonts\.googleapis', s):   # privacy.html noemt het domein wel
+        problemen.append('Google Fonts')
+    if los:
+        problemen.append('style="" met opmaak: %s' % los[:3])
+    print('  %-26s %s' % (f, 'FOUT ' + '; '.join(problemen) if problemen else 'OK'))
+    fouten += len(problemen)
 
 print('\n== gedeelde constanten (waarde) ==')
 # Constanten die per bestand een eigen naam dragen maar dezelfde waarde moeten
