@@ -818,12 +818,14 @@ sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_m
 <!-- ── GeoPackage export (v3.1) ── -->
 <div class="summary-section">
   <h2>GeoPackage export from telrapport</h2>
-  <p style="color:var(--dim);max-width:72ch">Since v3.1, <code>telrapport.html</code> can save the current map as <code>telrapport_&lt;yyyymmdd&gt;_&lt;hhmm&gt;.gpkg</code>. This is an output for viewing in QGIS, not an input: no tool in the suite reads it back, and the ZIPs (and the KNIME pipeline) are unchanged.</p>
+  <p style="color:var(--dim);max-width:72ch">Since v3.1, <code>telrapport.html</code> can save the current map as a GeoPackage (suggested name <code>telrapport_&lt;yyyymmdd&gt;_&lt;hhmm&gt;.gpkg</code>; the user chooses). This is an output for viewing in QGIS, not an input: no tool in the suite reads it back, and the ZIPs (and the KNIME pipeline) are unchanged.</p>
   <ul style="max-width:72ch">
     <li><strong>What you see is what you get.</strong> The layers are read from what telrapport has drawn: sessions, types and time windows that are switched off are left out, and clusters use the current cluster distance. The <code>sessies</code> table lists every loaded session, with <code>op_kaart</code> = 0 for the hidden ones.</li>
     <li><strong>Coordinates</strong> are EPSG:4326 (WGS84), as in the ZIPs. Points are at the position shown on the map (the marker position where there is one).</li>
     <li><strong>Styling travels with the data.</strong> Each map layer has a default style in the standard <code>layer_styles</code> table (<code>useAsDefault</code> = 1), so QGIS applies it on load: colours and categories from telrapport, clusters as pie charts sized like on the map (diameter 10&nbsp;px + 5.6&nbsp;px&nbsp;&middot;&nbsp;&radic;total) with the total as label. The QML is written in QGIS 3.34 form and also loads in QGIS 4.</li>
-    <li>Not yet included: capacity polygons and Static counts. The export says so when they are on the map.</li>
+    <li><strong>A QGIS project is embedded</strong> (since v3.2) in the standard table <code>qgis_projects(name, metadata, content)</code>, one row named <code>telrapport</code>; <code>content</code> is the <code>.qgz</code> (a ZIP holding <code>telrapport.qgs</code>) as hex text, as QGIS writes it. It sets EPSG:28992, layer order and display names, PDOK BRT-A grijs as basemap (WMTS in EPSG:28992; PDOK aerial and OpenStreetMap included but unchecked), the view on the counts, and a print layout <em>A4 liggend</em> (map at a round scale, title, legend, scale bar, north arrow, attribution). Open it with <em>Project &rarr; Open From &rarr; GeoPackage</em>.</li>
+    <li><strong>The file name is part of the project.</strong> Layers are referenced as <code>./&lt;file name&gt;|layername=&hellip;</code> (relative, so moving the file is fine; QGIS has no form for &ldquo;this file itself&rdquo;, so renaming breaks the project). Telrapport therefore asks for the name before writing: the browser&rsquo;s Save-as dialog where available, otherwise a prompt followed by a download. Layer ids are <code>&lt;layer&gt;_telrapport</code>.</li>
+    <li>Not included: capacity polygons (not yet) and Static counts (by design). The export says so when capacity is on the map.</li>
   </ul>
   <table>
     <thead><tr><th>layer</th><th>geometry</th><th>columns</th></tr></thead>

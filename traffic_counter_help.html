@@ -1033,10 +1033,15 @@
 
 <section id="rapport-gpkg">
   <h2>Kaart bewaren als GeoPackage (QGIS)</h2>
-  <p>Onder <em>Kaart</em> staat <strong>bewaar kaart als GeoPackage (QGIS)</strong>. Je krijgt één bestand, <code>telrapport_&lt;datum&gt;_&lt;tijd&gt;.gpkg</code>, met de kaart zoals je hem nu ziet: de stippen, de clusterbollen, de gekleurde wegvakken en het GPS-spoor. Wat je hebt uitgezet (een telling, een type, een tijdvenster) gaat niet mee.</p>
-  <p>Sleep het bestand in QGIS en kies de lagen. Elke laag komt binnen <strong>met opmaak</strong>: dezelfde kleuren als hier, de clusterbollen als taartdiagram met het totaal erin, en een legenda met de categorieën. Er hoeft niets meer ingesteld te worden. Werkt in QGIS 3 en 4.</p>
-  <p>In het bestand staan ook een tabel <code>sessies</code> (alle geladen tellingen) en <code>export_info</code> (met welke instellingen de export gemaakt is). Capaciteitsterreinen en Static-tellingen gaan nog niet mee; de knop meldt het als ze op de kaart staan. In de correctiemodus werkt de knop niet: sluit die eerst af.</p>
-  <p>De eerste keer laadt de knop een hulpbibliotheek (sql.js, via cdnjs). Daarvoor moet je online zijn. Je tellingen gaan daarbij nergens heen: het bestand wordt in je browser gemaakt.</p>
+  <p>Onder <em>Kaart</em> staat <strong>bewaar kaart als GeoPackage (QGIS)</strong>. Je krijgt één bestand met de kaart zoals je hem nu ziet: de stippen, de clusterbollen, de gekleurde wegvakken en het GPS-spoor. Wat je hebt uitgezet (een telling, een type, een tijdvenster) gaat niet mee.</p>
+  <p><strong>Kies de naam bij het opslaan.</strong> In Edge en Chrome opent een <em>Opslaan als</em>-venster; in andere browsers vraagt telrapport de naam en downloadt het bestand. In het bestand zit een QGIS-project dat zijn lagen onder precies die naam zoekt. <strong>Hernoem het bestand daarna niet</strong>: verplaatsen naar een andere map mag wel. (Ook als je het toch hernoemt, kun je het bestand nog in QGIS slepen; alleen het project vindt zijn lagen dan niet.)</p>
+  <p>Er zijn twee manieren om het in QGIS te openen:</p>
+  <ul>
+    <li><strong>Het project</strong>: <em>Project → Openen vanuit → GeoPackage</em>, of in het Browser-paneel het bestand openklappen en dubbelklikken op <em>telrapport</em>. Je krijgt de hele kaart in één keer: de lagen in de goede volgorde, in RD (EPSG:28992), met PDOK BRT-A grijs als ondergrond (luchtfoto en OpenStreetMap staan uitgevinkt klaar), ingezoomd op de telling. Onder <em>Project → Opmaak</em> staat <strong>A4 liggend</strong>: kaart op een rond schaalgetal, titel, legenda, schaalstok, noordpijl en bronvermelding, klaar om als PDF of afbeelding te exporteren.</li>
+    <li><strong>Slepen</strong>: sleep het bestand in QGIS en kies de lagen. Elke laag komt binnen met opmaak (dezelfde kleuren als hier, de clusterbollen als taartdiagram met het totaal erin). Handig als je de lagen in een bestaand project wilt hebben.</li>
+  </ul>
+  <p>In het bestand staan ook een tabel <code>sessies</code> (alle geladen tellingen) en <code>export_info</code> (met welke instellingen de export gemaakt is). Capaciteitsterreinen gaan nog niet mee; de knop meldt het als ze op de kaart staan. Static-tellingen horen er niet in. In de correctiemodus werkt de knop niet: sluit die eerst af.</p>
+  <p>De eerste keer laadt de knop een hulpbibliotheek (sql.js, via cdnjs). Daarvoor moet je online zijn. Je tellingen gaan daarbij nergens heen: het bestand wordt in je browser gemaakt. De ondergrond haalt QGIS later zelf op bij PDOK of OpenStreetMap.</p>
 </section>
 
 <section id="rapport-kaart">
