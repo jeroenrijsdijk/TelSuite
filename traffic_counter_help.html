@@ -1031,6 +1031,14 @@
   <p>De kapaciteitsreferentielaag (<code>cap_netwerk.csv</code> en <code>cap_capaciteit.csv</code> op de server) wordt automatisch geladen als achtergrond — paarse contouren voor de bekende parkeerzones.</p>
 </section>
 
+<section id="rapport-gpkg">
+  <h2>Kaart bewaren als GeoPackage (QGIS)</h2>
+  <p>Onder <em>Kaart</em> staat <strong>bewaar kaart als GeoPackage (QGIS)</strong>. Je krijgt één bestand, <code>telrapport_&lt;datum&gt;_&lt;tijd&gt;.gpkg</code>, met de kaart zoals je hem nu ziet: de stippen, de clusterbollen, de gekleurde wegvakken en het GPS-spoor. Wat je hebt uitgezet (een telling, een type, een tijdvenster) gaat niet mee.</p>
+  <p>Sleep het bestand in QGIS en kies de lagen. Elke laag komt binnen <strong>met opmaak</strong>: dezelfde kleuren als hier, de clusterbollen als taartdiagram met het totaal erin, en een legenda met de categorieën. Er hoeft niets meer ingesteld te worden. Werkt in QGIS 3 en 4.</p>
+  <p>In het bestand staan ook een tabel <code>sessies</code> (alle geladen tellingen) en <code>export_info</code> (met welke instellingen de export gemaakt is). Capaciteitsterreinen en Static-tellingen gaan nog niet mee; de knop meldt het als ze op de kaart staan. In de correctiemodus werkt de knop niet: sluit die eerst af.</p>
+  <p>De eerste keer laadt de knop een hulpbibliotheek (sql.js, via cdnjs). Daarvoor moet je online zijn. Je tellingen gaan daarbij nergens heen: het bestand wordt in je browser gemaakt.</p>
+</section>
+
 <section id="rapport-kaart">
   <h2>Kaartvisualisatie per type</h2>
   <table class="key-table">
