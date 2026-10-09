@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.1.** Telrapport bewaart de kaart als GeoPackage met opmaak voor QGIS (`overdracht_v3_1.md`). 3.0 was de in het veld geteste v2.77; sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
+**Laatste release: v3.2.** In de GeoPackage uit telrapport zit nu ook een QGIS-project: RD New, PDOK-ondergrond en een printopmaak A4 (`overdracht_v3_2.md`). v3.1 bracht de GeoPackage zelf; 3.0 was de in het veld geteste v2.77. Sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
 
 ---
 
@@ -109,7 +109,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ## 4. Nog te doen door Jay (buiten de code)
 
-0. **GeoPackage in QGIS 4 bekijken (v3.1)** — in telrapport een paar tellingen laden, *bewaar kaart als GeoPackage (QGIS)*, het bestand in QGIS 4 slepen en alle lagen kiezen. Verwacht: stippen in de kleuren van telrapport, clusterbollen als taartdiagram met een wit cijfer, gekleurde wegvakken en een gestreept GPS-spoor, elk met een legenda. Getest is tegen QGIS 3.34; QGIS 4 kon hier niet. Eerste proef (9 okt): alles goed, alleen de cijfers niet vet; gerepareerd met HTML `<b>`. De herstelde versie nog één keer bekijken.
+0. **QGIS-project in QGIS 4 bekijken (v3.2)**: in telrapport een paar tellingen laden, *bewaar kaart als GeoPackage (QGIS)*, een naam kiezen, en in QGIS 4 *Project → Openen vanuit → GeoPackage*. Verwacht: PDOK grijs als ondergrond, ingezoomd op de telling, en onder *Opmaak* "A4 liggend" met de kaart op een rond schaalgetal, legenda, schaalstok en noordpijl. Let op: laadt PDOK? Zijn de teksten normaal, niet dun en niet vet? Exporteer de opmaak een keer als PDF. (De GeoPackage zelf is in v3.1 in QGIS 4 bekeken: in orde, de cijfers zijn daarna vet gemaakt.)
 0a. **Planningmap afschermen (v2.75), vóór het online zetten** — een wachtwoordbestand maken buiten de webroot en het volledige pad invullen bij `AuthUserFile` in `planningen/.htaccess`. Controle in een privévenster: `https://telonline.org/planningen/planning_list.php` moet om een wachtwoord vragen. Vraagt hij niets, dan leest de server geen `.htaccess` en is de map open. Zolang het pad niet klopt, geeft de map een 500-fout (dicht, niet open) en meldt telplanning dat.
 0b. **Contactgegevens in `privacy.html` invullen** — het gele veld bij *Je rechten en contact* (naam en e-mailadres van de beheerder). `valideer.py` meldt het zolang het er staat.
 1. **Screenshots voor `over.html`** — nog niet geleverd. Drie bestanden, exact deze namen, naast `over.html`:
@@ -161,8 +161,8 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - Zijde-offset live in pocket-parkeren? De ingrediënten zijn er (de gesnapte positie en de wegrichting kent pocket al), zo'n vijftien regels. Twee bezwaren: het voegt `lat_marker`/`lon_marker`/`zijde` toe aan het rauwe pocket-schema en vraagt dus KNIME-afstemming, én "links" is bij pocket relatief aan de looprichting, die de app op het moment van tikken minder zeker kent dan de reconstructor achteraf uit de hele route — precies de reden dat de reconstructor bestaat. Winst is vooral cosmetisch: ongereconstrueerde pocket-parkeertellingen zien er in telrapport dan net zo uit als parkeertellingen.
 - "Save as .png" in telrapport: het kaartbeeld exporteren. De knop is triviaal, het plaatje niet. Tegels zijn niet CORS-schoon (`L.tileLayer` zet geen `crossOrigin`), vectoren zitten in vijf SVG-panes, labels zijn acht `divIcon`-varianten. Drie routes: handgetekend canvas zonder ondergrond (patroon van de veld-apps), eigen tegel-compositor (~150 regels, geen afhankelijkheid), of `html2canvas` van een CDN. Voorstel: tegel-compositor met automatische terugval naar zonder-ondergrond bij een SecurityError. Eerst de CORS-test draaien op OSM/CARTO/PDOK; de bronvermelding moet sowieso in de PNG gebakken worden.
   *v3.1:* voor het rapportpad is er nu de GeoPackage voor QGIS (daar zitten ondergrond, schaalstok en PDF-export al in). Een PNG uit telrapport blijft nuttig voor het snelle plaatje.
-- **GeoPackage stap 2: QGIS-project in de GeoPackage** (tabel `qgis_projects`): ondergrond, laagvolgorde, RD New, ingezoomd op de telling, en een printopmaak met titel, legenda, schaalstok en noordpijl. Eerst een proef: hoe vindt QGIS de lagen terug als het project in hetzelfde bestand zit en je dat bestand verplaatst?
-- **GeoPackage: capaciteitsterreinen en Static** als eigen lagen (`terreinen`, `telposten`). Nu meldt de export dat ze niet meegaan.
+- **GeoPackage: capaciteitsterreinen** als eigen laag (`terreinen`); nu meldt de export dat ze niet meegaan. (Static hoeft niet, Jay v3.2.)
+- **GeoPackage-opmaak:** bij veel tellingen loopt de legenda (GPS-spoor per telling) uit het A4-vak; dan twee kolommen of het spoor uit de legenda. Eventueel ook een A3-opmaak.
 - QGIS-loader (`telonline_qgis_loader.py`) op QGIS 4 testen (Qt6, opgeschoonde Python-API); eventueel dezelfde stijlsjablonen gebruiken als de GeoPackage-export, zodat de opmaak op één plek bestaat.
 - Parkeren uit pocket halen naar een eigen tool. Sinds v2.69 heeft het een eigen ingang op de voorpagina (`#parkeren`), wat het grootste deel van de wens dekt. Een echte afsplitsing loont pas als parkeren een eigen kant op gaat (bijv. de zijde-offset live), want dan moeten GPS, snap, fetch-discipline en noodopslag in twee bestanden gelijk blijven.
 - `over.html` volgt de nieuwe indeling van de voorpagina nog niet (v2.69). De handleiding is in v2.74 bijgewerkt.
@@ -179,7 +179,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.1 in één oogopslag
+## 6. Releases v2.32 → v3.2 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -231,6 +231,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v2.77 | **Parkeer-apps volgen de opruimregel**: geannuleerd deelvenster wist de noodkopie niet meer en start geen ongevraagde download; ZIP-knop biedt dezelfde ZIP opnieuw aan binnen de tik (belangrijk op de iPhone); gedeeld blok `bewaarZip` |
 | **v3.0** | **Veldtest groen op iPhone en Android → v2.77 wordt 3.0**, byte-identiek op het versienummer na. Nieuw: GitHub maakt per versie automatisch een release met `telsuite-<versie>.zip` |
 | v3.1 | **Kaart bewaren als GeoPackage voor QGIS**: waarnemingen, clusterbollen (taartdiagram), wegvakken en GPS-spoor, met de opmaak van telrapport ingebouwd (`layer_styles`); wat je ziet gaat mee; sql.js via cdnjs; nieuwe `gpkgtest.py` (ook tegen QGIS 3.34) |
+| v3.2 | **QGIS-project in de GeoPackage**: RD New, PDOK BRT-A grijs (luchtfoto en OSM klaar), lagen in volgorde, printopmaak A4 liggend op een rond schaalgetal met legenda, schaalstok en noordpijl; je kiest de bestandsnaam bij het opslaan (het project onthoudt hem); sessielabels gerepareerd; `gpkgtest.py` 80 tests |
 
 ---
 

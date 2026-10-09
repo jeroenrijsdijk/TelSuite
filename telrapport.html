@@ -5462,8 +5462,10 @@ async function loadFile(file) {
 
    SQLite in de browser: sql.js van cdnjs, pas geladen bij de eerste export.
    Coördinaten in WGS84 (EPSG:4326), net als in de ZIP's.
-   Nog niet mee: capaciteitsterreinen en Static; de export meldt het als die op
-   de kaart staan.                                                              */
+   Capaciteitsterreinen gaan (nog) niet mee; de export meldt het als die op de
+   kaart staan. Static hoort er niet in (Jay, v3.2): dat is een telpost, geen
+   kaartlaag.
+   Sinds v3.2 zit er ook een QGIS-project in het bestand; zie GPKG_PROJECT.      */
 var GPKG_SQLJS_BASIS = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.14.2/';
 var GPKG_FORMAAT_VERSIE = 1;
 var _sqlJsBelofte = null;
@@ -5547,7 +5549,8 @@ var GPKG = (function () {
       + 'update_time DATETIME DEFAULT (strftime(\'%Y-%m-%dT%H:%M:%fZ\',\'now\')))'
   ];
 
-  function maak(SQL, lagen) {
+  // project (v3.2, optioneel): { naam, metadata, inhoud } voor qgis_projects.
+  function maak(SQL, lagen, project) {
     var db = new SQL.Database();
     try {
       db.run('PRAGMA application_id = 1196444487');   // "GPKG"
@@ -5563,6 +5566,11 @@ var GPKG = (function () {
       lagen.forEach(function (l) { schrijfLaag(db, l); });
       db.run('INSERT INTO gpkg_contents (table_name, data_type, identifier) VALUES (?,?,?)',
              ['layer_styles', 'attributes', 'layer_styles']);
+      if (project) {
+        // Zelfde vorm als QGIS hem schrijft (ook niet in gpkg_contents).
+        db.run('CREATE TABLE qgis_projects (name TEXT PRIMARY KEY, metadata BLOB, content BLOB)');
+        db.run('INSERT INTO qgis_projects VALUES (?,?,?)', [project.naam, project.metadata, project.inhoud]);
+      }
       db.run('COMMIT');
       return db.export();
     } finally {
@@ -5707,7 +5715,7 @@ var GPKG_QML = (function () {
     })) + '</qgis>';
   }
 
-  return { waarnemingen: waarnemingen, clusters: clusters, lijnen: lijnen };
+  return { waarnemingen: waarnemingen, clusters: clusters, lijnen: lijnen, esc: esc };
 })();
 
 /* ── Telrapport → lagen ──────────────────────────────────────────────────────── */
@@ -5715,7 +5723,11 @@ var GPKG_APP_LABEL = { auto: 'parkeren', fiets: 'fietsparkeren', pocket: 'pocket
 
 function gpkgSessieLabel(sid) {
   var s = sessions[sid], m = (s && s.meta) || {};
-  return [fmtDatum(m.datum, m.start_tijd), (m.start_tijd || '').slice(0, 5), m.teller,
+  // start_tijd is "14:05:33" (pocket) of "2026-10-09 14:05:33" (parkeer-apps); de
+  // teller "(onbekend)" zegt niets en blijft weg (v3.2).
+  var tijd = (String(m.start_tijd || '').match(/(\d{1,2}:\d{2})/) || [])[1];
+  var teller = /^\(?onbekend\)?$/i.test(String(m.teller || '').trim()) ? '' : m.teller;
+  return [fmtDatum(m.datum, m.start_tijd), tijd, teller,
           GPKG_APP_LABEL[s && s.appType] || (s && s.appType)].filter(Boolean).join(' · ');
 }
 
@@ -5899,9 +5911,7 @@ function gpkgLagen() {
   var nCap = Object.keys(capLayers).filter(function (sid) {
     return (capLayers[sid] || []).some(function (l) { return map.hasLayer(l); });
   }).length;
-  var nSta = Object.keys(standStillMarkers).filter(function (sid) { return map.hasLayer(standStillMarkers[sid]); }).length;
   if (nCap) nietMee.push(nCap + ' capaciteitstelling(en)');
-  if (nSta) nietMee.push(nSta + ' Static-telling(en)');
 
   lijst.push({ naam: 'export_info', geometrie: null, omschrijving: 'Hoe deze export gemaakt is',
     velden: [['sleutel', 'TEXT'], ['waarde', 'TEXT']],
@@ -5915,6 +5925,236 @@ function gpkgLagen() {
   return { lijst: lijst, nKaart: nKaart, nietMee: nietMee };
 }
 
+/* QGIS-project in de GeoPackage (v3.2). QGIS kan een project in een GeoPackage
+   bewaren: tabel qgis_projects(name, metadata, content), met content = het
+   .qgz-bestand (een ZIP met de .qgs) als hex-tekst. Openen in QGIS: Project →
+   Openen vanuit → GeoPackage, of dubbelklik op het project in het Browser-paneel.
+
+   Wat het project regelt en slepen niet: de lagen in de goede volgorde met
+   leesbare namen, RD New (EPSG:28992), PDOK BRT-A grijs als ondergrond (PDOK
+   levert die in RD, dus scherp; luchtfoto en OSM staan uitgevinkt klaar),
+   ingezoomd op de telling, en een printopmaak A4 liggend.
+
+   Zo is het gebouwd (uitgezocht met QGIS 3.34, zie overdracht_v3_2.md):
+   • De lagen verwijzen naar "./<bestandsnaam>|layername=…". Een padvorm voor
+     "dit bestand zelf" bestaat niet: hernoemen breekt het project (verplaatsen
+     niet). Daarom kiest de gebruiker de naam vóór het schrijven; zie
+     gpkgKiesBestand.
+   • Een spatialrefsys met alleen <authid> is ongeldig; met de proj4-regel erbij
+     herkent QGIS de EPSG-definitie (transformatie identiek aan EPSG:28992).
+     Het project-CRS telt pas met SpatialRefSys/ProjectionsEnabled = 1.
+   • Laag-id's korter dan ±12 tekens vervangt QGIS door een nieuwe, en dan wijst
+     de legenda in de opmaak naar niets. Daarom "<naam>_telrapport".
+   • De stijl per laag is dezelfde QML als in layer_styles, zonder de <qgis>-schil.
+   • Tekst in de opmaak: fontWeight 50 (normaal). Geen vet: dat getal betekent in
+     QGIS 3 (Qt5) iets anders dan in QGIS 4 (Qt6).                              */
+var GPKG_PROJECT = (function () {
+  var esc = GPKG_QML.esc;
+  var PROJ4 = {
+    'EPSG:28992': '+proj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs',
+    'EPSG:4326': '+proj=longlat +datum=WGS84 +no_defs',
+    'EPSG:3857': '+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs'
+  };
+  function srs(a) { return '<spatialrefsys><proj4>' + PROJ4[a] + '</proj4><authid>' + a + '</authid></spatialrefsys>'; }
+
+  // WGS84 → RD New. Benaderingsformules van Schreutelkamp & Strang van Hees
+  // (NGT Geodesia 2001); afwijking in Nederland kleiner dan een meter. Alleen
+  // voor het kaartbeeld; de data zelf blijft WGS84 en QGIS rekent die exact om.
+  var RP = [0, 1, 2, 0, 1, 3, 1, 0, 2], RQ = [1, 1, 1, 3, 0, 1, 3, 2, 3],
+      RC = [190094.945, -11832.228, -114.221, -32.391, -0.705, -2.340, -0.608, -0.008, 0.148],
+      SP = [1, 0, 2, 1, 3, 0, 2, 1, 0, 1], SQ = [0, 2, 0, 2, 0, 1, 2, 1, 4, 4],
+      SC = [309056.544, 3638.893, 73.077, -157.984, 59.788, 0.433, -6.439, -0.032, 0.092, -0.054];
+  function rd(lat, lon) {
+    var dp = 0.36 * (lat - 52.15517440), dl = 0.36 * (lon - 5.38720621), x = 155000, y = 463000, i;
+    for (i = 0; i < RC.length; i++) x += RC[i] * Math.pow(dp, RP[i]) * Math.pow(dl, RQ[i]);
+    for (i = 0; i < SC.length; i++) y += SC[i] * Math.pow(dp, SP[i]) * Math.pow(dl, SQ[i]);
+    return [x, y];
+  }
+
+  // Kaartbeeld in de opmaak: het kleinste ronde schaalgetal waarop alles past,
+  // gecentreerd, in de verhouding van het kaartvlak (anders rekent QGIS de schaal
+  // uit de breedte en valt de rest buiten beeld).
+  var SCHALEN = [250, 500, 750, 1000, 1250, 1500, 2000, 2500, 3000, 4000, 5000, 7500, 10000, 12500,
+                 15000, 20000, 25000, 30000, 40000, 50000, 75000, 100000, 150000, 200000, 250000];
+  function kader(b, mmB, mmH) {
+    var cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
+    var nodig = Math.max((b[2] - b[0]) / (mmB / 1000), (b[3] - b[1]) / (mmH / 1000));
+    var schaal = SCHALEN.filter(function (s) { return s >= nodig; })[0] || Math.ceil(nodig / 50000) * 50000;
+    var w = schaal * mmB / 1000, h = schaal * mmH / 1000;
+    return { extent: [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], schaal: schaal };
+  }
+
+  var ONDERGROND = [
+    { id: 'pdok_grijs', naam: 'PDOK BRT-A grijs', crs: 'EPSG:28992', aan: true,
+      bron: 'crs=EPSG:28992&dpiMode=7&format=image/png&layers=grijs&styles=default&tileMatrixSet=EPSG:28992'
+          + '&url=https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0?request%3DGetCapabilities%26service%3DWMTS' },
+    { id: 'pdok_lucht', naam: 'PDOK luchtfoto', crs: 'EPSG:28992', aan: false,
+      bron: 'crs=EPSG:28992&dpiMode=7&format=image/jpeg&layers=Actueel_ortho25&styles=default&tileMatrixSet=EPSG:28992'
+          + '&url=https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0?request%3DGetCapabilities%26service%3DWMTS' },
+    { id: 'osm', naam: 'OpenStreetMap', crs: 'EPSG:3857', aan: false,
+      bron: 'type=xyz&url=https://tile.openstreetmap.org/{z}/{x}/{y}.png&zmax=19&zmin=0' }
+  ];
+
+  var LO = '<LayoutObject><dataDefinedProperties><Option type="Map"><Option type="QString" name="name" value=""/>'
+         + '<Option name="properties"/><Option type="QString" name="type" value="collection"/></Option>'
+         + '</dataDefinedProperties><customproperties><Option/></customproperties></LayoutObject>';
+  var KLEUREN = '<FrameColor red="0" green="0" blue="0" alpha="255"/><BackgroundColor red="255" green="255" blue="255" alpha="255"/>';
+  function item(type, id, x, y, w, h, z, attr, binnen, kader_, achter) {
+    return '<LayoutItem type="' + type + '" uuid="{' + id + '}" templateUuid="{' + id + '}" position="' + x + ',' + y
+         + ',mm" positionOnPage="' + x + ',' + y + ',mm" size="' + w + ',' + h + ',mm" zValue="' + z + '" visibility="1" frame="'
+         + (kader_ ? 'true' : 'false') + '" background="' + (achter ? 'true' : 'false')
+         + '" opacity="1" itemRotation="0" referencePoint="0" ' + attr + '>' + KLEUREN + LO + (binnen || '') + '</LayoutItem>';
+  }
+  function tekststijl(pt) {
+    return '<text-style fontFamily="Arial" fontWeight="50" fontItalic="0" fontSize="' + pt
+         + '" fontSizeUnit="Point" textColor="0,0,0,255" textOpacity="1"><text-buffer bufferDraw="0"/></text-style>';
+  }
+  function label(id, x, y, w, h, tekst, pt) {
+    return item('65641', id, x, y, w, h, 2, 'labelText="' + esc(tekst) + '" htmlState="0" halign="1" valign="32" marginX="0" marginY="0"',
+                tekststijl(pt));
+  }
+  function ext(b) { return 'xmin="' + b[0] + '" ymin="' + b[1] + '" xmax="' + b[2] + '" ymax="' + b[3] + '"'; }
+
+  /* o = { bestand, lagen: [{ naam, toon, geometrie: 'Point'|'Line', qml }] (boven naar onder),
+           legenda: [laagnamen], punten: [[lon, lat], ...], titel, ondertitel, bron }          */
+  function maak(o) {
+    var lid = function (n) { return n + '_telrapport'; };
+    var boom = [], lagen = [], volgorde = [];
+    o.lagen.forEach(function (l) {
+      var bron = './' + o.bestand + '|layername=' + l.naam;
+      var m = /^<!DOCTYPE qgis><qgis [^>]*labelsEnabled="(\d)"[^>]*>([\s\S]*)<\/qgis>$/.exec(l.qml);
+      boom.push('<layer-tree-layer id="' + lid(l.naam) + '" name="' + esc(l.toon) + '" source="' + esc(bron)
+                + '" providerKey="ogr" checked="Qt::Checked" expanded="1"/>');
+      lagen.push('<maplayer type="vector" geometry="' + l.geometrie + '" labelsEnabled="' + (m ? m[1] : 0) + '"><id>'
+                 + lid(l.naam) + '</id><datasource>' + esc(bron) + '</datasource><layername>' + esc(l.toon)
+                 + '</layername><srs>' + srs('EPSG:4326') + '</srs><provider encoding="UTF-8">ogr</provider>'
+                 + (m ? m[2] : '') + '</maplayer>');
+      volgorde.push(lid(l.naam));
+    });
+    var onder = ONDERGROND.map(function (b) {
+      lagen.push('<maplayer type="raster"><id>' + lid(b.id) + '</id><datasource>' + esc(b.bron) + '</datasource><layername>'
+                 + esc(b.naam) + '</layername><srs>' + srs(b.crs) + '</srs><provider>wms</provider></maplayer>');
+      volgorde.push(lid(b.id));
+      return '<layer-tree-layer id="' + lid(b.id) + '" name="' + esc(b.naam) + '" source="' + esc(b.bron)
+           + '" providerKey="wms" checked="Qt::' + (b.aan ? 'Checked' : 'Unchecked') + '" expanded="0"/>';
+    });
+    boom.push('<layer-tree-group name="Ondergrond" checked="Qt::Checked" expanded="1">' + onder.join('') + '</layer-tree-group>');
+
+    // Gebied van de telling in RD, met wat ruimte eromheen (minstens 25 m).
+    var b = [Infinity, Infinity, -Infinity, -Infinity];
+    o.punten.forEach(function (p) {
+      var r = rd(p[1], p[0]);
+      b = [Math.min(b[0], r[0]), Math.min(b[1], r[1]), Math.max(b[2], r[0]), Math.max(b[3], r[1])];
+    });
+    var marge = Math.max(25, 0.12 * Math.max(b[2] - b[0], b[3] - b[1]));
+    b = [b[0] - marge, b[1] - marge, b[2] + marge, b[3] + marge];
+    var k = kader(b, 210, 180);
+
+    var opmaak = '<Layouts><Layout name="A4 liggend" units="mm" printResolution="300"><PageCollection>'
+      + item('65638', 'pagina', 0, 0, 297, 210, 0, '', '', false, true) + '<GuideCollection visible="1"/></PageCollection>'
+      + label('titel', 10, 6, 276, 9, o.titel, 16)
+      + label('ondertitel', 10, 14, 276, 5, o.ondertitel, 9)
+      + item('65639', 'kaart', 10, 20, 210, 180, 1, 'keepLayerSet="false" drawCanvasItems="true" mapRotation="0"',
+             '<Extent ' + ext(k.extent) + '/><crs>' + srs('EPSG:28992') + '</crs><LayerSet/>', true, true)
+      + item('65642', 'legenda', 226, 20, 62, 120, 3,
+             'title="Legenda" map_uuid="{kaart}" resizeToContents="1" symbolWidth="6" symbolHeight="4" columnCount="1" '
+             + 'titleAlignment="1" legendFilterByAtlas="0" boxSpace="1"',
+             '<layer-tree-group>' + o.lagen.filter(function (l) { return o.legenda.indexOf(l.naam) >= 0; }).map(function (l) {
+               return '<layer-tree-layer id="' + lid(l.naam) + '" name="' + esc(l.toon) + '" providerKey="ogr" checked="Qt::Checked" expanded="1"/>';
+             }).join('') + '</layer-tree-group>')
+      + item('65646', 'schaal', 14, 186, 60, 10, 4,
+             'mapUuid="{kaart}" style="Single Box" unitType="meters" unitLabel="m" numSegments="2" numSegmentsLeft="0" '
+             + 'segmentSizeMode="1" minBarWidth="20" maxBarWidth="50" height="2" numMapUnitsPerScaleBarUnit="1" '
+             + 'alignment="0" labelBarSpace="2" boxContentSpace="1"', tekststijl(8), false, true)
+      + item('65640', 'noord', 206, 23, 10, 13, 5,
+             'mapUuid="{kaart}" file=":/images/north_arrows/layout_default_north_arrow.svg" mode="2" northMode="0" resizeMode="0"')
+      + label('bron', 10, 202, 276, 5, o.bron, 7)
+      + '</Layout></Layouts>';
+
+    return '<!DOCTYPE qgis PUBLIC \'http://mrcc.com/qgis.dtd\' \'SYSTEM\'>'
+      + '<qgis projectname="' + esc(o.titel) + '" version="3.34.0-Prizren"><homePath path=""/><title>' + esc(o.titel) + '</title>'
+      + '<projectCrs>' + srs('EPSG:28992') + '</projectCrs>'
+      + '<layer-tree-group><customproperties/>' + boom.join('') + '</layer-tree-group>'
+      + '<projectlayers>' + lagen.join('') + '</projectlayers>'
+      + '<layerorder>' + volgorde.map(function (i) { return '<layer id="' + i + '"/>'; }).join('') + '</layerorder>'
+      + '<properties><Paths><Absolute type="bool">false</Absolute></Paths>'
+      + '<SpatialRefSys><ProjectionsEnabled type="int">1</ProjectionsEnabled></SpatialRefSys></properties>'
+      + '<mapcanvas name="theMapCanvas" annotationsVisible="1"><units>meters</units><extent><xmin>' + b[0] + '</xmin><ymin>'
+      + b[1] + '</ymin><xmax>' + b[2] + '</xmax><ymax>' + b[3] + '</ymax></extent><rotation>0</rotation><destinationsrs>'
+      + srs('EPSG:28992') + '</destinationsrs><rendermaptile>0</rendermaptile></mapcanvas>'
+      + '<ProjectViewSettings UseProjectScales="0" rotation="0"><Scales/><DefaultViewExtent ' + ext(b) + '>'
+      + srs('EPSG:28992') + '</DefaultViewExtent></ProjectViewSettings>'
+      + opmaak + '</qgis>';
+  }
+
+  return { maak: maak, rd: rd, kader: kader };
+})();
+
+// Welke bestandsnaam? Het project in het bestand zoekt zijn lagen onder precies
+// die naam, dus die moet vastliggen vóór het schrijven. Edge/Chrome: het
+// "Opslaan als"-venster, en de naam die daar gekozen wordt (ook bij overschrijven
+// geen "(1)" erachter). Andere browsers: vragen, en daarna een gewone download.
+// Geeft { naam, handle } of null als er geannuleerd is.
+async function gpkgKiesBestand(voorstel) {
+  if (window.showSaveFilePicker) {
+    try {
+      var h = await window.showSaveFilePicker({ suggestedName: voorstel,
+        types: [{ description: 'GeoPackage', accept: { 'application/geopackage+sqlite3': ['.gpkg'] } }] });
+      return { naam: h.name, handle: h };
+    } catch (e) {
+      if (e && e.name === 'AbortError') return null;
+      // Geen toestemming (bijv. in een frame): terug naar vragen + downloaden.
+    }
+  }
+  var n = prompt('Naam van de GeoPackage. Het QGIS-project erin zoekt zijn lagen onder deze naam: '
+                 + 'hernoem het bestand daarna dus niet.', voorstel);
+  if (n === null) return null;
+  n = n.trim().replace(/[\\\/:*?"<>|]+/g, '_') || voorstel;
+  if (!/\.gpkg$/i.test(n)) n += '.gpkg';
+  return { naam: n, handle: null };
+}
+
+// Het project als { naam, metadata, inhoud } voor de tabel qgis_projects.
+async function gpkgProjectInhoud(lagen, bestand) {
+  var TOON = { clusters: 'Clusterbollen', waarnemingen: 'Waarnemingen', route: 'GPS-spoor', wegvakken: 'Wegvakken' };
+  var kaartlagen = ['clusters', 'waarnemingen', 'route', 'wegvakken']
+    .map(function (n) { return lagen.lijst.filter(function (l) { return l.naam === n; })[0]; })
+    .filter(Boolean);
+  // Inzoomen op de telling zelf; alleen als er niets anders is op het wegennet.
+  var punten = [];
+  kaartlagen.forEach(function (l) {
+    if (l.naam === 'wegvakken' && kaartlagen.length > 1) return;
+    l.rijen.forEach(function (r) { (r.geom.punt ? [r.geom.punt] : r.geom.lijn).forEach(function (p) { punten.push(p); }); });
+  });
+  var zichtbaar = Object.keys(sessions).filter(function (s) { return sessions[s].visible && sessions[s].appType !== 'standstill'; });
+  var datums = zichtbaar.map(function (s) { var m = sessions[s].meta || {}; return fmtDatum(m.datum, m.start_tijd); })
+    .filter(Boolean).filter(function (d, i, a) { return a.indexOf(d) === i; })
+    .sort(function (a, b) { return a.split('-').reverse().join('').localeCompare(b.split('-').reverse().join('')); });
+  var soorten = zichtbaar.map(function (s) { return GPKG_APP_LABEL[sessions[s].appType] || sessions[s].appType; })
+    .filter(function (d, i, a) { return a.indexOf(d) === i; });
+  var vandaag = fmtDatum(new Date().toISOString().slice(0, 10));
+  var qgs = GPKG_PROJECT.maak({
+    bestand: bestand,
+    lagen: kaartlagen.map(function (l) {
+      return { naam: l.naam, toon: TOON[l.naam], geometrie: l.geometrie === 'POINT' ? 'Point' : 'Line', qml: l.qml };
+    }),
+    legenda: ['waarnemingen', 'route', 'wegvakken'],
+    punten: punten,
+    titel: 'Telrapport · ' + (datums.length > 1 ? datums[0] + ' – ' + datums[datums.length - 1] : (datums[0] || vandaag)),
+    ondertitel: zichtbaar.length + (zichtbaar.length === 1 ? ' telling' : ' tellingen') + ': ' + soorten.join(', ')
+              + (kaartlagen.some(function (l) { return l.naam === 'clusters'; })
+                 ? ' · clusterbol = aantal waarnemingen op die plek, kleuren als bij Waarnemingen' : ''),
+    bron: 'Ondergrond © Kadaster (PDOK) · Wegennet © OpenStreetMap-bijdragers · telonline.org · gemaakt ' + vandaag
+  });
+  var zip = new JSZip();
+  zip.file('telrapport.qgs', qgs);
+  var u8 = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+  var hex = new Array(u8.length);
+  for (var i = 0; i < u8.length; i++) hex[i] = (u8[i] < 16 ? '0' : '') + u8[i].toString(16);
+  return { naam: 'telrapport', inhoud: hex.join(''),
+           metadata: JSON.stringify({ last_modified_time: new Date().toISOString().slice(0, 19), last_modified_user: 'telrapport' }) };
+}
+
 async function exportGeoPackage() {
   if (editModeActive) {
     alert('Sluit eerst de correctiemodus af. Daarna staan alle stippen weer op hun plek.');
@@ -5922,6 +6162,12 @@ async function exportGeoPackage() {
   }
   var lagen = gpkgLagen();
   if (!lagen.nKaart) { alert('Er staat niets op de kaart om te bewaren.'); return; }
+  // Eerst de naam (v3.2): het project in het bestand verwijst ernaar. Geen await
+  // hiervoor, anders weigert de browser het Opslaan-als-venster (geen klik meer).
+  var nu = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
+  var doel = await gpkgKiesBestand('telrapport_' + nu.getFullYear() + p(nu.getMonth() + 1) + p(nu.getDate())
+                                   + '_' + p(nu.getHours()) + p(nu.getMinutes()) + '.gpkg');
+  if (!doel) return;
   var knop = document.getElementById('export-gpkg-btn');
   var tekst = knop ? knop.lastChild.textContent : '';
   if (knop) knop.lastChild.textContent = 'GeoPackage maken…';
@@ -5932,14 +6178,18 @@ async function exportGeoPackage() {
       alert('De GeoPackage-module (sql.js, van cdnjs) kon niet geladen worden. Ben je online? Probeer het dan nog eens.');
       return;
     }
-    var bytes = GPKG.maak(SQL, lagen.lijst);
-    var nu = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
-    var naam = 'telrapport_' + nu.getFullYear() + p(nu.getMonth() + 1) + p(nu.getDate()) + '_' + p(nu.getHours()) + p(nu.getMinutes()) + '.gpkg';
-    var url = URL.createObjectURL(new Blob([bytes], { type: 'application/geopackage+sqlite3' }));
-    var a = document.createElement('a');
-    a.href = url; a.download = naam;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    var bytes = GPKG.maak(SQL, lagen.lijst, await gpkgProjectInhoud(lagen, doel.naam));
+    var blob = new Blob([bytes], { type: 'application/geopackage+sqlite3' });
+    if (doel.handle) {
+      var w = await doel.handle.createWritable();
+      await w.write(blob); await w.close();
+    } else {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = doel.naam;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
     if (lagen.nietMee.length) {
       alert('GeoPackage bewaard. Nog niet in deze export: ' + lagen.nietMee.join(' en ') + '.');
     }

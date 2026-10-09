@@ -11,16 +11,22 @@
   D. Wat je uitzet gaat niet mee (de sessie staat wel in 'sessies', op_kaart 0).
   E. In de correctiemodus weigert de export; pocket-stippen blijven daar niet
      versleepbaar (de export-tag heet bewust niet _telregel).
-  F. Als PyQGIS er is: QGIS opent het bestand, elke laag krijgt zijn opmaak
+  F. Naam kiezen (v3.2): het Opslaan-als-venster (hier nagebootst) levert de
+     naam waar het project naar verwijst; annuleren schrijft niets; zonder dat
+     venster vraagt telrapport de naam en downloadt het bestand onder die naam.
+  G. Als PyQGIS er is: QGIS opent het bestand, elke laag krijgt zijn opmaak
      (categorieën met de kleuren van telrapport, taartdiagram, labels), en de
-     kaart wordt naar een PNG gerenderd. Zonder PyQGIS: overgeslagen, en gemeld.
+     kaart wordt naar een PNG gerenderd. Sinds v3.2 ook het project: geopend
+     vanuit een andere map, RD New, lagenboom en ondergronden, opmaak A4 met
+     rond schaalgetal, legenda en noordpijl, als PNG geëxporteerd; en de
+     RD-benadering van telrapport tegen PROJ. Zonder PyQGIS: overgeslagen.
 
 Hulp (server, CDN-omleiding, nep-Overpass) komt uit hersteltest.py ernaast;
 sql.js uit dezelfde node_modules (npm install sql.js@1.14.2).
 Draaien vanuit de suite-root:  python3 _archief/overpass_rig/gpkgtest.py
 PyQGIS-Python kiezen: TEL_QGIS_PYTHON=/usr/bin/python3.12 (standaard: zoeken).
 """
-import io, json, os, re, sqlite3, struct, subprocess, sys, zipfile
+import base64, io, json, os, re, sqlite3, struct, subprocess, sys, zipfile
 import xml.etree.ElementTree as ET
 HIER = os.path.dirname(os.path.abspath(__file__))
 _hsrc = open(os.path.join(HIER, 'hersteltest.py'), encoding='utf-8').read()
@@ -103,11 +109,45 @@ OP_KAART = r"""(() => {
   return { dots, cl, wv, rt, sessies: Object.keys(sessions) };
 })()"""
 
+# Het Opslaan-als-venster (showSaveFilePicker) bestaat niet zonder scherm; dit
+# doet wat de browser doet: een naam teruggeven (window.__kies_naam) en de
+# geschreven bytes opvangen. '__annuleer__' bootst annuleren na.
+OPSLAAN_STUB = r"""
+window.__opslaan = { voorstel: null, naam: null, bytes: null, aantal: 0 };
+window.showSaveFilePicker = async function (o) {
+  window.__opslaan.aantal++;
+  window.__opslaan.voorstel = o.suggestedName;
+  if (window.__kies_naam === '__annuleer__') { var e = new Error('geannuleerd'); e.name = 'AbortError'; throw e; }
+  var naam = window.__kies_naam || o.suggestedName, delen = [];
+  return { name: naam, createWritable: async function () { return {
+    write: async function (b) { delen.push(b); },
+    close: async function () {
+      var buf = new Uint8Array(await new Blob(delen).arrayBuffer()), s = '';
+      for (var i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+      window.__opslaan.naam = naam; window.__opslaan.bytes = btoa(s);
+    } }; } };
+};
+"""
+
 def exporteer(pg, naam):
-    with pg.expect_download(timeout=30000) as d:
-        pg.evaluate('exportGeoPackage()')
-    pad = os.path.join(UIT, naam); d.value.save_as(pad)
-    return pad, d.value.suggested_filename
+    pg.evaluate("window.__opslaan.bytes = null; window.__kies_naam = %r" % naam)
+    pg.evaluate('exportGeoPackage()')
+    pg.wait_for_function('window.__opslaan.bytes !== null', timeout=30000)
+    o = pg.evaluate('window.__opslaan')
+    pad = os.path.join(UIT, naam)
+    open(pad, 'wb').write(base64.b64decode(o['bytes']))
+    return pad, o['voorstel']
+
+def project_qgs(pad):
+    db = sqlite3.connect(pad)
+    try:
+        rij = db.execute('select name, content from qgis_projects').fetchall()
+    except sqlite3.OperationalError:
+        return [], None
+    finally:
+        db.close()
+    z = zipfile.ZipFile(io.BytesIO(bytes.fromhex(rij[0][1]))) if rij else None
+    return [r[0] for r in rij], z
 
 with sync_playwright() as p:
     b = p.chromium.launch()
@@ -129,9 +169,17 @@ with sync_playwright() as p:
     print('\n== B. Telrapport: laden en exporteren ==')
     ctx = b.new_context(viewport={'width': 1400, 'height': 900}, accept_downloads=True)
     ctx.route('**/*', route_gpkg)
-    pg = ctx.new_page(); fouten, meldingen = [], []
-    pg.on('pageerror', lambda e: fouten.append(e.message[:160]))
-    pg.on('dialog', lambda d: (meldingen.append(d.message), d.accept()))
+    ctx.add_init_script(OPSLAAN_STUB)
+    pg = ctx.new_page(); fouten, meldingen, vragen = [], [], []
+    prompt_antwoord = [None]          # None = standaardwaarde, '__weg__' = annuleren
+    def dialoog(d):
+        meldingen.append(d.message)
+        if d.type == 'prompt':
+            vragen.append(d.default_value)
+            if prompt_antwoord[0] == '__weg__': return d.dismiss()
+            return d.accept(prompt_antwoord[0]) if prompt_antwoord[0] is not None else d.accept()
+        d.accept()
+    pg.on('dialog', dialoog)
     pg.goto(BASIS + 'telrapport.html', wait_until='load'); pg.wait_for_timeout(800)
     pg.set_input_files('#file-input', zips); pg.wait_for_timeout(3500)
     kaart = pg.evaluate(OP_KAART)
@@ -140,7 +188,8 @@ with sync_playwright() as p:
         % (len(kaart['dots']), len(kaart['cl']), len(kaart['wv']), len(kaart['rt'])),
         kaart['dots'] and kaart['cl'] and kaart['wv'] and kaart['rt'])
     pad, voorstel = exporteer(pg, 'alles.gpkg')
-    eis('bestandsnaam telrapport_<datum>_<tijd>.gpkg', re.match(r'^telrapport_\d{8}_\d{4}\.gpkg$', voorstel), voorstel)
+    eis('Opslaan-als stelt telrapport_<datum>_<tijd>.gpkg voor', re.match(r'^telrapport_\d{8}_\d{4}\.gpkg$', voorstel or ''), voorstel)
+    rd_js = pg.evaluate("[[51.85,4.30],[53.2,6.56],[50.85,5.69],[52.37,4.89],[51.44,3.57]].map(p => GPKG_PROJECT.rd(p[0], p[1]))")
 
     print('\n== C. Het bestand ==')
     db, inhoud = lees_gpkg(pad)
@@ -202,6 +251,20 @@ with sync_playwright() as p:
     info = dict(db.execute('select sleutel, waarde from export_info'))
     eis('export_info: clusterafstand en formaatversie', info.get('clusterafstand_m') == '8' and info.get('formaat_versie') == '1', info)
     db.close()
+    namen, zq = project_qgs(pad)
+    eis('qgis_projects: één project "telrapport"', namen == ['telrapport'], namen)
+    eis('inhoud = .qgz (als hex) met telrapport.qgs', zq is not None and zq.namelist() == ['telrapport.qgs'], zq and zq.namelist())
+    qgs = zq.read('telrapport.qgs').decode('utf-8')
+    try:
+        ET.fromstring(qgs); goed = True
+    except ET.ParseError as e:
+        goed = str(e)
+    eis('project is geldige XML', goed is True, goed)
+    bronnen = re.findall(r'<datasource>\./([^<|]+)\|layername=([^<]+)</datasource>', qgs)
+    eis('lagen verwijzen naar de gekozen naam (./alles.gpkg|layername=…)',
+        sorted(t for _, t in bronnen) == sorted(lagen) and all(n == 'alles.gpkg' for n, _ in bronnen), bronnen)
+    eis("laag-id's eindigen op _telrapport (korte id's vervangt QGIS)",
+        all(i.endswith('_telrapport') for i in re.findall(r'<id>([^<]+)</id>', qgs)))
 
     print('\n== D. Wat je uitzet, gaat niet mee ==')
     weg = pg.evaluate("Object.keys(sessions).find(s => sessions[s].appType === 'auto')")
@@ -227,18 +290,39 @@ with sync_playwright() as p:
     pg.evaluate('toggleEditMode()'); pg.wait_for_timeout(300)
     pocket_bewerkbaar = pg.evaluate("Object.keys(editMarkers).filter(s => sessions[s].appType === 'pocket').reduce((a, s) => a + editMarkers[s].length, 0)")
     eis('pocket-stippen niet versleepbaar (export-tag is geen _telregel)', pocket_bewerkbaar == 0, pocket_bewerkbaar)
-    n_meld = len(meldingen)
+    n_meld = len(meldingen); n_opslaan = pg.evaluate('window.__opslaan.aantal')
     gestart = []
     pg.on('download', lambda d: gestart.append(d))
     pg.evaluate('exportGeoPackage()'); pg.wait_for_timeout(800)
-    eis('export weigert met een melding', len(meldingen) == n_meld + 1 and 'correctiemodus' in meldingen[-1] and not gestart,
-        meldingen[-1:])
+    eis('export weigert met een melding, nog vóór het Opslaan-als-venster',
+        len(meldingen) == n_meld + 1 and 'correctiemodus' in meldingen[-1] and not gestart
+        and pg.evaluate('window.__opslaan.aantal') == n_opslaan, meldingen[-1:])
     pg.evaluate('toggleEditMode()'); pg.wait_for_timeout(300)
+
+    print('\n== F. Naam kiezen ==')
+    n_opslaan = pg.evaluate('window.__opslaan.aantal')
+    pg.evaluate("window.__opslaan.bytes = null; window.__kies_naam = '__annuleer__'")
+    pg.evaluate('exportGeoPackage()'); pg.wait_for_timeout(1500)
+    eis('Opslaan-als geannuleerd: niets geschreven, geen download',
+        pg.evaluate('window.__opslaan.aantal') == n_opslaan + 1 and pg.evaluate('window.__opslaan.bytes') is None and not gestart)
+    pg.evaluate('delete window.showSaveFilePicker')
+    prompt_antwoord[0] = 'Meting Spijkenisse'
+    with pg.expect_download(timeout=30000) as d:
+        pg.evaluate('exportGeoPackage()')
+    eis('zonder Opslaan-als: naam gevraagd, met het voorstel als standaard',
+        vragen and re.match(r'^telrapport_\d{8}_\d{4}\.gpkg$', vragen[-1]), vragen[-1:])
+    eis('download heet zoals gekozen, .gpkg erachter', d.value.suggested_filename == 'Meting Spijkenisse.gpkg', d.value.suggested_filename)
+    pad3 = os.path.join(UIT, 'Meting Spijkenisse.gpkg'); d.value.save_as(pad3)
+    _, z3 = project_qgs(pad3)
+    eis('het project verwijst naar die naam', z3 and './Meting Spijkenisse.gpkg|layername=' in z3.read('telrapport.qgs').decode('utf-8'))
+    prompt_antwoord[0] = '__weg__'; n_dl = len(gestart)
+    pg.evaluate('exportGeoPackage()'); pg.wait_for_timeout(1500)
+    eis('naamvraag geannuleerd: geen download', len(gestart) == n_dl, len(gestart) - n_dl)
     eis('geen JS-fouten in telrapport', not fouten, fouten)
     ctx.close()
     b.close()
 
-print('\n== F. QGIS ==')
+print('\n== G. QGIS ==')
 def zoek_qgis():
     kandidaten = [os.environ.get('TEL_QGIS_PYTHON', '')] + ['/usr/bin/python3.12', '/usr/bin/python3', sys.executable]
     for k in kandidaten:
@@ -249,8 +333,8 @@ qpy = zoek_qgis()
 if not qpy:
     print('  OVERGESLAGEN: geen PyQGIS gevonden (zet TEL_QGIS_PYTHON)')
 else:
-    png = os.path.join(UIT, 'kaart_qgis.png')
-    r = subprocess.run([qpy, os.path.join(HIER, 'gpkg_qgis.py'), pad, png], capture_output=True, text=True,
+    png = os.path.join(UIT, 'kaart_qgis.png'); opmaak_png = os.path.join(UIT, 'opmaak_qgis.png')
+    r = subprocess.run([qpy, os.path.join(HIER, 'gpkg_qgis.py'), pad, png, opmaak_png], capture_output=True, text=True,
                        env=dict(os.environ, QT_QPA_PLATFORM='offscreen'), timeout=300)
     regel = [x for x in r.stdout.splitlines() if x.startswith('{')]
     eis('QGIS draait het script', bool(regel), r.stderr[-400:])
@@ -285,6 +369,46 @@ else:
             lb.get('html') and lb.get('expressie') and '<b>' in lb.get('veld', '') and '"totaal"' in lb.get('veld', ''), lb)
         eis('kaart gerenderd: %s' % png, q.get('png') and os.path.getsize(png) > 20000)
         db.close()
+
+        pj = q.get('project') or {}
+        eis('project geopend vanuit een andere map', pj.get('gelezen') is True, pj.get('gelezen'))
+        eis('project-CRS RD New (EPSG:28992)', pj.get('crs') == 'EPSG:28992', pj.get('crs'))
+        eis('lagenboom: bollen, stippen, spoor, wegvakken, dan de ondergronden (alleen PDOK grijs aan)',
+            pj.get('boom') == [['Clusterbollen', True], ['Waarnemingen', True], ['GPS-spoor', True], ['Wegvakken', True],
+                               ['PDOK BRT-A grijs', True], ['PDOK luchtfoto', False], ['OpenStreetMap', False]], pj.get('boom'))
+        eis('ondergronden in de groep "Ondergrond"', pj.get('groepen') == ['Ondergrond'], pj.get('groepen'))
+        PL = pj.get('lagen', {})
+        vect = {i: l for i, l in PL.items() if l['aanbieder'] == 'ogr'}
+        eis("vier kaartlagen geldig, met hun id's", sorted(vect) == sorted(t + '_telrapport' for t in lagen)
+            and all(l['geldig'] for l in vect.values()), {i: l['geldig'] for i, l in vect.items()})
+        eis('kaartlagen houden hun opmaak in het project',
+            [vect.get(t + '_telrapport', {}).get('opmaak') for t in ['clusters', 'waarnemingen', 'route', 'wegvakken']]
+            == ['nullSymbol', 'categorizedSymbol', 'categorizedSymbol', 'categorizedSymbol']
+            and vect.get('clusters_telrapport', {}).get('diagram'), vect)
+        ras = sorted(i for i, l in PL.items() if l['aanbieder'] == 'wms')
+        eis('ondergronden aanwezig (PDOK via WMTS, OSM via XYZ)', ras == ['osm_telrapport', 'pdok_grijs_telrapport', 'pdok_lucht_telrapport']
+            and 'layers=grijs' in PL['pdok_grijs_telrapport']['bron'] and 'tileMatrixSet=EPSG:28992' in PL['pdok_grijs_telrapport']['bron'], ras)
+        eis('standaardbeeld omvat de telling', pj.get('beeld_bevat_data') is True)
+        o = pj.get('opmaak') or {}
+        eis('opmaak "A4 liggend": kaart, legenda, schaalstok, noordpijl, drie teksten',
+            (o.get('kaarten'), o.get('legendas'), o.get('schaalstokken'), o.get('plaatjes'), len(o.get('labels', []))) == (1, 1, 1, 1, 3), o)
+        eis('kaart in RD op een rond schaalgetal (1:%s), telling helemaal in beeld' % o.get('schaal'),
+            o.get('kaart_crs') == 'EPSG:28992' and o.get('schaal', 1) % 250 == 0 and o.get('kaart_bevat_data'), o)
+        eis('legenda: Waarnemingen, GPS-spoor, Wegvakken, gekoppeld (geen ondergrond, geen dubbele bolkleuren)',
+            o.get('legenda') == ['Waarnemingen', 'GPS-spoor', 'Wegvakken'] and o.get('legenda_gekoppeld'), o.get('legenda'))
+        eis('titel met datum, bronvermelding met PDOK en OpenStreetMap',
+            any(l.startswith('Telrapport · ') for l in o.get('labels', [])) and any('Kadaster' in l and 'OpenStreetMap' in l for l in o.get('labels', [])),
+            o.get('labels'))
+        eis('opmaak als PNG: %s' % opmaak_png, o.get('png') and os.path.getsize(opmaak_png) > 30000)
+        afw = max(((a - x) ** 2 + (b_ - y) ** 2) ** .5 for (a, b_), (x, y) in zip(rd_js, q['rd_punten']))
+        eis('RD-benadering in telrapport < 1 m van PROJ (max %.2f m)' % afw, afw < 1.0)
+        print('  BEKEND  hernoemd bestand: het project vindt %s van de 4 lagen. QGIS onthoudt de bestandsnaam;'
+              ' daarom kies je de naam bij het opslaan.' % pj.get('hernoemd_geldig'))
+        r3 = subprocess.run([qpy, os.path.join(HIER, 'gpkg_qgis.py'), pad3], capture_output=True, text=True,
+                            env=dict(os.environ, QT_QPA_PLATFORM='offscreen'), timeout=300)
+        q3 = json.loads([x for x in r3.stdout.splitlines() if x.startswith('{')][-1]).get('project', {})
+        eis('naam met spatie ("Meting Spijkenisse.gpkg"): project vindt alle lagen',
+            sum(1 for l in q3.get('lagen', {}).values() if l['aanbieder'] == 'ogr' and l['geldig']) == 4)
 
 print('\n%d OK, %d FOUT' % (ok, fout))
 if fout == 0:
