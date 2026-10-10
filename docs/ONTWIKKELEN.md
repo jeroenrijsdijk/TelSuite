@@ -87,7 +87,16 @@ schrijfbare map `/planningen/`. Zonder server werkt de rest gewoon.
 
 ## Plaatsen
 
-Zet alles in één map op een webserver en klaar. De tools linken relatief naar
+**Op telonline.org gaat dit vanzelf** (sinds 10 oktober 2026). Na elke push naar
+`main` zet `.github/workflows/site.yml` de inhoud van de release-ZIP (dus zonder
+wat in `.gitattributes` op `export-ignore` staat) op de branch `site`. Plesk
+volgt die branch ("Deploy using Git", automatisch via een webhook) en zet hem in
+`httpdocs`. Een push met alleen documentatie of tests verandert `site` niet.
+Bestanden die alleen op de server horen (`planningen/.htaccess` met het echte
+wachtwoordpad, de opgeslagen planningen) staan nooit in `site`; de workflow
+stopt als er toch een `.htaccess` of `.htpasswd` in de inhoud komt.
+
+Elders: zet alles in één map op een webserver en klaar. De tools linken relatief naar
 elkaar, en de knop "Direct reconstrueren" geeft de ZIP via IndexedDB door —
 daarvoor moeten veld-app en reconstructor op dezelfde origin staan.
 

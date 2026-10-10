@@ -75,6 +75,9 @@ Deze CLAUDE.md is een samenvatting. Bij twijfel gelden de documenten in `docs/`.
     `.github/workflows/release.yml` zelf de GitHub Release met
     `telsuite-<versie>.zip`. Een nieuw bestand dat niet op de server hoort,
     krijgt `export-ignore` in `.gitattributes`.
+  - **Elke merge naar `main` gaat live.** `.github/workflows/site.yml` zet de
+    inhoud van de release-ZIP op de branch `site`, en Plesk zet die branch op
+    telonline.org. Ook een wijziging zonder versienummer staat dus meteen online.
 - Het planning-endpoint in `planningen/` heeft geen authenticatie. De
   afscherming gebeurt op de server, niet in de repo.
 - **Geen sessielink in commits of PR's.** De repo is openbaar. Zet geen
