@@ -53,6 +53,7 @@ Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 | `traffic_counter_help.html` | handleiding — de functies per tool staan hier |
 | `zip_format_reference.html` | technische specificatie van alle ZIP's en CSV's (EN) |
 | `privacy.html` | privacyverklaring (NL/EN); `valideer.py` controleert dat elk extern domein erin staat |
+| `verantwoording.html` | toelichting voor juristen en adviseurs: wat een telling vastlegt, wat er daarna mee gebeurt, sterke en zwakke plekken (sinds v3.4). Bij een wijziging in wat de apps vastleggen, deze pagina meenemen |
 | `sitemap.xml`, `robots.txt` | de openbare pagina's voor zoekmachines; `valideer.py` controleert dat elk adres op telonline.org staat en bestaat, en meldt een pagina die ontbreekt. Een nieuwe openbare pagina hoort erin; een interne in `NIET_IN_SITEMAP` in `valideer.py` |
 
 ### Intern — bewust niet gelinkt
@@ -126,9 +127,9 @@ verraden het gebied of de positie waar je telt.
 - **Metadata**: Open Graph wel, Twitter/X-kaarten niet.
 - **Huisstijl**: Oswald, met Share Tech Mono als monospace, in de tools.
 - **Documentatiepagina's** (`traffic_counter_help.html`, `over.html`,
-  `privacy.html`, sinds v3.3): kale HTML. Koppen, alinea's, lijsten en tabellen,
+  `privacy.html` sinds v3.3, `verantwoording.html` sinds v3.4): kale HTML. Koppen, alinea's, lijsten en tabellen,
   met één gedeeld stijlblok (`/* ── kale stijl (v3.3)` … `einde kale stijl ── */`)
-  dat in alle drie byte-identiek is. Kleur alleen waar die iets uitlegt: de
+  dat in alle vier byte-identiek is. Kleur alleen waar die iets uitlegt: de
   kleurstalen (`class="kleur"`, rond met `rond`) met hun kleur in `style`. Geen
   andere classes, behalve wat een functie heeft (`domein`, `invullen` en `tabel` in
   privacy.html). `valideer.py` bewaakt dat.

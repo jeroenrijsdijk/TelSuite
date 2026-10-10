@@ -29,6 +29,7 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_taartbol.js    # clusterbol als taart, 24 tests
     node _archief/overpass_rig/functest_shiftsolo.js   # shift-klik isoleert telling, 27 tests
     node _archief/overpass_rig/functest_hwvoorkeur.js  # highway-voorkeur in de matcher + versiestempel, 22 tests
+    node _archief/overpass_rig/functest_gpxtijd.js     # GPX-tijden in echte UTC, drie parkeer-apps, 31 tests
     python3 _archief/overpass_rig/laadtest.py          # elke pagina echt laden in Chromium, 46 tests
     python3 _archief/overpass_rig/hersteltest.py       # harde crash + doortellen, alle veld-apps, 133 tests
     python3 _archief/overpass_rig/statictest.py        # Static door de keten: export, telrapport, verzameling, reconstructor, 24 tests

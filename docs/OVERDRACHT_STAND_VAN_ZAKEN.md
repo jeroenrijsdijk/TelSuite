@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.3.** Handleiding, `over.html` en `privacy.html` zijn kale HTML: zelfde tekst, één klein gedeeld stijlblok, kleur alleen waar die iets uitlegt (`overdracht_v3_3.md`). v3.2 zette een QGIS-project in de GeoPackage uit telrapport, v3.1 bracht de GeoPackage zelf; 3.0 was de in het veld geteste v2.77. Sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
+**Laatste release: v3.4.** Nieuwe pagina `verantwoording.html`: wat een telling vastlegt en wat er daarna mee gebeurt, met de sterke en zwakke plekken, voor een jurist die een telling beoordeelt. De GPX-tijden van de parkeer-apps zijn nu echte UTC (`overdracht_v3_4.md`). v3.3 maakte de documentatiepagina's kaal, v3.2 zette een QGIS-project in de GeoPackage uit telrapport, v3.1 bracht de GeoPackage zelf; 3.0 was de in het veld geteste v2.77. Sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
 
 ---
 
@@ -25,6 +25,7 @@ Suite van single-file HTML-tools voor Nederlandse verkeers- en parkeertellingen,
 | `telplanning.html` | planning & dekking vooraf |
 | `traffic_counter_help.html` | handleiding (NL, deels EN-mix); kale HTML sinds v3.3, net als `over.html` en `privacy.html` |
 | `zip_format_reference.html` | technische ZIP-documentatie (EN) |
+| `verantwoording.html` | toelichting voor juristen: wat een telling vastlegt, sterke en zwakke plekken (v3.4); meenemen bij elke wijziging in wat de apps vastleggen |
 | `snap_methodology.html`, `snaptrace.html`, `winkelstraat_rekenrig.html` | interne reference/rig-tools, bewust niet gelinkt |
 
 ### Losse tools (buiten de suite, in outputs)
@@ -105,6 +106,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - **Laadtest bij wijzigingen aan de opstart van een pagina** (sinds v2.69): `laadtest.py` laadt elke pagina echt in Chromium en faalt op elke JS-fout bij het opstarten. `node --check` en de tagbalans zagen de dode herstelfunctie van pocket niet.
 - **Versienummer ophogen bij elke release** (sinds v2.68, op verzoek van Jay): het staat zichtbaar onderaan `index.html` (`<div class="versie">`). Eén nummer op vier plekken: `RELEASE` in `valideer.py`, `index.html`, "Laatste release" hier, en de naam van de overdracht. `valideer.py` faalt als één ervan afwijkt of als het nummer niet hoger is dan in de vorige release. Daardoor staat `index.html` voortaan in élke release bij de gewijzigde bestanden.
 - **Additief werken**: bestaande logica byte-identiek laten waar mogelijk.
+- **Branches opruimen** (v3.4): na de merge kan de branch weg. Vanuit de Claude-omgeving lukt verwijderen niet; GitHub doet het zelf met *Settings → General → Automatically delete head branches*.
 - **Sitemap en robots.txt** (10 okt 2026, na v3.3, zonder eigen release): de sitemap noemde na de verhuizing nog rvmk.nl, en gaat met elke release-ZIP mee naar de server. Nu: 13 openbare pagina's op telonline.org, zonder datums (niets bij te houden), en een `robots.txt` die naar de sitemap wijst. `valideer.py` controleert het; een nieuwe openbare pagina moet erin, een interne in `NIET_IN_SITEMAP`. telonline.org is aangemeld in Google Search Console, met de sitemap erbij (Jay, 10 okt).
 - Ontwerp eerst bespreken bij niet-triviale keuzes; terse goedkeuring = go.
 
@@ -140,6 +142,11 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - Veiligheidsblok-kop in de handleiding: `<h1>` → `<h4>` voor consistentie (Jay's keuze — hij schreef die sectie zelf). In de kale opmaak (v3.3) is het een van de drie gewone `<h1>`'s op de pagina.
 - Ook kaal maken? `zip_format_reference.html` en `snap_methodology.html` hebben nog de oude opmaak (Jay's keuze; v3.3 deed alleen de drie pagina's voor gebruikers).
 - Engelse variant van `over.html`.
+- **Bewijswaarde van een telling** (uit `verantwoording.html`, v3.4), in volgorde van nut:
+  1. *Vingerafdruk bij de export* (Jay: later): SHA-256 van de ZIP tonen, met een knop "mail deze code naar mezelf". Daarmee is aantoonbaar dat de ZIP sinds dat moment niet veranderd is. WebCrypto, geen server.
+  2. *Ongedaan maken tellen* (`n_ongedaan`) en *versienummer* (`app_versie`) in `_sessie.csv`, als kolommen achteraan. Schemawijziging: eerst KNIME.
+  3. *Consistentiecheck* in telrapport: aantallen in alle bestanden gelijk, elke tik binnen de sessietijd en op de route rond zijn tijdstip.
+  Zodra er één klaar is, de zwakke plekken in `verantwoording.html` bijwerken.
 
 
 **Lessen uit de gpx-tak die terug kunnen**
@@ -181,7 +188,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.3 in één oogopslag
+## 6. Releases v2.32 → v3.4 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -235,6 +242,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.1 | **Kaart bewaren als GeoPackage voor QGIS**: waarnemingen, clusterbollen (taartdiagram), wegvakken en GPS-spoor, met de opmaak van telrapport ingebouwd (`layer_styles`); wat je ziet gaat mee; sql.js via cdnjs; nieuwe `gpkgtest.py` (ook tegen QGIS 3.34) |
 | v3.2 | **QGIS-project in de GeoPackage** (in QGIS 4 nagelopen door Jay: PDOK laadt, beeld en teksten goed, PDF netjes): RD New, PDOK BRT-A grijs (luchtfoto en OSM klaar), lagen in volgorde, printopmaak A4 liggend op een rond schaalgetal met legenda, schaalstok en noordpijl; je kiest de bestandsnaam bij het opslaan (het project onthoudt hem); sessielabels gerepareerd; `gpkgtest.py` 80 tests |
 | v3.3 | **Kale documentatiepagina's**: handleiding, `over.html` en `privacy.html` in gewone HTML met één gedeeld stijlblok (96,7 → 76,4 kB voor de handleiding), tekst woord voor woord gelijk (nieuwe `tekstgelijk.py`); geen Google Fonts meer op die pagina's; op de telefoon geen zijwaarts schuiven meer; `valideer.py` bewaakt het stijlblok |
+| v3.4 | **`verantwoording.html`**: toelichting voor juristen (wat de app vastlegt, wat er daarna mee gebeurt, sterke en zwakke plekken naast een turflijst, wat een beoordelaar kan nagaan), gelinkt vanuit `over.html` en de handleiding; **GPX-tijden in echte UTC** in de drie parkeer-apps (stonden als lokale tijd met een Z, één of twee uur mis); nieuwe `functest_gpxtijd.js` |
 
 ---
 

@@ -38,7 +38,7 @@ Deze CLAUDE.md is een samenvatting. Bij twijfel gelden de documenten in `docs/`.
 - Metadata: Open Graph wel, Twitter/X-kaarten **nooit**.
 - SEO: gebruik "traffic counting" (de activiteit), niet "traffic counter".
 - Huisstijl: Oswald, met Share Tech Mono als monospace, in de tools. De
-  documentatiepagina's (handleiding, over, privacy) zijn sinds v3.3 kale HTML met
+  documentatiepagina's (handleiding, over, privacy, verantwoording) zijn kale HTML met
   één gedeeld stijlblok; kleur alleen waar die iets uitlegt.
 
 ## Controle na elke wijziging
