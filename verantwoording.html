@@ -23,7 +23,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 </head>
 <body>
 <h1>Een telling met telonline.org beoordelen</h1>
-<p>Toelichting voor juristen en adviseurs · stand: versie 3.3, oktober 2026</p>
+<p>Toelichting voor juristen en adviseurs · stand: versie 3.4, oktober 2026</p>
 <p><a href="index.html">← telonline.org</a></p>
 
 <p>Deze toelichting is bedoeld voor wie een verkeers- of parkeertelling beoordeelt die met telonline.org is gemaakt, bijvoorbeeld in een bezwaar- of beroepsprocedure. Ze beschrijft wat de app vastlegt, wat er daarna met de gegevens gebeurt, en waar de sterke en zwakke plekken zitten. De maatstaf is de gangbare werkwijze: turven op papier.</p>
@@ -54,7 +54,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <tr><td>Parkeren: auto's, fietsen, capaciteit</td><td>Loopt een route en tikt per geparkeerd voertuig of parkeervak, met de soort (bijvoorbeeld goed geparkeerd, fout, leeg) en de kant van de straat, door de telefoon te kantelen. Voor een parkeerterrein kan de teller ook een aantal vakken invoeren.</td><td>De gelopen route, de positie van elke tik en een afgeleide plek op de straat. De telknoppen werken alleen als de telefoon een GPS-nauwkeurigheid van 25 meter of beter meldt (op een paar seconden marge na).</td></tr>
 <tr><td>Pocket: tellen in beweging, en pocket-parkeren</td><td>Loopt of fietst met de telefoon in de hand of zak en tikt per waarneming.</td><td>De gelopen route, de positie van elke tik, en per tik twee kwaliteitsmaten: hoe zeker de koppeling aan de straat is en hoe stabiel het GPS-signaal was. Tikken kunnen ook zonder GPS; die hebben dan geen positie.</td></tr>
 </table>
-<p><strong>Positie en route.</strong> De positie van een tik is de laatste positie die de telefoon doorgaf, doorgaans hooguit enkele seconden oud. De route bestaat uit GPS-punten, elk met een tijdstip en de nauwkeurigheid die de telefoon zelf opgeeft (in meters). In <code>_gps.csv</code> staat een punt bij elke verplaatsing van 5 meter of meer; de parkeer-apps schrijven daarnaast elk GPS-punt in een GPX-bestand.</p>
+<p><strong>Positie en route.</strong> De positie van een tik is de laatste positie die de telefoon doorgaf, doorgaans hooguit enkele seconden oud. De route bestaat uit GPS-punten, elk met een tijdstip en de nauwkeurigheid die de telefoon zelf opgeeft (in meters). In <code>_gps.csv</code> staat een punt bij elke verplaatsing van 5 meter of meer; de parkeer-apps schrijven daarnaast elk GPS-punt in een GPX-bestand, met de tijd in UTC.</p>
 <p><strong>Plek op de straat.</strong> De parkeer-apps leggen elke tik ook op de straat: op de wegas uit OpenStreetMap, 4 meter opzij naar de getelde kant. De oorspronkelijke GPS-positie blijft daarnaast in het bestand staan. Het wegennet waarmee de app werkte, wordt mee opgeslagen (<code>_netwerk.csv</code>).</p>
 
 <h2>Wat er daarna met de gegevens gebeurt</h2>
@@ -84,7 +84,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <li><strong>Stilstaand tellen heeft geen route.</strong> Daar is alleen de positie bij de start vastgelegd. Dat de teller daarna op die plek bleef, blijkt niet uit de gegevens.</li>
 <li><strong>De versie van de app staat niet in het bestand</strong> van de tel-apps (wel na een reconstructie). Welke versie gebruikt is, valt af te leiden uit de datum en de openbare versiegeschiedenis.</li>
 <li><strong>Het bestand is achteraf te bewerken.</strong> CSV-bestanden zijn gewone tekst. telonline.org bewaart geen kopie en zet er geen digitale handtekening op. Wel staan dezelfde gegevens op meerdere plekken: het aantal in <code>_sessie.csv</code>, de regels in <code>_telregels.csv</code>, de optelling per straat in <code>_straten.csv</code>, de stippen op de kaartafbeelding, en tijd en plaats van elke tik tegenover de route. Wie één bestand aanpast en de rest niet, valt op. Een consequente vervalsing van alle bestanden is met programmeerkennis mogelijk.</li>
-<li><strong>Tijden in het GPX-bestand.</strong> In versie 3.3 en eerder staan in het GPX-bestand van de parkeer-apps lokale tijden met het teken voor UTC ("Z"). Ze lopen daardoor één of twee uur verkeerd. De tijden in de CSV-bestanden zijn juist en gaan voor.</li>
+<li><strong>Tijden in oudere GPX-bestanden.</strong> Tot en met versie 3.3 stonden in het GPX-bestand van de parkeer-apps lokale tijden met het teken voor UTC ("Z"). Die tijden lopen één of twee uur verkeerd. Sinds versie 3.4 zijn het de juiste UTC-tijden. De tijden in de CSV-bestanden waren altijd juist en gaan voor.</li>
 </ul>
 
 <h2>Wat een beoordelaar kan nagaan</h2>
@@ -99,6 +99,6 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 
 <h2>Over deze toelichting</h2>
 <p>Opgesteld door de maker van telonline.org. Ze beschrijft de werking van de software en is geen juridisch advies. telonline.org is gratis software onder de GNU General Public License, versie 3, en wordt geleverd zonder garantie. De broncode en de wijzigingsgeschiedenis staan op <a href="https://github.com/jeroenrijsdijk/TelSuite">github.com/jeroenrijsdijk/TelSuite</a>, de pakketten per versie onder <a href="https://github.com/jeroenrijsdijk/TelSuite/releases">Releases</a>.</p>
-<p>Stand: versie 3.3, 10 oktober 2026.</p>
+<p>Stand: versie 3.4, 10 oktober 2026.</p>
 </body>
 </html>

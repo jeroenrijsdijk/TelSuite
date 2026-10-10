@@ -793,11 +793,24 @@ document.addEventListener('visibilitychange', function() {
 
 /* ── Helpers ──────────────────────────────────────────── */
 function pad(n) { return String(n).padStart(2,'0'); }
-function timestamp() {
-  var d=new Date();
+function timestamp(d) {
+  d=d||new Date();
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
     ' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
 }
+/* ── GPX-tijd (v3.4) ── */
+// GPX schrijft tijden in UTC. Tot v3.3 stond in de GPX de lokale tijd met een
+// 'Z' erachter, dus één of twee uur mis. Een routepunt draagt sinds v3.4 zijn
+// UTC-moment (utc), van hetzelfde moment als ts. Een punt uit een noodkopie van
+// vóór v3.4 heeft alleen ts; dat rekent de browser om, wat alleen in het dubbele
+// uur bij de overgang naar wintertijd niet eenduidig is.
+function utcTijd(d) { return d.toISOString().replace(/\.\d{3}Z$/, 'Z'); }
+function gpxTijd(tp) {
+  if (tp.utc) return tp.utc;
+  var d = new Date(String(tp.ts).replace(' ', 'T'));
+  return isNaN(d.getTime()) ? '' : utcTijd(d);
+}
+/* ── einde gedeeld blok GPX-tijd ── */
 function timeOnly() { var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
 function filestamp() { var d=new Date(); return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes()); }
 
@@ -1110,7 +1123,8 @@ function onPosition(pos) {
   var latStr=lat.toFixed(6).replace(',','.');
   var lonStr=lon.toFixed(6).replace(',','.');
   var hdgStr = currentBearing!==null ? Math.round(currentBearing).toString() : '';
-  trackPoints.push({ts:timestamp(), lat:latStr, lon:lonStr, acc:currentAcc, hdg:hdgStr});
+  var nu=new Date();
+  trackPoints.push({ts:timestamp(nu), utc:utcTijd(nu), lat:latStr, lon:lonStr, acc:currentAcc, hdg:hdgStr});
   // GPS-log met 5m afstandsdrempel
   if (lastGpsLogLat === null || haversine(lat, lon, lastGpsLogLat, lastGpsLogLon) >= 5) {
     var snapAtGps = snapToRoad(lat, lon);
@@ -1969,7 +1983,8 @@ function buildGpxString() {
     lines.push('    <trkseg>');
     trackPoints.forEach(function(tp) {
       lines.push('      <trkpt lat="'+tp.lat+'" lon="'+tp.lon+'">');
-      lines.push('        <time>'+tp.ts.replace(' ','T')+'Z</time>');
+      var t = gpxTijd(tp);
+      if (t) lines.push('        <time>'+t+'</time>');
       lines.push('      </trkpt>');
     });
     lines.push('    </trkseg>');

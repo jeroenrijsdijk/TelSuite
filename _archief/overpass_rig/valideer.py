@@ -12,13 +12,16 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.3'
-# v3.3: handleiding, over.html en privacy.html kaal (gewone HTML, gedeeld stijlblok).
-VERWACHT_GEWIJZIGD = {'index.html', 'traffic_counter_help.html', 'over.html', 'privacy.html'}
+RELEASE = 'v3.4'
+# v3.4: verantwoording.html (toelichting voor juristen); GPX-tijden in echte UTC
+# in de drie parkeer-apps; links in over.html en de handleiding; ZIP-referentie.
+VERWACHT_GEWIJZIGD = {'index.html', 'verantwoording.html', 'over.html', 'traffic_counter_help.html',
+                      'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                      'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 
 # v3.3: documentatiepagina's in kale HTML, met hetzelfde stijlblok
-KAAL = ['traffic_counter_help.html', 'over.html', 'privacy.html']
+KAAL = ['traffic_counter_help.html', 'over.html', 'privacy.html', 'verantwoording.html']
 
 VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
         'link', 'meta', 'param', 'source', 'track', 'wbr'}
@@ -185,6 +188,9 @@ groepen = [
                           'pocket_count.html'],
      'function cacheWaysInTiles(elements, lat, lon, radiusM) {',
      '  } catch (e) { /* cache is best-effort: nooit het tellen verstoren */ }\n}'),
+    # v3.4: GPX-tijd in echte UTC, gedeeld door de drie parkeer-apps
+    ('GPX-tijd', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
+     '/* ── GPX-tijd (v3.4) ── */', '/* ── einde gedeeld blok GPX-tijd ── */'),
     # v3.3: de kale stijl van de documentatiepagina's
     ('kale stijl', KAAL,
      '/* ── kale stijl (v3.3)', '/* ── einde kale stijl ── */'),
@@ -313,7 +319,8 @@ print('\n== privacyverklaring dekt alle externe domeinen ==')
 # (als <span class="domein">). Een nieuwe dienst zonder vermelding is een fout:
 # dan belooft de verklaring minder dan de site doet.
 # Uitgezonderd: alleen links of verwijzingen, geen verzoek vanuit de browser.
-GEEN_VERZOEK = {'telonline.org', 'schema.org', 'www.openstreetmap.org', 'open-meteo.com'}
+GEEN_VERZOEK = {'telonline.org', 'schema.org', 'www.openstreetmap.org', 'open-meteo.com',
+                'github.com'}   # v3.4: link naar de broncode in verantwoording.html
 priv_pad = os.path.join(NIEUW_DIR, 'privacy.html')
 if not os.path.exists(priv_pad):
     print('  FOUT privacy.html ontbreekt'); fouten += 1
