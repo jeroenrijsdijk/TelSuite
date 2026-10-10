@@ -1,0 +1,2001 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telplanning</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #f0f0ec;
+    --surface: #ffffff;
+    --border:  #b0b0a8;
+    --text:    #1a1918;
+    --dim:     #666660;
+    --muted:   #999990;
+    --font:    'Oswald', sans-serif;
+    --mono:    'Share Tech Mono', monospace;
+
+    /* Highway type kleuren */
+    --c-primary:     #c0392b;
+    --c-secondary:   #e67e22;
+    --c-tertiary:    #f1c40f;
+    --c-residential: #2980b9;
+    --c-service:     #8e44ad;
+    --c-cycleway:    #27ae60;
+    --c-footway:     #16a085;
+    --c-other:       #7f8c8d;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: var(--font);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  #header {
+    background: var(--text);
+    color: var(--bg);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 12px;
+  }
+  #header h1 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  #header .sub {
+    font-size: 0.6rem;
+    letter-spacing: 2px;
+    opacity: 0.55;
+    text-transform: uppercase;
+  }
+  #status-bar {
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    opacity: 0.7;
+    font-family: var(--mono);
+    white-space: nowrap;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+  }
+
+  /* ── Layout ── */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Mode tabs ── */
+  #mode-tabs {
+    display: flex;
+    gap: 4px;
+    background: rgba(255,255,255,0.06);
+    padding: 3px;
+    border-radius: 4px;
+  }
+  .mode-tab {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.55);
+    font-family: var(--font);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .mode-tab:hover { color: rgba(255,255,255,0.85); }
+  .mode-tab.active {
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  /* ── Dekkings-modus ── */
+  body.mode-dekking .maken-only { display: none !important; }
+  body.mode-maken   .dekking-only { display: none !important; }
+
+  .dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 4px;
+    padding: 14px 10px;
+    text-align: center;
+    color: var(--dim);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .dropzone:hover, .dropzone.over {
+    border-color: var(--text); color: var(--text);
+  }
+  .dropzone input { display: none; }
+  .dropzone .dz-icon { font-size: 1.4rem; margin-bottom: 4px; }
+
+  .matrix {
+    display: grid;
+    grid-template-columns: 72px repeat(3, 1fr);
+    gap: 3px;
+    margin-top: 8px;
+  }
+  .matrix .row-label {
+    font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--muted);
+    display: flex; align-items: center;
+  }
+  .matrix .col-head {
+    font-size: 0.55rem; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--muted);
+    text-align: center; padding: 2px 0;
+  }
+  .matrix-cell {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    aspect-ratio: 1.6;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.1s, background 0.1s;
+  }
+  .matrix-cell:hover { border-color: var(--text); }
+  .matrix-cell.selected {
+    border-color: var(--text);
+    border-width: 2px;
+    margin: -1px;   /* compenseer zodat aspect-ratio constant blijft */
+  }
+  .matrix-cell .cnt {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 700; color: var(--text);
+    font-family: var(--mono);
+  }
+  /* Heatmap-kleuring per dekking */
+  .matrix-cell.lvl-0 { background: #f4d3d0; }   /* helemaal niet bezocht */
+  .matrix-cell.lvl-1 { background: #ffe7c2; }   /* 1× bezocht */
+  .matrix-cell.lvl-2 { background: #d4edda; }   /* 2× bezocht */
+  .matrix-cell.lvl-3 { background: #a8dab5; }   /* 3+× bezocht */
+
+  #cov-stats {
+    font-size: 0.7rem;
+    color: var(--dim);
+    line-height: 1.5;
+    font-family: var(--mono);
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  /* Scrollende inhoud: alles behalve de vaste export-voet.
+     min-height:0 is nodig zodat een flex-kind écht mag scrollen i.p.v.
+     de container op te rekken (oorzaak van de afgekapte linkerkolom). */
+  #sidebar-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Vaste voet onderaan de sidebar — export blijft altijd bereikbaar. */
+  #sidebar-foot {
+    flex: 0 0 auto;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .panel-section {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-section:last-child { border-bottom: none; }
+
+  .section-title {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  /* ── Achtergrondkaart-keuze ── */
+  .basemap-row { display: flex; gap: 4px; }
+  .basemap-pill {
+    flex: 1;
+    padding: 6px 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    border-radius: 3px;
+    font-family: var(--font);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--dim);
+    cursor: pointer;
+    transition: border-color 0.1s, color 0.1s, background 0.1s;
+  }
+  .basemap-pill:hover { border-color: var(--text); color: var(--text); }
+  .basemap-pill.active { border-color: var(--text); background: var(--text); color: var(--bg); }
+  .basemap-slider-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 8px;
+  }
+  .basemap-slider-row label {
+    font-size: 0.6rem; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .basemap-slider-row input[type=range] { flex: 1; accent-color: var(--text); }
+  .basemap-slider-row .pct {
+    font-size: 0.7rem; font-family: var(--mono);
+    color: var(--text); min-width: 36px; text-align: right;
+  }
+
+  /* ── Tekenmodus ── */
+  #btn-draw {
+    width: 100%;
+    padding: 10px;
+    background: var(--text);
+    color: var(--bg);
+    border: none;
+    border-radius: 3px;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  #btn-draw:hover { opacity: 0.85; }
+  #btn-draw.drawing {
+    background: #e74c3c;
+  }
+  #btn-clear {
+    width: 100%;
+    margin-top: 6px;
+    padding: 7px;
+    background: none;
+    color: var(--dim);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--font);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  #btn-clear:hover { border-color: #e74c3c; color: #e74c3c; }
+
+  /* ── Highway type toggles ── */
+  .hw-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .hw-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.1s;
+    user-select: none;
+  }
+  .hw-toggle:hover { background: rgba(0,0,0,0.04); }
+  .hw-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: opacity 0.2s;
+  }
+  .hw-toggle.off .hw-dot { opacity: 0.2; }
+  .hw-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    flex: 1;
+    transition: opacity 0.2s;
+  }
+  .hw-toggle.off .hw-label { opacity: 0.35; }
+  .hw-count {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    min-width: 24px;
+    text-align: right;
+  }
+
+  /* ── Selectie knoppen ── */
+  .sel-btns {
+    display: flex;
+    gap: 6px;
+  }
+  .sel-btn {
+    flex: 1;
+    padding: 6px 4px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--font);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--dim);
+    cursor: pointer;
+    transition: border-color 0.1s, color 0.1s;
+  }
+  .sel-btn:hover { border-color: var(--text); color: var(--text); }
+
+  /* ── Metadata ── */
+  .meta-field {
+    margin-bottom: 8px;
+  }
+  .meta-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 3px;
+  }
+  .meta-input {
+    width: 100%;
+    padding: 7px 9px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--font);
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .meta-input:focus { border-color: var(--text); }
+
+  /* ── Stats ── */
+  #stats-line {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--dim);
+    line-height: 1.6;
+  }
+
+  /* ── Maak Telling knop ── */
+  #btn-export {
+    width: 100%;
+    padding: 13px;
+    background: var(--text);
+    color: var(--bg);
+    border: none;
+    border-radius: 3px;
+    font-family: var(--font);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  #btn-export:hover { opacity: 0.85; }
+  #btn-export:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── Kaart ── */
+  #map { flex: 1; }
+
+  /* ── Opdrachten-paneel ── */
+  #opdrachten-overlay {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(26,25,24,0.55);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+  }
+  #opdrachten-overlay.open { display: flex; }
+  #opdrachten-panel {
+    background: var(--surface);
+    width: 420px;
+    max-width: calc(100vw - 32px);
+    max-height: 80vh;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    overflow: hidden;
+  }
+  #opdrachten-header {
+    padding: 14px 16px;
+    background: var(--text);
+    color: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  #opdrachten-header h2 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  #btn-close-opdrachten {
+    background: none;
+    border: none;
+    color: var(--bg);
+    font-size: 1.2rem;
+    cursor: pointer;
+    opacity: 0.7;
+    padding: 0 4px;
+  }
+  #btn-close-opdrachten:hover { opacity: 1; }
+  #opdrachten-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 8px;
+  }
+  .opdracht-row {
+    position: relative;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color 0.1s, background 0.1s;
+  }
+  .opdracht-row:hover { border-color: var(--text); background: #f5f5f1; }
+  .opdracht-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 0.65rem;
+    font-family: var(--font);
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 4px 6px;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+  .opdracht-row:hover .opdracht-delete { opacity: 1; }
+  .opdracht-delete:hover { color: #c0392b; }
+  .opdracht-naam {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+  .opdracht-meta {
+    font-size: 0.65rem;
+    font-family: var(--mono);
+    color: var(--muted);
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .opdracht-type {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 2px;
+    display: inline-block;
+    margin-bottom: 4px;
+  }
+  .opdracht-type.auto  { background: #fef3e8; color: #c07800; }
+  .opdracht-type.fiets { background: #e8f4fb; color: #2980b9; }
+  #opdrachten-leeg {
+    padding: 24px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* ── Leaflet draw override ── */
+  .leaflet-draw-toolbar a {
+    font-family: var(--font) !important;
+  }
+
+  /* ── Wegvak tooltip ── */
+  .way-tip {
+    font-family: var(--font);
+    font-size: 11px;
+    background: rgba(26,25,24,0.88) !important;
+    color: #e8eaed !important;
+    border: none !important;
+    border-radius: 3px !important;
+    padding: 4px 8px !important;
+    white-space: nowrap;
+  }
+
+  /* ── Loading overlay ── */
+  #loading {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: calc(280px + 50%);
+    transform: translate(-50%, -50%);
+    background: rgba(26,25,24,0.85);
+    color: #f0f0ec;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 12px 20px;
+    border-radius: 4px;
+    z-index: 9999;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body class="mode-maken">
+
+<div id="header">
+  <div>
+    <div class="sub">Telonline Verkeerstellingen</div>
+    <h1>Telplanning</h1>
+  </div>
+  <div id="mode-tabs">
+    <button class="mode-tab active" id="tab-maken"   onclick="setMode('maken')">📋 Maken</button>
+    <button class="mode-tab"        id="tab-dekking" onclick="setMode('dekking')">🗺️ Dekking</button>
+  </div>
+  <div id="status-bar">Teken een contour om te beginnen</div>
+</div>
+
+<div id="main">
+
+  <div id="sidebar">
+
+    <div id="sidebar-scroll">
+
+    <!-- Tekenen — gedeeld tussen beide modi -->
+    <div class="panel-section">
+      <div class="section-title">Gebied</div>
+      <button id="btn-draw" onclick="toggleDraw()">&#9998; Teken contour</button>
+      <button id="btn-clear" onclick="clearAll()" style="display:none">&#10005; Wis alles</button>
+    </div>
+
+    <!-- Hertelling — planning reconstrueren uit een eerdere parkeer-/fietsZIP -->
+    <div class="panel-section maken-only">
+      <div class="section-title">Of: uit eerdere telling</div>
+      <label id="dz-hertelling" class="dropzone">
+        <div class="dz-icon">&#128260;</div>
+        <div>Sleep een parkeer- of fiets-ZIP hier<br>voor een hertelling</div>
+        <input type="file" id="hertelling-input" accept=".zip">
+      </label>
+    </div>
+
+    <!-- Highway-type toggles — gedeeld (filter werkt in beide modi) -->
+    <div class="panel-section">
+      <div class="section-title">Wegtypes</div>
+      <div class="hw-toggles" id="hw-toggles">
+        <div class="hw-toggle" data-hw="primary"     onclick="toggleHw(this)">
+          <div class="hw-dot" style="background:var(--c-primary)"></div>
+          <div class="hw-label">Primary</div>
+          <div class="hw-count" id="cnt-primary">0</div>
+        </div>
+        <div class="hw-toggle" data-hw="secondary"   onclick="toggleHw(this)">
+          <div class="hw-dot" style="background:var(--c-secondary)"></div>
+          <div class="hw-label">Secondary</div>
+          <div class="hw-count" id="cnt-secondary">0</div>
+        </div>
+        <div class="hw-toggle" data-hw="tertiary"    onclick="toggleHw(this)">
+          <div class="hw-dot" style="background:var(--c-tertiary)"></div>
+          <div class="hw-label">Tertiary</div>
+          <div class="hw-count" id="cnt-tertiary">0</div>
+        </div>
+        <div class="hw-toggle" data-hw="residential" onclick="toggleHw(this)">
+          <div class="hw-dot" style="background:var(--c-residential)"></div>
+          <div class="hw-label">Residential</div>
+          <div class="hw-count" id="cnt-residential">0</div>
+        </div>
+        <div class="hw-toggle" data-hw="service"     onclick="toggleHw(this)">
+          <div class="hw-dot" style="background:var(--c-service)"></div>
+          <div class="hw-label">Service</div>
+          <div class="hw-count" id="cnt-service">0</div>
+        </div>
+        <div class="hw-toggle" data-hw="cycleway"    onclick="toggleHw(this)">
+          <div class="hw-dot" style="background:var(--c-cycleway)"></div>
+          <div class="hw-label">Cycleway / path</div>
+          <div class="hw-count" id="cnt-cycleway">0</div>
+        </div>
+        <div class="hw-toggle" data-hw="footway"     onclick="toggleHw(this)">
+          <div class="hw-dot" style="background:var(--c-footway)"></div>
+          <div class="hw-label">Footway / ped</div>
+          <div class="hw-count" id="cnt-footway">0</div>
+        </div>
+        <div class="hw-toggle" data-hw="other"       onclick="toggleHw(this)">
+          <div class="hw-dot" style="background:var(--c-other)"></div>
+          <div class="hw-label">Overig</div>
+          <div class="hw-count" id="cnt-other">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selectie — alleen in Maken -->
+    <div class="panel-section maken-only">
+      <div class="section-title">Selectie</div>
+      <div class="sel-btns">
+        <button class="sel-btn" onclick="selectAll()">Alles aan</button>
+        <button class="sel-btn" onclick="selectNone()">Alles uit</button>
+        <button class="sel-btn" onclick="invertSelection()">Omkeren</button>
+      </div>
+    </div>
+
+    <!-- Stats — alleen in Maken -->
+    <div class="panel-section maken-only">
+      <div class="section-title">Overzicht</div>
+      <div id="stats-line">Nog geen wegen geladen.</div>
+    </div>
+
+    <!-- Metadata — alleen in Maken -->
+    <div class="panel-section maken-only">
+      <div class="section-title">Sessiegegevens</div>
+      <div class="meta-field">
+        <div class="meta-label">Naam</div>
+        <input class="meta-input" id="meta-naam" type="text" placeholder="bijv. Spijkenisse centrum">
+      </div>
+      <div class="meta-field">
+        <div class="meta-label">Datum</div>
+        <input class="meta-input" id="meta-datum" type="date">
+      </div>
+      <div class="meta-field">
+        <div class="meta-label">Tijdstip</div>
+        <input class="meta-input" id="meta-tijd" type="time">
+      </div>
+      <div class="meta-field">
+        <div class="meta-label">Teller ID</div>
+        <input class="meta-input" id="meta-teller" type="text" placeholder="bijv. T01">
+      </div>
+      <div class="meta-field" style="margin-bottom:0">
+        <div class="meta-label">Teltype</div>
+        <select class="meta-input" id="meta-teltype">
+          <option value="auto">Autoparkeren (Walk and Survey Parked Cars)</option>
+          <option value="fiets">Fietsparkeren (Walk and Survey Parked Bikes)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Dekkings-modus: ZIPs inladen -->
+    <div class="panel-section dekking-only">
+      <div class="section-title">Tellingen laden</div>
+      <label id="dz-bezocht" class="dropzone">
+        <div class="dz-icon">📂</div>
+        <div>Sleep pocket-ZIPs hier<br>of klik om te kiezen</div>
+        <input type="file" id="bezocht-input" multiple accept=".zip">
+      </label>
+      <div id="cov-stats" style="margin-top:10px">Nog geen tellingen geladen.</div>
+    </div>
+
+    <!-- Dekkings-modus: cel-matrix -->
+    <div class="panel-section dekking-only">
+      <div class="section-title">Selectie dagdeel</div>
+      <div id="dekking-matrix"></div>
+      <div style="margin-top:8px;font-size:0.65rem;color:var(--muted);line-height:1.4">
+        Cel = wegen × bezoeken in dat dagdeel.<br>
+        Klik om de kaart te kleuren naar dekking.
+      </div>
+    </div>
+
+    <!-- Achtergrondkaart — beschikbaar in beide modi -->
+    <div class="panel-section">
+      <div class="section-title">Achtergrond</div>
+      <div class="basemap-row">
+        <button class="basemap-pill active" data-bm="osm"       onclick="setBasemap('osm')">OSM</button>
+        <button class="basemap-pill"        data-bm="positron"  onclick="setBasemap('positron')">Positron</button>
+        <button class="basemap-pill"        data-bm="topo"      onclick="setBasemap('topo')">Topo</button>
+        <button class="basemap-pill"        data-bm="luchtfoto" onclick="setBasemap('luchtfoto')">Lucht</button>
+      </div>
+      <div class="basemap-slider-row">
+        <label>basis</label>
+        <input type="range" id="basemap-opacity" min="0" max="100" value="100" step="5"
+               oninput="setBasemapOpacity(this.value)">
+        <span class="pct" id="basemap-pct">100%</span>
+      </div>
+    </div>
+
+    </div><!-- /#sidebar-scroll -->
+
+    <!-- Opdrachten + Export — vaste voet, alleen in Maken -->
+    <div id="sidebar-foot" class="maken-only">
+      <button id="btn-opdrachten" onclick="openOpdrachten()"
+        style="width:100%;padding:9px;background:none;border:1px solid var(--border);
+               border-radius:3px;font-family:var(--font);font-size:0.7rem;font-weight:700;
+               letter-spacing:2px;text-transform:uppercase;color:var(--dim);cursor:pointer;
+               margin-bottom:8px;transition:border-color 0.1s,color 0.1s;"
+        onmouseover="this.style.borderColor='var(--text)';this.style.color='var(--text)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--dim)'">
+        &#9776; Opdrachten
+      </button>
+      <button id="btn-export" disabled onclick="exportPlanning()">
+        &#8595; Maak Telling
+      </button>
+    </div>
+
+  </div>
+
+  <div id="map"></div>
+  <div id="loading">Overpass ophalen&hellip;</div>
+
+</div>
+
+<!-- Opdrachten overlay -->
+<div id="opdrachten-overlay" onclick="closeOpdrachtenOnBg(event)">
+  <div id="opdrachten-panel">
+    <div id="opdrachten-header">
+      <h2>&#9776; Opdrachten</h2>
+      <button id="btn-close-opdrachten" onclick="closeOpdrachten()">&#10005;</button>
+    </div>
+    <div id="opdrachten-list">
+      <div id="opdrachten-leeg">Laden&hellip;</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+var ways        = [];      // [{id, naam, highway, coords, segments:[{idx,count,coords}], selected, visible, layer, segLayers:[], segHits:[]}]
+var drawingMode = false;
+var drawnPolygons = [];  // meerdere getekende contouren
+var currentMode = 'maken';   // 'maken' | 'dekking'
+
+// Segment-aware analyse: zelfde algoritme als pocket_count/build_bezocht/telrapport.
+// Wegen worden in ~40m segmenten gesplitst voor dekkings-modus.
+var SEGMENT_TARGET_M = 40;
+var SEGMENT_MIN_M    = 60;
+
+function polyLengthM(coords) {
+  if (!coords || coords.length < 2) return 0;
+  var LAT_M = 111320;
+  var total = 0;
+  for (var i = 1; i < coords.length; i++) {
+    var cos = Math.cos(coords[i-1][0] * Math.PI / 180);
+    var dx = (coords[i][1] - coords[i-1][1]) * LAT_M * cos;
+    var dy = (coords[i][0] - coords[i-1][0]) * LAT_M;
+    total += Math.sqrt(dx*dx + dy*dy);
+  }
+  return total;
+}
+
+// Knipt een polyline parametrisch in segmenten van ~SEGMENT_TARGET_M.
+// Returns: [{idx, count, coords:[[lat,lon],...]}, ...]
+function splitWayIntoSegments(coords) {
+  if (!coords || coords.length < 2) return [{idx:0, count:1, coords: coords||[]}];
+  var total = polyLengthM(coords);
+  if (total < SEGMENT_MIN_M) return [{idx:0, count:1, coords: coords.slice()}];
+  var N = Math.max(1, Math.round(total / SEGMENT_TARGET_M));
+  if (N === 1) return [{idx:0, count:1, coords: coords.slice()}];
+  var LAT_M = 111320;
+  var cum = [0];
+  for (var i = 1; i < coords.length; i++) {
+    var cos = Math.cos(coords[i-1][0] * Math.PI / 180);
+    var dx = (coords[i][1] - coords[i-1][1]) * LAT_M * cos;
+    var dy = (coords[i][0] - coords[i-1][0]) * LAT_M;
+    cum.push(cum[i-1] + Math.sqrt(dx*dx + dy*dy));
+  }
+  var segLen = total / N;
+  var result = [];
+  var cur = [coords[0]];
+  var nextCut = segLen;
+  var done = 0;
+  for (var j = 1; j < coords.length; j++) {
+    var dStart = cum[j-1], dEnd = cum[j], edge = dEnd - dStart;
+    while (done < N - 1 && dEnd >= nextCut && edge > 0) {
+      var t = (nextCut - dStart) / edge;
+      var cLat = coords[j-1][0] + t * (coords[j][0] - coords[j-1][0]);
+      var cLon = coords[j-1][1] + t * (coords[j][1] - coords[j-1][1]);
+      cur.push([cLat, cLon]);
+      result.push({idx: done, count: N, coords: cur});
+      cur = [[cLat, cLon]];
+      nextCut += segLen;
+      done++;
+    }
+    cur.push(coords[j]);
+  }
+  result.push({idx: done, count: N, coords: cur});
+  return result;
+}
+
+// ── Dekkings-modus state ─────────────────────────────────────────────────────
+// Coverage: per wegvak → per cell-key → aantal bezoeken
+// cell-key = `${dagtype}|${dagdeel}`  (bv. "weekdag|middag")
+// Dagdelen volgen het schema in de overdracht: 6 vakken × 3 dagtypes = 18 cellen
+var DAGDELEN = [
+  { key:'ochtendspits', label:'ocht.spits', h0:7,  h1:9.5 },
+  { key:'ochtend',      label:'ochtend',    h0:9.5,h1:12  },
+  { key:'middag',       label:'middag',     h0:12, h1:15  },
+  { key:'avondspits',   label:'av.spits',   h0:15, h1:18.5},
+  { key:'avond',        label:'avond',      h0:18.5,h1:22 },
+  { key:'nacht',        label:'nacht',      h0:22, h1:7   }   // wrap
+];
+var DAGTYPES = [
+  { key:'weekdag',  label:'weekdag'  },
+  { key:'zaterdag', label:'zaterdag' },
+  { key:'zondag',   label:'zondag'   }
+];
+// JS getDay(): 0=zo, 1=ma..6=za
+function dagtypeForDate(d) {
+  var dow = d.getDay();
+  if (dow === 0) return 'zondag';
+  if (dow === 6) return 'zaterdag';
+  return 'weekdag';
+}
+function dagdeelForTime(hh) {
+  // hh: uur als float (bv. 14.5 voor 14:30)
+  for (var i = 0; i < DAGDELEN.length; i++) {
+    var d = DAGDELEN[i];
+    if (d.key === 'nacht') {  // wrap-around
+      if (hh >= d.h0 || hh < d.h1) return d.key;
+    } else {
+      if (hh >= d.h0 && hh < d.h1) return d.key;
+    }
+  }
+  return 'nacht';
+}
+
+// Composite key voor coverage: "wayId:segIdx".
+// v2.2 ZIPs zonder segment_index → segIdx=0 (alle telregels op segment 0;
+// onderrapportage maar geaccepteerd voor backward compat).
+function segKey(wid, segIdx) { return wid + ':' + (segIdx || 0); }
+
+var coverage      = {};   // segKey → { 'weekdag|middag': aantal, ... }
+var loadedVisits  = 0;    // teller voor stats-regel
+var loadedZips    = 0;
+var selectedCell  = null; // bv. 'weekdag|middag'
+var COV_COLORS    = ['#e74c3c', '#f39c12', '#27ae60', '#1e8449'];  // 0,1,2,3+
+
+// Coverage voor een specifiek segment in de geselecteerde cel.
+function coverageForSeg(wid, segIdx) {
+  if (!selectedCell) return 0;
+  var k = segKey(wid, segIdx);
+  return (coverage[k] && coverage[k][selectedCell]) || 0;
+}
+
+// Coverage voor een hele way, geaggregeerd over alle segmenten (max of som
+// hangt af van de modus). Voor dekking-matrix: aantal unieke bezoeken
+// op deze way in deze cel = aantal segmenten met ≥1 bezoek, gedeeld door
+// totaal segmenten, of simpeler: max-bezoeken over segmenten.
+function coverageForWay(wid) {
+  if (!selectedCell) return 0;
+  // Way-niveau aggregatie: maximum over segmenten (de "best gedekte plek"
+  // op de way). In dekking-modus tekenen we per segment, dus deze functie
+  // wordt nog enkel gebruikt voor stats.
+  var way = ways.find(function(w){ return w.id === wid; });
+  if (!way) return (coverage[segKey(wid,0)] && coverage[segKey(wid,0)][selectedCell]) || 0;
+  var best = 0;
+  way.segments.forEach(function(s) {
+    var v = coverageForSeg(wid, s.idx);
+    if (v > best) best = v;
+  });
+  return best;
+}
+
+// Punt-in-polygoon (ray-casting) — GeoJSON coords [lon,lat]
+function ptInGeoJsonPoly(lon, lat, geojsonPoly) {
+  var ring = geojsonPoly.coordinates[0];
+  var inside = false;
+  for (var i=0,j=ring.length-1; i<ring.length; j=i++) {
+    var xi=ring[i][0],yi=ring[i][1], xj=ring[j][0],yj=ring[j][1];
+    if (((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
+// Weg centroïd
+function wayCentroid(coords) {
+  var la=0,lo=0;
+  coords.forEach(function(c){la+=c[0];lo+=c[1];});
+  return {lat:la/coords.length, lon:lo/coords.length};
+}
+
+var HW_GROUPS = {
+  primary:     ['primary', 'primary_link'],
+  secondary:   ['secondary', 'secondary_link'],
+  tertiary:    ['tertiary', 'tertiary_link'],
+  residential: ['residential', 'living_street', 'unclassified'],
+  service:     ['service'],
+  cycleway:    ['cycleway', 'path', 'track'],
+  footway:     ['footway', 'pedestrian', 'steps'],
+  other:       []   // alles wat niet in bovenstaande valt
+};
+var hwVisible = {};
+Object.keys(HW_GROUPS).forEach(function(k){ hwVisible[k] = true; });
+
+var HW_COLORS = {
+  primary:     '#c0392b',
+  secondary:   '#e67e22',
+  tertiary:    '#d4ac0d',
+  residential: '#2980b9',
+  service:     '#8e44ad',
+  cycleway:    '#27ae60',
+  footway:     '#16a085',
+  other:       '#7f8c8d'
+};
+
+/* ---- Verse-data-garantie -------------------------------------------------
+   Elk Overpass-antwoord draagt osm3s.timestamp_osm_base: het moment waarop de
+   dataset van die server voor het laatst is bijgewerkt. Een mirror die achter-
+   loopt levert stilzwijgend verouderde wegen — nieuwe of gewijzigde straten
+   ontbreken dan zonder dat je het merkt. We keuren daarom elk antwoord zelf.
+   Te oud → als mislukt behandelen, zodat de volgende endpoint aan de beurt is. */
+var OSM_MAX_LAG_DAGEN = 7;
+function dataIsVers(data) {
+  try {
+    var ts = data && data.osm3s && data.osm3s.timestamp_osm_base;
+    if (!ts) return true;                       // geen stempel → niet afkeuren
+    var lag = (Date.now() - new Date(ts).getTime()) / 86400000;
+    if (isNaN(lag)) return true;
+    return lag <= OSM_MAX_LAG_DAGEN;
+  } catch (e) { return true; }                  // nooit het tellen blokkeren op een parseerfout
+}
+
+var OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter'
+];
+
+// ── Map init ─────────────────────────────────────────────────────────────────
+// Bewaar laatst gebruikte locatie in localStorage; start daar 2 zoomstappen
+// uitgezoomd zodat je een ruimere context ziet voordat je verder inzoomt.
+var VIEW_STORAGE_KEY = 'telplanning_view';
+
+function loadStoredView() {
+  try {
+    var raw = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (!raw) return null;
+    var v = JSON.parse(raw);
+    if (typeof v.lat !== 'number' || typeof v.lng !== 'number' ||
+        typeof v.zoom !== 'number') return null;
+    return v;
+  } catch (e) { return null; }
+}
+
+function saveCurrentView() {
+  try {
+    var c = map.getCenter();
+    localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({
+      lat: c.lat, lng: c.lng, zoom: map.getZoom()
+    }));
+  } catch (e) { /* private mode of quota — stil falen */ }
+}
+
+var stored = loadStoredView();
+var initCenter = stored ? [stored.lat, stored.lng] : [52.1, 5.1];
+var initZoom   = stored ? Math.max(0, stored.zoom - 2) : 8;
+
+var map = L.map('map', { zoomControl: true }).setView(initCenter, initZoom);
+map.on('moveend zoomend', saveCurrentView);
+
+// Achtergrondkaarten — identieke set en gedrag als telrapport.
+var BASEMAPS = {
+  osm: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19, subdomains: 'abc'
+  },
+  positron: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=cb1_2a2n_1_3583b21ab7073b803a894288',
+    attribution: '© CARTO · © OpenStreetMap',
+    maxZoom: 20, subdomains: 'abcd'
+  },
+  topo: {
+    url: 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png',
+    attribution: '© Kadaster · BRT-A grijs',
+    maxZoom: 19, subdomains: 'abc'
+  },
+  luchtfoto: {
+    url: 'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_ortho25/EPSG:3857/{z}/{x}/{y}.jpeg',
+    attribution: '© Kadaster · Luchtfoto 25cm',
+    maxZoom: 19, subdomains: 'abc'
+  }
+};
+var tileLayer = null;
+var currentBasemap = '';
+
+function setBasemap(key) {
+  if (!BASEMAPS[key] || key === currentBasemap) return;
+  var slider = document.getElementById('basemap-opacity');
+  var opacity = slider ? (parseInt(slider.value, 10) || 100) / 100 : 1;
+  if (tileLayer) map.removeLayer(tileLayer);
+  var cfg = BASEMAPS[key];
+  tileLayer = L.tileLayer(cfg.url, {
+    attribution: cfg.attribution,
+    maxZoom:     cfg.maxZoom,
+    subdomains:  cfg.subdomains,
+    opacity:     opacity
+  }).addTo(map);
+  currentBasemap = key;
+  document.querySelectorAll('.basemap-pill').forEach(function(p) {
+    p.classList.toggle('active', p.dataset.bm === key);
+  });
+}
+
+function setBasemapOpacity(val) {
+  if (tileLayer) tileLayer.setOpacity(val / 100);
+  document.getElementById('basemap-pct').textContent = val + '%';
+}
+
+setBasemap('osm');
+
+// Draw control
+var drawnItems = new L.FeatureGroup().addTo(map);
+var drawControl = new L.Control.Draw({
+  draw: {
+    polygon:   { shapeOptions: { color: '#1a1918', weight: 2, fillOpacity: 0.08 } },
+    rectangle: { shapeOptions: { color: '#1a1918', weight: 2, fillOpacity: 0.08 } },
+    circle: false, marker: false, circlemarker: false, polyline: false
+  },
+  edit: { featureGroup: drawnItems, remove: false }
+});
+
+map.on(L.Draw.Event.DRAWSTART, function() {
+  document.getElementById('btn-draw').classList.add('drawing');
+  document.getElementById('btn-draw').textContent = '\u23F8 Bezig met tekenen\u2026';
+});
+
+map.on(L.Draw.Event.CREATED, function(e) {
+  drawnItems.addLayer(e.layer);
+  var geom = e.layer.toGeoJSON().geometry;
+  drawnPolygons.push(geom);
+  drawingMode = false;
+  document.getElementById('btn-draw').classList.remove('drawing');
+  document.getElementById('btn-draw').textContent = '\u270E Voeg contour toe';
+  document.getElementById('btn-clear').style.display = '';
+  setStatus('Contour ' + drawnPolygons.length + ' getekend \u2014 wegen ophalen\u2026');
+  fetchWaysForPolygon(geom);
+});
+
+// ── Tekenmodus ────────────────────────────────────────────────────────────────
+function toggleDraw() {
+  if (drawingMode) {
+    map.removeControl(drawControl);
+    drawingMode = false;
+    document.getElementById('btn-draw').classList.remove('drawing');
+    document.getElementById('btn-draw').textContent = '\u270E Teken contour';
+  } else {
+    map.addControl(drawControl);
+    new L.Draw.Polygon(map, drawControl.options.draw.polygon).enable();
+    drawingMode = true;
+  }
+}
+
+function clearAll() {
+  drawnItems.clearLayers();
+  drawnPolygons = [];
+  ways.forEach(function(w){
+    if (w.layer) map.removeLayer(w.layer);
+    if (w.layer && w.layer._hitLayer) map.removeLayer(w.layer._hitLayer);
+    if (w.segLayers) w.segLayers.forEach(function(l){ if (map.hasLayer(l)) map.removeLayer(l); });
+    if (w.segHits)   w.segHits.forEach(  function(l){ if (map.hasLayer(l)) map.removeLayer(l); });
+  });
+  ways = [];
+  updateStats(); updateCounts();
+  document.getElementById('btn-clear').style.display = 'none';
+  document.getElementById('btn-draw').textContent = '\u270E Teken contour';
+  document.getElementById('btn-export').disabled = true;
+  setStatus('Teken een contour om te beginnen');
+}
+
+// ── Overpass ophalen ──────────────────────────────────────────────────────────
+function buildQuery(geojsonPoly) {
+  var coords = geojsonPoly.coordinates[0];
+  var ring = coords.slice(0, -1);
+  var polyStr = ring.map(function(c){ return c[1].toFixed(6)+' '+c[0].toFixed(6); }).join(' ');
+  // Centroid berekenen voor around-buffer
+  var sumLat=0, sumLon=0;
+  ring.forEach(function(c){ sumLon+=c[0]; sumLat+=c[1]; });
+  var cLat=(sumLat/ring.length).toFixed(6), cLon=(sumLon/ring.length).toFixed(6);
+  // Radius inschatting: halve diagonaal van bounding box + 50m buffer
+  var lats=ring.map(function(c){return c[1];}), lons=ring.map(function(c){return c[0];});
+  var dLat=(Math.max.apply(null,lats)-Math.min.apply(null,lats))*111320/2;
+  var dLon=(Math.max.apply(null,lons)-Math.min.apply(null,lons))*111320*Math.cos(parseFloat(cLat)*Math.PI/180)/2;
+  var radius=Math.round(Math.sqrt(dLat*dLat+dLon*dLon)+50);
+  // Poly voor exact gebied, around voor buffer
+  return '[out:json][timeout:25];(way["highway"]["area"!="yes"](poly:"'+polyStr+'");way["highway"]["area"!="yes"](around:'+radius+','+cLat+','+cLon+'););out body geom;';
+}
+
+function fetchWaysForPolygon(geojsonPoly, endpointIdx) {
+  if (endpointIdx === undefined) endpointIdx = 0;
+  if (!geojsonPoly) return;
+  document.getElementById('loading').style.display = '';
+  setStatus('Overpass ophalen via endpoint ' + (endpointIdx+1) + '\u2026');
+
+  var query = buildQuery(geojsonPoly);
+  console.log('[Overpass] query:', query);
+  console.log('[Overpass] endpoint:', OVERPASS_ENDPOINTS[endpointIdx]);
+  fetch(OVERPASS_ENDPOINTS[endpointIdx], {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'data=' + encodeURIComponent(query)
+  })
+    .then(function(r) {
+      if (!r.ok) {
+        return r.text().then(function(body) {
+          console.error('[Overpass] HTTP', r.status, body.slice(0,300));
+          throw new Error('HTTP ' + r.status + ': ' + body.slice(0,120));
+        });
+      }
+      return r.json();
+    })
+    .then(function(data) {
+      if (!dataIsVers(data)) throw new Error('verouderde OSM-data');   // volgende mirror proberen
+      document.getElementById('loading').style.display = 'none';
+      processWays(data.elements || [], geojsonPoly);
+    })
+    .catch(function(e) {
+      console.error('[Overpass] fout:', e);
+      if (endpointIdx < OVERPASS_ENDPOINTS.length - 1) {
+        fetchWaysForPolygon(geojsonPoly, endpointIdx + 1);
+      } else {
+        document.getElementById('loading').style.display = 'none';
+        setStatus('Overpass ophalen mislukt: ' + e.message);
+      }
+    });
+}
+
+// ── Wegen verwerken ───────────────────────────────────────────────────────────
+function hwGroup(hwType) {
+  for (var g in HW_GROUPS) {
+    if (g === 'other') continue;
+    if (HW_GROUPS[g].indexOf(hwType) >= 0) return g;
+  }
+  return 'other';
+}
+
+function wayToWkt(geom) {
+  return 'LINESTRING (' + geom.map(function(n){
+    return n.lon.toFixed(6) + ' ' + n.lat.toFixed(6);
+  }).join(', ') + ')';
+}
+
+function processWays(elements, geojsonPoly) {
+  // Bestaande way-IDs bijhouden
+  var existingIds = {};
+  ways.forEach(function(w){ existingIds[w.id] = true; });
+
+  var newWays = [];
+  var seen = {};
+  elements.forEach(function(el) {
+    if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) return;
+    if (seen[el.id]) return;
+    seen[el.id] = true;
+    if (existingIds[el.id]) return; // al aanwezig
+
+    var hw    = (el.tags && el.tags.highway) ? el.tags.highway : '';
+    var naam  = (el.tags && el.tags.name)    ? el.tags.name    : '(' + hw + ')';
+    var group = hwGroup(hw);
+    var coords = el.geometry.map(function(n){ return [n.lat, n.lon]; });
+    var wkt   = wayToWkt(el.geometry);
+
+    // Bepaal of weg binnen de getekende polygoon valt
+    var c = wayCentroid(coords);
+    var inPoly = geojsonPoly ? ptInGeoJsonPoly(c.lon, c.lat, geojsonPoly) : true;
+
+    var way = {
+      id:        String(el.id),
+      naam:      naam,
+      highway:   hw,
+      group:     group,
+      coords:    coords,
+      segments:  splitWayIntoSegments(coords),
+      wkt:       wkt,
+      selected:  inPoly,   // buffer-wegen standaard niet geselecteerd
+      visible:   true,
+      layer:     null,
+      segLayers: [],   // sub-segment polylines, alleen actief in dekking-modus
+      segHits:   []    // brede klikzones per segment
+    };
+
+    way.layer = makeWayLayer(way);
+    newWays.push(way);
+    ways.push(way);
+  });
+
+  applyVisibility();
+  updateCounts();
+  updateStats();
+  document.getElementById('btn-export').disabled =
+    (ways.filter(function(w){ return w.visible && w.selected; }).length === 0);
+
+  var nIn  = ways.filter(function(w){ return w.selected; }).length;
+  var nBuf = ways.filter(function(w){ return !w.selected; }).length;
+  setStatus(ways.length + ' wegen — ' + nIn + ' geselecteerd, ' + nBuf + ' in buffer (klik om toe te voegen)');
+
+  // Zoom alleen bij eerste lading
+  if (newWays.length > 0 && ways.length === newWays.length) {
+    var grp = L.featureGroup(ways.map(function(w){ return w.layer; }));
+    map.fitBounds(grp.getBounds().pad(0.1));
+  }
+}
+
+function makeWayLayer(way) {
+  var layer = L.polyline(way.coords, {
+    color:   HW_COLORS[way.group] || '#888',
+    weight:  3,
+    opacity: 0.85,
+    interactive: false
+  });
+  // Brede transparante klikzone bovenop de lijn
+  var hitLayer = L.polyline(way.coords, {
+    color:   '#000',
+    weight:  18,
+    opacity: 0,
+    interactive: true
+  });
+  hitLayer.bindTooltip(way.naam + ' (' + way.highway + ')', {
+    direction: 'top', className: 'way-tip'
+  });
+  hitLayer.on('click', function() { toggleWaySelect(way); });
+  layer.addTo(map);
+  hitLayer.addTo(map);
+  // Bewaar beide lagen zodat we ze kunnen verwijderen/stylen
+  layer._hitLayer = hitLayer;
+  return layer;
+}
+
+function toggleWaySelect(way) {
+  way.selected = !way.selected;
+  applyWayStyle(way);
+  updateStats();
+}
+
+function applyWayStyle(way) {
+  if (!way.layer) return;
+
+  if (currentMode === 'dekking') {
+    // Hele-way layers verbergen, segmenten tonen
+    if (map.hasLayer(way.layer)) map.removeLayer(way.layer);
+    if (way.layer._hitLayer && map.hasLayer(way.layer._hitLayer)) map.removeLayer(way.layer._hitLayer);
+
+    // Segment-layers aanmaken bij eerste binnenkomst in dekking-modus
+    if (!way.segLayers.length) {
+      way.segments.forEach(function(seg) {
+        var line = L.polyline(seg.coords, { color:'#888', weight:3, opacity:0.85, interactive:false });
+        var hit  = L.polyline(seg.coords, { color:'#000', weight:18, opacity:0, interactive:true });
+        var lbl  = way.naam + (seg.count > 1 ? ' · seg ' + (seg.idx+1) + '/' + seg.count : '');
+        hit.bindTooltip(lbl, { direction:'top', className:'way-tip' });
+        hit.on('click', function() {
+          // Klik op segment: één bezoek toevoegen aan/aftrekken van planning?
+          // Voor nu: doet niets — pure visualisatie. Toggle blijft op way-niveau.
+          toggleWaySelect(way);
+        });
+        way.segLayers.push(line);
+        way.segHits.push(hit);
+      });
+    }
+
+    // Visibility + kleur per segment
+    if (way.visible) {
+      way.segLayers.forEach(function(line, i) {
+        if (!map.hasLayer(line)) line.addTo(map);
+        if (!map.hasLayer(way.segHits[i])) way.segHits[i].addTo(map);
+        var visits = coverageForSeg(way.id, way.segments[i].idx);
+        var col = COV_COLORS[Math.min(visits, 3)];
+        // Bezochte segmenten prominent, niet-bezochte subtiel als achtergrond
+        if (visits === 0) {
+          line.setStyle({
+            color: col, weight: 1.5, opacity: 0.4, dashArray: '4 4'
+          });
+        } else {
+          line.setStyle({
+            color: col, weight: 4, opacity: 0.9, dashArray: null
+          });
+        }
+      });
+    } else {
+      way.segLayers.forEach(function(line, i) {
+        if (map.hasLayer(line)) map.removeLayer(line);
+        if (map.hasLayer(way.segHits[i])) map.removeLayer(way.segHits[i]);
+      });
+    }
+    return;
+  }
+
+  // Maken-modus: segmenten verbergen, hele way tonen
+  if (way.segLayers.length) {
+    way.segLayers.forEach(function(line, i) {
+      if (map.hasLayer(line)) map.removeLayer(line);
+      if (map.hasLayer(way.segHits[i])) map.removeLayer(way.segHits[i]);
+    });
+  }
+  if (way.visible) {
+    if (!map.hasLayer(way.layer)) way.layer.addTo(map);
+    if (way.layer._hitLayer && !map.hasLayer(way.layer._hitLayer))
+      way.layer._hitLayer.addTo(map);
+  } else {
+    // Wegtype uitgezet → laag van de kaart halen (was eerder blijven staan)
+    if (map.hasLayer(way.layer)) map.removeLayer(way.layer);
+    if (way.layer._hitLayer && map.hasLayer(way.layer._hitLayer))
+      map.removeLayer(way.layer._hitLayer);
+    return;
+  }
+
+  var sel = way.selected;
+  way.layer.setStyle({
+    color:   sel ? (HW_COLORS[way.group] || '#888') : '#b0b0a8',
+    weight:  sel ? 3 : 1.5,
+    opacity: sel ? 0.85 : 0.35,
+    dashArray: sel ? null : '4 4'
+  });
+}
+
+function applyVisibility() {
+  ways.forEach(function(w) {
+    w.visible = hwVisible[w.group];
+    applyWayStyle(w);  // regelt visibility + styling op basis van modus
+  });
+}
+
+// ── Highway-type toggles ──────────────────────────────────────────────────────
+function toggleHw(el) {
+  var hw = el.dataset.hw;
+  hwVisible[hw] = !hwVisible[hw];
+  el.classList.toggle('off', !hwVisible[hw]);
+  applyVisibility();
+  updateStats();
+}
+
+function updateCounts() {
+  var counts = {};
+  Object.keys(HW_GROUPS).forEach(function(g){ counts[g] = 0; });
+  ways.forEach(function(w){ if (hwVisible[w.group]) counts[w.group]++; });
+  Object.keys(counts).forEach(function(g) {
+    var el = document.getElementById('cnt-' + g);
+    if (el) el.textContent = counts[g];
+  });
+}
+
+// ── Selectie-knoppen ──────────────────────────────────────────────────────────
+function selectAll() {
+  ways.forEach(function(w) {
+    if (!w.visible) return;
+    w.selected = true;
+    applyWayStyle(w);
+  });
+  updateStats();
+}
+
+function selectNone() {
+  ways.forEach(function(w) {
+    if (!w.visible) return;
+    w.selected = false;
+    applyWayStyle(w);
+  });
+  updateStats();
+}
+
+function invertSelection() {
+  ways.forEach(function(w) {
+    if (!w.visible) return;
+    w.selected = !w.selected;
+    applyWayStyle(w);
+  });
+  updateStats();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function updateStats() {
+  var visible  = ways.filter(function(w){ return w.visible; }).length;
+  var selected = ways.filter(function(w){ return w.visible && w.selected; }).length;
+  var el = document.getElementById('stats-line');
+  if (ways.length === 0) {
+    el.textContent = 'Nog geen wegen geladen.';
+  } else {
+    el.innerHTML = visible + ' wegen zichtbaar<br>'
+      + selected + ' geselecteerd voor telling<br>'
+      + (visible - selected) + ' uitgesloten';
+  }
+  updateCounts();
+  document.getElementById('btn-export').disabled = (selected === 0);
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+function setStatus(msg) {
+  var el = document.getElementById('status-bar');
+  el.textContent = msg;
+  el.title = msg;   // volledige tekst bereikbaar als de regel inkort (ellipsis)
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportPlanning() {
+  var selected = ways.filter(function(w){ return w.visible && w.selected; });
+  if (!selected.length) return;
+
+  var nu = new Date();
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  var aangemaakt = nu.getFullYear()+'-'+pad(nu.getMonth()+1)+'-'+pad(nu.getDate())
+    + 'T'+pad(nu.getHours())+':'+pad(nu.getMinutes())+':'+pad(nu.getSeconds());
+
+  var naam   = document.getElementById('meta-naam').value.trim() || 'Telling';
+  var datum  = document.getElementById('meta-datum').value || nu.toISOString().slice(0,10);
+  var tijd   = document.getElementById('meta-tijd').value || pad(nu.getHours())+':00';
+  var teller = document.getElementById('meta-teller').value.trim() || '';
+
+  var teltype = document.getElementById('meta-teltype').value || 'auto';
+  var planning = {
+    sessie_naam:  naam,
+    datum:        datum,
+    tijdstip:     tijd,
+    teller:       teller,
+    tel_type:     teltype,
+    aangemaakt:   aangemaakt,
+    n_wegen:      selected.length,
+    wegen: selected.map(function(w) {
+      return {
+        osm_way_id:   w.id,
+        naam:         w.naam,
+        highway:      w.highway,
+        geometrie_wkt: w.wkt
+      };
+    })
+  };
+
+  var json = JSON.stringify(planning, null, 2);
+
+  // 1. Download in browser
+  var blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  var safeName = naam.replace(/[^a-zA-Z0-9_\- ]/g,'').replace(/\s+/g,'_').toLowerCase();
+  a.href     = url;
+  a.download = 'planning_' + safeName + '_' + datum + '.json';
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+
+  // 2. Opslaan op server
+  fetch('/planningen/planning_save.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: json
+  })
+  .then(function(r){
+    if (!r.ok && r.status !== 400) return { ok: false, error: planningServerMelding(r.status) };
+    return r.json();
+  })
+  .then(function(res) {
+    if (res.ok) {
+      setStatus('Planning opgeslagen: ' + res.bestand + ' · ook gedownload');
+    } else {
+      setStatus('Gedownload — opslaan op server mislukt: ' + (res.error||'onbekend'));
+    }
+  })
+  .catch(function() {
+    setStatus('Gedownload — server niet bereikbaar (planning alleen lokaal)');
+  });
+}
+
+// ── Opdrachten ───────────────────────────────────────────────────────────────
+var TELAPP_MAP = {
+  auto:  'parkeertelling.html',
+  fiets: 'fietsparkeren.html'
+};
+
+function openOpdrachten() {
+  document.getElementById('opdrachten-overlay').classList.add('open');
+  loadOpdrachten();
+}
+
+function closeOpdrachten() {
+  document.getElementById('opdrachten-overlay').classList.remove('open');
+}
+
+function closeOpdrachtenOnBg(e) {
+  if (e.target === document.getElementById('opdrachten-overlay')) closeOpdrachten();
+}
+
+// v2.75: de map /planningen/ is afgeschermd met een wachtwoord (.htaccess).
+// Zonder login, of met een nog niet ingericht wachtwoordbestand, komt er een
+// weigering in plaats van JSON; dit maakt daar een leesbare melding van.
+function planningServerMelding(status) {
+  if (status === 401 || status === 403) return 'planningen zijn afgeschermd \u2014 log in met het wachtwoord van de planningmap';
+  if (status === 500) return 'serverfout (500) \u2014 is de afscherming van /planningen al ingericht? Zie planningen/.htaccess';
+  return 'status ' + status;
+}
+
+function loadOpdrachten() {
+  var list = document.getElementById('opdrachten-list');
+  list.innerHTML = '<div id="opdrachten-leeg">Laden…</div>';
+  fetch('/planningen/planning_list.php')
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(items) {
+      if (!items.length) {
+        list.innerHTML = '<div id="opdrachten-leeg">Geen opdrachten gevonden.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      items.forEach(function(item) {
+        var row = document.createElement('div');
+        row.className = 'opdracht-row';
+        var typeLabel = item.tel_type === 'fiets' ? 'Fietsparkeren' : 'Autoparkeren';
+        row.innerHTML = '<div class="opdracht-type ' + (item.tel_type||'auto') + '">'
+          + typeLabel + '</div>'
+          + '<div class="opdracht-naam">' + escHtml(item.sessie_naam) + '</div>'
+          + '<div class="opdracht-meta">'
+          + '<span>' + escHtml(item.datum) + ' ' + escHtml(item.tijdstip) + '</span>'
+          + (item.teller ? '<span>Teller: ' + escHtml(item.teller) + '</span>' : '')
+          + '<span>' + item.n_wegen + ' wegen</span>'
+          + '</div>';
+        row.onclick = function() { startOpdracht(item); };
+
+        // Verwijder-knop — eigen handler die niet doorvloeit naar de row
+        var btn = document.createElement('button');
+        btn.className = 'opdracht-delete';
+        btn.textContent = '✕ verwijder';
+        btn.onclick = function(e) {
+          e.stopPropagation();
+          verwijderOpdracht(item);
+        };
+        row.appendChild(btn);
+
+        list.appendChild(row);
+      });
+    })
+    .catch(function(e) {
+      list.innerHTML = '<div id="opdrachten-leeg">Ophalen mislukt (' + (typeof e === 'number' ? planningServerMelding(e) : e) + ')</div>';
+    });
+}
+
+function startOpdracht(item) {
+  var app = TELAPP_MAP[item.tel_type] || 'parkeertelling.html';
+  window.location.href = app + '?plan=' + encodeURIComponent('/planningen/' + item.bestand);
+}
+
+function verwijderOpdracht(item) {
+  var msg = 'Verwijder opdracht "' + item.sessie_naam + '"?\n\n'
+          + 'Deze actie kan niet ongedaan worden gemaakt.';
+  if (!confirm(msg)) return;
+  fetch('/planningen/planning_delete.php', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ bestand: item.bestand })
+  })
+    .then(function(r){
+      if (!r.ok && r.status !== 400 && r.status !== 404) return { ok: false, body: { error: planningServerMelding(r.status) } };
+      return r.json().then(function(j){ return { ok:r.ok, body:j }; });
+    })
+    .then(function(res) {
+      if (res.ok && res.body.ok) {
+        loadOpdrachten();  // lijst opnieuw ophalen
+      } else {
+        alert('Verwijderen mislukt: ' + (res.body.error || 'onbekende fout'));
+      }
+    })
+    .catch(function(e) {
+      alert('Verwijderen mislukt: ' + e);
+    });
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Mode switch ──────────────────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  document.body.classList.toggle('mode-maken',   mode === 'maken');
+  document.body.classList.toggle('mode-dekking', mode === 'dekking');
+  document.getElementById('tab-maken').classList.toggle('active',   mode === 'maken');
+  document.getElementById('tab-dekking').classList.toggle('active', mode === 'dekking');
+  // Re-style alle wegen
+  ways.forEach(applyWayStyle);
+  if (mode === 'dekking') {
+    renderDekkingMatrix();
+    setStatus('Selecteer een dagdeel om de dekking te zien');
+  } else {
+    setStatus(ways.length ? '\u2713 ' + ways.length + ' wegen geladen' : 'Teken een contour om te beginnen');
+  }
+}
+
+// ── Dekkings-matrix bouwen ───────────────────────────────────────────────────
+function renderDekkingMatrix() {
+  var host = document.getElementById('dekking-matrix');
+  if (!host) return;
+  var html = '<div class="matrix">';
+  // Kop-rij: lege hoek + dagtype-labels
+  html += '<div class="col-head"></div>';
+  DAGTYPES.forEach(function(dt){ html += '<div class="col-head">' + dt.label + '</div>'; });
+  // Datarijen: per dagdeel
+  DAGDELEN.forEach(function(dd) {
+    html += '<div class="row-label">' + dd.label + '</div>';
+    DAGTYPES.forEach(function(dt) {
+      var key = dt.key + '|' + dd.key;
+      var visits = totalVisitsInCell(key);
+      var lvl = visits === 0 ? 0 : visits < 3 ? 1 : visits < 8 ? 2 : 3;
+      var sel = (selectedCell === key) ? ' selected' : '';
+      html += '<div class="matrix-cell lvl-' + lvl + sel + '" data-cell="' + key + '" '
+            + 'onclick="selectCell(\'' + key + '\')" '
+            + 'title="' + dt.label + ' · ' + dd.label + ': ' + visits + ' bezoeken">'
+            + '<div class="cnt">' + (visits || '') + '</div></div>';
+    });
+  });
+  html += '</div>';
+  host.innerHTML = html;
+}
+
+// Totaal bezoeken in een cel over alle wegvakken
+function totalVisitsInCell(cellKey) {
+  var t = 0;
+  Object.keys(coverage).forEach(function(wid) {
+    t += coverage[wid][cellKey] || 0;
+  });
+  return t;
+}
+
+function selectCell(key) {
+  selectedCell = (selectedCell === key) ? null : key;
+  renderDekkingMatrix();
+  ways.forEach(applyWayStyle);
+  updateCoverageStats();
+}
+
+function updateCoverageStats() {
+  var el = document.getElementById('cov-stats');
+  if (!el) return;
+  if (!loadedZips) {
+    el.textContent = 'Nog geen tellingen geladen.';
+    return;
+  }
+  var header = loadedZips + ' ZIP\u00b7' + loadedVisits + ' bezoeken';
+  if (!ways.length) {
+    el.innerHTML = header + '<br><span style="opacity:0.7">Teken een contour om de dekking op de kaart te kleuren.</span>';
+    return;
+  }
+  if (!selectedCell) {
+    el.innerHTML = header;
+    return;
+  }
+  var n0 = 0, n1 = 0, n2 = 0;
+  ways.forEach(function(w) {
+    if (!w.visible) return;
+    var v = coverageForWay(w.id);
+    if (v === 0) n0++;
+    else if (v === 1) n1++;
+    else n2++;
+  });
+  el.innerHTML = header
+    + '<br><span style="color:' + COV_COLORS[0] + '">\u25cf</span> ' + n0 + ' nog niet bezocht'
+    + '<br><span style="color:' + COV_COLORS[1] + '">\u25cf</span> ' + n1 + ' \u00d71 bezocht'
+    + '<br><span style="color:' + COV_COLORS[2] + '">\u25cf</span> ' + n2 + ' \u22652\u00d7 bezocht';
+}
+
+// Houdt bij welke sessie-ID's al geladen zijn — voorkomt dubbel inladen.
+var loadedSids = {};
+
+// ── ZIPs inlezen en coverage opbouwen ────────────────────────────────────────
+function handleBezochtFiles(files) {
+  var arr = Array.from(files).filter(function(f){ return f.name.endsWith('.zip'); });
+  if (!arr.length) return;
+  arr.forEach(function(f) {
+    JSZip.loadAsync(f).then(function(zip) {
+      var name = Object.keys(zip.files).find(function(n){ return /_bezocht\.csv$/.test(n); });
+      if (!name) {
+        setStatus('ZIP zonder bezocht.csv overgeslagen: ' + f.name);
+        return;
+      }
+      zip.files[name].async('string').then(function(text) {
+        // Sessie-ID uit eerste rij van bezocht.csv — uniek per telling.
+        // Wordt afgekapt als de ZIP al eens geladen is; geen melding nodig.
+        var sid = extractSessieId(text);
+        if (sid && loadedSids[sid]) return;
+        if (sid) loadedSids[sid] = true;
+        ingestBezochtCsv(text);
+        loadedZips++;
+        renderDekkingMatrix();
+        ways.forEach(applyWayStyle);
+        updateCoverageStats();
+      });
+    }).catch(function(err) {
+      setStatus('ZIP-fout: ' + f.name);
+    });
+  });
+}
+
+// Eerste niet-header rij uit bezocht.csv pakken om sessie_id af te lezen.
+function extractSessieId(csv) {
+  var lines = csv.split(/\r?\n/);
+  if (lines.length < 2) return null;
+  var header = lines[0].split(';');
+  var idxSid = header.indexOf('sessie_id');
+  if (idxSid < 0) return null;
+  for (var i = 1; i < lines.length; i++) {
+    var row = lines[i];
+    if (!row.trim()) continue;
+    var sid = row.split(';')[idxSid];
+    if (sid && sid.trim()) return sid.trim();
+  }
+  return null;
+}
+
+// Bouwt een Date uit aparte datum- en tijdvelden zónder string-parsing,
+// zodat het op Safari identiek werkt aan Chrome (Safari's Date(string)-parser
+// is strenger: een tijd zonder seconden of met spatie faalt daar stil).
+// datum = 'YYYY-MM-DD', tijd = 'HH:MM' of 'HH:MM:SS' (evt. met overige rommel).
+function parseDatumTijd(datumStr, tijdStr) {
+  var dm = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(datumStr).trim());
+  if (!dm) return null;
+  var tm = /(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(String(tijdStr).trim());
+  if (!tm) return null;
+  var y = +dm[1], mo = +dm[2] - 1, day = +dm[3];
+  var hh = +tm[1], mi = +tm[2], ss = tm[3] ? +tm[3] : 0;
+  return new Date(y, mo, day, hh, mi, ss);
+}
+
+function ingestBezochtCsv(csv) {
+  var lines = csv.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  if (lines.length < 2) return;
+  var header = lines[0].split(';');
+  var idxDatum = header.indexOf('datum');
+  var idxWid   = header.indexOf('osm_way_id');
+  var idxStart = header.indexOf('start_tijd');
+  var idxSeg   = header.indexOf('segment_index');   // v2.3+, optioneel
+  if (idxDatum < 0 || idxWid < 0 || idxStart < 0) {
+    setStatus('bezocht.csv mist verplichte kolommen');
+    return;
+  }
+  for (var i = 1; i < lines.length; i++) {
+    var cols = lines[i].split(';');
+    var datumStr = cols[idxDatum];
+    var widStr   = cols[idxWid];
+    var startStr = cols[idxStart];
+    if (!datumStr || !widStr || !startStr) continue;
+    var segIdx = (idxSeg >= 0 && cols[idxSeg]) ? parseInt(cols[idxSeg], 10) : 0;
+    if (isNaN(segIdx)) segIdx = 0;
+    var d = parseDatumTijd(datumStr, startStr);
+    if (!d || isNaN(d.getTime())) continue;
+    var dt = dagtypeForDate(d);
+    var hh = d.getHours() + d.getMinutes()/60;
+    var dd = dagdeelForTime(hh);
+    var key = dt + '|' + dd;
+    var sk = segKey(widStr, segIdx);
+    if (!coverage[sk]) coverage[sk] = {};
+    coverage[sk][key] = (coverage[sk][key] || 0) + 1;
+    loadedVisits++;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Hertelling — planning reconstrueren uit een eerder gelopen parkeer-/fietsZIP.
+// Wegenset = de straten uit _straten.csv (set B), geometrie gejoind uit
+// _netwerk.csv. De ways gaan als pseudo-Overpass-elementen door de bestaande
+// processWays()-pijplijn: zelfde way-objecten, lagen, selectie, stats en zoom.
+// ════════════════════════════════════════════════════════════════════════════
+
+// WKT 'LINESTRING (lon lat, lon lat, …)' → [[lat,lon], …] voor Leaflet.
+function parseWktLine(wkt) {
+  if (!wkt) return [];
+  var inner = wkt.replace(/^\s*LINESTRING\s*\(/i, '').replace(/\)\s*$/, '');
+  return inner.split(',').map(function(p) {
+    var xy = p.trim().split(/\s+/).map(Number);
+    return [xy[1], xy[0]];   // lat, lon
+  }).filter(function(c){ return !isNaN(c[0]) && !isNaN(c[1]); });
+}
+
+// Eerstvolgend moment met dezelfde weekdag én klokstijd, strikt in de toekomst.
+// Bron di 15:00 → komende dinsdag 15:00 (vandaag mag, als die tijd nog komt).
+function nextComparableMoment(datumStr, tijdStr) {
+  var src = parseDatumTijd(datumStr, tijdStr);
+  if (!src) return null;
+  var now = new Date();
+  var dow = src.getDay(), hh = src.getHours(), mi = src.getMinutes();
+  var delta = (dow - now.getDay() + 7) % 7;
+  var cand = new Date(now.getFullYear(), now.getMonth(), now.getDate() + delta, hh, mi, 0);
+  if (cand <= now) cand = new Date(cand.getFullYear(), cand.getMonth(), cand.getDate() + 7, hh, mi, 0);
+  return cand;
+}
+
+// Mini CSV-parser: header → {idx:{kolom→i}, rows:[[cols],…]}.
+function parseCsvSimple(text) {
+  var lines = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  if (!lines.length) return { idx:{}, rows:[] };
+  var header = lines[0].split(';').map(function(h){ return h.trim(); });
+  var idx = {};
+  header.forEach(function(h,i){ idx[h] = i; });
+  return { idx: idx, rows: lines.slice(1).map(function(l){ return l.split(';'); }) };
+}
+
+function makenUitZip(file) {
+  if (!file) return;
+  setStatus('Hertelling: ' + file.name + ' inlezen\u2026');
+  JSZip.loadAsync(file).then(function(zip) {
+    function find(suffix) {
+      var n = Object.keys(zip.files).find(function(k){ return new RegExp(suffix + '$').test(k); });
+      return n ? zip.files[n].async('string') : Promise.resolve(null);
+    }
+    return Promise.all([ find('_straten\\.csv'), find('_netwerk\\.csv'), find('_sessie\\.csv') ]);
+  }).then(function(t) {
+    var stratenTxt = t[0], netwerkTxt = t[1], sessieTxt = t[2];
+    if (!stratenTxt) { setStatus('Geen _straten.csv in ZIP \u2014 kies een parkeer- of fietsZIP.'); return; }
+    if (!netwerkTxt) { setStatus('Geen _netwerk.csv in ZIP \u2014 geometrie ontbreekt.'); return; }
+
+    // 1. Geometrie + highway per way-id uit netwerk (stitch bij segment-variant).
+    var net = parseCsvSimple(netwerkTxt);
+    var iWid = net.idx['osm_way_id'], iHw = net.idx['highway'], iWkt = net.idx['geometrie_wkt'];
+    var iSeg = ('segment_index' in net.idx) ? net.idx['segment_index'] : -1;
+    if (iWid === undefined || iWkt === undefined) { setStatus('netwerk.csv mist verplichte kolommen.'); return; }
+    var geom = {};   // way-id → { highway, segs:[{idx,coords}] }
+    net.rows.forEach(function(c) {
+      var wid = (c[iWid]||'').trim(); if (!wid) return;
+      var coords = parseWktLine(c.slice(iWkt).join(';').trim());   // WKT kan ; bevatten
+      if (coords.length < 2) return;
+      if (!geom[wid]) geom[wid] = { highway: (iHw>=0 ? (c[iHw]||'').trim() : ''), segs: [] };
+      var sidx = (iSeg >= 0 && c[iSeg]) ? parseInt(c[iSeg],10) : 0;
+      geom[wid].segs.push({ idx: isNaN(sidx)?0:sidx, coords: coords });
+    });
+    function fullCoords(wid) {
+      var g = geom[wid]; if (!g) return null;
+      if (g.segs.length === 1) return g.segs[0].coords;
+      var out = [];
+      g.segs.slice().sort(function(a,b){ return a.idx - b.idx; }).forEach(function(s) {
+        s.coords.forEach(function(pt) {
+          var last = out[out.length-1];
+          if (!last || last[0] !== pt[0] || last[1] !== pt[1]) out.push(pt);
+        });
+      });
+      return out.length >= 2 ? out : null;
+    }
+
+    // 2. Straatnaam per way-id uit straten (set B: precies deze wegen tellen mee).
+    var str = parseCsvSimple(stratenTxt);
+    var iNaam = ('naam' in str.idx) ? str.idx['naam'] : -1;
+    var iWids = ('osm_way_ids' in str.idx) ? str.idx['osm_way_ids'] : -1;
+    if (iWids < 0) { setStatus('straten.csv mist osm_way_ids.'); return; }
+    var wantName = {};
+    str.rows.forEach(function(c) {
+      var naam = (iNaam>=0 ? (c[iNaam]||'').trim() : '');
+      (c[iWids]||'').split('|').forEach(function(w){ w = w.trim(); if (w) wantName[w] = naam; });
+    });
+
+    // 3. Pseudo-Overpass-elementen → bestaande processWays-pijplijn.
+    var elements = [], gemist = 0;
+    Object.keys(wantName).forEach(function(wid) {
+      var coords = fullCoords(wid);
+      if (!coords) { gemist++; return; }
+      var hw = (geom[wid] && geom[wid].highway) || '';
+      elements.push({
+        type: 'way', id: wid,
+        tags: { highway: hw, name: wantName[wid] || ('(' + hw + ')') },
+        geometry: coords.map(function(p){ return { lat: p[0], lon: p[1] }; })
+      });
+    });
+    if (!elements.length) { setStatus('Geen koppelbare wegen (straten \u2229 netwerk leeg).'); return; }
+
+    clearAll();                  // schone lei: geen contour, geen oude wegen
+    setMode('maken');
+    processWays(elements, null); // null poly → alles binnen → alles geselecteerd
+    prefillUitSessie(sessieTxt, gemist);
+  }).catch(function(err) {
+    setStatus('Hertelling-fout: ' + (err && err.message ? err.message : err));
+  });
+}
+
+function prefillUitSessie(sessieTxt, gemist) {
+  var teller = '', appType = 'auto', srcDatum = '', srcTijd = '';
+  if (sessieTxt) {
+    var s = parseCsvSimple(sessieTxt);
+    if (s.rows.length) {
+      var r = s.rows[0];
+      if ('teller'     in s.idx) teller   = (r[s.idx['teller']]    ||'').trim();
+      if ('app_type'   in s.idx) appType  = (r[s.idx['app_type']]  ||'').trim() || 'auto';
+      if ('datum'      in s.idx) srcDatum = (r[s.idx['datum']]     ||'').trim();
+      if ('start_tijd' in s.idx) srcTijd  = (r[s.idx['start_tijd']]||'').trim();
+    }
+  }
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+
+  // Naam: het gebied staat NIET in de ZIP (alleen de planning-JSON had 'm, en
+  // die reist niet mee). Daarom een herkenbaar anker op brondatum + 'hertelling'.
+  var bronLabel = srcDatum ? srcDatum.split('-').reverse().join('-') : '';   // YYYY-MM-DD → DD-MM-YYYY
+  var naamEl = document.getElementById('meta-naam');
+  naamEl.value = 'hertelling' + (bronLabel ? ' ' + bronLabel : '');
+
+  if (teller) document.getElementById('meta-teller').value = teller;
+  document.getElementById('meta-teltype').value = (appType === 'fiets') ? 'fiets' : 'auto';
+
+  var when = nextComparableMoment(srcDatum, srcTijd);
+  if (when) {
+    document.getElementById('meta-datum').value =
+      when.getFullYear()+'-'+pad(when.getMonth()+1)+'-'+pad(when.getDate());
+    document.getElementById('meta-tijd').value = pad(when.getHours())+':'+pad(when.getMinutes());
+  }
+
+  naamEl.focus(); naamEl.select();   // naam alvast geselecteerd om over te typen
+
+  var DAGEN = ['zo','ma','di','wo','do','vr','za'];
+  var extra = gemist ? ' \u00b7 ' + gemist + ' zonder geometrie overgeslagen' : '';
+  var wanneer = when ? (' \u2014 voorstel: ' + DAGEN[when.getDay()] + ' '
+     + pad(when.getDate())+'-'+pad(when.getMonth()+1)+' '
+     + pad(when.getHours())+':'+pad(when.getMinutes())) : '';
+  setStatus('Hertelling klaar: ' + ways.length + ' wegen' + extra + wanneer);
+}
+
+// Dropzone-koppeling
+(function() {
+  var dz = document.getElementById('dz-bezocht');
+  var inp = document.getElementById('bezocht-input');
+  if (!dz || !inp) return;
+  inp.addEventListener('change', function(){ handleBezochtFiles(this.files); });
+  dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function(){ dz.classList.remove('over'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault(); dz.classList.remove('over');
+    handleBezochtFiles(e.dataTransfer.files);
+  });
+})();
+
+// Hertelling-dropzone — één ZIP → planning reconstrueren.
+(function() {
+  var dz = document.getElementById('dz-hertelling');
+  var inp = document.getElementById('hertelling-input');
+  if (!dz || !inp) return;
+  function firstZip(files) {
+    return Array.from(files).filter(function(f){ return f.name.endsWith('.zip'); })[0] || null;
+  }
+  inp.addEventListener('change', function(){ makenUitZip(firstZip(this.files)); });
+  dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function(){ dz.classList.remove('over'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault(); dz.classList.remove('over');
+    makenUitZip(firstZip(e.dataTransfer.files));
+  });
+})();
+
+// ── Init: datum en tijdstip prefill ──────────────────────────────────────────
+(function() {
+  var nu = new Date();
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  document.getElementById('meta-datum').value =
+    nu.getFullYear()+'-'+pad(nu.getMonth()+1)+'-'+pad(nu.getDate());
+  document.getElementById('meta-tijd').value =
+    pad(nu.getHours())+':'+pad(nu.getMinutes());
+})();
+</script>
+</body>
+</html>

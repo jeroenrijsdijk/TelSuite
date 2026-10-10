@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Traffic Counter</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg:        #f0f0ec;
+    --panel:     #ffffff;
+    --border:    #b0b0a8;
+    --text:      #111111;
+    --dim:       #555555;
+    --subdim:    #888880;
+
+    --car-col:   #c8000a;
+    --truck-col: #b35c00;
+    --moto-col:  #5500cc;
+    --bike-col:  #007a7a;
+    --ped-col:   #1a7a00;
+
+    --green:     #0a8a30;
+    --red:       #c8000a;
+    --orange:    #b35c00;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Oswald', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px;
+    gap: 10px;
+  }
+
+  header {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0 8px;
+    border-bottom: 3px solid var(--text);
+  }
+
+  header h1 { font-size: 1.25rem; letter-spacing: 3px; text-transform: uppercase; font-weight: 700; color: var(--text); }
+
+  #session-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dim);
+    transition: color 0.3s;
+  }
+  #session-time.running { color: var(--green); }
+  #session-time.ended   { color: var(--orange); }
+
+  /* ── Session bar ── */
+  .session-bar {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .session-info {
+    flex: 1;
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6px 12px;
+    gap: 3px;
+  }
+
+  .session-info .row { display: flex; justify-content: space-between; font-size: 0.68rem; letter-spacing: 1px; }
+  .session-info .row .k { color: var(--dim); text-transform: uppercase; font-weight: 500; }
+  .session-info .row .v { font-family: 'Share Tech Mono', monospace; color: var(--text); font-weight: 700; }
+  .session-info .row .v.empty { color: var(--subdim); font-weight: 400; }
+
+  .btn-session {
+    width: 76px;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: filter 0.1s, transform 0.1s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-session:active { transform: scale(0.95); }
+  .btn-session:disabled { opacity: 0.25; cursor: default; }
+  .btn-start { background: var(--green); color: #fff; border: 2px solid #065e20; }
+  .btn-start:hover:not(:disabled) { filter: brightness(1.1); }
+  .btn-end   { background: var(--red);   color: #fff; border: 2px solid #8a0007; }
+  .btn-end:hover:not(:disabled)   { filter: brightness(1.1); }
+
+  /* ── Status badge ── */
+  .status-badge {
+    width: 100%;
+    max-width: 520px;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 0.72rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+    font-weight: 700;
+  }
+  .status-badge.idle    { background: #e0e0d8; color: var(--dim);    border: 2px solid var(--border); }
+  .status-badge.running { background: #d4f0da; color: var(--green);  border: 2px solid #7dcc90; }
+  .status-badge.ended   { background: #fde8cc; color: var(--orange); border: 2px solid #e8b070; }
+
+  /* ── Restore bar (v2.72): interrupted session found on load ── */
+  .herstel-balk {
+    width: 100%; max-width: 520px;
+    background: #5a3a1a; border: 2px solid #b07d2b; border-radius: 6px;
+    padding: 12px 14px; color: #fff;
+  }
+  .herstel-balk p { font-size: 0.85rem; font-weight: 600; line-height: 1.35; margin-bottom: 10px; }
+  .herstel-knoppen { display: flex; gap: 8px; }
+  .herstel-knoppen button {
+    flex: 1; padding: 10px 6px; border: none; border-radius: 5px; cursor: pointer;
+    font-family: inherit; font-size: 0.78rem; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; color: #fff; background: #444;
+  }
+  .herstel-knoppen button.door { background: var(--green); }
+  .herstel-knoppen button.dl   { background: #3a7d44; }
+
+  /* ── Direction labels ── */
+  .dir-config { width: 100%; max-width: 520px; display: flex; gap: 8px; align-items: center; }
+  .dir-config label { font-size: 0.65rem; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; white-space: nowrap; font-weight: 700; }
+
+  .btn-compass {
+    padding: 7px 10px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    background: var(--panel);
+    color: var(--dim);
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .btn-compass:hover { color: var(--text); border-color: var(--text); }
+  .btn-compass.active { color: var(--green); border-color: var(--green); background: #d4f0da; }
+
+  /* ── Toast notification ── */
+  #toast {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: var(--text);
+    color: #fff;
+    border-radius: 10px;
+    padding: 20px 24px;
+    min-width: 280px;
+    max-width: 360px;
+    text-align: center;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  #toast .toast-label {
+    font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase;
+    color: #aaa; margin-bottom: 12px;
+  }
+  #toast .toast-row {
+    display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px;
+  }
+  #toast .toast-row:last-child { margin-bottom: 0; }
+  #toast .toast-dir {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: #aaa; min-width: 36px; text-align: right;
+  }
+  #toast .toast-val {
+    font-size: 0.95rem; font-weight: 700; letter-spacing: 1px;
+    color: #fff; text-align: left; line-height: 1.25;
+  }
+
+  .dir-input {
+    flex: 1;
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 7px 10px;
+    text-align: center;
+    letter-spacing: 1px;
+    min-width: 0;
+  }
+  .dir-input:focus { outline: none; border-color: var(--text); }
+
+  /* ── Total bar ── */
+  .total-bar {
+    width: 100%;
+    max-width: 520px;
+    background: var(--text);
+    border-radius: 6px;
+    padding: 9px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .total-bar .label { font-size: 0.72rem; letter-spacing: 2px; color: #aaaaaa; text-transform: uppercase; font-weight: 500; }
+  .total-bar .value { font-family: 'Share Tech Mono', monospace; font-size: 2rem; font-weight: 700; color: #ffffff; }
+
+  /* ── Counter cards — compact horizontal layout ── */
+  .counters { width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 7px; }
+
+  .counter-card {
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+    height: 72px;
+    transition: opacity 0.2s;
+  }
+  .counter-card.locked { opacity: 0.35; pointer-events: none; }
+
+  .car   { --accent: var(--car-col); }
+  .truck { --accent: var(--truck-col); }
+  .moto  { --accent: var(--moto-col); }
+  .bike  { --accent: var(--bike-col); }
+  .ped   { --accent: var(--ped-col); }
+
+  /* +1 button: symbol on top, +1 below */
+  .btn-dir {
+    width: 58px; min-width: 58px; height: 100%;
+    border: none; background: var(--accent); color: #fff;
+    font-family: 'Oswald', sans-serif; font-weight: 700;
+    cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+    transition: filter 0.1s, transform 0.1s;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 0; padding: 0; flex-shrink: 0;
+  }
+  .btn-dir .dir-sym  { font-size: 0.65rem; font-family: 'Share Tech Mono', monospace; letter-spacing: -1px; opacity: 0.85; line-height: 1.3; }
+  .btn-dir .dir-plus { font-size: 1.15rem; line-height: 1; }
+  .btn-dir:active { transform: scale(0.92); filter: brightness(0.85); }
+
+  /* -1 button */
+  .btn-min {
+    width: 26px; min-width: 26px; height: 100%;
+    border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+    background: #eaeae6; color: var(--dim);
+    font-size: 1rem; font-weight: 700;
+    cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+    transition: background 0.1s, color 0.1s; flex-shrink: 0;
+  }
+  .btn-min:active { color: var(--red); background: #fde0e0; }
+
+  /* Count area */
+  .side-count {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 0 4px; min-width: 0;
+  }
+
+  .dir-count {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 2rem; font-weight: 700; line-height: 1;
+    color: var(--accent); transition: transform 0.1s ease;
+  }
+  .dir-count.bump { transform: scale(1.3); }
+
+  /* Centre — vehicle label */
+  .card-center {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 0 4px; background: #f7f7f3;
+    border-top: 4px solid var(--accent);
+    border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+    min-width: 44px; max-width: 50px; flex-shrink: 0;
+  }
+  .card-center .lbl {
+    font-size: 1.6rem;
+    line-height: 1;
+    text-align: center;
+  }
+
+  /* ── Footer ── */
+  footer { width: 100%; max-width: 520px; display: flex; gap: 10px; }
+
+  .btn-action {
+    flex: 1;
+    padding: 13px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--dim);
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-weight: 700;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .btn-action:hover { color: var(--text); border-color: var(--text); }
+  .btn-action.danger:hover { color: var(--red); border-color: var(--red); background: #fff0f0; }
+
+  /* ── Notes field ── */
+  .notes-row {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .notes-row label { font-size: 0.65rem; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; white-space: nowrap; font-weight: 700; }
+  .notes-input {
+    flex: 1;
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 7px 10px;
+    letter-spacing: 0.5px;
+    min-width: 0;
+  }
+  .notes-input:focus { outline: none; border-color: var(--text); }
+  .notes-input::placeholder { color: var(--subdim); font-weight: 400; }
+
+  /* ── Undo last button ── */
+  .btn-action.undo { border-color: var(--border); }
+  .btn-action.undo:hover { color: var(--orange); border-color: var(--orange); background: #fff8ee; }
+  .btn-action.undo:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+
+  /* ── Log ── */
+  #log {
+    width: 100%;
+    max-width: 520px;
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--dim);
+    max-height: 110px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  #log .entry { display: flex; justify-content: space-between; }
+  #log .entry span:last-child { color: var(--subdim); }
+
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Traffic Counter <a href="traffic_counter_help.html" target="_blank" style="font-size:0.85rem;font-weight:700;color:var(--dim);text-decoration:none;border:2px solid var(--border);border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-left:6px;letter-spacing:0;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='#111';this.style.borderColor='#111'" onmouseout="this.style.color='';this.style.borderColor=''" title="Help">?</a></h1>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <a href="index.html" style="font-size:0.68rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:2px solid var(--border);border-radius:4px;padding:4px 8px;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='#111';this.style.borderColor='#111'" onmouseout="this.style.color='';this.style.borderColor=''">&#8592; Menu</a>
+    <div id="session-time">00:00:00</div>
+  </div>
+</header>
+
+<div class="session-bar">
+  <div class="session-info">
+    <div class="row"><span class="k">Start</span>    <span class="v empty" id="disp-start">--</span></div>
+    <div class="row"><span class="k">End</span>      <span class="v empty" id="disp-end">--</span></div>
+    <div class="row"><span class="k">Duration</span> <span class="v empty" id="disp-dur">--</span></div>
+    <div class="row"><span class="k">GPS</span>      <span class="v empty" id="disp-gps">--</span></div>
+  </div>
+  <button class="btn-session btn-start" id="btn-start" onclick="startSession()">START</button>
+  <button class="btn-session btn-end"   id="btn-end"   onclick="endSession()" disabled>END</button>
+</div>
+
+<div class="status-badge idle" id="status-badge">Press Start to begin counting</div>
+
+<div class="herstel-balk" id="herstel-balk" style="display:none">
+  <p id="herstel-tekst"></p>
+  <div class="herstel-knoppen">
+    <button class="door" id="herstel-door" onclick="doortellenStatic()">&#9654; Continue</button>
+    <button class="dl" onclick="exportCSV()">&#8595; Download</button>
+    <button onclick="verwijderStatic()">&#10005; Discard</button>
+  </div>
+</div>
+
+<div class="notes-row">
+  <label>Location / Notes</label>
+  <input class="notes-input" id="notes" placeholder="e.g. N52 near bridge, sunny, light traffic">
+</div>
+
+<div class="dir-config">
+  <label>Dir A</label>
+  <input class="dir-input" id="lbl-a" value="West" oninput="updateDirLabels()">
+  <label>Dir B</label>
+  <input class="dir-input" id="lbl-b" value="East" oninput="updateDirLabels()">
+  <button class="btn-compass" id="btn-compass" onclick="autoDirections()" title="Fill directions from compass">Compass</button>
+</div>
+
+<div class="total-bar">
+  <span class="label">Total counted</span>
+  <span class="value" id="grand-total">0</span>
+</div>
+
+<div class="counters" id="counters"></div>
+
+<footer>
+  <button class="btn-action undo" id="btn-undo-last" onclick="undoLast()" disabled>Undo Last</button>
+  <button class="btn-action" onclick="exportCSV()">Export CSV</button>
+  <button class="btn-action danger" onclick="resetAll()">Reset</button>
+</footer>
+
+<div id="log"></div>
+
+<div id="toast">
+  <div class="toast-label">Directions set</div>
+  <div class="toast-row"><span class="toast-dir">Dir A</span><span class="toast-val" id="toast-a"></span></div>
+  <div class="toast-row"><span class="toast-dir">Dir B</span><span class="toast-val" id="toast-b"></span></div>
+</div>
+
+<script>
+  const SEP = ';';
+
+  const TYPES = [
+    { id: 'car',   icon: '🚗', label: 'Car' },
+    { id: 'truck', icon: '🚛', label: 'Truck' },
+    { id: 'moto',  icon: '🏍', label: 'Motorcycle' },
+    { id: 'bike',  icon: '🚲', label: 'Bicycle' },
+    { id: 'ped',   icon: '🚶', label: 'Pedestrian' },
+  ];
+
+  const counts = {};
+  TYPES.forEach(t => { counts[t.id] = { a: 0, b: 0 }; });
+
+  let history = [], startTime = null, endTime = null, timerInterval = null, state = 'idle';
+  let gpsLocation = null; // { lat, lon, accuracy, timestamp }
+
+  // ── Local datetime formatter (no UTC drift) ──
+  function fmtLocalDateTime(date) {
+    if (!date) return 'n/a';
+    const p = n => String(n).padStart(2,'0');
+    return date.getFullYear() + '-' + p(date.getMonth()+1) + '-' + p(date.getDate())
+      + ' ' + p(date.getHours()) + ':' + p(date.getMinutes()) + ':' + p(date.getSeconds());
+  }
+
+  // ── GPS ──
+  // Wait for the fix to settle: the first sub-threshold fix is often still tens of
+  // metres off and can yield the wrong street name. So we enforce a minimum settle
+  // window + convergence detection instead of locking on the first acceptable hit.
+  const GPS_LOCK_ACC      = 8;     // m — excellent fix: lock immediately (after brief confirm)
+  const GPS_ACCEPT_ACC    = 20;    // m — after the settle window, best fix under this is good enough
+  const GPS_MIN_SETTLE_MS = 8000;  // give the GPS at least this long to converge
+  const GPS_CONVERGE_MS   = 4000;  // ...or until accuracy stops improving for this long
+  const GPS_TIMEOUT_MS    = 30000; // hard cap
+  let gpsWatchId = null;
+
+  function requestGPS() {
+    if (!navigator.geolocation) {
+      gpsLocation = { error: 'Geolocation not supported' };
+      updateGPSDisplay();
+      return;
+    }
+    if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+    updateGPSDisplay('Waiting for GPS fix...');
+    const started = Date.now();
+    let lastImprove = started;   // when accuracy last got better
+
+    function lockIn() {
+      if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+      if (gpsLocation && gpsLocation.lat) {
+        gpsLocation.reliable = (gpsLocation.accuracy <= GPS_ACCEPT_ACC);
+        updateGPSDisplay();
+        reverseGeocode(gpsLocation.lat, gpsLocation.lon);
+      } else {
+        updateGPSDisplay();
+      }
+    }
+
+    gpsWatchId = navigator.geolocation.watchPosition(
+      pos => {
+        const acc = Math.round(pos.coords.accuracy);
+        const elapsed = Date.now() - started;
+        // Always keep the best (most accurate) fix seen so far
+        if (!gpsLocation || gpsLocation.error || acc < (gpsLocation.accuracy || Infinity)) {
+          gpsLocation = {
+            lat: pos.coords.latitude, lon: pos.coords.longitude,
+            accuracy: acc, heading: pos.coords.heading,
+            timestamp: new Date(), street: null, city: null, country: null, reliable: false
+          };
+          lastImprove = Date.now();
+        }
+        const best = gpsLocation ? gpsLocation.accuracy : Infinity;
+        updateGPSDisplay('GPS: +/-' + best + 'm, settling... (' + Math.round(elapsed / 1000) + 's)');
+
+        // Lock-in criteria, in order of preference:
+        if (acc <= GPS_LOCK_ACC && elapsed >= 2500) {
+          lockIn();                                                          // already excellent
+        } else if (elapsed >= GPS_MIN_SETTLE_MS && best <= GPS_ACCEPT_ACC) {
+          lockIn();                                                          // settled long enough AND good enough
+        } else if (elapsed >= GPS_MIN_SETTLE_MS && (Date.now() - lastImprove) >= GPS_CONVERGE_MS) {
+          lockIn();                                                          // no longer improving — take the best
+        } else if (elapsed >= GPS_TIMEOUT_MS) {
+          lockIn();                                                          // hard cap
+        }
+      },
+      err => {
+        const msgs = { 1: 'Permission denied', 2: 'Position unavailable', 3: 'Timeout' };
+        gpsLocation = { error: msgs[err.code] || 'Unknown error' };
+        if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+        updateGPSDisplay();
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_TIMEOUT_MS }
+    );
+
+    // Safety net — stop shortly after the hard cap no matter what
+    setTimeout(() => {
+      if (gpsWatchId !== null) {
+        navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null;
+        if (!gpsLocation || gpsLocation.error) gpsLocation = { error: 'GPS timed out' };
+        updateGPSDisplay();
+        if (gpsLocation && gpsLocation.lat) reverseGeocode(gpsLocation.lat, gpsLocation.lon);
+      }
+    }, GPS_TIMEOUT_MS + 2000);
+  }
+
+  function reverseGeocode(lat, lon) {
+    updateGPSDisplay('Looking up address...');
+    const url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=18&addressdetails=1';
+    fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'TrafficCounter/1.0' } })
+      .then(r => r.json())
+      .then(data => {
+        const a = data.address || {};
+        const street = a.road || a.pedestrian || a.path || a.footway || a.cycleway || a.street || '';
+        const house  = a.house_number ? a.house_number + ' ' : '';
+        const city   = a.city || a.town || a.village || a.suburb || a.hamlet || a.municipality || '';
+        gpsLocation.street  = (house + street).trim() || null;
+        gpsLocation.city    = city || null;
+        gpsLocation.country = a.country || null;
+        updateGPSDisplay();
+      })
+      .catch(() => { updateGPSDisplay(); });
+  }
+
+  function updateGPSDisplay(msg) {
+    const el = document.getElementById('disp-gps');
+    if (!el) return;
+    if (msg) { el.textContent = msg; el.classList.add('empty'); return; }
+    if (!gpsLocation) { el.textContent = '--'; el.classList.add('empty'); return; }
+    if (gpsLocation.error) { el.textContent = gpsLocation.error; el.classList.add('empty'); return; }
+    let line = gpsLocation.lat.toFixed(5) + ', ' + gpsLocation.lon.toFixed(5) + ' (+/-' + gpsLocation.accuracy + 'm)';
+    if (gpsLocation.street || gpsLocation.city) {
+      line = [gpsLocation.street, gpsLocation.city].filter(Boolean).join(', ');
+      if (!gpsLocation.reliable) line += ' (low accuracy)';
+    } else if (!gpsLocation.reliable) {
+      line += ' (low accuracy)';
+    }
+    el.textContent = line;
+    el.classList.remove('empty');
+  }
+
+  function buildCards() {
+    const container = document.getElementById('counters');
+    container.innerHTML = '';
+    TYPES.forEach(t => {
+      const card = document.createElement('div');
+      card.className = `counter-card ${t.id} locked`;
+      card.id = `card-${t.id}`;
+      card.innerHTML = `
+        <button class="btn-dir" onclick="adjust('${t.id}','a',1)"><span class="dir-sym">&lt;</span><span class="dir-plus">+1</span></button>
+        <div class="side-count"><div class="dir-count" id="cnt-${t.id}-a">0</div></div>
+        <button class="btn-min" onclick="adjust('${t.id}','a',-1)">-</button>
+        <div class="card-center"><div class="lbl">${t.icon}</div></div>
+        <button class="btn-min" onclick="adjust('${t.id}','b',-1)">-</button>
+        <div class="side-count"><div class="dir-count" id="cnt-${t.id}-b">0</div></div>
+        <button class="btn-dir" onclick="adjust('${t.id}','b',1)"><span class="dir-sym">&gt;</span><span class="dir-plus">+1</span></button>`;
+      container.appendChild(card);
+    });
+    updateDirLabels();
+  }
+
+  function updateDirLabels() {
+    // Direction labels are shown in the input fields above the cards only
+  }
+
+  function fmt(date) { return date ? date.toTimeString().slice(0,8) : '--'; }
+
+  function fmtDuration(ms) {
+    const s = Math.floor(ms / 1000);
+    return [Math.floor(s/3600), Math.floor((s%3600)/60), s%60]
+      .map(n => String(n).padStart(2,'0')).join(':');
+  }
+
+  function startSession() {
+    if (state !== 'idle') return;
+    startTime = new Date(); state = 'running';
+    sessieId = maakSessieId(startTime);   // v2.73
+    document.getElementById('btn-start').disabled = true;
+    document.getElementById('btn-end').disabled   = false;
+    document.getElementById('disp-start').textContent = fmt(startTime);
+    document.getElementById('disp-start').classList.remove('empty');
+    document.getElementById('disp-end').textContent = '--';
+    document.getElementById('disp-end').classList.add('empty');
+    const badge = document.getElementById('status-badge');
+    badge.className = 'status-badge running';
+    badge.textContent = 'Counting in progress...';
+    document.getElementById('session-time').className = 'running';
+    TYPES.forEach(t => document.getElementById(`card-${t.id}`).classList.remove('locked'));
+    requestGPS();
+    startKlok();
+    acquireWakeLock();
+    bewaarStatic();
+  }
+
+  // Loopt elke seconde. Toont de ACTIEVE teltijd: onderbrekingen (v2.72) tellen
+  // niet mee, want in die tijd is er niet geteld.
+  function startKlok() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      const elapsed = actieveMs(new Date());
+      document.getElementById('session-time').textContent = fmtDuration(elapsed);
+      document.getElementById('disp-dur').textContent = fmtDuration(elapsed);
+      document.getElementById('disp-dur').classList.remove('empty');
+    }, 1000);
+  }
+
+  function endSession() {
+    if (state !== 'running') return;
+    endTime = new Date(); state = 'ended';
+    clearInterval(timerInterval);
+    releaseWakeLock();
+    bewaarStatic();
+    document.getElementById('btn-end').disabled = true;
+    document.getElementById('disp-end').textContent = fmt(endTime);
+    document.getElementById('disp-end').classList.remove('empty');
+    const elapsed = actieveMs(endTime);
+    document.getElementById('session-time').textContent = fmtDuration(elapsed);
+    document.getElementById('session-time').className = 'ended';
+    document.getElementById('disp-dur').textContent = fmtDuration(elapsed);
+    const badge = document.getElementById('status-badge');
+    badge.className = 'status-badge ended';
+    badge.textContent = 'Session ended - ' + fmtDuration(elapsed) + ' recorded - downloading CSV...';
+    TYPES.forEach(t => document.getElementById(`card-${t.id}`).classList.add('locked'));
+    setTimeout(() => exportCSV(), 300);
+  }
+
+  // ── Compass & auto directions ──
+
+  // Calculate a point at given distance (km) and bearing from a lat/lon
+  function destinationPoint(lat, lon, bearingDeg, distanceKm) {
+    const R    = 6371;
+    const d    = distanceKm / R;
+    const lat1 = lat * Math.PI / 180;
+    const lon1 = lon * Math.PI / 180;
+    const brng = bearingDeg * Math.PI / 180;
+    const lat2 = Math.asin(Math.sin(lat1)*Math.cos(d) + Math.cos(lat1)*Math.sin(d)*Math.cos(brng));
+    const lon2 = lon1 + Math.atan2(Math.sin(brng)*Math.sin(d)*Math.cos(lat1), Math.cos(d)-Math.sin(lat1)*Math.sin(lat2));
+    return { lat: lat2*180/Math.PI, lon: ((lon2*180/Math.PI)+540)%360-180 };
+  }
+
+  // Reverse geocode a point and return the nearest place name
+  function placeNameAt(lat, lon) {
+    const url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=10&addressdetails=1';
+    return fetch(url, { headers: { 'Accept-Language': 'nl', 'User-Agent': 'TrafficCounter/1.0' } })
+      .then(r => r.json())
+      .then(data => {
+        const a = data.address || {};
+        return a.city || a.town || a.village || a.hamlet || a.municipality || a.suburb || null;
+      })
+      .catch(() => null);
+  }
+
+  // 4-point Dutch cardinal names
+  function cardinalNL(deg) {
+    const dirs = ['Noord','Noordoost','Oost','Zuidoost','Zuid','Zuidwest','West','Noordwest'];
+    return dirs[Math.round(((deg%360)+360)%360/45)%8];
+  }
+
+  function applyHeading(heading, lat, lon) {
+    const btn = document.getElementById('btn-compass');
+    const ahead  = (heading + 360) % 360;
+    const behind = (heading + 180) % 360;
+    const cardAhead  = cardinalNL(ahead);
+    const cardBehind = cardinalNL(behind);
+
+    function setLabels(placeAhead, placeBehind) {
+      const a = placeAhead  || cardAhead;
+      const b = placeBehind || cardBehind;
+      // Dir B = compass direction = "Van [behind] naar [ahead]"
+      // Dir A = opposite         = "Van [ahead]  naar [behind]"
+      document.getElementById('lbl-b').value = 'Van ' + b + ' naar ' + a;
+      document.getElementById('lbl-a').value = 'Van ' + a + ' naar ' + b;
+      updateDirLabels();
+      btn.textContent = a + ' / ' + b;
+      btn.classList.add('active');
+      showDirToast('Van ' + a + ' naar ' + b, 'Van ' + b + ' naar ' + a);
+    }
+
+    if (lat != null && lon != null) {
+      btn.textContent = 'Looking up...';
+      const ptAhead  = destinationPoint(lat, lon, ahead,  5);
+      const ptBehind = destinationPoint(lat, lon, behind, 5);
+      Promise.all([placeNameAt(ptAhead.lat, ptAhead.lon), placeNameAt(ptBehind.lat, ptBehind.lon)])
+        .then(([a, b]) => setLabels(a !== b ? a : null, a !== b ? b : null));
+    } else {
+      setLabels(null, null);
+    }
+  }
+
+  function autoDirections() {
+    const btn = document.getElementById('btn-compass');
+    btn.textContent = 'Reading...';
+    btn.classList.remove('active');
+
+    const lat = gpsLocation && !gpsLocation.error ? gpsLocation.lat : null;
+    const lon = gpsLocation && !gpsLocation.error ? gpsLocation.lon : null;
+
+    if (gpsLocation && gpsLocation.heading != null && !isNaN(gpsLocation.heading)) {
+      applyHeading(gpsLocation.heading, lat, lon);
+      return;
+    }
+
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission()
+        .then(perm => {
+          if (perm === 'granted') listenCompass(lat, lon);
+          else { btn.textContent = 'Compass'; alert('Compass permission denied.'); }
+        })
+        .catch(() => { btn.textContent = 'Compass'; });
+    } else {
+      listenCompass(lat, lon);
+    }
+  }
+
+  function listenCompass(lat, lon) {
+    const btn = document.getElementById('btn-compass');
+    let readings = [], done = false;
+
+    function onOrientation(e) {
+      if (done) return;
+      let heading = null;
+      if (e.webkitCompassHeading != null && !isNaN(e.webkitCompassHeading)) heading = e.webkitCompassHeading;
+      else if (e.absolute && e.alpha != null) heading = (360 - e.alpha) % 360;
+      else if (e.alpha != null) heading = (360 - e.alpha) % 360;
+      if (heading == null) return;
+      readings.push(heading);
+      if (readings.length >= 5) {
+        done = true;
+        window.removeEventListener('deviceorientation', onOrientation, true);
+        window.removeEventListener('deviceorientationabsolute', onOrientation, true);
+        const sinSum = readings.reduce((s,h) => s + Math.sin(h*Math.PI/180), 0);
+        const cosSum = readings.reduce((s,h) => s + Math.cos(h*Math.PI/180), 0);
+        const mean   = (Math.atan2(sinSum, cosSum)*180/Math.PI+360)%360;
+        applyHeading(mean, lat, lon);
+      }
+    }
+
+    window.addEventListener('deviceorientationabsolute', onOrientation, true);
+    window.addEventListener('deviceorientation', onOrientation, true);
+
+    setTimeout(() => {
+      if (!done) {
+        done = true;
+        window.removeEventListener('deviceorientation', onOrientation, true);
+        window.removeEventListener('deviceorientationabsolute', onOrientation, true);
+        btn.textContent = 'Compass';
+        alert('No compass data received. Make sure you are on a mobile device and have granted motion permissions.');
+      }
+    }, 4000);
+  }
+  function vibrate(ms) {
+    if (navigator.vibrate) navigator.vibrate(ms);
+  }
+
+  // ── Undo last tap ──
+  function undoLast() {
+    if (!history.length) return;
+    const last = history.pop();
+    counts[last.type][last.dir] = Math.max(0, counts[last.type][last.dir] - 1);
+    document.getElementById('cnt-' + last.type + '-' + last.dir).textContent = counts[last.type][last.dir];
+    let total = 0;
+    TYPES.forEach(t => { total += counts[t.id].a + counts[t.id].b; });
+    document.getElementById('grand-total').textContent = total;
+    // Mark last log entry as undone
+    const log = document.getElementById('log');
+    if (log.firstChild) {
+      log.firstChild.style.opacity = '0.35';
+      log.firstChild.style.textDecoration = 'line-through';
+    }
+    document.getElementById('btn-undo-last').disabled = history.length === 0;
+    vibrate(30);
+    bewaarStatic();
+  }
+
+  function adjust(type, dir, delta) {
+    if (state !== 'running') return;
+    counts[type][dir] = Math.max(0, counts[type][dir] + delta);
+    const el = document.getElementById(`cnt-${type}-${dir}`);
+    el.textContent = counts[type][dir];
+    el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+    setTimeout(() => el.classList.remove('bump'), 150);
+    let total = 0;
+    TYPES.forEach(t => { total += counts[t.id].a + counts[t.id].b; });
+    document.getElementById('grand-total').textContent = total;
+    if (delta > 0) {
+      vibrate(25);
+      const ts = new Date().toTimeString().slice(0,8);
+      const lbl  = TYPES.find(t => t.id === type).label;
+      const dVal = dir === 'a' ? document.getElementById('lbl-a').value : document.getElementById('lbl-b').value;
+      history.push({ type, dir, ts, t: lokaalIso(new Date()) });   // v2.73: t = datum + tijd
+      document.getElementById('btn-undo-last').disabled = false;
+      addLog('+1 ' + lbl + ' - ' + dVal, ts);
+    } else {
+      // Remove the most recent matching entry so it won't appear in CSV log
+      const idx = history.map((h, i) => (h.type === type && h.dir === dir) ? i : -1)
+                         .filter(i => i >= 0).pop();
+      if (idx !== undefined) history.splice(idx, 1);
+      document.getElementById('btn-undo-last').disabled = history.length === 0;
+    }
+    bewaarStatic();
+  }
+
+  function addLog(msg, ts) {
+    const log = document.getElementById('log');
+    const div = document.createElement('div');
+    div.className = 'entry';
+    div.innerHTML = '<span>' + msg + '</span><span>' + ts + '</span>';
+    log.prepend(div);
+    if (log.children.length > 60) log.removeChild(log.lastChild);
+  }
+
+  function resetAll() {
+    if (!confirm('Reset everything and start over?')) return;
+    wisAlles();
+  }
+
+  // Zonder bevestiging; resetAll() en verwijderStatic() vragen het zelf.
+  function wisAlles() {
+    clearInterval(timerInterval);
+    releaseWakeLock();
+    wisStatic();
+    onderbrekingen = []; laatstActief = null;
+    document.getElementById('herstel-balk').style.display = 'none';
+    state = 'idle'; startTime = null; endTime = null; history = []; gpsLocation = null; sessieId = null;
+    lastZipBlob = null; lastZipName = ''; lastZipCount = -1;   // vangnet vrijgeven — nieuwe telling
+    if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+    TYPES.forEach(t => {
+      counts[t.id] = { a: 0, b: 0 };
+      document.getElementById(`cnt-${t.id}-a`).textContent = '0';
+      document.getElementById(`cnt-${t.id}-b`).textContent = '0';
+      document.getElementById(`card-${t.id}`).classList.add('locked');
+    });
+    document.getElementById('grand-total').textContent = '0';
+    document.getElementById('log').innerHTML = '';
+    document.getElementById('session-time').textContent = '00:00:00';
+    document.getElementById('session-time').className = '';
+    ['disp-start','disp-end','disp-dur','disp-gps'].forEach(id => {
+      document.getElementById(id).textContent = '--';
+      document.getElementById(id).classList.add('empty');
+    });
+    document.getElementById('btn-start').disabled = false;
+    document.getElementById('btn-end').disabled   = true;
+    document.getElementById('btn-undo-last').disabled = true;
+    const badge = document.getElementById('status-badge');
+    badge.className = 'status-badge idle';
+    badge.textContent = 'Press Start to begin counting';
+  }
+
+  // --- Downloaden (overgenomen uit pocket_count.html, v2.18) ---------------
+  // LET OP: navigator.share vereist net als <a>.click() een verse user-gesture.
+  // Wordt saveBlob aangeroepen ná een async (zoals zip.generateAsync), dan kan dat
+  // gebaar verlopen zijn en faalt de poging stil — daarvoor is de expliciete
+  // exportknop het vangnet (elke knoptik is vers en biedt lastZipBlob opnieuw aan).
+  function saveBlob(blob, filename, mime) {
+    mime = mime || 'application/octet-stream';
+    // Alleen iOS via het deelblad (daar slaat een download-link slecht op).
+    // Android kent navigator.share OOK, maar wil juist een echte download — en
+    // share eist een levende user-gesture die na het comprimeren verlopen kan zijn.
+    var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+             || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIOS) {
+      try {
+        if (navigator.canShare) {
+          var file = new File([blob], filename, { type: mime });
+          if (navigator.canShare({ files: [file] })) {
+            // v2.76: de uitkomst telt. Opgeslagen/gedeeld -> true; geannuleerd of
+            // gebaar verlopen -> false (vangnet is de exportknop).
+            return navigator.share({ files: [file] }).then(
+              function(){ return true; }, function(){ return false; });
+          }
+        }
+      } catch (e) { /* val door naar de download-link */ }
+    }
+    // desktop/Android: klassieke download-link. Het anker MOET in de DOM hangen,
+    // anders negeert Android de programmatische click().
+    var url = URL.createObjectURL(blob);
+    var a   = document.createElement('a');
+    a.href  = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
+    return Promise.resolve(true);   // v2.76: aan de browser overgedragen
+  }
+
+  // Bewaart de laatst gegenereerde ZIP zodat een tweede tik op Export 'm opnieuw
+  // kan aanbieden zonder hercompressie — het vangnet als het iOS-deelblad
+  // weggeveegd is. Leeft tot de volgende export 'm overschrijft.
+  var lastZipBlob = null;
+  var lastZipName = '';
+  var lastZipCount = -1;   // history.length op het moment van genereren
+
+  function exportCSV() {
+    // Vangnet: is er al een ZIP van déze telstand, bied 'm dan opnieuw aan (verse
+    // gesture) zonder hercompressie. Is er intussen door- of teruggeteld, dan is
+    // de bewaarde ZIP verlopen en bouwen we hem opnieuw. Reset() wist alles.
+    if (lastZipBlob && lastZipCount === history.length) {
+      saveBlob(lastZipBlob, lastZipName, 'application/zip').then(ok => { if (ok) exportBevestigd(); });
+      return;
+    }
+    const D = SEP;
+    const dirA = document.getElementById('lbl-a').value || 'Direction A';
+    const dirB = document.getElementById('lbl-b').value || 'Direction B';
+    const t0 = startTime;
+    // Hersteld maar (nog) niet doorgeteld: de telling liep tot het laatste
+    // bekende moment, niet tot nu.
+    const t1 = endTime || (state === 'running' ? new Date() : (state === 'restored' ? laatstActief : null));
+    const elapsedSec = (t0 && t1) ? actieveMs(t1) / 1000 : null;
+    const factor = (elapsedSec && elapsedSec >= 30) ? 3600 / elapsedSec : null;
+    const exportTs = fmtLocalDateTime(new Date());
+    const row = (...cells) => cells.join(D) + '\n';
+
+    let csv = 'sep=' + D + '\n';
+    csv += row('Traffic Count Export');
+    csv += row('Exported at', exportTs);
+    csv += row('Location / Notes', document.getElementById('notes').value || 'n/a');
+    csv += row('Start time', t0 ? fmtLocalDateTime(t0) : 'n/a');
+    csv += row('End time',   t1 ? fmtLocalDateTime(t1) : 'n/a (session still running)');
+    csv += row('Observed duration', elapsedSec ? fmtDuration(elapsedSec * 1000) : 'n/a');
+    // v2.72: alleen als er onderbroken is, anders blijft de export zoals hij was.
+    const onderbr = t1 ? onderbrekingen.filter(o => new Date(o.van) < t1) : [];
+    if (onderbr.length) {
+      const weg = onderbr.reduce((som, o) => som + (Math.min(+new Date(o.tot), +t1) - new Date(o.van)), 0);
+      csv += row('Interruptions', onderbr.length, fmtDuration(weg) + ' not counted, excluded from duration and per-hour figures');
+      onderbr.forEach((o, i) => {
+        csv += row('Interruption ' + (i + 1), fmtLocalDateTime(new Date(o.van)), fmtLocalDateTime(new Date(o.tot)));
+      });
+    }
+    if (gpsLocation && !gpsLocation.error) {
+      csv += row('GPS latitude',  gpsLocation.lat.toFixed(6));
+      csv += row('GPS longitude', gpsLocation.lon.toFixed(6));
+      csv += row('GPS accuracy (m)', gpsLocation.accuracy);
+      csv += row('GPS reliable', gpsLocation.reliable ? 'Yes (< 25m)' : 'No (> 25m, best available)');
+      csv += row('GPS street',  gpsLocation.street  || 'n/a');
+      csv += row('GPS city',    gpsLocation.city    || 'n/a');
+      csv += row('GPS country', gpsLocation.country || 'n/a');
+      csv += row('GPS recorded at', fmtLocalDateTime(gpsLocation.timestamp));
+    } else {
+      csv += row('GPS', gpsLocation ? gpsLocation.error : 'Not available');
+    }
+    if (factor) {
+      csv += row('Extrapolation factor', factor.toFixed(4), '= 3600 / ' + Math.round(elapsedSec) + ' seconds');
+    } else {
+      csv += row('Extrapolation', elapsedSec ? 'Not calculated (session < 30 seconds)' : 'Not calculated (no session recorded)');
+    }
+    csv += '\n';
+    csv += row('Vehicle Type', dirA + ' counted', dirB + ' counted', 'Total counted',
+               ...(factor ? [dirA + ' per hour', dirB + ' per hour', 'Total per hour'] : []));
+    let sumA = 0, sumB = 0;
+    TYPES.forEach(t => {
+      const a = counts[t.id].a, b = counts[t.id].b;
+      sumA += a; sumB += b;
+      csv += row(t.label, a, b, a + b,
+                 ...(factor ? [Math.round(a*factor), Math.round(b*factor), Math.round((a+b)*factor)] : []));
+    });
+    csv += row('TOTAL', sumA, sumB, sumA + sumB,
+               ...(factor ? [Math.round(sumA*factor), Math.round(sumB*factor), Math.round((sumA+sumB)*factor)] : []));
+    if (history.length) {
+      csv += '\n' + row('Timestamp Log') + row('Time', 'Vehicle', 'Direction');
+      history.forEach(h => {
+        csv += row(h.ts, TYPES.find(t => t.id === h.type).label, h.dir === 'a' ? dirA : dirB);
+      });
+    }
+    // ZIP met de CSV erin — zelfde deel-/downloadpad als pocket, zodat het ook
+    // op iOS Safari werkt (data:-download-link werkte daar niet).
+    // v2.73: de ZIP heeft de vorm van de rest van de suite. <sid>_sessie.csv en
+    // <sid>_telregels.csv (met datum per tik) voor KNIME en de keten;
+    // <sid>_onderbrekingen.csv alleen als er onderbroken is; en het leesbare
+    // overzicht van vóór v2.73 ongewijzigd als <sid>_overzicht.csv (Excel,
+    // en telrapport leest dat). Alle vier komen uit dezelfde stand, op één moment.
+    if (!sessieId) sessieId = maakSessieId(t0 || new Date());
+    const sid  = sessieId, base = sid;
+    const gpsOk = gpsLocation && !gpsLocation.error && gpsLocation.lat != null;
+    const lat  = gpsOk ? gpsLocation.lat.toFixed(6) : '', lon = gpsOk ? gpsLocation.lon.toFixed(6) : '';
+    const acc  = gpsOk ? gpsLocation.accuracy : '';
+    const hms  = d => d ? d.toTimeString().slice(0, 8) : '';
+    const dag  = t0 || new Date();
+    let nTot = 0; TYPES.forEach(t => { nTot += counts[t.id].a + counts[t.id].b; });
+    const sessieCsv =
+      'sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen;modus;richting_a;richting_b;lat;lon;nauwkeurigheid;straat;plaats;notities;actieve_duur_s;uurfactor\n'
+      + [sid, lokaalIso(dag).slice(0, 10), hms(t0), hms(t1), 'standstill', 'verkeer', nTot, 'standstill',
+         csvVeld(dirA), csvVeld(dirB), lat, lon, acc,
+         csvVeld(gpsOk ? gpsLocation.street : ''), csvVeld(gpsOk ? gpsLocation.city : ''),
+         csvVeld(document.getElementById('notes').value),
+         elapsedSec ? Math.round(elapsedSec) : '', factor ? factor.toFixed(4) : ''].join(D) + '\n';
+    let telCsv = 'sessie_id;nr;tijdstip;type;richting;lat;lon;nauwkeurigheid\n';
+    tijdstippen(history, t0).forEach((t, i) => {
+      telCsv += [sid, i + 1, t, history[i].type, history[i].dir, lat, lon, acc].join(D) + '\n';
+    });
+    const zip = new JSZip();
+    zip.file(sid + '_sessie.csv', sessieCsv);
+    zip.file(sid + '_telregels.csv', telCsv);
+    if (onderbr.length) {
+      let onCsv = 'sessie_id;nr;van;tot;duur_s\n';
+      onderbr.forEach((o, i) => {
+        const van = new Date(o.van), tot = new Date(Math.min(+new Date(o.tot), +t1));
+        onCsv += [sid, i + 1, lokaalIso(van), lokaalIso(tot), Math.round((tot - van) / 1000)].join(D) + '\n';
+      });
+      zip.file(sid + '_onderbrekingen.csv', onCsv);
+    }
+    zip.file(sid + '_overzicht.csv', csv);
+    zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 9 } })
+       .then(function(blob) {
+         lastZipBlob = blob;
+         lastZipName = base + '.zip';
+         lastZipCount = history.length;
+         saveBlob(lastZipBlob, lastZipName, 'application/zip').then(ok => { if (ok) exportBevestigd(); });
+       });
+  }
+
+  const keyMap = {
+    q:['car','a'],   a:['car','b'],
+    w:['truck','a'], s:['truck','b'],
+    e:['moto','a'],  d:['moto','b'],
+    r:['bike','a'],  f:['bike','b'],
+    t:['ped','a'],   g:['ped','b'],
+  };
+  document.addEventListener('keydown', ev => {
+    if (ev.target.tagName === 'INPUT') return;
+    if (ev.key === ' ' || ev.key === 'Enter') {
+      if (state === 'idle') startSession(); else if (state === 'running') endSession(); return;
+    }
+    if (ev.key.toLowerCase() === 'z') { undoLast(); return; }
+    const m = keyMap[ev.key.toLowerCase()];
+    if (m) adjust(m[0], m[1], 1);
+  });
+
+  // ── Direction toast ──
+  let toastTimer = null;
+  function showDirToast(valA, valB) {
+    document.getElementById('toast-a').textContent = valA;
+    document.getElementById('toast-b').textContent = valB;
+    const el = document.getElementById('toast');
+    el.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.classList.remove('show'); }, 5000);
+  }
+
+  // ── Noodopslag en doortellen (v2.72) ─────────────────────────────────────
+  // Zelfde vangnet als de parkeer-apps en pocket: de hele telling staat na elke
+  // tik in localStorage, en elke 10 s een hartslag (laatstActief). Na een crash,
+  // herladen of weggeveegde tab komt de telling terug met een herstelbalk:
+  // doortellen, downloaden of weggooien.
+  //
+  // Doortellen na een onderbreking: de tijd tussen laatstActief en het moment
+  // van doortellen is niet geteld. Die gaat als onderbreking in de export en telt
+  // niet mee in de geobserveerde duur en de uurfactor; anders zou een pauze de
+  // intensiteit per uur omlaag trekken. Zonder onderbreking blijft de export
+  // byte-gelijk aan die van vóór v2.72.
+  const LS_STATIC = 'static_sessie';
+  let onderbrekingen = [];     // [{van, tot}] als ISO-tekst
+  let sessieId = null;         // v2.73: <jjjjmmdd>_<uummss>_<xxx>_sta, vast vanaf Start
+  let laatstActief = null;     // Date: laatste moment dat de telling zeker liep
+  let geexporteerd = false;    // na End: is de ZIP gemaakt?
+  let wakeLock = null;
+
+  function actieveMs(tot) {
+    if (!startTime || !tot) return 0;
+    let ms = tot - startTime;
+    onderbrekingen.forEach(o => {
+      const van = new Date(o.van), eind = new Date(Math.min(+new Date(o.tot), +tot));
+      if (eind > van) ms -= (eind - van);
+    });
+    return Math.max(0, ms);
+  }
+
+  // v2.76: afgeronde telling, ZIP bevestigd weggeschreven -> noodkopie meteen weg.
+  // Tot v2.76 bleef hij staan tot je Static weer opende. Een tussentijdse export
+  // (telling loopt nog) laat de kopie staan.
+  function exportBevestigd() {
+    if (state !== 'ended') return;
+    geexporteerd = true;
+    try { localStorage.removeItem(LS_STATIC); } catch (e) {}
+  }
+
+  function bewaarStatic() {
+    if (state === 'idle' || !startTime || geexporteerd) return;   // v2.76: na bevestigde export niet opnieuw
+    if (state === 'running') laatstActief = new Date();
+    try {
+      localStorage.setItem(LS_STATIC, JSON.stringify({
+        v: 1, state: state === 'restored' ? 'running' : state,
+        startTime: startTime.toISOString(), endTime: endTime ? endTime.toISOString() : null,
+        laatstActief: laatstActief ? laatstActief.toISOString() : null,
+        counts: counts, history: history, onderbrekingen: onderbrekingen, sessieId: sessieId,
+        gpsLocation: gpsLocation, geexporteerd: geexporteerd,
+        notes: document.getElementById('notes').value,
+        dirA: document.getElementById('lbl-a').value, dirB: document.getElementById('lbl-b').value,
+        savedAt: new Date().toISOString()
+      }));
+    } catch (e) {}
+  }
+
+  // ── Sessie-id en tijden (v2.73) ──
+  // Zelfde vorm als de andere apps, met _sta als merkteken voor stilstaand.
+  function maakSessieId(d) {
+    const p = n => String(n).padStart(2, '0');
+    const rnd = [0, 1, 2].map(() => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_'
+         + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '_' + rnd + '_sta';
+  }
+  // Lokale tijd, zelfde vorm als pocket: 2026-09-23T14:05:31
+  function lokaalIso(d) {
+    const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+         + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+  // Datum + tijd per tik. Tikken van vóór v2.73 (uit een herstelde telling)
+  // hebben alleen HH:MM:SS: dan de startdatum, en een dag verder zodra de
+  // klok terugspringt (telling over middernacht).
+  function tijdstippen(hist, t0) {
+    let dag = t0 ? new Date(t0.getFullYear(), t0.getMonth(), t0.getDate()) : new Date();
+    let vorige = '';
+    return hist.map(h => {
+      if (h.t) return h.t;
+      if (vorige && h.ts < vorige) dag = new Date(dag.getFullYear(), dag.getMonth(), dag.getDate() + 1);
+      vorige = h.ts;
+      return lokaalIso(dag).slice(0, 10) + 'T' + h.ts;
+    });
+  }
+  function csvVeld(v) { return String(v == null ? '' : v).replace(/[;\r\n]+/g, ' ').trim(); }
+
+  function wisStatic() {
+    geexporteerd = false;
+    try { localStorage.removeItem(LS_STATIC); } catch (e) {}
+  }
+
+  function herstelStatic() {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(LS_STATIC) || 'null'); } catch (e) {}
+    if (!d || !d.startTime) return;
+    if (d.state === 'ended' && d.geexporteerd) { wisStatic(); return; }   // netjes afgerond (kopie uit v2.72–v2.75)
+
+    startTime = new Date(d.startTime);
+    sessieId = d.sessieId || maakSessieId(startTime);   // v2.72-opslag had er nog geen
+    endTime = d.endTime ? new Date(d.endTime) : null;
+    laatstActief = d.laatstActief ? new Date(d.laatstActief) : new Date(d.savedAt || d.startTime);
+    onderbrekingen = d.onderbrekingen || [];
+    history = d.history || [];
+    gpsLocation = d.gpsLocation || null;
+    if (gpsLocation && gpsLocation.timestamp) gpsLocation.timestamp = new Date(gpsLocation.timestamp);
+    document.getElementById('notes').value = d.notes || '';
+    if (d.dirA) document.getElementById('lbl-a').value = d.dirA;
+    if (d.dirB) document.getElementById('lbl-b').value = d.dirB;
+    let total = 0;
+    TYPES.forEach(t => {
+      counts[t.id] = (d.counts && d.counts[t.id]) || { a: 0, b: 0 };
+      document.getElementById(`cnt-${t.id}-a`).textContent = counts[t.id].a;
+      document.getElementById(`cnt-${t.id}-b`).textContent = counts[t.id].b;
+      total += counts[t.id].a + counts[t.id].b;
+    });
+    document.getElementById('grand-total').textContent = total;
+    history.slice(-60).forEach(h => {
+      const lbl = TYPES.find(t => t.id === h.type).label;
+      addLog('+1 ' + lbl + ' - ' + document.getElementById(h.dir === 'a' ? 'lbl-a' : 'lbl-b').value, h.ts);
+    });
+    document.getElementById('btn-undo-last').disabled = true;
+
+    const afgerond = d.state === 'ended';
+    state = afgerond ? 'ended' : 'restored';
+    const tot = afgerond ? endTime : laatstActief;
+    document.getElementById('disp-start').textContent = fmt(startTime);
+    document.getElementById('disp-start').classList.remove('empty');
+    if (afgerond) {
+      document.getElementById('disp-end').textContent = fmt(endTime);
+      document.getElementById('disp-end').classList.remove('empty');
+    }
+    document.getElementById('disp-dur').textContent = fmtDuration(actieveMs(tot));
+    document.getElementById('disp-dur').classList.remove('empty');
+    document.getElementById('session-time').textContent = fmtDuration(actieveMs(tot));
+    document.getElementById('session-time').className = 'ended';
+    updateGPSDisplay();
+    document.getElementById('btn-start').disabled = true;
+    document.getElementById('btn-end').disabled = true;
+    const badge = document.getElementById('status-badge');
+    badge.className = 'status-badge ended';
+    badge.textContent = afgerond ? 'Session ended - not downloaded yet' : 'Session interrupted';
+
+    document.getElementById('herstel-tekst').textContent = '\u26A0\uFE0F ' +
+      (afgerond ? 'Finished session, not downloaded: ' : 'Interrupted session restored: ') +
+      total + ' counted, started ' + fmt(startTime) + ', ' +
+      (afgerond ? 'ended ' + fmt(endTime) : 'last active ' + fmt(laatstActief)) + '.';
+    document.getElementById('herstel-door').style.display = afgerond ? 'none' : '';
+    document.getElementById('herstel-balk').style.display = '';
+  }
+
+  function doortellenStatic() {
+    if (state !== 'restored') return;
+    const nu = new Date();
+    if (laatstActief && nu > laatstActief) {
+      onderbrekingen.push({ van: laatstActief.toISOString(), tot: nu.toISOString() });
+    }
+    state = 'running'; endTime = null;
+    document.getElementById('herstel-balk').style.display = 'none';
+    document.getElementById('btn-start').disabled = true;
+    document.getElementById('btn-end').disabled = false;
+    document.getElementById('btn-undo-last').disabled = history.length === 0;
+    document.getElementById('session-time').className = 'running';
+    const badge = document.getElementById('status-badge');
+    badge.className = 'status-badge running';
+    badge.textContent = 'Counting in progress...';
+    TYPES.forEach(t => document.getElementById(`card-${t.id}`).classList.remove('locked'));
+    // GPS opnieuw laten settelen als de fix bij de onderbreking nog niet was
+    // vastgezet (geen straat, niet betrouwbaar). requestGPS() houdt de beste fix.
+    if (!gpsLocation || gpsLocation.error || !(gpsLocation.reliable || gpsLocation.street || gpsLocation.city)) requestGPS();
+    startKlok();
+    acquireWakeLock();
+    bewaarStatic();
+  }
+
+  function verwijderStatic() {
+    if (!confirm('Discard the restored session? This cannot be undone.')) return;
+    wisAlles();
+  }
+
+  // Scherm aan houden tijdens het tellen (v2.72; de andere veld-apps deden dit al).
+  async function acquireWakeLock() {
+    if (!('wakeLock' in navigator) || wakeLock) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch (e) {}
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+  }
+
+  // Hartslag: bewaart laatstActief, zodat een onderbreking tot op 10 s klopt,
+  // ook als er een tijd geen verkeer langskwam.
+  setInterval(() => { if (state === 'running') bewaarStatic(); }, 10000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) bewaarStatic();
+    else if (state === 'running') acquireWakeLock();   // de browser geeft het slot vrij bij verbergen
+  });
+  window.addEventListener('pagehide', bewaarStatic);
+  ['notes', 'lbl-a', 'lbl-b'].forEach(id => document.getElementById(id).addEventListener('input', bewaarStatic));
+
+  buildCards();
+  herstelStatic();
+</script>
+</body>
+</html>

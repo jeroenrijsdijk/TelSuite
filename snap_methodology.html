@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPS Snap Methodology — telonline.org</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #f0f0ec;
+    --surface: #ffffff;
+    --border:  #b0b0a8;
+    --text:    #1a1918;
+    --dim:     #555550;
+    --muted:   #999990;
+    --accent:  #1a1918;
+    --warn:    #c07800;
+    --ok:      #0a8a30;
+    --font:    'Oswald', sans-serif;
+    --mono:    'Share Tech Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.6;
+    padding: 0 0 80px;
+  }
+
+  /* ── Header ── */
+  #header {
+    background: var(--text);
+    color: var(--bg);
+    padding: 28px 40px 24px;
+    margin-bottom: 36px;
+  }
+  #header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+  #header .sub {
+    font-size: 0.85rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+  #header .back {
+    display: inline-block;
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--muted);
+    padding-bottom: 2px;
+  }
+  #header .back:hover { color: var(--bg); border-color: var(--bg); }
+
+  .container {
+    max-width: 840px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  /* ── Intro callout ── */
+  .intro {
+    font-size: 1rem;
+    color: var(--dim);
+    margin-bottom: 36px;
+    line-height: 1.7;
+  }
+  .intro code {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    background: var(--surface);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--text);
+  }
+
+  /* ── Scope banner ── */
+  .scope-banner {
+    background: var(--surface);
+    border-left: 5px solid var(--warn);
+    padding: 14px 20px;
+    margin-bottom: 36px;
+    font-size: 0.95rem;
+    color: var(--dim);
+  }
+  .scope-banner strong {
+    color: var(--text);
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 2px;
+    display: block;
+    margin-bottom: 4px;
+    color: var(--warn);
+  }
+
+  /* ── Sections ── */
+  .section {
+    margin-bottom: 44px;
+  }
+  .section h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-bottom: 3px solid var(--text);
+    padding-bottom: 6px;
+    margin-bottom: 18px;
+  }
+  .section h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text);
+    margin: 22px 0 8px;
+  }
+  .section p {
+    font-size: 0.95rem;
+    color: var(--dim);
+    margin-bottom: 12px;
+  }
+  .section p code,
+  .section li code {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    background: var(--surface);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--text);
+  }
+  .section ul, .section ol {
+    margin: 8px 0 14px 24px;
+    color: var(--dim);
+    font-size: 0.95rem;
+  }
+  .section li { margin-bottom: 5px; }
+
+  /* ── Code block ── */
+  .code-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    margin: 14px 0;
+    overflow-x: auto;
+  }
+  .code-title {
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+  .code-block pre {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: var(--text);
+    line-height: 1.55;
+    white-space: pre;
+  }
+  .code-block .comment { color: var(--muted); }
+  .code-block .keyword { color: var(--warn); font-weight: 700; }
+
+  /* ── Parameter table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    background: var(--surface);
+    font-size: 0.88rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--dim);
+    vertical-align: top;
+  }
+  th {
+    background: var(--text);
+    color: var(--bg);
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+  }
+  td:first-child {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  td:nth-child(2) {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+
+  /* ── Inline SVG diagram styling ── */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    margin: 16px 0;
+    text-align: center;
+  }
+  .diagram svg { max-width: 100%; height: auto; }
+  .diagram-caption {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 8px;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="container">
+    <a class="back" href="index.html">&#8592; Menu</a>
+    <h1>GPS Snap<br>Methodology</h1>
+    <div class="sub">telonline.org &mdash; adjacency-aware road snapping</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="intro">
+    This document describes how GPS fixes are matched to OSM road geometry in telonline.org. The snap is what links every observation to a specific <code>way_id</code> and <code>seg_idx</code>; the quality of that match determines whether the downstream reports (<code>telrapport.html</code>) attribute counts to the correct street.
+  </div>
+
+  <div class="scope-banner">
+    <strong>Scope</strong>
+    At the time of writing, the adjacency-aware algorithm described below lives only in <code>pocket_count.html</code>. The other survey apps (<code>parkeertelling.html</code>, <code>fietsparkeren.html</code>, <code>capaciteitstelling.html</code>) still use a stateless nearest-edge snap and will be migrated in a later round. Until then, the same edge-case bugs described below can still occur in those tools.
+  </div>
+
+  <div class="scope-banner" style="border-left-color:var(--ok);">
+    <strong style="color:var(--ok);">Note on bearing &mdash; parking surveys</strong>
+    <code>parkeertelling.html</code>, <code>fietsparkeren.html</code> and <code>capaciteitstelling.html</code> attach a <em>zijde</em> (side: left/right of the way) to each observation, derived from the GPS movement vector. This bearing logic is independent from the snap algorithm: snap answers "which way am I on", bearing answers "which side of it am I observing". They are coupled only at output time, when both values are written to <code>_capaciteit.csv</code> or <code>_straten.csv</code>.
+    <br><br>
+    When migrating the adjacency-aware snap to these apps, the bearing code is not touched. A risk to keep in mind: if the snap holds anchor on way A while the counter is physically on parallel way B, the recorded <em>zijde</em> will be valid for A but incorrect for B &mdash; a compound error rather than a single one. In practice parking surveys run along well-defined linear streets where snap pathologies (jitter at standstill, level transitions in covered passages) are rare, so this risk is mostly theoretical. A separate document will be written if field tests reveal bearing/snap interaction issues after migration.
+  </div>
+
+  <!-- ───────────────────────── PROBLEM ───────────────────────── -->
+  <div class="section">
+    <h2>1. The problem</h2>
+    <p>
+      The previous snap algorithm was stateless: for every GPS fix, the closest OSM edge within <code>SNAP_MAX_M = 50&nbsp;m</code> was selected. This works well in open suburban streets but breaks down in dense urban fabric.
+    </p>
+    <p>
+      The canonical failure case &mdash; observed in ZIP <code>20260520_145913_txb_pkt</code> &mdash; involves two parallel pedestrian ways in Spijkenisse Centrum:
+    </p>
+    <ul>
+      <li><code>136079346</code>: one of two near-parallel pedestrian passages</li>
+      <li><code>130419432</code>: the other, roughly 8&nbsp;m away</li>
+    </ul>
+    <p>
+      Both ways are well within the 50&nbsp;m radius. Because GPS accuracy in narrow urban canyons is typically 5&ndash;15&nbsp;m, individual fixes wobble between the two candidates, and the stateless snap &mdash; having no concept of topology &mdash; flips attribution between them. This is the general failure mode the adjacency-aware snap exists to fix: where parallel ways are genuinely <em>disconnected</em> (no shared node, reachable only via a cross-street), topology can rule out the unreachable one.
+    </p>
+    <p>
+      A caveat specific to this ZIP: re-analysis under v2.8 (see &sect;8) showed that taps 28, 29, 44, 45 actually sit on a <em>junction</em> where <code>130419432</code>, <code>136079346</code> and <code>130418057</code> converge within sub-metre &mdash; far below GPS accuracy. That is a distinct, irreducible case rather than the parallel-disconnected one: no distance- or topology-based rule can separate candidates that occupy the same point in space. The adjacency snap still addresses the broad parallel-ways problem; it simply cannot resolve a true shared-node junction.
+    </p>
+  </div>
+
+  <!-- ───────────────────────── CONCEPT ───────────────────────── -->
+  <div class="section">
+    <h2>2. The core idea</h2>
+    <p>
+      Movement on a road network is constrained by topology, not by Euclidean distance. A counter on Centrumpassage cannot suddenly be on Nieuwstraat-west on the next fix without traversing a connecting way. The fix is to make the snap <em>state-aware</em>: each GPS fix snaps to a way that is reachable from the previously snapped way through the adjacency graph.
+    </p>
+    <p>
+      GPS is no longer consulted as ground truth for "which way am I on" &mdash; only "which fix is the closest evidence". The decision about <em>which</em> way is filtered by the network's topology. Taps inherit the currently snapped way; they do not run their own independent snap pass.
+    </p>
+  </div>
+
+  <!-- ───────────────────────── ADJACENCY GRAPH ───────────────────────── -->
+  <div class="section">
+    <h2>3. The adjacency graph</h2>
+    <p>
+      Two OSM ways are <em>adjacent</em> when they share at least one node (by node ID, not by coordinate proximity). This catches T-junctions, roundabouts, and multi-way intersections correctly: an intermediate node halfway along a way still connects whatever ways meet there.
+    </p>
+
+    <h3>Acquiring the data</h3>
+    <p>
+      The Overpass query in <code>pocket_count.html</code> uses <code>out body geom;</code> rather than <code>out tags geom;</code>. The <code>body</code> verb adds the <code>nodes</code> array (a list of node IDs in order) to every way element, which is exactly what we need for the adjacency check. Geometry is still included.
+    </p>
+
+    <h3>Construction</h3>
+    <p>
+      The graph is built incrementally as the Overpass fetches expand the working area:
+    </p>
+    <div class="code-block">
+      <div class="code-title">Adjacency registration (pseudocode)</div>
+<pre><span class="keyword">for each</span> way <span class="keyword">in</span> overpass_response:
+    <span class="keyword">for each</span> node_id <span class="keyword">in</span> way.nodes:
+        <span class="keyword">if</span> node_to_ways[node_id] already contains way.id:
+            <span class="keyword">continue</span>  <span class="comment"># already registered on this node</span>
+        <span class="keyword">for each</span> other_way_id <span class="keyword">in</span> node_to_ways[node_id]:
+            adjacency[way.id].add(other_way_id)
+            adjacency[other_way_id].add(way.id)
+        node_to_ways[node_id].add(way.id)</pre>
+    </div>
+    <p>
+      Both <code>node_to_ways</code> and <code>adjacency</code> grow cumulatively over the lifetime of a session. New fetches add new edges; existing edges are idempotent. This matters because the anchor must remain valid across refetches when the counter walks into newly fetched terrain.
+    </p>
+
+    <h3>Candidate accumulation across refetches (v2.8)</h3>
+    <p>
+      The geometry must accumulate the same way the graph does. Before v2.8 the snap-candidate set was rebuilt from each fresh Overpass response, so a way that fell just outside the new fetch circle lost its candidacy at every refetch &mdash; the counter could walk back onto a way that had vanished from the pool. v2.8 makes the pool cumulative:
+    </p>
+    <ul>
+      <li><code>snapElements</code> accumulates every way ever fetched in the session; it is never rebuilt.</li>
+      <li><code>snapElementsNear(lat, lon)</code> derives the per-fix candidate list from that cumulative pool, keeping any way with at least one node within <code>SNAP_SEGS_RADIUS</code> (400&nbsp;m). The current anchor is always retained regardless of node distance, so the way you are standing on can never drop out &mdash; even a long way with widely-spaced nodes.</li>
+      <li>The fetch order is now <em>accumulate first, build second</em>: new elements are merged into <code>snapElements</code> and <code>snapAdjacency</code>, then <code>snapBuildSegs</code> reprojects everything against the current origin in one pass. A single origin avoids mixing coordinate frames from different fetches.</li>
+    </ul>
+    <p>
+      Each fetch logs <code>n_el|n_kept|n_segs</code> to <code>_snap_trace.csv</code>: total cumulative ways, ways kept within <code>SNAP_SEGS_RADIUS</code>, and segments handed to the matcher.
+    </p>
+  </div>
+
+  <!-- ───────────────────────── ALGORITHM ───────────────────────── -->
+  <div class="section">
+    <h2>4. The snap algorithm</h2>
+    <p>
+      Each GPS fix passes through a five-step decision ladder. The output is either a snap object (with <code>wayId</code>, <code>segIdx</code>, snapped coordinates) or <code>null</code> &mdash; the latter meaning "this fix did not produce a confident match, keep the current anchor".
+    </p>
+
+    <div class="code-block">
+      <div class="code-title">snapNearestWay() — decision ladder</div>
+<pre><span class="keyword">def</span> snap(lat, lon):
+    candidates = nearest_edge_per_way(lat, lon)  <span class="comment"># {wayId → distance, segment}</span>
+    candidates = {w: c <span class="keyword">for</span> w, c <span class="keyword">in</span> candidates <span class="keyword">if</span> c.distance &lt;= SNAP_MAX_M}
+
+    <span class="comment"># Step 1 — bootstrap: no anchor yet (start of session)</span>
+    <span class="keyword">if</span> anchor_way_id <span class="keyword">is</span> None:
+        chosen = closest_in(candidates)
+        set_anchor(chosen)
+        <span class="keyword">return</span> chosen
+
+    <span class="comment"># Step 2 — depth-1: anchor + directly connected ways</span>
+    allowed = {anchor_way_id} ∪ adjacency[anchor_way_id]
+    chosen = closest_in(candidates ∩ allowed)
+    <span class="keyword">if</span> chosen:
+        update_anchor(chosen)
+        <span class="keyword">return</span> chosen
+
+    <span class="comment"># Step 3 — depth-2: also neighbours-of-neighbours</span>
+    <span class="comment"># (catches short skipped ways at speed, e.g. driving)</span>
+    allowed = expand_adjacency(anchor_way_id, depth=2)
+    chosen = closest_in(candidates ∩ allowed)
+    <span class="keyword">if</span> chosen:
+        update_anchor(chosen)
+        <span class="keyword">return</span> chosen
+
+    <span class="comment"># Step 4 — reset check: is the anchor itself too far away?</span>
+    <span class="keyword">if</span> distance_to_way(lat, lon, anchor_way_id) &gt; SNAP_RESET_M:
+        clear_anchor()
+        chosen = closest_in(candidates)
+        set_anchor(chosen)
+        <span class="keyword">return</span> chosen
+
+    <span class="comment"># Step 5 — glitch hold: probable GPS jitter, keep anchor</span>
+    <span class="keyword">return</span> None</pre>
+    </div>
+
+    <h3>Why this order matters</h3>
+    <p>
+      Depth-1 is tried before depth-2 because depth-2 sets are much larger in dense networks. In a city center, depth-2 from any anchor typically covers half the neighborhood; checking depth-1 first preserves the filter's discriminating power for the common case (walking pace, 1&nbsp;Hz GPS, fixes within the same way).
+    </p>
+    <p>
+      The reset check uses the anchor's own distance, not the candidate distance, because we want to distinguish "the counter has moved away" (anchor far) from "the GPS is glitching" (anchor still near but no connected candidate visible right now). Without this distinction, every tunnel exit would corrupt the anchor.
+    </p>
+  </div>
+
+  <!-- ───────────────────────── PARAMETERS ───────────────────────── -->
+  <div class="section">
+    <h2>5. Tunable parameters</h2>
+    <p>
+      Four numerical knobs govern the live snap's behavior. All are defined as top-level constants in the snap module. (The offline reassignment in &sect;7 has its own internal constants.)
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>Constant</th><th>Default</th><th>What it does</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>SNAP_MAX_M</td>
+          <td>50&nbsp;m</td>
+          <td>Maximum perpendicular distance from a GPS fix to an OSM edge for that edge to be considered as a candidate. Anything beyond is silently discarded. Increasing this helps in areas with poor OSM coverage but admits more noise; decreasing it makes the snap stricter but increases the rate of <code>null</code> outputs (Step&nbsp;5).</td>
+        </tr>
+        <tr>
+          <td>SNAP_RESET_M</td>
+          <td>50&nbsp;m</td>
+          <td>Threshold for declaring that the counter has physically moved away from the anchor. When the anchor itself lies further than this from the current GPS position <em>and</em> no connected candidate is found, the anchor is cleared and the next fix is treated as bootstrap. Set equal to <code>SNAP_MAX_M</code>: an anchor that is already out of snap range cannot be a useful constraint, so there is no reason to hold it longer.</td>
+        </tr>
+        <tr>
+          <td>SNAP_SEGS_RADIUS</td>
+          <td>400&nbsp;m</td>
+          <td>Radius around the current fix within which a cumulatively-fetched way stays in the candidate pool (see &sect;3). Derived as <code>round(SNAP_ROAD_FETCH_RADIUS &times; 1.6)</code> from the 250&nbsp;m fetch radius plus the maximum drift before a refetch. Larger values keep more far-off ways as candidates (more robust when doubling back, slightly more work per fix); the anchor is always kept regardless of this radius.</td>
+        </tr>
+        <tr>
+          <td>adjacency depth</td>
+          <td>1, then 2</td>
+          <td>The algorithm tries depth-1 first, falls back to depth-2 if depth-1 yields no candidate. Not a tunable scalar but a fixed two-stage fallback. In principle a depth-3 stage could be added for very high speeds, but at &gt;120&nbsp;km/h on a 1&nbsp;Hz GPS the snap is already losing meaning.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Speed adaptivity is automatic</h3>
+    <p>
+      The two-stage depth ladder gives the algorithm an emergent property: at walking pace, fixes are dense and depth-1 nearly always succeeds, keeping the filter strict. At driving speed, individual ways may be skipped between fixes; depth-1 then comes up empty, depth-2 picks up the slack. No explicit speed estimate is needed.
+    </p>
+  </div>
+
+  <!-- ───────────────────────── ANCHOR INHERITANCE ───────────────────────── -->
+  <div class="section">
+    <h2>6. Tap anchor inheritance</h2>
+    <p>
+      User taps (counting actions) do <em>not</em> run their own independent snap. When a tap fires, the handler asks the snap module for a fresh snap at the current GPS position. Two outcomes:
+    </p>
+    <ol>
+      <li>
+        <strong>Fresh snap succeeded</strong> (Steps 1&ndash;4 returned a result) &mdash; the tap stores that result's <code>wayId</code>, <code>segIdx</code>, and <code>osmName</code>.
+      </li>
+      <li>
+        <strong>Fresh snap returned <code>null</code></strong> (Step&nbsp;5: glitch hold) &mdash; the tap inherits the current anchor's <code>wayId</code> and <code>segIdx</code>, plus the cached <code>osmName</code> from <code>snapElements[anchor]</code>.
+      </li>
+    </ol>
+    <p>
+      Inheritance is preferred over emitting an empty <code>wayId</code> because we know more than the absence of a fresh snap suggests: the anchor was valid one fix ago, the counter cannot have teleported, so the most defensible attribution is the anchor itself. In practice this turns short GPS dropouts (passing under a bridge, stepping into a doorway) from data gaps into correctly-attributed taps.
+    </p>
+    <p>
+      Inheritance does <em>not</em> apply during bootstrap: if <code>anchor_way_id</code> is still <code>null</code> when a tap fires (very first tap of a session, before any GPS fix has resolved), the tap is held in <code>snapPendingQueue</code> as before.
+    </p>
+  </div>
+
+  <!-- ───────────────────────── REASSIGNMENT ───────────────────────── -->
+  <div class="section">
+    <h2>7. Offline trajectory reassignment (v2.8)</h2>
+    <p>
+      The live snap (&sect;4) and live tap inheritance (&sect;6) are necessarily <em>causal</em>: at each fix they know only the past. The anchor tempers jitter but can stick to a distant anchor way, and it cannot use evidence that only arrives later. Once a session ends the whole trajectory is known, so v2.8 runs a single global correction &mdash; <code>reassignTrajectory()</code> &mdash; just before the ZIP is built. It rewrites the snapped way and segment of every fix <em>and</em> every tap from the complete path, topology first.
+    </p>
+
+    <h3>Hoe het werkt — stap voor stap</h3>
+    <p>
+      Het algoritme kijkt naar alle GPS-punten in je sessie als één compleet plaatje en zoekt het meest waarschijnlijke pad door het wegennet — het pad dat zowel aansluit bij wat je GPS zei, als ook topologisch realistisch is (dus langs echte wegen en hun samenvoeging).
+    </p>
+
+    <ol>
+      <li>
+        <strong>Stap 1: Verzamelen.</strong> Voor elk GPS-punt zoeken we alle wegen uit het wegennet die in de buurt liggen — binnen 40 meter. Deze kandidaat-wegen zijn de plekken waar je *zou* kunnen zijn. Voor elk kandidaat meten we twee dingen: (a) hoe dicht het GPS-punt daadwerkelijk bij die weg ligt, en (b) hoe goed staat de nauwkeurigheid van het toestel op dat moment.
+      </li>
+      <li>
+        <strong>Stap 2: Afweging per kandidaat.</strong> Kandidaat-wegen die *dicht* bij het GPS-punt liggen krijgen een lagere "strafkost". Kandidaten die *ver* weg liggen krijgen een hogere straf. Maar: als je toestel op dat moment heel slecht werkt (grote onzekerheidscirkel), maken die verschillen niet zoveel uit — dan geeft het algoritme alle kandidaten meer gelijke kans. Dit is fair: een slechte GPS-meting zegt niet veel, dus vertrouwen we er niet blind op.
+      </li>
+      <li>
+        <strong>Stap 3: Topologie — de wegenkaart als leidraad.</strong> Nu komt de slimheid: het wegennet zelf zegt iets. Wegen zijn verbonden op kruisingen (een gedeelde knoop in de kaart). Als je vorige GPS-punt je op weg A plaatste, dan is het waarschijnlijker dat je volgende punt ook op weg A ligt, of op een weg die eraan vast zit, dan op een weg die kilometer verderop ligt. Dus: voorblijven op dezelfde weg kost geen extra straf. Naar een direct verbonden weg hopppen kost een kleine straf. Naar een weg die twee hoppen weg is kost meer. Alles verder is niet toegestaan — je loopt niet zomaar door de lucht naar een weg.
+      </li>
+      <li>
+        <strong>Stap 4: Staplengtes helpen mee (v2.8 toevoeging).</strong> Naast de afstanden meten we ook de *lengte* van de stap die je GPS-apparaat zegt dat je zette. Als je echte stap op de weg (gemeten langs de geproject punten) overeenkomt met je werkelijke GPS-stap, is dat een extra aanwijzing dat we op de juiste weg zitten. Dit helpt kiezen tussen wegen die even dichtbij liggen.
+      </li>
+      <li>
+        <strong>Stap 5: Koersrichting — waar loop je heen (v2.9 toevoeging).</strong> We kijken ook in welke richting je GPS zegt dat je loopt (bereken uit twee opeenvolgende punten), en in welke richting de kandidaat-weg wijst. Als je noordwaarts loopt en er liggen twee wegen even dicht bij je huidige plek, maar één loopt north-south en de ander oost-west, dan is het waarschijnlijker dat je op de north-south weg bent. Dit helpt vooral wanneer je GPS slecht is (grote onzekerheidscirkel), want dan zegt de richting meer dan de afstand.
+      </li>
+      <li>
+        <strong>Stap 6: Het beste pad vinden.</strong> Met al deze "strafkosten" (afstand, topologie, staplengte, richting) zoekt het algoritme het pad van het begin tot het eind van je session dat de laagste totale straf heeft. Dit pad is het meest waarschijnlijke: het past het beste bij je GPS, de topologie en je beweging.
+      </li>
+      <li>
+        <strong>Stap 7: Segmenten bepalen.</strong> Wegen zijn lang, dus worden ze voor analysedoeleinden opgedeeld in stukken van ongeveer 40 meter (segmenten). We bepalen voor elk GPS-punt in welk segment van zijn gekozen weg het ligt, zodat we later precies kunnen zien waar je telde.
+      </li>
+      <li>
+        <strong>Stap 8: Tikken (telling-momenten) meedenken.</strong> Je had twee gegevensbronnen: GPS-punten en tikken (jij tikt manueel aan wat je ziet). Elk tik-moment wordt gekoppeld aan het GPS-punt dat er het dichtst bij ligt in de tijd. Op die manier zit je tik en je positie op hetzelfde wegsegment — ze horen logisch bij elkaar.
+      </li>
+      <li>
+        <strong>Stap 9: Als het netwerk verbroken is.</strong> Soms springt je GPS naar een plek waar het wegennet niet aansluit op je vorige positie (je loopt bijvoorbeeld door een gat in de kaart, of een zwak GPS-moment). Dan begint het algoritme daar gewoon opnieuw met het beste pad vandaar. Elk "stuk" van de route (van begin tot gat, van gat tot einde) krijgt zijn eigen optimale pad. Dit voorkomt dat één gat de hele route verpest.
+      </li>
+    </ol>
+
+    <p>
+      <strong>Waarom offline beter is dan real-time.</strong> Tijdens je wandeling werkt de live snap (§4) stap voor stap: elk nieuw GPS-punt probeert onmiddellijk vast te stellen welke weg je op bent. De algoritme kent maar het verleden — wat er straks komt weet hij nog niet. Dat betekent dat hij soms "vast raakt" op een oude weg en niet eenvoudig kan overstappen, ook al wordt later duidelijk dat je eigenlijk naar een andere weg had moeten gaan. Pas nadat je sessie helemaal klaar is, heeft het algoritme alle informatie — je hele pad, je hele richting, alles. Dan kan het achteraf zeggen: "Ik zie nu dat je hier was, en je beweging hierna maakte duidelijk dat je eigenlijk hier had moeten zijn." Dit offline-pad is meestal veel beter dan wat live kon worden geraden.
+    </p>
+    <p>
+      Verified on field session <code>20260529_162037_xax_pkt</code>: 33 taps the live snap had left on service ways moved onto pedestrian ways, all 99 taps retained, zero orphan segments. Note that reassignment improves attribution but cannot manufacture information GPS does not contain &mdash; at a true shared-node junction (&sect;8) it falls back to continuity.
+    </p>
+    <p>
+      <strong>Robustness across disconnected stretches (v2.9):</strong> when a fix has no candidate reachable from any surviving previous state (a GPS jump onto an isolated piece of fetched network, or a hole in OSM coverage), the chain restarts there. The backtrack is <em>piecewise</em>: each connected stretch keeps its own independently optimal solution, instead of one severed boundary discarding the corrections of everything before it. On session <code>20260520_145913_txb_pkt</code> this recovered 3 fixes that the earlier cascade left uncorrected.
+    </p>
+  </div>
+
+  <!-- ───────────────────────── LIMITATIONS ───────────────────────── -->
+  <div class="section">
+    <h2>8. Limitations and known cases</h2>
+
+    <h3>Shared-node junctions (irreducible)</h3>
+    <p>
+      Where several ways meet at a shared node, their geometries converge to within sub-metre of each other &mdash; an order of magnitude below GPS accuracy. The emission cost is then effectively equal for all of them and topology connects them all, so neither distance nor the adjacency graph can decide which way a tap belongs to. The v2.9 heading term does not resolve this either: at the node itself all converging ways pass through (nearly) the same point, and the GPS bearing through a junction is transitional rather than aligned with any single way. <code>reassignTrajectory</code> keeps continuity (it stays on the way the path was already following), which is the most defensible choice but not a true disambiguation. The <code>20260520_145913_txb_pkt</code> taps fall into exactly this case; it is an irreducible remainder, not a fixable bug.
+    </p>
+
+    <h3>Open pedestrian areas</h3>
+    <p>
+      Adjacent pedestrian ways often triangulate an open square, sharing nodes around its edge. &ldquo;Which line&rdquo; is not a sharp question inside such a polygon. The matcher gives zero wrong switches on ordinary streets but a handful on a plaza; resolving this properly needs <code>area</code>/<code>pedestrian</code> polygons as snap targets rather than lines.
+    </p>
+
+    <h3>Vertical coincidence (steps, escalators)</h3>
+    <p>
+      A <code>highway=steps</code> way can sit directly above the walking surface beside it; in 2D they coincide and no horizontal distance distinguishes them. A real fix needs a height signal (barometric altitude, or <code>altitude</code>/<code>altitudeAccuracy</code> from the Geolocation API) or manual marking.
+    </p>
+
+    <h3>First-fix lock-in</h3>
+    <p>
+      The bootstrap step uses the same stateless nearest-edge logic as the old algorithm. If the first GPS fix of a session falls on the wrong parallel way, the anchor is set there and depth-1/2 filtering will keep it there until the reset threshold trips. Starting a session at a topologically unambiguous location (a junction or a clearly separated street) avoids this. Restarting the session is the user-side fix.
+    </p>
+
+    <h3>OSM completeness assumption</h3>
+    <p>
+      The algorithm assumes the OSM network around the counter is complete &mdash; that every traversable way is mapped, with correct node IDs at intersections. A missing footpath in OSM will cause the depth-1 lookup to fail at that point; depth-2 may also fail if the gap is larger; eventually the reset threshold will fire. The result is a brief gap in attributed taps followed by a clean restart on the other side.
+    </p>
+
+    <h3>Areas, not ways</h3>
+    <p>
+      The Overpass query filters out elements tagged <code>area=yes</code>. Plazas, courtyards, and similar open spaces are not in the candidate set. A counter standing in the middle of a square has no nearby way to snap to and will produce <code>null</code> snaps (and, after taps, <code>null</code>-or-inherited attributions depending on whether an anchor still exists from before).
+    </p>
+
+    <h3>Anchor is not persisted</h3>
+    <p>
+      The anchor lives only in memory during the running session. A page reload or crash-recovery restart wipes it; the next fix bootstraps fresh. This is intentional &mdash; an old anchor from a previous session is more likely to be wrong than right.
+    </p>
+  </div>
+
+  <!-- ───────────────────────── CODE LOCATION ───────────────────────── -->
+  <div class="section">
+    <h2>9. Code location</h2>
+    <p>
+      All snap-related state and functions live in the SNAP MODULE section of <code>pocket_count.html</code>. The relevant identifiers:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Symbol</th><th>Kind</th><th>Role</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>SNAP_MAX_M</td><td>const</td><td>Maximum snap distance</td></tr>
+        <tr><td>SNAP_RESET_M</td><td>const</td><td>Anchor-reset threshold (= SNAP_MAX_M)</td></tr>
+        <tr><td>SNAP_ROAD_FETCH_RADIUS</td><td>const</td><td>Overpass fetch radius (250&nbsp;m)</td></tr>
+        <tr><td>SNAP_SEGS_RADIUS</td><td>const</td><td>Cumulative candidate radius (400&nbsp;m)</td></tr>
+        <tr><td>snapNodeToWays</td><td>state</td><td>node_id → set of way_ids</td></tr>
+        <tr><td>snapAdjacency</td><td>state</td><td>way_id → set of adjacent way_ids</td></tr>
+        <tr><td>snapAnchorWayId</td><td>state</td><td>current anchor (null at bootstrap)</td></tr>
+        <tr><td>snapAnchorSegIdx</td><td>state</td><td>segment index within the anchor way</td></tr>
+        <tr><td>snapElements</td><td>state</td><td>way_id → {highway, osmName, geometry} (cumulative)</td></tr>
+        <tr><td>snapSegs</td><td>state</td><td>reprojected segment list handed to the matcher</td></tr>
+        <tr><td>snapRegisterWay()</td><td>func</td><td>Incremental graph builder, called per Overpass element</td></tr>
+        <tr><td>snapElementsNear()</td><td>func</td><td>Per-fix candidate list from the cumulative pool within SNAP_SEGS_RADIUS</td></tr>
+        <tr><td>snapBuildSegs()</td><td>func</td><td>Reproject the candidate ways into segments against the current origin</td></tr>
+        <tr><td>snapAdjacencySet()</td><td>func</td><td>Return reachable way_ids within depth N</td></tr>
+        <tr><td>snapDistanceToWay()</td><td>func</td><td>Min distance from point to all edges of one way (no SNAP_MAX_M cutoff)</td></tr>
+        <tr><td>snapProjectOnto()</td><td>func</td><td>Project a point onto one way; used for live tap inheritance</td></tr>
+        <tr><td>snapNearestWay()</td><td>func</td><td>The live decision ladder &mdash; called from GPS handler and tap handler</td></tr>
+        <tr><td>splitWayIntoSegments()</td><td>func</td><td>Segmentation used by both export and reassignment</td></tr>
+        <tr><td>reassignTrajectory()</td><td>func</td><td>Offline topology-first correction of all fixes and taps before ZIP build (&sect;7)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ───────────────────────── MIGRATION ───────────────────────── -->
+  <div class="section">
+    <h2>10. Migrating the other apps</h2>
+    <p>
+      The other survey apps in the suite share a common ancestor of the snap module but have diverged. Migration to the adjacency-aware version is a mechanical port:
+    </p>
+    <ol>
+      <li>Change the Overpass query from <code>out tags geom;</code> to <code>out body geom;</code>.</li>
+      <li>Add <code>SNAP_RESET_M</code>, <code>SNAP_ROAD_FETCH_RADIUS</code>, <code>SNAP_SEGS_RADIUS</code>, <code>snapNodeToWays</code>, <code>snapAdjacency</code>, <code>snapElements</code>, <code>snapAnchorWayId</code>, <code>snapAnchorSegIdx</code> as top-level state.</li>
+      <li>Add <code>snapRegisterWay()</code>, <code>snapAdjacencySet()</code>, <code>snapDistanceToWay()</code>, <code>snapElementsNear()</code>, <code>snapBuildSegs()</code> helpers.</li>
+      <li>Replace <code>snapNearestWay()</code> with the decision-ladder version.</li>
+      <li>In the Overpass response handler, accumulate into <code>snapElements</code>/<code>snapAdjacency</code> first (call <code>snapRegisterWay(el)</code> before storing geometry), <em>then</em> rebuild the candidate segments via <code>snapElementsNear()</code> + <code>snapBuildSegs()</code> &mdash; never rebuild the candidate pool from a single fetch (&sect;3).</li>
+      <li>In the tap handler, fall back to anchor inheritance when a fresh snap returns <code>null</code>.</li>
+      <li>For sessions that export presence and taps together, add <code>reassignTrajectory()</code> (with <code>splitWayIntoSegments</code>) and call it once at export time, before any CSV is built (&sect;7).</li>
+    </ol>
+    <p>
+      The migration is additive &mdash; no existing CSV columns or session formats change. Sessions recorded with the adjacency snap are byte-compatible with the existing <code>telregels.csv</code> and <code>gps.csv</code> schemas; reassignment only changes which (way, segment) the existing columns hold, never the columns themselves.
+    </p>
+    <p>
+      Out of scope for this document but on the same migration sweep: the platform-robust <code>saveBlob()</code> download helper (iOS-safe export) is a separate, non-snap port that each app needs alongside the above.
+    </p>
+  </div>
+
+</div>
+
+</body>
+</html>

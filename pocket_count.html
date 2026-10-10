@@ -1,0 +1,3670 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pocket Count</title>
+<script>
+// Directe parkeer-ingang (v2.70): al vóór de eerste weergave, zodat het
+// keuzemenu met de vier modi ook niet even zichtbaar is (zie .pk-ingang).
+if (location.hash === '#parkeren') {
+  document.documentElement.className += ' pk-ingang';
+  document.title = 'Pocket Parkeren';
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --font: 'Oswald', sans-serif;
+    --c-car:   #c0392b;
+    --c-bike:  #2980b9;
+    --c-ped:   #8e44ad;
+  }
+
+  body {
+    font-family: var(--font);
+    height: 100vh;
+    overflow: hidden;
+    background: #111;
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── Keuze-scherm ── */
+  #choose-screen {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    background: #1a1918;
+    padding: 24px 20px;
+    position: relative;
+  }
+
+  #choose-screen h1 {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 28px;
+  }
+
+  .type-btns {
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .type-btn {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.1s, filter 0.1s;
+  }
+  .type-btn:active { transform: scale(0.97); filter: brightness(0.85); }
+
+  .type-btn .icon { font-size: 2rem; line-height: 1; flex-shrink: 0; }
+  .type-btn .lbl  {
+    font-family: var(--font);
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #fff;
+  }
+
+  /* ── Tel-scherm ── */
+  #count-screen {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+    cursor: pointer;
+  }
+
+  #count-screen.active { display: flex; }
+
+  #big-count {
+    font-size: 38vw;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -4px;
+    color: #fff;
+    pointer-events: none;
+    text-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+
+  #type-label {
+    font-size: 5vw;
+    font-weight: 600;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.45);
+    margin-top: 8px;
+    pointer-events: none;
+  }
+
+  /* ── Zekerheidsindicator: stip + huidige OSM-straatnaam ── */
+  #snap-conf {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    max-width: 88vw;
+    pointer-events: none;
+  }
+  #snap-dot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #888;            /* default/none */
+    flex: none;
+    border: 2px solid rgba(255,255,255,0.85);   /* ring keeps the colour readable in bright light */
+    box-shadow: 0 0 6px rgba(0,0,0,0.6);
+    transition: background 0.4s ease;
+  }
+  #snap-dot.green { background: rgb(0,200,0); }
+  #snap-dot.amber { background: rgb(255,176,0); }
+  #snap-dot.red   { background: rgb(240,40,0); }
+
+  /* Tweede stip: GPS-signaalstabiliteit. Ring i.p.v. gevulde schijf, zodat
+     hij visueel niet te verwarren is met de snap-stip ernaast. */
+  .gps-dot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    background: transparent;
+    border: 3px solid #888;          /* default/none */
+    flex: none;
+    box-shadow: 0 0 6px rgba(0,0,0,0.6);
+    transition: border-color 0.4s ease;
+  }
+  .gps-dot.green { border-color: rgb(0,200,0); }
+  .gps-dot.amber { border-color: rgb(255,176,0); }
+  .gps-dot.red   { border-color: rgb(240,40,0); }
+
+  /* Derde indicator: batterij. Een klein staafje (andere vorm dan de stippen)
+     zodat het meteen als batterij leesbaar is. Alleen getoond als de Battery
+     API bestaat (niet op iOS Safari). */
+  .batt-ind {
+    position: relative;
+    width: 26px; height: 13px;
+    border: 2px solid rgba(255,255,255,0.85);
+    border-radius: 3px;
+    box-shadow: 0 0 6px rgba(0,0,0,0.6);
+    flex: none;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .batt-ind::after {            /* het plus-nubje rechts */
+    content: '';
+    position: absolute;
+    right: -4px; top: 50%;
+    transform: translateY(-50%);
+    width: 2px; height: 6px;
+    background: rgba(255,255,255,0.85);
+    border-radius: 0 1px 1px 0;
+  }
+  .batt-fill {
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: #888;
+    transition: width 0.4s ease, background 0.4s ease;
+  }
+  .batt-ind.green .batt-fill { background: rgb(0,200,0); }
+  .batt-ind.amber .batt-fill { background: rgb(255,176,0); }
+  .batt-ind.red   .batt-fill { background: rgb(240,40,0); }
+  .batt-ind.charging { border-color: #fff; }
+  .batt-ind.charging::before {  /* bliksempje bij opladen */
+    content: '\26A1';
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 9px;
+    line-height: 1;
+    z-index: 1;
+    text-shadow: 0 0 2px rgba(0,0,0,0.8);
+  }
+  #snap-name {
+    font-size: clamp(17px, 5vw, 26px);
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* dark outline keeps the name readable over any background colour in bright sunlight */
+    text-shadow: 0 0 3px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9);
+  }
+
+  /* Flash on tap */
+  #count-screen.flash { filter: brightness(1.7); }
+
+  /* Shake on undo */
+  @keyframes shake {
+    0%   { transform: scale(0.96); }
+    50%  { transform: scale(1.02); }
+    100% { transform: scale(1.00); }
+  }
+  #count-screen.shake { animation: shake 0.18s ease; }
+
+  /* ── Undo balk ── */
+  #undo-bar {
+    position: fixed;
+    top: 20px; left: 20px;
+    height: 40px;
+    width: 0;
+    background: rgba(255,255,255,0.15);
+    border-radius: 4px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #undo-fill {
+    height: 100%;
+    width: 0%;
+    background: rgba(255,255,255,0.5);
+  }
+  #undo-lbl {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.7);
+  }
+
+  /* ── Stop-knop ── */
+  #btn-stop {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.45);
+    border: 1.5px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.6);
+    font-family: var(--font);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 10px 22px;
+    border-radius: 30px;
+    cursor: pointer;
+    touch-action: manipulation;
+    z-index: 10;
+    white-space: nowrap;
+  }
+  #btn-stop:active { background: rgba(0,0,0,0.7); }
+
+  /* ── Terug-knop keuze ── */
+  #btn-back {
+    position: fixed;
+    top: 20px; right: 20px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.45);
+    font-family: var(--font);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    touch-action: manipulation;
+    z-index: 10;
+  }
+  /* ── Preview overlay ── */
+  #preview-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,10,0.88);
+    z-index: 200;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 24px 16px 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #preview-overlay.visible { display: flex; }
+  #preview-header {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+  #preview-title {
+    font-family: var(--font);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(240,240,236,0.6);
+  }
+  #preview-save {
+    background: rgba(240,240,236,0.1);
+    border: 1px solid rgba(240,240,236,0.35);
+    border-radius: 5px;
+    color: rgba(240,240,236,0.85);
+    font-family: var(--font);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 5px 10px;
+    margin-right: 10px;
+    touch-action: manipulation;
+  }
+  #preview-recon {
+    background: rgba(31,95,191,0.25);
+    border: 1px solid #1f5fbf;
+    border-radius: 5px;
+    color: #cfe0ff;
+    font-family: var(--font);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 5px 10px;
+    margin-right: 10px;
+    touch-action: manipulation;
+  }
+  #preview-close {
+    background: none;
+    border: none;
+    color: rgba(240,240,236,0.45);
+    font-family: var(--font);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 4px 0;
+    touch-action: manipulation;
+  }
+  #preview-canvas {
+    width: 100%;
+    max-width: 420px;
+    border-radius: 6px;
+    background: #f0f0ec;
+    display: block;
+  }
+  #preview-stats {
+    width: 100%;
+    max-width: 420px;
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .pstat {
+    background: rgba(255,255,255,0.07);
+    border-radius: 4px;
+    padding: 10px 14px;
+    flex: 1;
+    min-width: 90px;
+  }
+  .pstat-val {
+    font-family: var(--font);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f0f0ec;
+    line-height: 1;
+  }
+  .pstat-lbl {
+    font-family: var(--font);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(240,240,236,0.4);
+    margin-top: 4px;
+  }
+  #preview-legend {
+    width: 100%;
+    max-width: 420px;
+    margin-top: 12px;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .pleg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(240,240,236,0.45);
+  }
+  .pleg-swatch { width: 20px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+  /* ── Transect-modus (v2.11) ── */
+  #transect-screen {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: #1a1a1a; color: #fff; flex-direction: column; align-items: center;
+    padding: 14px 12px calc(70px + env(safe-area-inset-bottom)); gap: 10px;
+    overflow-y: auto; box-sizing: border-box;
+  }
+  #tc-dir-config { width: 100%; max-width: 520px; display: flex; gap: 8px; align-items: center; }
+  #tc-dir-config input {
+    flex: 1; min-width: 0; padding: 10px; border: 1px solid #444; border-radius: 5px;
+    background: #2a2a2a; color: #fff; font-family: var(--font); font-size: 0.85rem;
+    font-weight: 600; text-align: center; box-sizing: border-box;
+  }
+  #btn-compass {
+    padding: 9px 12px; border: 1px solid #666; border-radius: 5px; background: #2a2a2a;
+    color: rgba(255,255,255,0.75); font-family: var(--font); font-size: 0.7rem;
+    font-weight: 700; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap;
+    cursor: pointer; flex-shrink: 0;
+  }
+  #btn-compass.active { color: #6fcf7f; border-color: #6fcf7f; }
+  #tc-total {
+    width: 100%; max-width: 520px; background: #000; border-radius: 6px;
+    padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box;
+  }
+  #tc-total .lbl { font-size: 0.7rem; letter-spacing: 2px; color: #888; text-transform: uppercase; }
+  #tc-total .val { font-family: monospace; font-size: 1.8rem; font-weight: 700; }
+  #tc-counters { width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 7px; }
+  .tc-card {
+    background: #262626; border: 1px solid #3a3a3a; border-radius: 8px;
+    display: flex; align-items: stretch; overflow: hidden; height: 68px;
+  }
+  .tc-dir {
+    width: 78px; min-width: 78px; border: none; background: #3a7d44; color: #fff;
+    font-family: var(--font); font-weight: 700; cursor: pointer; flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  .tc-dir:active { filter: brightness(0.8); }
+  .tc-dir .tc-sym  { font-size: 0.7rem; font-family: monospace; opacity: 0.85; letter-spacing: -1px; }
+  .tc-dir .tc-plus { font-size: 1.5rem; line-height: 1; }
+  .tc-cnt {
+    flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0;
+    font-family: monospace; font-size: 2rem; font-weight: 700; color: #fff; transition: transform 0.1s ease;
+  }
+  .tc-cnt.bump { transform: scale(1.25); }
+  .tc-min {
+    width: 32px; min-width: 32px; border: none; background: #333;
+    color: rgba(255,255,255,0.55); font-size: 1.1rem; font-weight: 700; cursor: pointer;
+    flex-shrink: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  .tc-min:active { background: #444; }
+  .tc-mid {
+    width: 40px; min-width: 40px; display: flex; align-items: center; justify-content: center;
+    background: #1e1e1e; border-left: 1px solid #3a3a3a; border-right: 1px solid #3a3a3a;
+    border-top: 3px solid #b07d2b; font-size: 1.3rem; flex-shrink: 0;
+  }
+  #tc-stop, #tc-back {
+    position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 60;
+    padding: 12px 18px; border: none; border-radius: 6px; font-family: var(--font);
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+  }
+  #tc-stop { right: 14px; background: #c0392b; color: #fff; }
+  #tc-back { left: 14px; background: #333; color: rgba(255,255,255,0.8); }
+  /* ── Winkelstraat-modus (v2.11) ── */
+  #winkel-screen {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: #1a1a1a; color: #fff; flex-direction: column;
+    padding: 14px 12px calc(70px + env(safe-area-inset-bottom)); gap: 10px; box-sizing: border-box;
+  }
+  #ws-total, #pk-total {
+    width: 100%; background: #000; border-radius: 6px; padding: 8px 16px;
+    display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; box-sizing: border-box;
+  }
+  #ws-total .lbl, #pk-total .lbl { font-size: 0.7rem; letter-spacing: 2px; color: #888; text-transform: uppercase; }
+  #ws-total .val, #pk-total .val { font-family: monospace; font-size: 1.8rem; font-weight: 700; }
+  #ws-cards { flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  /* Parkeren-modus (v2.17): zelfde kaartstijl, 2×2-grid — alle vier even groot. */
+  #parkeer-screen {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: #1a1a1a; color: #fff; flex-direction: column;
+    padding: 14px 12px calc(70px + env(safe-area-inset-bottom)); gap: 10px; box-sizing: border-box;
+  }
+  #pk-cards {
+    flex: 1; min-height: 0;
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px;
+  }
+  .ws-card {
+    flex: 1; position: relative; border-radius: 12px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; overflow: hidden;
+  }
+  .ws-card:active { filter: brightness(0.85); }
+  .ws-icon  { font-size: 2.4rem; line-height: 1; }
+  .ws-label { font-family: var(--font); font-size: 1rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  .ws-count { font-family: monospace; font-size: 3.5rem; font-weight: 700; line-height: 1; transition: transform 0.1s ease; }
+  .ws-count.bump { transform: scale(1.2); }
+  .ws-undo {
+    position: absolute; top: 10px; right: 10px; width: 44px; height: 44px;
+    background: rgba(0,0,0,0.3); border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem; font-weight: 700; color: rgba(255,255,255,0.85); -webkit-tap-highlight-color: transparent;
+  }
+  .ws-undo:active { background: rgba(0,0,0,0.5); }
+  #ws-stop, #ws-back, #pk-stop, #pk-back, #pk-map {
+    position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 60;
+    padding: 12px 18px; border: none; border-radius: 6px; font-family: var(--font);
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+  }
+  #ws-stop, #pk-stop { right: 14px; background: #c0392b; color: #fff; }
+  #ws-back, #pk-back { left: 14px; background: #333; color: rgba(255,255,255,0.8); }
+  #pk-map { background: #1f5fbf; color: #fff; }
+  /* pk-knoppen in een flex-balk: verdelen zich, overlappen nooit (welke schermbreedte dan ook) */
+  #pk-btnbar {
+    position: fixed; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 60; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  #pk-back, #pk-map, #pk-stop {
+    position: static; left: auto; right: auto; transform: none; bottom: auto;
+    padding: 11px 13px; font-size: 0.75rem;
+  }
+
+  /* Dekkingskaart-overlay (pocket parkeren) */
+  #pk-map-overlay { position: fixed; inset: 0; z-index: 4000; background: #fff; display: none; flex-direction: column; }
+  #pk-map-bar, #pk-map-legend { background: #1a1918; color: #fff; font-family: var(--font); padding: 10px 14px; display: flex; align-items: center; }
+  #pk-map-bar { justify-content: space-between; font-weight: 600; font-size: 15px; }
+  #pk-map-close { background: #c0392b; color: #fff; border: none; border-radius: 6px; padding: 6px 15px; font-size: 17px; font-weight: 700; cursor: pointer; }
+  #pk-map-canvas { flex: 1; }
+  #pk-map-legend { gap: 14px; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+  #pk-map-legend .lg { display: flex; align-items: center; gap: 5px; }
+  #pk-map-legend .dot { width: 15px; height: 15px; border-radius: 50%; box-sizing: border-box; }
+  #pk-map-legend .ln { width: 18px; height: 4px; border-radius: 2px; }
+
+  /* Directe parkeer-ingang (v2.70): van het keuzescherm blijft alleen de
+     Parkeren-knop over. Nodig bij een herstelmelding, en als er na Stop geen
+     voorbeeldscherm komt (bijv. zonder GPS-spoor): dan is er altijd een weg
+     terug naar parkeren, nooit het menu met vier modi. */
+  .pk-ingang #choose-heading,
+  .pk-ingang #mode-note,
+  .pk-ingang #mode-btns > .type-btn:not([onclick="chooseParkeren()"]) { display: none; }
+</style>
+</head>
+<body>
+
+<!-- Keuze-scherm -->
+<div id="choose-screen">
+  <button id="lang-btn" onclick="toggleLang()"
+    style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.08);
+           border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.5);
+           font-family:var(--font);font-size:0.65rem;font-weight:700;letter-spacing:2px;
+           text-transform:uppercase;padding:7px 13px;border-radius:20px;
+           cursor:pointer;touch-action:manipulation;">EN</button>
+  <h1 id="choose-heading">Wat tel je?</h1>
+  <div id="restore-banner" style="display:none;max-width:340px;width:100%;background:#5a3a1a;border:1px solid #b07d2b;border-radius:6px;padding:12px 14px;margin-bottom:10px;font-family:var(--font);box-sizing:border-box;">
+    <p id="restore-text" style="margin:0 0 10px;font-size:0.85rem;font-weight:600;color:#fff;line-height:1.35;"></p>
+    <button onclick="hervatTelling()" style="width:100%;margin-bottom:8px;padding:12px;background:#0a8a30;border:none;border-radius:5px;font-family:var(--font);font-size:0.85rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;cursor:pointer;">&#9654; Doortellen</button>
+    <div style="display:flex;gap:8px;">
+      <button onclick="restoreDownload()" style="flex:1;padding:10px;background:#3a7d44;border:none;border-radius:5px;font-family:var(--font);font-size:0.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;cursor:pointer;">&#x2913; Download</button>
+      <button onclick="restoreDiscard()" style="flex:1;padding:10px;background:#444;border:none;border-radius:5px;font-family:var(--font);font-size:0.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.7);cursor:pointer;">&#x2715; Verwijder</button>
+    </div>
+  </div>
+  <!-- Moduskiezer (v2.11): Simpel · Transect · Winkelstraat -->
+  <div class="type-btns" id="mode-btns">
+    <button class="type-btn" style="background:#3a7d44" onclick="chooseSimpel()">
+      <span class="icon">&#x1F446;</span><span class="lbl">Simpel</span>
+    </button>
+    <button class="type-btn" style="background:#b07d2b" onclick="chooseTransect()">
+      <span class="icon">&#x2194;&#xFE0F;</span><span class="lbl">Transect</span>
+    </button>
+    <button class="type-btn" style="background:#6a4c93" onclick="chooseWinkelstraat()">
+      <span class="icon">&#x1F6CD;&#xFE0F;</span><span class="lbl">Winkelstraat</span>
+    </button>
+    <button class="type-btn" style="background:#2e6b8a" onclick="chooseParkeren()">
+      <span class="icon">&#x1F17F;&#xFE0F;</span><span class="lbl">Parkeren</span>
+    </button>
+    <p id="mode-note" style="margin:4px 2px 0;min-height:1.1em;font-family:var(--font);font-size:0.8rem;font-weight:600;letter-spacing:1px;color:rgba(255,255,255,0.55);text-align:center;"></p>
+  </div>
+
+  <!-- Simpel \u2192 object-keuze (ongewijzigd gedrag, modus=simpel) -->
+  <div class="type-btns" id="simpel-panel" style="display:none;">
+    <button onclick="backToModes()" style="background:none;border:none;align-self:flex-start;font-family:var(--font);font-size:0.8rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.5);cursor:pointer;padding:2px 0;">&#8249; Terug</button>
+    <button class="type-btn" style="background:var(--c-car)"   onclick="startTelling('car',  '&#x1F697;', t('car'))">
+      <span class="icon">&#x1F697;</span><span class="lbl" id="lbl-car">Auto</span>
+    </button>
+    <button class="type-btn" style="background:var(--c-bike)"  onclick="startTelling('bike', '&#x1F6B2;', t('bike'))">
+      <span class="icon">&#x1F6B2;</span><span class="lbl" id="lbl-bike">Fiets</span>
+    </button>
+    <button class="type-btn" style="background:var(--c-ped)"   onclick="startTelling('ped',  '&#x1F6B6;', t('ped'))">
+      <span class="icon">&#x1F6B6;</span><span class="lbl" id="lbl-ped">Voetganger</span>
+    </button>
+    <button class="type-btn" style="background:#555"            onclick="chooseOther()">
+      <span class="icon">&#x2753;</span><span class="lbl" id="lbl-other">Iets Anders</span>
+    </button>
+
+    <!-- Iets Anders invoer -->
+    <div id="other-row" style="display:none; flex-direction:column; gap:8px;">
+      <input id="other-input" type="text" placeholder="Wat tel je?"
+        style="width:100%;padding:14px 16px;font-family:var(--font);font-size:1rem;font-weight:600;
+               border:none;border-radius:6px;background:#333;color:#fff;outline:none;
+               letter-spacing:1px;"
+        oninput="updateOtherBtn()"
+        onkeydown="if(event.key==='Enter') confirmOther()">
+      <button id="other-confirm" onclick="confirmOther()"
+        style="width:100%;padding:14px;background:#555;border:none;border-radius:6px;
+               font-family:var(--font);font-size:0.85rem;font-weight:700;letter-spacing:2px;
+               text-transform:uppercase;color:rgba(255,255,255,0.4);cursor:pointer;"
+        disabled>
+        &#9654; Start
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Tel-scherm -->
+<div id="count-screen">
+  <div id="big-count">0</div>
+  <div id="type-label"></div>
+  <div id="snap-conf"><span id="snap-dot"></span><span id="gps-dot" class="gps-dot"></span><span id="batt-ind" class="batt-ind" style="display:none;"><span class="batt-fill"></span></span><span id="snap-name">—</span></div>
+</div>
+
+<div id="undo-bar"><div id="undo-fill"></div><div id="undo-lbl">Undo</div></div>
+<button id="btn-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
+<button id="btn-back" style="display:none" onclick="backToChoose()">&#8592; Terug</button>
+
+
+<script>
+// ── Taal ──────────────────────────────────────────────────────────────────────
+var LANG = 'nl';
+var TRANSLATIONS = {
+  nl: {
+    heading:          'Wat tel je?',
+    car:              'Auto',
+    bike:             'Fiets',
+    ped:              'Voetganger',
+    other:            'Iets Anders',
+    otherPlaceholder: 'Wat tel je?',
+    btnBack:          '← Terug',
+    btnStop:          '■ Stop & Download',
+    btnStart:         '▶ Start',
+    undo:             'Undo',
+    confirmBack:      function(n){ return 'Weet je zeker? De telling ('+n+') gaat verloren.'; },
+    previewTitle:     'Telling afgerond',
+    previewSave:      '⤓ ZIP opslaan',
+    previewClose:     '✕ Sluiten',
+    statTaps:         'Tikken',
+    statSegs:         'Segmenten',
+    statKm:           'Km gelopen',
+    statMax:          'Max p/m',
+    legLow:           'weinig',
+    legMed:           'matig',
+    legHigh:          'druk (≥1/m)',
+    legZero:          'bezocht, 0 tikken',
+    legGps:           'GPS-spoor'
+  },
+  en: {
+    heading:          'What are you counting?',
+    car:              'Car',
+    bike:             'Bike',
+    ped:              'Pedestrian',
+    other:            'Something Else',
+    otherPlaceholder: 'What are you counting?',
+    btnBack:          '← Back',
+    btnStop:          '■ Stop & Download',
+    btnStart:         '▶ Start',
+    undo:             'Undo',
+    confirmBack:      function(n){ return 'Are you sure? The count ('+n+') will be lost.'; },
+    previewTitle:     'Count complete',
+    previewSave:      '⤓ Save ZIP',
+    previewClose:     '✕ Close',
+    statTaps:         'Taps',
+    statSegs:         'Segments',
+    statKm:           'Km walked',
+    statMax:          'Max p/m',
+    legLow:           'low',
+    legMed:           'medium',
+    legHigh:          'busy (≥1/m)',
+    legZero:          'visited, 0 taps',
+    legGps:           'GPS track'
+  }
+};
+
+function t(k) { return TRANSLATIONS[LANG][k]; }
+
+function toggleLang() {
+  LANG = (LANG === 'nl') ? 'en' : 'nl';
+  document.getElementById('lang-btn').textContent = (LANG === 'nl') ? 'EN' : 'NL';
+  document.documentElement.lang = LANG;
+  applyLang();
+}
+
+function applyLang() {
+  var T = TRANSLATIONS[LANG];
+  document.getElementById('choose-heading').textContent  = T.heading;
+  document.getElementById('lbl-car').textContent         = T.car;
+  document.getElementById('lbl-bike').textContent        = T.bike;
+  document.getElementById('lbl-ped').textContent         = T.ped;
+  document.getElementById('lbl-other').textContent       = T.other;
+  document.getElementById('other-input').placeholder     = T.otherPlaceholder;
+  document.getElementById('btn-back').textContent        = T.btnBack;
+  document.getElementById('btn-stop').innerHTML          = T.btnStop.replace('■','&#9632;');
+  document.getElementById('other-confirm').innerHTML     = T.btnStart.replace('▶','&#9654;');
+  document.getElementById('undo-lbl').textContent        = T.undo;
+  document.getElementById('preview-title').textContent   = T.previewTitle;
+  document.getElementById('preview-save').textContent    = T.previewSave;
+  document.getElementById('preview-close').textContent   = T.previewClose;
+  document.getElementById('lbl-tikken').textContent      = T.statTaps;
+  document.getElementById('lbl-segs').textContent        = T.statSegs;
+  document.getElementById('lbl-km').textContent          = T.statKm;
+  document.getElementById('lbl-max').textContent         = T.statMax;
+  document.getElementById('leg-low').textContent         = T.legLow;
+  document.getElementById('leg-med').textContent         = T.legMed;
+  document.getElementById('leg-high').textContent        = T.legHigh;
+  document.getElementById('leg-zero').textContent        = T.legZero;
+  document.getElementById('leg-gps').textContent         = T.legGps;
+}
+
+var telType     = null;
+var telLabel    = null;
+var telIcon     = null;
+var lastHeading = null;
+var lastAcc     = null;
+var lastSpeed   = null;
+var telCount    = 0;
+var telHistory  = [];   // [{ts, lat, lon}]
+var startTime   = null;
+var holdTimer   = null;
+var holdStart   = null;
+var wakeLock    = null;
+var watching    = null;
+var lastLat     = null, lastLon = null;
+var lastFixMs   = null;  // v2.17 tijdspoort: wandkloktijd van de vorige GPS-fix
+var routeLog    = [];   // [{ts, lat, lon, acc, wayId, osmName}]
+var lastRouteLat = null, lastRouteLon = null;
+var ROUTE_MIN_DIST = 5; // meter
+var HOLD_MS     = 600;
+
+function pad(n){ return String(n).padStart(2,'0'); }
+
+function nowIso() {
+  var d = new Date();
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())
+    +'T'+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+}
+
+function fmtDate(d) {
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+
+function fmtTime(d) {
+  return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+}
+
+function genSid() {
+  var d = new Date();
+  var chars = 'abcdefghijklmnopqrstuvwxyz';
+  var rnd = [0,1,2].map(function(){ return chars[Math.floor(Math.random()*26)]; }).join('');
+  return pad(d.getFullYear())+pad(d.getMonth()+1)+pad(d.getDate())
+    +'_'+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds())
+    +'_'+rnd;
+}
+
+// ── GPS ──────────────────────────────────────────────────────────────────────
+function startGps() {
+  if (!navigator.geolocation) return;
+  watching = navigator.geolocation.watchPosition(    function(pos) {
+      lastLat = pos.coords.latitude;
+      lastLon = pos.coords.longitude;
+      if (pos.coords.heading != null && !isNaN(pos.coords.heading)) lastHeading = pos.coords.heading;
+      if (pos.coords.speed != null && !isNaN(pos.coords.speed)) lastSpeed = pos.coords.speed;
+      var acc = Math.round(pos.coords.accuracy || 0);
+      lastAcc = acc;
+      // v2.17 tijdspoort: GPS-stilte langer dan TIME_GAP_RESET_S (gebouw-
+      // passage) verbreekt de continuïteit net zo hard als een teleport.
+      // Afstands-poorten zien dit niet (222s-gat met 25m verplaatsing gemeten).
+      var nowMs = Date.now();
+      if (lastFixMs !== null && (nowMs - lastFixMs) > TIME_GAP_RESET_S * 1000) {
+        var gapAnchor = snap.anchorWayId;
+        snap.anchorWayId = null; snap.anchorSegIdx = 0; snap.challenger = null;
+        snap.stallCount = 0; snap.stallPrev = null;
+        traceWrite({ type:'gps', tijdstip:nowIso(), accuracy:acc },
+                   lastLat, lastLon, 'time_gap_reset', gapAnchor, null, null, null, []);
+      }
+      lastFixMs = nowMs;
+      gpsUpdateStability(lastLat, lastLon, acc, Date.now());
+      snapCheckRefresh(lastLat, lastLon);
+      // Huidige snap bepalen (kan null zijn als netwerk nog niet geladen is)
+      var snapNow = snapNearestWay(lastLat, lastLon, {type:'gps', tijdstip:nowIso(), accuracy:acc});
+      renderSnapConf();
+      var widNow  = snapNow ? snapNow.wayId   : '';
+      var nameNow = snapNow ? snapNow.osmName : '';
+      var segNow  = snapNow ? snapNow.segIdx  : 0;
+      // Route-punt opslaan bij voldoende verplaatsing
+      if (lastRouteLat === null) {
+        lastRouteLat = lastLat; lastRouteLon = lastLon;
+        routeLog.push({ ts: nowIso(), lat: lastLat, lon: lastLon, acc: acc, wayId: widNow, segIdx: segNow, osmName: nameNow });
+      } else {
+        var cos = Math.cos(lastRouteLat * Math.PI / 180);
+        var dx = (lastLon - lastRouteLon) * 111320 * cos;
+        var dy = (lastLat - lastRouteLat) * 111320;
+        var routeStep = Math.sqrt(dx*dx + dy*dy);
+        if (routeStep >= ROUTE_MIN_DIST) {
+          // v2.17 stall-check op routepunt-cadans (≈5m, identiek aan de
+          // gevalideerde replay). Kan snapNow vervangen na een stall-reset.
+          snapNow = snapStallCheck(lastLat, lastLon, snapNow, routeStep,
+                                   {type:'gps', tijdstip:nowIso(), accuracy:acc});
+          widNow  = snapNow ? snapNow.wayId   : '';
+          nameNow = snapNow ? snapNow.osmName : '';
+          segNow  = snapNow ? snapNow.segIdx  : 0;
+          routeLog.push({ ts: nowIso(), lat: lastLat, lon: lastLon, acc: acc, wayId: widNow, segIdx: segNow, osmName: nameNow });
+          lastRouteLat = lastLat; lastRouteLon = lastLon;
+        }
+      }
+    },
+    function(){},
+    { enableHighAccuracy: true, maximumAge: 3000 }
+  );
+}
+
+function stopGps() {
+  if (watching !== null) { navigator.geolocation.clearWatch(watching); watching = null; }
+}
+
+// ── Wake Lock ─────────────────────────────────────────────────────────────────
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+}
+
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+// ── Scherm-beheer ─────────────────────────────────────────────────────────────
+// Modus-keuze (v2.11): simpel | transect | winkelstraat \u2014 gaat als 'modus' mee in sessie.csv.
+// app_type blijft 'pocket' (telrapport blijft de familie herkennen); modus is de sub-discriminator.
+var currentModus = 'simpel';
+function chooseSimpel() {
+  currentModus = 'simpel';
+  document.getElementById('mode-note').textContent = '';
+  document.getElementById('mode-btns').style.display = 'none';
+  document.getElementById('simpel-panel').style.display = 'flex';
+}
+function backToModes() {
+  document.getElementById('other-row').style.display = 'none';
+  document.getElementById('simpel-panel').style.display = 'none';
+  document.getElementById('mode-btns').style.display = 'flex';
+}
+// ── Transect-modus (v2.11) ────────────────────────────────────────────────────
+// Moving-observer richtingstelling op pocket's snap-core. Een tik = telHistory-
+// entry met type + richting (a/b); snap, export, herstel en reassignTrajectory
+// erven zo mee. Géén live kaart (consistent met pocket) — visualisatie via de
+// bestaande preview-canvas.
+var TC_TYPES = [
+  { id:'car',   icon:'\uD83D\uDE97' },
+  { id:'truck', icon:'\uD83D\uDE9B' },
+  { id:'moto',  icon:'\uD83C\uDFCD\uFE0F' },
+  { id:'bike',  icon:'\uD83D\uDEB2' },
+  { id:'ped',   icon:'\uD83D\uDEB6' }
+];
+var tcCounts = {};
+var tcRichtingA = 'Richting A', tcRichtingB = 'Richting B';
+
+function chooseTransect() { startTransect(); }
+
+function startTransect() {
+  if (!magNieuwStarten()) return;   // v2.72
+  exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
+  clearSession();
+  currentModus = 'transect';
+  telType = 'transect'; telLabel = 'Transect'; telIcon = '\u2194\uFE0F';
+  telCount = 0; telHistory = []; routeLog = [];
+  lastRouteLat = null; lastRouteLon = null;
+  snap.elements = {};
+  snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
+  snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
+  startTime = new Date();
+  tcCounts = {};
+  TC_TYPES.forEach(function(t){ tcCounts[t.id] = { a:0, b:0 }; });
+  tcRichtingA = 'Richting A'; tcRichtingB = 'Richting B';
+
+  document.getElementById('choose-screen').style.display = 'none';
+  document.getElementById('transect-screen').style.display = 'flex';
+  document.getElementById('grand-total').textContent = '0';
+  document.getElementById('lbl-a').value = tcRichtingA;
+  document.getElementById('lbl-b').value = tcRichtingB;
+  var btn = document.getElementById('btn-compass');
+  btn.textContent = 'Kompas'; btn.classList.remove('active');
+  buildTransectCards();
+  document.getElementById('tc-stop').style.display = '';
+  document.getElementById('tc-back').style.display = '';
+  initBattery();
+  acquireWakeLock();
+  startGps();
+}
+
+function buildTransectCards() {
+  var c = document.getElementById('tc-counters');
+  c.innerHTML = '';
+  TC_TYPES.forEach(function(t){
+    var card = document.createElement('div');
+    card.className = 'tc-card';
+    card.innerHTML =
+      '<button class="tc-dir" onclick="adjustTransect(\'' + t.id + '\',\'a\',1)"><span class="tc-sym">&gt;&lt;</span><span class="tc-plus">+1</span></button>' +
+      '<div class="tc-cnt" id="tc-' + t.id + '-a">0</div>' +
+      '<button class="tc-min" onclick="adjustTransect(\'' + t.id + '\',\'a\',-1)">\u2212</button>' +
+      '<div class="tc-mid">' + t.icon + '</div>' +
+      '<button class="tc-min" onclick="adjustTransect(\'' + t.id + '\',\'b\',-1)">\u2212</button>' +
+      '<div class="tc-cnt" id="tc-' + t.id + '-b">0</div>' +
+      '<button class="tc-dir" onclick="adjustTransect(\'' + t.id + '\',\'b\',1)"><span class="tc-sym">&gt;&gt;</span><span class="tc-plus">+1</span></button>';
+    c.appendChild(card);
+  });
+}
+
+function adjustTransect(type, dir, delta) {
+  if (!tcCounts[type]) return;
+  tcCounts[type][dir] = Math.max(0, tcCounts[type][dir] + delta);
+  var cel = document.getElementById('tc-' + type + '-' + dir);
+  cel.textContent = tcCounts[type][dir];
+  cel.classList.remove('bump'); void cel.offsetWidth; cel.classList.add('bump');
+
+  if (delta > 0) {
+    telCount++;
+    var e = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId:'', segIdx:0, osmName:'',
+              type: type, richting: dir };
+    snapResolveTap(e);
+    if (navigator.vibrate) navigator.vibrate(25);
+  } else {
+    for (var i = telHistory.length - 1; i >= 0; i--) {
+      if (telHistory[i].type === type && telHistory[i].richting === dir) {
+        var rem = telHistory.splice(i, 1)[0];
+        var qi = snap.pendingQueue.indexOf(rem);
+        if (qi >= 0) snap.pendingQueue.splice(qi, 1);
+        telCount = Math.max(0, telCount - 1);
+        break;
+      }
+    }
+  }
+  var total = 0;
+  TC_TYPES.forEach(function(t){ total += tcCounts[t.id].a + tcCounts[t.id].b; });
+  document.getElementById('grand-total').textContent = total;
+  saveSession();
+}
+
+function tcSetLabelA(v){ tcRichtingA = v; }
+function tcSetLabelB(v){ tcRichtingB = v; }
+
+function closeTransectScreen() {
+  document.getElementById('transect-screen').style.display = 'none';
+  document.getElementById('tc-stop').style.display = 'none';
+  document.getElementById('tc-back').style.display = 'none';
+  releaseWakeLock();
+  stopGps();
+}
+
+function tcBack() {
+  if (telCount > 0 && !confirm('Terug? ' + telCount + ' tikken gaan verloren als je niet eerst downloadt.')) return;
+  closeTransectScreen();
+  backToModes();
+  document.getElementById('choose-screen').style.display = '';
+}
+
+// ── Richting-inferentie (uit transect-tool, op pocket's GPS) ───────────────────
+function tcDestinationPoint(lat, lon, bearingDeg, distanceKm) {
+  var R = 6371, d = distanceKm / R;
+  var lat1 = lat*Math.PI/180, lon1 = lon*Math.PI/180, brng = bearingDeg*Math.PI/180;
+  var lat2 = Math.asin(Math.sin(lat1)*Math.cos(d) + Math.cos(lat1)*Math.sin(d)*Math.cos(brng));
+  var lon2 = lon1 + Math.atan2(Math.sin(brng)*Math.sin(d)*Math.cos(lat1), Math.cos(d)-Math.sin(lat1)*Math.sin(lat2));
+  return { lat: lat2*180/Math.PI, lon: ((lon2*180/Math.PI)+540)%360-180 };
+}
+function tcCardinalNL(deg) {
+  var dirs = ['Noord','Noordoost','Oost','Zuidoost','Zuid','Zuidwest','West','Noordwest'];
+  return dirs[Math.round(((deg%360)+360)%360/45)%8];
+}
+function tcPlaceNameAt(lat, lon) {
+  var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=10&addressdetails=1';
+  return fetch(url, { headers: { 'Accept-Language': 'nl' } })
+    .then(function(r){ return r.json(); })
+    .then(function(data){ var a = data.address || {};
+      return a.city || a.town || a.village || a.hamlet || a.municipality || a.suburb || null; })
+    .catch(function(){ return null; });
+}
+function tcApplyHeading(heading, lat, lon) {
+  var btn = document.getElementById('btn-compass');
+  var ahead = (heading + 360) % 360, behind = (heading + 180) % 360;
+  var cardA = tcCardinalNL(ahead), cardB = tcCardinalNL(behind);
+  function setLabels(pa, pb) {
+    var a = pa || cardA, b = pb || cardB;
+    tcRichtingA = 'Van ' + b + ' naar ' + a;
+    tcRichtingB = 'Van ' + a + ' naar ' + b;
+    document.getElementById('lbl-a').value = tcRichtingA;
+    document.getElementById('lbl-b').value = tcRichtingB;
+    btn.textContent = a + ' / ' + b;
+    btn.classList.add('active');
+  }
+  if (lat != null && lon != null) {
+    btn.textContent = 'Zoeken\u2026';
+    var pa = tcDestinationPoint(lat, lon, ahead, 5), pb = tcDestinationPoint(lat, lon, behind, 5);
+    Promise.all([tcPlaceNameAt(pa.lat, pa.lon), tcPlaceNameAt(pb.lat, pb.lon)])
+      .then(function(res){ var a=res[0], b=res[1]; setLabels(a!==b?a:null, a!==b?b:null); });
+  } else { setLabels(null, null); }
+}
+function tcListenCompass(lat, lon) {
+  var btn = document.getElementById('btn-compass');
+  var readings = [], done = false;
+  function onOri(e) {
+    if (done) return;
+    var h = null;
+    if (e.webkitCompassHeading != null && !isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading;
+    else if (e.alpha != null) h = (360 - e.alpha) % 360;
+    if (h == null) return;
+    readings.push(h);
+    if (readings.length >= 5) {
+      done = true;
+      window.removeEventListener('deviceorientation', onOri, true);
+      window.removeEventListener('deviceorientationabsolute', onOri, true);
+      var sinS = readings.reduce(function(s,v){ return s + Math.sin(v*Math.PI/180); }, 0);
+      var cosS = readings.reduce(function(s,v){ return s + Math.cos(v*Math.PI/180); }, 0);
+      tcApplyHeading((Math.atan2(sinS, cosS)*180/Math.PI+360)%360, lat, lon);
+    }
+  }
+  window.addEventListener('deviceorientationabsolute', onOri, true);
+  window.addEventListener('deviceorientation', onOri, true);
+  setTimeout(function(){
+    if (!done) { done = true;
+      window.removeEventListener('deviceorientation', onOri, true);
+      window.removeEventListener('deviceorientationabsolute', onOri, true);
+      btn.textContent = 'Kompas';
+      alert('Geen kompasdata beschikbaar.');
+    }
+  }, 3000);
+}
+function autoDirections() {
+  var btn = document.getElementById('btn-compass');
+  btn.textContent = 'Lezen\u2026'; btn.classList.remove('active');
+  if (lastHeading != null && !isNaN(lastHeading)) { tcApplyHeading(lastHeading, lastLat, lastLon); return; }
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(function(p){ if (p === 'granted') tcListenCompass(lastLat, lastLon); else { btn.textContent = 'Kompas'; alert('Geen toestemming.'); } })
+      .catch(function(){ btn.textContent = 'Kompas'; });
+  } else { tcListenCompass(lastLat, lastLon); }
+}
+// ── Winkelstraat-modus (v2.11) ────────────────────────────────────────────────
+// Moving-observer voetgangerstelling: twee categorieën — Tegemoet (oncoming) en
+// Stilstaand (stationary) — die met GPS-lengte en -snelheid schoon decomponeren
+// (Wardrop & Charlesworth). App tikt + logt snelheid per tik; KNIME decomponeert.
+// Eén tik = telHistory-entry met type=categorie + snelheid; snap/herstel erven mee.
+var WS_CATS = [
+  { id:'tegemoet',   label:'Tegemoet',  icon:'\uD83D\uDEB6', col:'#16a085' },
+  { id:'stilstaand', label:'Stilstaand', icon:'\uD83E\uDDCD', col:'#d35400' }
+];
+var wsCounts = {};
+
+function chooseWinkelstraat() { startWinkelstraat(); }
+
+function startWinkelstraat() {
+  if (!magNieuwStarten()) return;   // v2.72
+  exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
+  clearSession();
+  currentModus = 'winkelstraat';
+  telType = 'winkelstraat'; telLabel = 'Winkelstraat'; telIcon = '\uD83D\uDED2';
+  telCount = 0; telHistory = []; routeLog = [];
+  lastRouteLat = null; lastRouteLon = null;
+  snap.elements = {};
+  snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
+  snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
+  startTime = new Date();
+  wsCounts = {}; WS_CATS.forEach(function(c){ wsCounts[c.id] = 0; });
+
+  document.getElementById('choose-screen').style.display = 'none';
+  document.getElementById('winkel-screen').style.display = 'flex';
+  buildWinkelCards();
+  updateWinkelDisplay();
+  document.getElementById('ws-stop').style.display = '';
+  document.getElementById('ws-back').style.display = '';
+  initBattery();
+  acquireWakeLock();
+  startGps();
+}
+
+function buildWinkelCards() {
+  var c = document.getElementById('ws-cards');
+  c.innerHTML = '';
+  WS_CATS.forEach(function(cat){
+    var card = document.createElement('div');
+    card.className = 'ws-card';
+    card.style.background = cat.col;
+    card.setAttribute('onclick', "adjustWinkel('" + cat.id + "',1)");
+    card.innerHTML =
+      '<div class="ws-icon">' + cat.icon + '</div>' +
+      '<div class="ws-label">' + cat.label + '</div>' +
+      '<div class="ws-count" id="ws-' + cat.id + '">0</div>' +
+      '<div class="ws-undo" onclick="event.stopPropagation(); adjustWinkel(\'' + cat.id + '\',-1)">\u2212</div>';
+    c.appendChild(card);
+  });
+}
+
+function adjustWinkel(cat, delta) {
+  if (!(cat in wsCounts)) return;
+  if (delta > 0) {
+    wsCounts[cat]++;
+    telCount++;
+    var e = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId:'', segIdx:0, osmName:'',
+              type: cat, richting:'',
+              snelheid: (lastSpeed != null && !isNaN(lastSpeed)) ? lastSpeed.toFixed(2) : '' };
+    snapResolveTap(e);
+    if (navigator.vibrate) navigator.vibrate(25);
+  } else {
+    if (wsCounts[cat] <= 0) return;
+    for (var i = telHistory.length - 1; i >= 0; i--) {
+      if (telHistory[i].type === cat) {
+        var rem = telHistory.splice(i, 1)[0];
+        var qi = snap.pendingQueue.indexOf(rem);
+        if (qi >= 0) snap.pendingQueue.splice(qi, 1);
+        telCount = Math.max(0, telCount - 1);
+        wsCounts[cat]--;
+        break;
+      }
+    }
+  }
+  updateWinkelDisplay();
+  saveSession();
+}
+
+function updateWinkelDisplay() {
+  var total = 0;
+  WS_CATS.forEach(function(c){
+    var el = document.getElementById('ws-' + c.id);
+    if (el) {
+      el.textContent = wsCounts[c.id] || 0;
+      el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+    }
+    total += wsCounts[c.id] || 0;
+  });
+  document.getElementById('ws-total-val').textContent = total;
+}
+
+function closeWinkelScreen() {
+  document.getElementById('winkel-screen').style.display = 'none';
+  document.getElementById('ws-stop').style.display = 'none';
+  document.getElementById('ws-back').style.display = 'none';
+  releaseWakeLock();
+  stopGps();
+}
+
+function wsBack() {
+  if (telCount > 0 && !confirm('Terug? ' + telCount + ' tikken gaan verloren als je niet eerst downloadt.')) return;
+  closeWinkelScreen();
+  backToModes();
+  document.getElementById('choose-screen').style.display = '';
+}
+
+// ── Parkeren-modus (v2.17) ────────────────────────────────────────────────────
+// Rijdende/lopende parkeertelling op pocket's snap-core, methodiek = simpel
+// tellen: één tik = één telHistory-regel met GPS + snap, verder niets. Vier
+// vaste categorieën in een 2×2-grid (kolom = zijde, rij = status). type/richting
+// passen in de bestáánde telregels.csv-kolommen — geen schemawijziging, wel
+// nieuwe waarden (type: leeg|bezet, richting: links|rechts) → KNIME gemeld.
+var PK_CATS = [
+  { side:'links',  status:'bezet', row:'top',    label:'Links · Bezet',  icon:'\uD83D\uDE97', col:'#b0342b' },
+  { side:'rechts', status:'bezet', row:'top',    label:'Rechts · Bezet', icon:'\uD83D\uDE97', col:'#b0342b' },
+  { side:'links',  status:'leeg',  row:'bottom', label:'Links · Leeg',   icon:'\u25FB\uFE0F',  col:'#3a7d44' },
+  { side:'rechts', status:'leeg',  row:'bottom', label:'Rechts · Leeg',  icon:'\u25FB\uFE0F',  col:'#3a7d44' }
+];
+function pkKey(c){ return c.side + '_' + c.status; }
+var pkCounts = {};
+
+function chooseParkeren() { startParkeren(); }
+
+function startParkeren() {
+  if (!magNieuwStarten()) return;   // v2.72
+  exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
+  clearSession();
+  currentModus = 'parkeren';
+  telType = 'parkeren'; telLabel = 'Parkeren'; telIcon = '\uD83C\uDD7F\uFE0F';
+  telCount = 0; telHistory = []; routeLog = [];
+  lastRouteLat = null; lastRouteLon = null;
+  snap.elements = {};
+  snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
+  snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
+  startTime = new Date();
+  pkCounts = {}; PK_CATS.forEach(function(c){ pkCounts[pkKey(c)] = 0; });
+
+  document.getElementById('choose-screen').style.display = 'none';
+  document.getElementById('parkeer-screen').style.display = 'flex';
+  buildParkeerCards();
+  updateParkeerDisplay();
+  document.getElementById('pk-stop').style.display = '';
+  document.getElementById('pk-back').style.display = '';
+  document.getElementById('pk-map').style.display = '';
+  initBattery();
+  acquireWakeLock();
+  startGps();
+}
+
+function buildParkeerCards() {
+  var c = document.getElementById('pk-cards');
+  c.innerHTML = '';
+  PK_CATS.forEach(function(cat){
+    var key = pkKey(cat);
+    var card = document.createElement('div');
+    card.className = 'ws-card';
+    card.style.background = cat.col;
+    card.setAttribute('onclick', "adjustParkeer('" + key + "',1)");
+    // Min-knop naar de binnenhoek van elke kaart — alle vier convergeren zo
+    // naar het midden van het 2×2-grid i.p.v. elk in hun eigen buitenhoek.
+    var vPos = (cat.row === 'top') ? 'bottom:10px;top:auto;' : 'top:10px;bottom:auto;';
+    var hPos = (cat.side === 'links') ? 'right:10px;left:auto;' : 'left:10px;right:auto;';
+    card.innerHTML =
+      '<div class="ws-icon">' + cat.icon + '</div>' +
+      '<div class="ws-label">' + cat.label + '</div>' +
+      '<div class="ws-count" id="pk-' + key + '">0</div>' +
+      '<div class="ws-undo" style="' + vPos + hPos + '" onclick="event.stopPropagation(); adjustParkeer(\'' + key + '\',-1)">\u2212</div>';
+    c.appendChild(card);
+  });
+}
+
+// --- audio-feedback (proef, alleen parkeren-submodus) ---------------------
+// Web Audio: klik wordt in code gesynthetiseerd, geen geluidsbestand/CDN nodig.
+// iOS Safari: de audio-context wordt bij de eerste tik ontgrendeld (resume()).
+var GELUID = true;          // zet op false om het klikje uit te zetten
+var _actx = null;
+function klik(freq, dur) {
+  if (!GELUID) return;
+  try {
+    if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_actx.state === 'suspended') _actx.resume();   // iOS: ontgrendel op de tik-gesture
+    var t = _actx.currentTime, osc = _actx.createOscillator(), g = _actx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq || 1100;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.005);          // snelle attack
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (dur || 0.03)); // snelle decay
+    osc.connect(g); g.connect(_actx.destination);
+    osc.start(t); osc.stop(t + (dur || 0.03) + 0.02);
+  } catch (e) { /* audio niet beschikbaar → stil doorgaan */ }
+}
+
+/* ── Dekkingskaart (pocket parkeren) ─────────────────────── */
+var pkMap = null, pkMapLayers = null;
+function openPkMap() {
+  document.getElementById('pk-map-overlay').style.display = 'flex';
+  if (!pkMap) {
+    pkMap = L.map('pk-map-canvas', { zoomControl: true, attributionControl: false });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(pkMap);
+    pkMapLayers = L.layerGroup().addTo(pkMap);
+  }
+  setTimeout(function () { pkMap.invalidateSize(); tekenPkMap(); }, 60);
+}
+function closePkMap() {
+  document.getElementById('pk-map-overlay').style.display = 'none';
+}
+function tekenPkMap() {
+  if (!pkMapLayers) return;
+  pkMapLayers.clearLayers();
+  var pts = [];
+  // gelopen/gereden route
+  if (typeof routeLog !== 'undefined' && routeLog.length) {
+    var rc = [];
+    routeLog.forEach(function (p) { if (p.lat != null && p.lon != null) rc.push([p.lat, p.lon]); });
+    if (rc.length >= 2) {
+      L.polyline(rc, { color: '#1f5fbf', weight: 4, opacity: 0.85 }).addTo(pkMapLayers);
+      rc.forEach(function (ll) { pts.push(ll); });
+    }
+  }
+  // tik-stippen — de eerlijke laag: waar daadwerkelijk geteld is
+  var STAT = { bezet: '#b0342b', leeg: '#3a7d44' };
+  var RING = { links: '#ffffff', rechts: '#111111' };
+  telHistory.forEach(function (t) {
+    if (t.lat == null || t.lon == null) return;
+    if (t.type !== 'bezet' && t.type !== 'leeg') return;    // alleen parkeren-tikken
+    var m = L.circleMarker([t.lat, t.lon], {
+      radius: 8, fillColor: STAT[t.type] || '#555', fillOpacity: 1,
+      color: RING[t.richting] || '#111', weight: t.richting === 'links' ? 1.5 : 2.5
+    });
+    m.bindPopup('<b>' + (t.richting || '') + ' \u00b7 ' + (t.type || '') + '</b><br>' +
+                (t.osmName || '') + '<br>' + (t.ts || ''));
+    m.addTo(pkMapLayers);
+    pts.push([t.lat, t.lon]);
+  });
+  if (pts.length) {
+    pkMap.fitBounds(L.latLngBounds(pts), { padding: [30, 30], maxZoom: 18 });
+  }
+}
+
+function adjustParkeer(key, delta) {
+  if (!(key in pkCounts)) return;
+  var parts = key.split('_');            // side_status
+  if (delta > 0) {
+    pkCounts[key]++;
+    telCount++;
+    var e = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId:'', segIdx:0, osmName:'',
+              type: parts[1], richting: parts[0] };
+    snapResolveTap(e);
+    if (navigator.vibrate) navigator.vibrate(25);
+    klik(parts[1] === 'bezet' ? 440 : 392, 0.05);  // bezet = A/440 (hoger), vrij = G/392 (lager)
+  } else {
+    if (pkCounts[key] <= 0) return;
+    for (var i = telHistory.length - 1; i >= 0; i--) {
+      if (telHistory[i].type === parts[1] && telHistory[i].richting === parts[0]) {
+        var rem = telHistory.splice(i, 1)[0];
+        var qi = snap.pendingQueue.indexOf(rem);
+        if (qi >= 0) snap.pendingQueue.splice(qi, 1);
+        telCount = Math.max(0, telCount - 1);
+        pkCounts[key]--;
+        klik(560, 0.05);         // lagere 'ongedaan'-toon
+        break;
+      }
+    }
+  }
+  updateParkeerDisplay();
+  saveSession();
+}
+
+function updateParkeerDisplay() {
+  var total = 0;
+  PK_CATS.forEach(function(c){
+    var key = pkKey(c);
+    var el = document.getElementById('pk-' + key);
+    if (el) {
+      el.textContent = pkCounts[key] || 0;
+      el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+    }
+    total += pkCounts[key] || 0;
+  });
+  document.getElementById('pk-total-val').textContent = total;
+}
+
+function closeParkeerScreen() {
+  document.getElementById('parkeer-screen').style.display = 'none';
+  document.getElementById('pk-stop').style.display = 'none';
+  document.getElementById('pk-back').style.display = 'none';
+  document.getElementById('pk-map').style.display = 'none';
+  document.getElementById('pk-map-overlay').style.display = 'none';
+  releaseWakeLock();
+  stopGps();
+}
+
+function pkBack() {
+  if (telCount > 0 && !confirm('Terug? ' + telCount + ' tikken gaan verloren als je niet eerst downloadt.')) return;
+  closeParkeerScreen();
+  if (pkDirect) { location.href = 'index.html'; return; }   // v2.70: directe ingang
+  backToModes();
+  document.getElementById('choose-screen').style.display = '';
+}
+
+// ── Sessieherstel (v2.11) ─────────────────────────────────────────────────────
+// localStorage-vangnet: telt élke tik door zodat crash/scherm-uit geen
+// veldgegevens kost. Bewust géén snap.elements (te groot + secundair); de tikken
+// dragen hun eigen wayId, dus de export blijft volledig. Wissen pas ná bevestigd
+// klaar (preview sluiten) of bij een nieuwe sessie \u2014 nooit blind na generateAsync.
+var LS_KEY_POCKET = 'pocket_sessie';
+
+// v2.76: is de telling afgerond en de ZIP bevestigd weggeschreven, dan hoort de
+// noodkopie weg te blijven. Tot v2.76 schreef saveSession() hem bij de eerstvolgende
+// app-wissel of paginawissel opnieuw (telHistory is na Stop nog gevuld), en bood
+// pocket bij heropenen een telling aan die allang gedownload was.
+var exportAfgerond = false;
+
+// De ZIP is aantoonbaar weggeschreven (deelblad voltooid, download overgedragen)
+// of de gebruiker sloot het voorbeeldscherm: noodkopie weg, en weg houden.
+function exportBevestigd() {
+  exportAfgerond = true;
+  clearSession();
+}
+
+function saveSession() {
+  if (!telHistory.length || exportAfgerond) return;
+  try {
+    localStorage.setItem(LS_KEY_POCKET, JSON.stringify({
+      modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
+      telCount: telCount, telHistory: telHistory, routeLog: routeLog,
+      tcCounts: tcCounts, richtingA: tcRichtingA, richtingB: tcRichtingB,
+      startTime: startTime ? startTime.toISOString() : null, savedAt: nowIso()
+    }));
+  } catch (e) {}
+}
+
+function clearSession() {
+  try { localStorage.removeItem(LS_KEY_POCKET); } catch (e) {}
+}
+
+function restoreSession() {
+  var raw;
+  try { raw = localStorage.getItem(LS_KEY_POCKET); } catch (e) { return; }
+  if (!raw) return;
+  var data;
+  try { data = JSON.parse(raw); } catch (e) { clearSession(); return; }
+  if (!data.telHistory || !data.telHistory.length) { clearSession(); return; }
+
+  currentModus = data.modus || 'simpel';
+  telType = data.telType; telLabel = data.telLabel; telIcon = data.telIcon;
+  telCount = (data.telCount != null) ? data.telCount : data.telHistory.length;
+  telHistory = data.telHistory;
+  routeLog = data.routeLog || [];
+  tcRichtingA = data.richtingA || 'Richting A';
+  tcRichtingB = data.richtingB || 'Richting B';
+  tcCounts = data.tcCounts || {};
+  startTime = data.startTime ? new Date(data.startTime) : new Date();
+
+  document.getElementById('restore-text').textContent = '\u26A0\uFE0F ' + telCount +
+    ' tikken hersteld van ' + (data.savedAt || '?') +
+    ' (' + (data.telLabel || data.telType || currentModus) + ').';
+  document.getElementById('restore-banner').style.display = '';
+}
+
+function restoreDownload() {
+  document.getElementById('restore-banner').style.display = 'none';
+  stopTelling();   // bouwt + biedt de ZIP aan uit de herstelde state
+}
+
+function restoreDiscard() {
+  if (!confirm('Herstelde telling verwijderen? Dit kan niet ongedaan worden gemaakt.')) return;
+  clearSession();
+  telCount = 0; telHistory = []; routeLog = [];
+  document.getElementById('restore-banner').style.display = 'none';
+  if (pkDirect) startParkeren();   // v2.70: directe ingang, geen keuzemenu
+}
+
+// ── Doortellen na herstel (v2.72) ───────────────────────────────────────
+// Een herstelde telling kan verder, in dezelfde modus en met dezelfde tikken,
+// route en starttijd. Werkwijze: de modus gewoon starten (scherm, GPS,
+// scherm-aan), en daarna de telling terugzetten. De start*-functies wissen de
+// noodopslag; saveSession() aan het eind schrijft hem meteen terug.
+// De onderbreking blijft zichtbaar als gat in de GPS-route.
+function herstelZichtbaar() {
+  var b = document.getElementById('restore-banner');
+  return !!(b && b.style.display !== 'none');
+}
+
+// Nieuwe telling terwijl er een herstelde klaarstaat: die zou stil gewist worden.
+function magNieuwStarten() {
+  if (!herstelZichtbaar()) return true;
+  if (!confirm('Nieuwe telling starten? De herstelde telling (' + telCount + ' tikken) wordt dan gewist. '
+               + 'Kies anders Doortellen of Download.')) return false;
+  document.getElementById('restore-banner').style.display = 'none';
+  return true;
+}
+
+function hervatTelling() {
+  if (!herstelZichtbaar() || !telHistory.length) return;
+  var bewaard = {
+    modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
+    telCount: telCount, telHistory: telHistory, routeLog: routeLog, startTime: startTime,
+    tcCounts: tcCounts, tcRichtingA: tcRichtingA, tcRichtingB: tcRichtingB
+  };
+  document.getElementById('restore-banner').style.display = 'none';
+
+  if (bewaard.modus === 'transect') startTransect();
+  else if (bewaard.modus === 'winkelstraat') startWinkelstraat();
+  else if (bewaard.modus === 'parkeren') startParkeren();
+  else { currentModus = 'simpel'; startTelling(bewaard.telType, bewaard.telIcon, bewaard.telLabel); }
+
+  telCount = bewaard.telCount; telHistory = bewaard.telHistory;
+  routeLog = bewaard.routeLog; startTime = bewaard.startTime;
+  var laatste = routeLog[routeLog.length - 1];
+  if (laatste) { lastRouteLat = laatste.lat; lastRouteLon = laatste.lon; }
+
+  if (currentModus === 'transect') {
+    tcRichtingA = bewaard.tcRichtingA; tcRichtingB = bewaard.tcRichtingB;
+    document.getElementById('lbl-a').value = tcRichtingA;
+    document.getElementById('lbl-b').value = tcRichtingB;
+    var totaal = 0;
+    TC_TYPES.forEach(function (t) {
+      var c = (bewaard.tcCounts && bewaard.tcCounts[t.id]) || { a: 0, b: 0 };
+      tcCounts[t.id] = { a: c.a, b: c.b };
+      ['a', 'b'].forEach(function (d) {
+        var cel = document.getElementById('tc-' + t.id + '-' + d);
+        if (cel) cel.textContent = c[d];
+      });
+      totaal += c.a + c.b;
+    });
+    document.getElementById('grand-total').textContent = totaal;
+  } else if (currentModus === 'winkelstraat') {
+    WS_CATS.forEach(function (c) { wsCounts[c.id] = 0; });
+    telHistory.forEach(function (e) { if (e.type in wsCounts) wsCounts[e.type]++; });
+    updateWinkelDisplay();
+  } else if (currentModus === 'parkeren') {
+    PK_CATS.forEach(function (c) { pkCounts[pkKey(c)] = 0; });
+    telHistory.forEach(function (e) {
+      var k = e.richting + '_' + e.type;
+      if (k in pkCounts) pkCounts[k]++;
+    });
+    updateParkeerDisplay();
+  } else {
+    document.getElementById('big-count').textContent = telCount;
+  }
+  saveSession();
+}
+
+function chooseOther() {
+  var row = document.getElementById('other-row');
+  row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+  if (row.style.display === 'flex') {
+    setTimeout(function(){ document.getElementById('other-input').focus(); }, 80);
+  }
+}
+
+function updateOtherBtn() {
+  var val = document.getElementById('other-input').value.trim();
+  var btn = document.getElementById('other-confirm');
+  btn.disabled = !val;
+  btn.style.background = val ? '#333' : '#555';
+  btn.style.color = val ? '#fff' : 'rgba(255,255,255,0.4)';
+}
+
+function confirmOther() {
+  var val = document.getElementById('other-input').value.trim();
+  if (!val) return;
+  document.getElementById('other-row').style.display = 'none';
+  document.getElementById('other-input').value = '';
+  updateOtherBtn();
+  startTelling('other', '❓', val);
+}
+
+function startTelling(type, icon, label) {
+  if (!magNieuwStarten()) return;   // v2.72
+  exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
+  clearSession();
+  telType    = type;
+  telLabel   = label;
+  telIcon    = icon;
+  telCount    = 0;
+  telHistory  = [];
+  snap.elements = {};
+  routeLog    = [];
+  lastRouteLat = null; lastRouteLon = null;
+  startTime  = new Date();
+
+  var color = getComputedStyle(document.documentElement).getPropertyValue('--c-' + type).trim();
+  var screen = document.getElementById('count-screen');
+  screen.style.background = color;
+  screen.classList.add('active');
+  document.getElementById('big-count').textContent = '0';
+  document.getElementById('type-label').textContent = label;
+  snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
+  snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
+  renderSnapConf();
+  initBattery();
+  document.getElementById('choose-screen').style.display = 'none';
+  document.getElementById('btn-stop').style.display = '';
+  document.getElementById('btn-back').style.display = '';
+
+  // Touch handlers
+  screen.ontouchstart = function(e){ e.preventDefault(); startHold(); };
+  screen.ontouchend   = function(e){ e.preventDefault(); endHold(); };
+  screen.ontouchcancel= function(){ cancelHold(); };
+  screen.onmousedown  = function(){ startHold(); };
+  screen.onmouseup    = function(){ endHold(); };
+
+  acquireWakeLock();
+  startGps();
+}
+
+function backToChoose() {
+  if (telCount > 0 && !confirm(t('confirmBack')(telCount))) return;
+  closeTelScreen();
+  backToModes();
+  document.getElementById('choose-screen').style.display = '';
+}
+
+function closeTelScreen() {
+  var screen = document.getElementById('count-screen');
+  screen.classList.remove('active');
+  screen.ontouchstart = screen.ontouchend = screen.ontouchcancel = null;
+  screen.onmousedown  = screen.onmouseup  = null;
+  document.getElementById('btn-stop').style.display = 'none';
+  document.getElementById('btn-back').style.display = 'none';
+  releaseWakeLock();
+  stopGps();
+  cancelHold();
+}
+
+// ── Tellen ────────────────────────────────────────────────────────────────────
+function startHold() {
+  holdStart = Date.now();
+  var bar  = document.getElementById('undo-bar');
+  var fill = document.getElementById('undo-fill');
+  bar.style.width = '130px';
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  requestAnimationFrame(function() {
+    fill.style.transition = 'width ' + HOLD_MS + 'ms linear';
+    fill.style.width = '100%';
+  });
+  holdTimer = setTimeout(doUndo, HOLD_MS);
+}
+
+function endHold() {
+  var held = Date.now() - (holdStart || Date.now());
+  cancelHold();
+  if (held < HOLD_MS - 50) doTap();
+}
+
+function cancelHold() {
+  if (holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+  var bar  = document.getElementById('undo-bar');
+  var fill = document.getElementById('undo-fill');
+  bar.style.width = '0';
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+}
+
+
+// Gedeelde snap-resolutie voor één tik (simpel én transect): erft het GPS-anker,
+// projecteert read-only, valt terug op dichtstbijzijnde way, en duwt de entry in
+// telHistory (of de wachtrij als snap nog niet klaar is). Eén bron van waarheid.
+function snapResolveTap(tapEntry) {
+  if (snap.ready) {
+    if (lastLat !== null) {
+      var r = null;
+      if (snap.anchorWayId !== null) {
+        r = snapProjectOnto(lastLat, lastLon, snap.anchorWayId);
+        if (r) {
+          traceWrite({type:'tap', tijdstip:tapEntry.ts, tap_nr:telCount}, lastLat, lastLon,
+                     'inherit', snap.anchorWayId, r.wayId, null, r.d, []);
+        } else if (snap.elements[snap.anchorWayId]) {
+          r = { wayId: snap.anchorWayId, segIdx: snap.anchorSegIdx,
+                osmName: snap.elements[snap.anchorWayId].osmName || '' };
+          traceWrite({type:'tap', tijdstip:tapEntry.ts, tap_nr:telCount}, lastLat, lastLon,
+                     'inherit_nogeo', snap.anchorWayId, snap.anchorWayId, null, null, []);
+        }
+      }
+      if (!r) {
+        r = snapNearestAny(lastLat, lastLon);
+        traceWrite({type:'tap', tijdstip:tapEntry.ts, tap_nr:telCount}, lastLat, lastLon,
+                   r ? 'tap_bootstrap' : 'no_candidate', snap.anchorWayId, r?r.wayId:null, null, r?r.d:null, []);
+      }
+      if (r) { tapEntry.wayId = r.wayId; tapEntry.segIdx = r.segIdx; tapEntry.osmName = r.osmName; }
+    }
+    tapEntry.conf = (snap.confScore === null) ? '' : snap.confScore.toFixed(2);
+    tapEntry.confLevel = snap.confLevel;
+    tapEntry.gpsStab = (snap.gpsStabScore === null) ? '' : snap.gpsStabScore.toFixed(2);
+    tapEntry.gpsLevel = snap.gpsStabLevel;
+    telHistory.push(tapEntry);
+  } else {
+    tapEntry.gpsStab = (snap.gpsStabScore === null) ? '' : snap.gpsStabScore.toFixed(2);
+    tapEntry.gpsLevel = snap.gpsStabLevel;
+    snap.pendingQueue.push(tapEntry);
+    telHistory.push(tapEntry);
+  }
+}
+
+function doTap() {
+  telCount++;
+  var tapEntry = { ts: nowIso(), lat: lastLat, lon: lastLon, wayId: '', segIdx: 0, osmName: '' };
+  snapResolveTap(tapEntry);
+  document.getElementById('big-count').textContent = telCount;
+  if (navigator.vibrate) navigator.vibrate(25);
+  var s = document.getElementById('count-screen');
+  s.classList.add('flash');
+  setTimeout(function(){ s.classList.remove('flash'); }, 80);
+  saveSession();
+}
+
+// Werk de zekerheidsstip + straatnaam onder de teller bij.
+function _median(arr) {
+  if (!arr.length) return 0;
+  var s = arr.slice().sort(function(a,b){ return a-b; });
+  var m = s.length >> 1;
+  return (s.length % 2) ? s[m] : (s[m-1] + s[m]) / 2;
+}
+
+// Werk de GPS-stabiliteitsscore bij met één nieuwe fix.
+// Zelf-kalibrerend: een "sprong" is een snelheid die ver boven het eigen
+// recente mediaan-tempo ligt (mediaan + K·MAD), niet een vaste m/s-drempel.
+// Retourneert niets; zet snap.gpsStabScore / snap.gpsStabLevel.
+function gpsUpdateStability(lat, lon, acc, tsMs) {
+  var win = snap.gpsFixWin;
+  // Identieke/gecachete fix (maximumAge) overslaan: vervuilt mediaan niet.
+  var last = win.length ? win[win.length - 1] : null;
+  if (last && (tsMs - last.ts) < 200) return;
+  if (last && last.lat === lat && last.lon === lon) return;
+
+  win.push({ ts: tsMs, lat: lat, lon: lon, acc: acc });
+  while (win.length && (tsMs - win[0].ts) > GPS_WIN_MS) win.shift();
+
+  if (win.length < GPS_WIN_MIN) {        // nog te weinig om iets te zeggen
+    snap.gpsStabScore = null; snap.gpsStabLevel = 'none'; return;
+  }
+
+  // Stapsnelheden (m/s) en koerswijzigingen over het venster.
+  var speeds = [], turns = [], prevBrg = null;
+  for (var i = 1; i < win.length; i++) {
+    var a = win[i-1], b = win[i];
+    var dt = (b.ts - a.ts) / 1000;
+    if (dt <= 0) continue;
+    var cos = Math.cos(a.lat * Math.PI / 180);
+    var dx  = (b.lon - a.lon) * 111320 * cos;
+    var dy  = (b.lat - a.lat) * 111320;
+    var dist = Math.sqrt(dx*dx + dy*dy);
+    speeds.push(dist / dt);
+    var brg = Math.atan2(dx, dy) * 180 / Math.PI;
+    if (prevBrg !== null && dist > 1) {  // koers alleen zinvol bij echte stap
+      var d = Math.abs(brg - prevBrg) % 360;
+      turns.push(d > 180 ? 360 - d : d);
+    }
+    if (dist > 1) prevBrg = brg;
+  }
+  if (!speeds.length) { snap.gpsStabScore = null; snap.gpsStabLevel = 'none'; return; }
+
+  // 1. Sprong: robuuste z-score van de laatste stap t.o.v. mediaan + K·MAD.
+  var med  = _median(speeds);
+  var devs = speeds.map(function(v){ return Math.abs(v - med); });
+  var mad  = _median(devs);
+  var band = med + GPS_JUMP_K * (mad > 0.3 ? mad : 0.3);  // vloer tegen 0-MAD
+  var vLast = speeds[speeds.length - 1];
+  var jumpScore = vLast <= band ? 1 : Math.max(0, 1 - (vLast - band) / band);
+
+  // 2. Koers-consistentie: gemiddelde koerswijziging; recht lopen = stabiel.
+  var turnScore = 1;
+  if (turns.length) {
+    var avgTurn = turns.reduce(function(s,v){ return s+v; }, 0) / turns.length;
+    turnScore = Math.max(0, 1 - avgTurn / GPS_TURN_DEG);
+  }
+
+  // 3. Nauwkeurigheid: lineair tussen GOOD en BAD.
+  var accScore = acc <= GPS_ACC_GOOD ? 1
+               : acc >= GPS_ACC_BAD  ? 0
+               : 1 - (acc - GPS_ACC_GOOD) / (GPS_ACC_BAD - GPS_ACC_GOOD);
+
+  // Zwakste schakel — zelfde logica als de snap-stip.
+  var raw = Math.min(jumpScore, turnScore, accScore);
+
+  snap.gpsStabScore = (snap.gpsStabScore === null)
+               ? raw
+               : (GPS_STAB_EMA * raw + (1 - GPS_STAB_EMA) * snap.gpsStabScore);
+  snap.gpsStabLevel = (snap.gpsStabScore >= GPS_STAB_GREEN) ? 'green'
+               : (snap.gpsStabScore >= GPS_STAB_AMBER) ? 'amber' : 'red';
+}
+
+function renderSnapConf() {
+  var dot  = document.getElementById('snap-dot');
+  var name = document.getElementById('snap-name');
+  if (!dot || !name) return;
+  dot.className = '';
+  if (snap.confLevel === 'green' || snap.confLevel === 'amber' || snap.confLevel === 'red') {
+    dot.classList.add(snap.confLevel);
+  }
+  name.textContent = snap.confName || '—';
+
+  var gdot = document.getElementById('gps-dot');
+  if (gdot) {
+    gdot.className = 'gps-dot';
+    if (snap.gpsStabLevel === 'green' || snap.gpsStabLevel === 'amber' || snap.gpsStabLevel === 'red') {
+      gdot.classList.add(snap.gpsStabLevel);
+    }
+  }
+}
+
+// ── Batterij-indicator ────────────────────────────────────────────────────────
+// Alleen actief als de Battery Status API bestaat (ontbreekt op iOS Safari);
+// daar blijft het element verborgen. Event-gedreven, niet pollend.
+var battMgr = null;
+
+function renderBattery() {
+  var el = document.getElementById('batt-ind');
+  if (!el || !battMgr) return;
+  el.style.display = '';
+  var fill = el.querySelector('.batt-fill');
+  var pct  = Math.round(battMgr.level * 100);
+  if (fill) fill.style.width = Math.max(8, pct) + '%';   // min. zichtbaar streepje
+  el.className = 'batt-ind';
+  // Bij opladen geen rode paniek: toon laadstatus, kleur op niveau maar amber-vloer.
+  if (battMgr.charging) el.classList.add('charging');
+  var level = (pct > 30) ? 'green' : (pct >= 15) ? 'amber' : (battMgr.charging ? 'amber' : 'red');
+  el.classList.add(level);
+  el.title = pct + '%' + (battMgr.charging ? ' (opladen)' : '');
+}
+
+function initBattery() {
+  if (battMgr || !navigator.getBattery) return;   // al gedaan, of niet ondersteund
+  navigator.getBattery().then(function(b) {
+    battMgr = b;
+    b.addEventListener('levelchange',    renderBattery);
+    b.addEventListener('chargingchange', renderBattery);
+    renderBattery();
+  }).catch(function(){ /* geen batterij-info: laat element verborgen */ });
+}
+
+function doUndo() {
+  if (telCount <= 0) { cancelHold(); return; }
+  telCount--;
+  telHistory.pop();
+  document.getElementById('big-count').textContent = telCount;
+  if (navigator.vibrate) navigator.vibrate([30,40,30]);
+  var s = document.getElementById('count-screen');
+  s.classList.add('shake');
+  setTimeout(function(){ s.classList.remove('shake'); }, 200);
+  cancelHold();
+  saveSession();
+}
+
+// ── Export ZIP ────────────────────────────────────────────────────────────────
+
+// Knip een polyline-geometrie in segmenten van ~SEGMENT_TARGET_M.
+// Geometry mag [{lat,lon},...] of [[lat,lon],...] zijn.
+// Returns: array sub-polylines (elk [[lat,lon],...]) — minstens één.
+function splitWayIntoSegments(geom) {
+  if (!geom || geom.length < 2) return [geom ? geom.map(_normPt) : []];
+  var pts = geom.map(_normPt);
+  var refLat = pts[0][0];
+  var cos = Math.cos(refLat * Math.PI / 180);
+  // Cumulatieve afstand per knoop
+  var cum = [0];
+  for (var i = 1; i < pts.length; i++) {
+    var dx = (pts[i][1] - pts[i-1][1]) * 111320 * cos;
+    var dy = (pts[i][0] - pts[i-1][0]) * 111320;
+    cum.push(cum[i-1] + Math.sqrt(dx*dx + dy*dy));
+  }
+  var total = cum[cum.length-1];
+  if (total < SEGMENT_MIN_M) return [pts];
+  var N = Math.max(1, Math.round(total / SEGMENT_TARGET_M));
+  if (N === 1) return [pts];
+  var segLen = total / N;
+  var result = [];
+  var curSeg = [pts[0]];
+  var nextCut = segLen;
+  var done = 0;
+  for (var j = 1; j < pts.length; j++) {
+    var dStart = cum[j-1], dEnd = cum[j], edge = dEnd - dStart;
+    // Eén edge kan meerdere cuts bevatten als segLen < edge-lengte (zeldzaam)
+    while (done < N - 1 && dEnd >= nextCut && edge > 0) {
+      var t = (nextCut - dStart) / edge;
+      var cutLat = pts[j-1][0] + t * (pts[j][0] - pts[j-1][0]);
+      var cutLon = pts[j-1][1] + t * (pts[j][1] - pts[j-1][1]);
+      curSeg.push([cutLat, cutLon]);
+      result.push(curSeg);
+      curSeg = [[cutLat, cutLon]];
+      nextCut += segLen;
+      done++;
+    }
+    curSeg.push(pts[j]);
+  }
+  result.push(curSeg);
+  return result;
+}
+
+function _normPt(p) {
+  return (p && p.lat !== undefined) ? [p.lat, p.lon] : p;
+}
+
+function buildNetwerkCsv(sid) {
+  var lines = ['osm_way_id;segment_index;segment_count;highway;geometrie_wkt'];
+  Object.keys(snap.elements).forEach(function(wayId) {
+    var el = snap.elements[wayId];
+    var subs = splitWayIntoSegments(el.geometry);
+    subs.forEach(function(sub, idx) {
+      var coords = sub.map(function(p){
+        return p[1].toFixed(6)+' '+p[0].toFixed(6);
+      }).join(', ');
+      lines.push([wayId, idx, subs.length, el.highway,
+                  'LINESTRING ('+coords+')'].join(';'));
+    });
+  });
+  return lines.join('\n');
+}
+
+// Debug-trace: één regel per GPS-fix en per tap, in chronologische volgorde.
+// Per regel: ruwe positie + interne snap-state (anchor voor/na, gekozen pad,
+// afstanden tot anker en gekozen way, top-3 alternatieve kandidaten).
+//
+// snap_path waarden:
+//   bootstrap            — eerste snap van de sessie (geen anker)
+//   d1                   — anker bestaat, depth-1 lookup koos een way
+//   d1_hold              — hysterese: anker behouden ondanks dichterbij liggende buur
+//   d2                   — depth-1 leeg, depth-2 koos een way
+//   reset                — anker te ver weg, opnieuw geïnitialiseerd
+//   reset_no_candidate   — reset triggerde maar er was geen alternatief in 50m
+//   glitch_hold          — anker dichtbij, geen verbonden kandidaat → null gereturnd
+//   null_no_candidate    — geen anker én geen kandidaat in 50m
+//   no_network           — netwerk nog niet geladen
+function buildSnapTraceCsv(sid) {
+  var lines = ['sessie_id;seq;tijdstip;event;lat;lon;accuracy;anchor_before;snap_path;chosen_way;d_anchor;d_chosen;alternatives;anchor_after;tap_nr;conf;conf_level;gps_stab;gps_level'];
+  snap.trace.forEach(function(r) {
+    lines.push([sid, r.seq, r.tijdstip, r.event, r.lat, r.lon, r.accuracy,
+                r.anchor_before, r.snap_path, r.chosen_way,
+                r.d_anchor, r.d_chosen, r.alternatives,
+                r.anchor_after, r.tap_nr,
+                r.conf != null ? r.conf : '', r.conf_level != null ? r.conf_level : '',
+                r.gps_stab != null ? r.gps_stab : '', r.gps_level != null ? r.gps_level : ''].join(';'));
+  });
+  return lines.join('\n');
+}
+
+// Leidt 'visits' (aaneengesloten verblijven op één wegsegment) af uit routeLog.
+// Regels:
+//   - opeenvolgende routepunten met dezelfde (wayId, segIdx) vormen één visit
+//   - een gat van >MAX_GAP_SEC seconden breekt een visit, ook bij gelijke key
+//   - visits met <MIN_VISIT_SEC seconden of <MIN_VISIT_PTS punten worden weggefilterd
+//     (vluchtige snap-flips bij kruisingen of segmentgrenzen)
+// Per visit wordt geteld hoeveel tellingen erin vielen (matching op key + tijdsbereik).
+function buildBezochtCsv(sid, telHist) {
+  var MAX_GAP_SEC   = 30;
+  var MIN_VISIT_SEC = 5;
+  var MIN_VISIT_PTS = 3;
+
+  function tsParse(s) { return new Date(s).getTime(); }
+  function keyOf(wayId, segIdx) { return wayId + ':' + (segIdx || 0); }
+
+  // Tellingen sorteren op timestamp voor snelle range-toewijzing
+  var taps = telHist.filter(function(h){ return h.wayId; })
+                    .map(function(h){ return { wayId:h.wayId, segIdx:h.segIdx||0, t:tsParse(h.ts) }; })
+                    .sort(function(a,b){ return a.t - b.t; });
+
+  var visits = [];
+  var cur = null;
+  for (var i = 0; i < routeLog.length; i++) {
+    var p   = routeLog[i];
+    var t   = tsParse(p.ts);
+    var wayId = p.wayId || '';
+    var seg = p.segIdx || 0;
+    if (!wayId) {                       // geen snap → breek
+      if (cur) { visits.push(cur); cur = null; }
+      continue;
+    }
+    var sameKey = cur && cur.wayId === wayId && cur.segIdx === seg;
+    if (!sameKey || (t - cur.tEnd) > MAX_GAP_SEC*1000) {
+      if (cur) visits.push(cur);
+      cur = { wayId: wayId, segIdx: seg, osmName: p.osmName || '',
+              tStart: t, tEnd: t, nPts: 1 };
+    } else {
+      cur.tEnd = t;
+      cur.nPts += 1;
+      if (p.osmName && !cur.osmName) cur.osmName = p.osmName;
+    }
+  }
+  if (cur) visits.push(cur);
+
+  // Filter te korte visits weg
+  visits = visits.filter(function(v) {
+    var dur = (v.tEnd - v.tStart) / 1000;
+    return dur >= MIN_VISIT_SEC && v.nPts >= MIN_VISIT_PTS;
+  });
+
+  // Tellingen per visit toewijzen (lineaire pass — taps zijn gesorteerd)
+  visits.forEach(function(v) { v.nTel = 0; });
+  var ti = 0;
+  visits.forEach(function(v) {
+    while (ti < taps.length && taps[ti].t < v.tStart) ti++;
+    var j = ti;
+    while (j < taps.length && taps[j].t <= v.tEnd) {
+      if (taps[j].wayId === v.wayId && taps[j].segIdx === v.segIdx) v.nTel++;
+      j++;
+    }
+  });
+
+  // segment_count per way bepalen via splitWayIntoSegments op snap.elements
+  var segCountFor = {};
+  Object.keys(snap.elements).forEach(function(wayId) {
+    var subs = splitWayIntoSegments(snap.elements[wayId].geometry);
+    segCountFor[wayId] = subs.length;
+  });
+
+  function fmtTs(ms) {
+    var d = new Date(ms);
+    return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  }
+  var datum = fmtDate(startTime);
+  var lines = ['sessie_id;datum;osm_way_id;segment_index;segment_count;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen'];
+  visits.forEach(function(v) {
+    var dur = Math.round((v.tEnd - v.tStart) / 1000);
+    var segCount = segCountFor[v.wayId] || 1;
+    lines.push([sid, datum, v.wayId, v.segIdx, segCount, v.osmName,
+                fmtTs(v.tStart), fmtTs(v.tEnd),
+                dur, v.nPts, v.nTel].join(';'));
+  });
+  return lines.join('\n');
+}
+
+// ── BESTAND OPSLAAN — platform-robuust ────────────────────────────────────────
+// Twee paden. Op iOS gebruikt de <a download>-route het download-attribuut niet
+// en opent Safari de blob vaak in een tab i.p.v. op te slaan; daarom gaat iOS via
+// de Web Share API (deelblad → "Bewaar in Bestanden"). Op desktop/Android, waar
+// file-sharing meestal niet kan, valt 'ie terug op de klassieke download-link.
+//
+// LET OP: navigator.share vereist net als <a>.click() een verse user-gesture.
+// Wordt saveBlob aangeroepen ná een async (zoals zip.generateAsync), dan kan dat
+// gebaar verlopen zijn en faalt de poging stil — daarvoor is de expliciete
+// opslaan-knop in de preview-overlay het vangnet (elke knoptik is vers).
+// Generiek gehouden zodat de andere tools 'm 1-op-1 kunnen overnemen (2.8-migratie).
+function saveBlob(blob, filename, mime) {
+  mime = mime || 'application/octet-stream';
+  // Alleen iOS via het deelblad (daar slaat een download-link slecht op).
+  // Android kent navigator.share OOK, maar wil juist een echte download — en
+  // share eist een levende user-gesture die na het comprimeren verlopen kan zijn.
+  var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+           || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) {
+    try {
+      if (navigator.canShare) {
+        var file = new File([blob], filename, { type: mime });
+        if (navigator.canShare({ files: [file] })) {
+          // v2.76: de uitkomst telt. Opgeslagen/gedeeld -> true; geannuleerd of
+          // gebaar verlopen -> false (vangnet is de preview-knop).
+          return navigator.share({ files: [file] }).then(
+            function(){ return true; }, function(){ return false; });
+        }
+      }
+    } catch (e) { /* val door naar de download-link */ }
+  }
+  // desktop/Android: klassieke download-link. Het anker MOET in de DOM hangen,
+  // anders negeert Android de programmatische click().
+  var url = URL.createObjectURL(blob);
+  var a   = document.createElement('a');
+  a.href  = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
+  return Promise.resolve(true);   // v2.76: aan de browser overgedragen
+}
+
+// Bewaart de laatst gegenereerde ZIP zodat de preview-knop 'm opnieuw kan
+// aanbieden zonder hercompressie. Leeft tot de volgende telling 'm overschrijft.
+var lastZipBlob = null;
+var lastZipName = '';
+
+// ── TRAJECTORIE-HERTOEKENNING (vóór export) ──────────────────────────────────
+// De live snap is plakkerig (anchoring tempert jitter, maar kan tikken aan een
+// verre anker-way toekennen) en kent de toekomst niet. Vlak vóór de ZIP-bouw,
+// als de hele trajectorie bekend is, hertoekennen we tikken én aanwezigheid op
+// basis van een topologie-eerste Viterbi over routeLog. Dezelfde fix-bron voedt
+// tik en aanwezigheid, dus ze landen gegarandeerd op hetzelfde (way,segment).
+// Muteert routeLog[].wayId/segIdx en telHistory[].wayId/segIdx in place; de ruwe
+// lat/lon blijven ongemoeid. De live-teller is al afgerond. De originele live-
+// keuze blijft traceerbaar in _snap_trace.csv.
+function reassignTrajectory() {
+  if (!routeLog.length || !Object.keys(snap.elements).length) return;
+
+  var LAT_M = 111320;
+  function lonM(lat){ return LAT_M * Math.cos(lat*Math.PI/180); }
+  function hav(la1,lo1,la2,lo2){ var lm=lonM((la1+la2)/2); return Math.hypot((lo2-lo1)*lm,(la2-la1)*LAT_M); }
+
+  // Projecteer punt op way-geometrie (lat/lon-array), geef afstand + snap-punt.
+  function project(plat, plon, geom){
+    var lm=lonM(geom[0].lat); var px=plon*lm, py=plat*LAT_M;
+    var best=Infinity, bLat=geom[0].lat, bLon=geom[0].lon, bBrg=0;
+    for (var i=0;i<geom.length-1;i++){
+      var ax=geom[i].lon*lm, ay=geom[i].lat*LAT_M, bx=geom[i+1].lon*lm, by=geom[i+1].lat*LAT_M;
+      var dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy;
+      var t=(l2===0)?0:Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
+      var cx=ax+t*dx, cy=ay+t*dy, d=Math.hypot(px-cx,py-cy);
+      if (d<best){ best=d; bLat=cy/LAT_M; bLon=cx/lm; bBrg=Math.atan2(dx,dy)*180/Math.PI; }
+    }
+    return { dist:best, lat:bLat, lon:bLon, brg:((bBrg%360)+360)%360 };
+  }
+
+  // hop-klasse via de bestaande, exacte node-ID-adjacency (snap.adjacency)
+  function hopClass(a, b){
+    if (a===b) return 0;
+    if (snap.adjacency[a] && snap.adjacency[a][b]) return 1;
+    if (snap.adjacency[a]){ for (var m in snap.adjacency[a]) if (snap.adjacency[m] && snap.adjacency[m][b]) return 2; }
+    return Infinity;
+  }
+
+  var wayIds = Object.keys(snap.elements);
+  var SR=40, SIG_MIN=5, HOP1=4, HOP2=12, GAMMA=0.02, BETA=2, HEAD_REF_M=10;
+  // koersverschil mod 180 (een way heeft geen looprichting)
+  function angDiff180(a,b){ var d=Math.abs(a-b)%180; return Math.min(d,180-d); }
+
+  // kolommen: per fix de kandidaat-ways binnen SR, met emissiekost
+  var cols = [];
+  for (var f=0; f<routeLog.length; f++){
+    var fx=routeLog[f];
+    var sigma=Math.max(SIG_MIN, fx.acc||SIG_MIN), cands=[];
+    for (var w=0; w<wayIds.length; w++){
+      var g=snap.elements[wayIds[w]].geometry; if(!g||g.length<2) continue;
+      var pr=project(fx.lat, fx.lon, g);
+      if (pr.dist<=SR){ var z=pr.dist/sigma; cands.push({wayId:wayIds[w], plat:pr.lat, plon:pr.lon, emit:0.5*z*z, brg:pr.brg}); }
+    }
+    cols.push(cands);
+  }
+
+  // Viterbi forward (topologie-eerst, gedeelde-knoop wint)
+  var V=[], back=[];
+  for (var col=0; col<cols.length; col++){
+    V[col]={}; back[col]={};
+    var cur=cols[col];
+    if (col===0){ for(var a=0;a<cur.length;a++) V[0][cur[a].wayId]=cur[a].emit; continue; }
+    var prev=cols[col-1];
+    var gpsStep=hav(routeLog[col-1].lat,routeLog[col-1].lon,routeLog[col].lat,routeLog[col].lon);
+    // GPS-stap-koers; gewicht ~ staplengte zodat korte (ruizige) stappen weinig meetellen
+    var _lm=lonM(routeLog[col].lat);
+    var _dx=(routeLog[col].lon-routeLog[col-1].lon)*_lm, _dy=(routeLog[col].lat-routeLog[col-1].lat)*LAT_M;
+    var gpsBrg=((Math.atan2(_dx,_dy)*180/Math.PI)%360+360)%360;
+    var headW=Math.min(1, gpsStep/HEAD_REF_M);
+    for (var c=0;c<cur.length;c++){
+      var cw=cur[c], bestCost=Infinity, bestPrev=null;
+      var headCost=BETA*headW*(angDiff180(gpsBrg, cw.brg)/90);
+      for (var p=0;p<prev.length;p++){
+        var pw=prev[p]; if(V[col-1][pw.wayId]===undefined) continue;
+        var hc=hopClass(pw.wayId, cw.wayId);
+        if(!isFinite(hc)) continue;
+        var base=(hc===0)?0:(hc===1)?HOP1:HOP2;
+        var projStep=hav(pw.plat,pw.plon,cw.plat,cw.plon);
+        var tot=V[col-1][pw.wayId]+base+GAMMA*Math.abs(projStep-gpsStep);
+        if(tot<bestCost){ bestCost=tot; bestPrev=pw.wayId; }
+      }
+      if(bestPrev!==null){ V[col][cw.wayId]=bestCost+cw.emit+headCost; back[col][cw.wayId]=bestPrev; }
+    }
+    if(Object.keys(V[col]).length===0){ for(var g2=0;g2<cur.length;g2++){ V[col][cur[g2].wayId]=cur[g2].emit; back[col][cur[g2].wayId]=null; } }
+  }
+  // Beste staat van één kolom (laagste kost), of null als de kolom leeg is.
+  function bestStateOf(colObj){
+    var bw=null, bc=Infinity;
+    for (var ww in colObj) if(colObj[ww]<bc){ bc=colObj[ww]; bw=ww; }
+    return bw;
+  }
+  // Stuksgewijze backtrack. Een reset-kolom zet back=null als bewuste
+  // segment-grens; daar starten we een NIEUWE backtrack vanaf de beste staat
+  // van de bovenliggende kolom, i.p.v. de hele voorgeschiedenis als null weg te
+  // gooien. Zo behoudt elk verbonden stuk z'n eigen Viterbi-oplossing.
+  var path=new Array(cols.length).fill(null), last=cols.length-1;
+  while(last>=0 && Object.keys(V[last]).length===0) last--;
+  if(last<0) return;
+  path[last]=bestStateOf(V[last]);
+  for (var col2=last;col2>0;col2--){
+    var cw2=path[col2];
+    var pv=(cw2!=null) ? back[col2][cw2] : null;   // cw2 null kan niet meer voorkomen, maar veilig
+    if (pv!=null){ path[col2-1]=pv; }
+    else        { path[col2-1]=bestStateOf(V[col2-1]); }  // segment-grens → nieuw stuk
+  }
+
+  // segIdx per fix bepalen via splitWayIntoSegments (zelfde segmentatie als export)
+  function segCountOf(wayId){
+    var el=snap.elements[wayId]; if(!el) return 1;
+    if (el._segCount==null) el._segCount = splitWayIntoSegments(el.geometry).length;
+    return el._segCount;
+  }
+  function segIdxFor(wayId, plat, plon){
+    var el=snap.elements[wayId]; if(!el||!el.geometry) return 0;
+    var g=el.geometry, lm=lonM(g[0].lat), px=plon*lm, py=plat*LAT_M;
+    // cumulatieve afstand tot projectie + totale lengte
+    var cum=0, bestCum=0, best=Infinity, total=0;
+    for (var i=0;i<g.length-1;i++){
+      var ax=g[i].lon*lm, ay=g[i].lat*LAT_M, bx=g[i+1].lon*lm, by=g[i+1].lat*LAT_M;
+      var dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy, segLen=Math.sqrt(l2);
+      var t=(l2===0)?0:Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
+      var cx=ax+t*dx, cy=ay+t*dy, d=Math.hypot(px-cx,py-cy);
+      if (d<best){ best=d; bestCum=cum+t*segLen; }
+      cum+=segLen;
+    }
+    total=cum;
+    var n=segCountOf(wayId); if(n<=1||total===0) return 0;
+    return Math.min(n-1, Math.floor(bestCum / (total/n)));
+  }
+
+  // 1. routeLog corrigeren: way + segment per fix uit de trajectorie
+  var fixWay=new Array(routeLog.length).fill(null), fixSeg=new Array(routeLog.length).fill(0);
+  for (var i=0;i<routeLog.length;i++){
+    var wayId=path[i];
+    if (wayId && snap.elements[wayId]){
+      var pr2=project(routeLog[i].lat, routeLog[i].lon, snap.elements[wayId].geometry);
+      var seg=segIdxFor(wayId, pr2.lat, pr2.lon);
+      fixWay[i]=wayId; fixSeg[i]=seg;
+      routeLog[i].wayId=wayId; routeLog[i].segIdx=seg; routeLog[i].osmName=snap.elements[wayId].osmName||'';
+    }
+  }
+
+  // 2. telHistory corrigeren: elke tik erft way+segment van de fix die qua tijd
+  // het dichtst ligt — zo landen tik én aanwezigheid op hetzelfde (way,segment).
+  function ms(s){ return new Date(s).getTime(); }
+  for (var h=0;h<telHistory.length;h++){
+    var tap=telHistory[h]; if(tap.lat==null) continue;
+    var tt=ms(tap.ts), bi=-1, bg=Infinity;
+    for (var ff=0; ff<routeLog.length; ff++){
+      var d=Math.abs(ms(routeLog[ff].ts)-tt);
+      if (d<bg){ bg=d; bi=ff; }
+    }
+    if (bi>=0 && fixWay[bi]){
+      tap.wayId=fixWay[bi]; tap.segIdx=fixSeg[bi]; tap.osmName=snap.elements[fixWay[bi]].osmName||'';
+    }
+  }
+}
+
+function stopTelling() {
+  var endTime = new Date();
+  // modus-code in de sid → zichtbaar in de bestandsnaam én de sessie_id, zodat de
+  // reconstructor (die op sessie_id naamt) de code vanzelf behoudt.
+  var modusCode = ({ simpel: 's', transect: 't', winkelstraat: 'w', parkeren: 'p' })[currentModus] || 's';
+  var sid     = genSid() + '_pkt_' + modusCode;
+  var datum   = fmtDate(startTime);
+  var start   = fmtTime(startTime);
+  var eind    = fmtTime(endTime);
+
+  // sessie.csv
+  var csvType = (telType === 'other') ? telLabel : telType;
+  var sessieCsv = 'sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen;modus;richting_a;richting_b\n'
+    + [sid, datum, start, eind, 'pocket', csvType, telCount, currentModus,
+       currentModus === 'transect' ? tcRichtingA : '',
+       currentModus === 'transect' ? tcRichtingB : ''].join(';');
+
+  // Trajectorie-hertoekenning: corrigeer way+segment van fixes en tikken op basis
+  // van de volledige trajectorie (topologie-eerst), vóór alle CSV's worden gebouwd.
+  // Zo zijn telregels, gps én bezocht meteen bij de bron consistent.
+  // Guard: zonder live netwerk (bv. na sessieherstel) overslaan — de tikken
+  // behouden dan hun reeds-gesnapte wayId i.p.v. te worden leeggemaakt.
+  if (Object.keys(snap.elements).length) reassignTrajectory();
+
+  // telregels.csv — conf/conf_level + gps_stab/gps_level achteraan zodat
+  // bestaande kolomvolgorde intact blijft; telrapport leest op header-naam
+  // en negeert onbekende kolommen.
+  var telregelsCsv = 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level;gps_stab;gps_level;richting;snelheid\n';
+  telHistory.forEach(function(h, i) {
+    telregelsCsv += [sid, i+1, h.ts, h.type || csvType,
+      h.lat !== null ? h.lat.toFixed(6) : '',
+      h.lon !== null ? h.lon.toFixed(6) : '',
+      h.wayId  || '',
+      h.wayId  ? (h.segIdx || 0) : '',
+      h.osmName|| '',
+      h.conf != null ? h.conf : '',
+      h.confLevel || '',
+      h.gpsStab != null ? h.gpsStab : '',
+      h.gpsLevel || '',
+      h.richting || '',
+      h.snelheid || ''
+    ].join(';') + '\n';
+  });
+
+  var zip = new JSZip();
+  // GPS-track CSV (met wayId/segment_index per punt voor transparantie/debug)
+  var gpsCsv = 'sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;segment_index;straat\n';
+  routeLog.forEach(function(p) {
+    gpsCsv += [sid, p.ts, p.lat.toFixed(6), p.lon.toFixed(6), p.acc,
+               p.wayId || '',
+               p.wayId ? (p.segIdx || 0) : '',
+               p.osmName || ''].join(';') + '\n';
+  });
+
+  zip.file(sid + '_sessie.csv',    sessieCsv);
+  zip.file(sid + '_telregels.csv', telregelsCsv);
+  if (routeLog.length) {
+    zip.file(sid + '_gps.csv', gpsCsv);
+    zip.file(sid + '_bezocht.csv', buildBezochtCsv(sid, telHistory));
+  }
+  if (Object.keys(snap.elements).length) {
+    zip.file(sid + '_netwerk.csv', buildNetwerkCsv(sid));
+  }
+  if (snap.trace.length) {
+    zip.file(sid + '_snap_trace.csv', buildSnapTraceCsv(sid));
+  }
+
+  zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 9 } }).then(function(blob) {
+    // Bewaar voor het preview-vangnet (geen hercompressie nodig)
+    lastZipBlob = blob;
+    lastZipName = sid + '.zip';
+    // Automatische poging — werkt waar de user-gesture nog leeft
+    saveBlob(blob, lastZipName, 'application/zip').then(function (ok) { if (ok) exportBevestigd(); });
+    // Preview pas tonen als de blob klaar is (niet via blinde timer); zo botst
+    // 'ie niet met een eventueel geopend share-deelblad.
+    showPreview();
+  });
+
+  if (currentModus === 'transect') closeTransectScreen();
+  else if (currentModus === 'winkelstraat') closeWinkelScreen();
+  else if (currentModus === 'parkeren') closeParkeerScreen();
+  else closeTelScreen();
+  backToModes();
+  document.getElementById('choose-screen').style.display = '';
+}
+
+// ── POST-TELLING PREVIEW ──────────────────────────────────────────────────────
+function heatColorPreview(t) {
+  var r = Math.round(255 * Math.min(2*t, 1));
+  var g = Math.round(255 * Math.min(2*(1-t), 1));
+  return 'rgb('+r+','+g+',0)';
+}
+
+function polyLenM(pts) {
+  if (!pts || pts.length < 2) return 0;
+  var LAT_M = 111320;
+  var total = 0;
+  for (var i = 1; i < pts.length; i++) {
+    var cos = Math.cos(pts[i-1][0] * Math.PI / 180);
+    var dx = (pts[i][1] - pts[i-1][1]) * LAT_M * cos;
+    var dy = (pts[i][0] - pts[i-1][0]) * LAT_M;
+    total += Math.sqrt(dx*dx + dy*dy);
+  }
+  return total;
+}
+
+function showPreview() {
+  // Segmenten bouwen per (wayId, segIdx) inclusief sub-geometrie en tikken
+  var segMap = {};
+  Object.keys(snap.elements).forEach(function(wayId) {
+    var subs = splitWayIntoSegments(snap.elements[wayId].geometry);
+    subs.forEach(function(sub, idx) {
+      segMap[wayId + ':' + idx] = { geom: sub, taps: 0, lenM: polyLenM(sub) };
+    });
+  });
+
+  telHistory.forEach(function(h) {
+    if (!h.wayId) return;
+    var key = h.wayId + ':' + (h.segIdx || 0);
+    if (segMap[key]) segMap[key].taps++;
+  });
+
+  var gpsTrack = routeLog.map(function(p) { return [p.lat, p.lon]; });
+
+  // Bezochte segmenten via GPS-hits (ook zero-visited tonen)
+  var GPS_SNAP_M = 15, MIN_HITS = 3;
+  var gpsHits = {};
+  if (gpsTrack.length && Object.keys(segMap).length) {
+    var refLat0 = gpsTrack[0][0];
+    var cos0 = Math.cos(refLat0 * Math.PI / 180);
+    var LAT_M0 = 111320;
+    gpsTrack.forEach(function(pt) {
+      var bestKey = null, bestD = GPS_SNAP_M;
+      Object.keys(segMap).forEach(function(key) {
+        var geom = segMap[key].geom;
+        var px = pt[1]*LAT_M0*cos0, py = pt[0]*LAT_M0;
+        for (var i = 0; i < geom.length - 1; i++) {
+          var ax=geom[i][1]*LAT_M0*cos0,   ay=geom[i][0]*LAT_M0;
+          var bx=geom[i+1][1]*LAT_M0*cos0, by=geom[i+1][0]*LAT_M0;
+          var dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy;
+          var t2=l2?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2)):0;
+          var d=Math.sqrt(Math.pow(px-(ax+t2*dx),2)+Math.pow(py-(ay+t2*dy),2));
+          if (d<bestD) { bestD=d; bestKey=key; }
+        }
+      });
+      if (bestKey) gpsHits[bestKey] = (gpsHits[bestKey]||0)+1;
+    });
+  }
+
+  var segKeys = Object.keys(segMap).filter(function(k) {
+    return segMap[k].taps > 0 || (gpsHits[k]||0) >= MIN_HITS;
+  });
+
+  if (!segKeys.length && !gpsTrack.length) return;
+
+  // Bounding box over alle punten
+  var allPts = gpsTrack.slice();
+  segKeys.forEach(function(k) { segMap[k].geom.forEach(function(p) { allPts.push(p); }); });
+  if (!allPts.length) return;
+
+  var minLat=allPts[0][0], maxLat=allPts[0][0], minLon=allPts[0][1], maxLon=allPts[0][1];
+  allPts.forEach(function(p) {
+    if (p[0]<minLat) minLat=p[0]; if (p[0]>maxLat) maxLat=p[0];
+    if (p[1]<minLon) minLon=p[1]; if (p[1]>maxLon) maxLon=p[1];
+  });
+
+  // Canvas
+  var cvs = document.getElementById('preview-canvas');
+  var W   = cvs.offsetWidth || 360;
+  var PAD = Math.round(W * 0.07);
+  cvs.width = W; cvs.height = W;
+  var ctx = cvs.getContext('2d');
+  ctx.fillStyle = '#f0f0ec';
+  ctx.fillRect(0, 0, W, W);
+
+  // Projectie met aspect-correctie
+  var midLat  = (minLat+maxLat)/2;
+  var cosCorr = Math.cos(midLat*Math.PI/180);
+  var dLatM   = (maxLat-minLat)*111320 || 10;
+  var dLonM   = (maxLon-minLon)*111320*cosCorr || 10;
+  var drawW   = W-2*PAD, drawH = W-2*PAD;
+  var scale   = Math.min(drawW/dLonM, drawH/dLatM);
+  var offX    = (drawW-dLonM*scale)/2;
+  var offY    = (drawH-dLatM*scale)/2;
+
+  function proj(lat, lon) {
+    return [PAD+offX+(lon-minLon)*111320*cosCorr*scale,
+            PAD+offY+(maxLat-lat)*111320*scale];
+  }
+
+  function drawLine(pts, color, width, dash) {
+    if (!pts||pts.length<2) return;
+    ctx.beginPath();
+    ctx.setLineDash(dash||[]);
+    ctx.strokeStyle=color; ctx.lineWidth=width;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    var p0=proj(pts[0][0],pts[0][1]);
+    ctx.moveTo(p0[0],p0[1]);
+    for (var i=1;i<pts.length;i++) { var p=proj(pts[i][0],pts[i][1]); ctx.lineTo(p[0],p[1]); }
+    ctx.stroke();
+  }
+
+  // Tekenen: GPS-spoor, zero-visited, getelde segmenten
+  if (gpsTrack.length>1) drawLine(gpsTrack,'rgba(140,140,160,0.4)',Math.max(1,W/300),[4,4]);
+  segKeys.forEach(function(k) { if (segMap[k].taps===0) drawLine(segMap[k].geom,'rgba(60,61,66,0.3)',Math.max(2,W/160),[5,5]); });
+
+  var maxD=0;
+  segKeys.forEach(function(k) { if (segMap[k].taps>0&&segMap[k].lenM>0) { var d=segMap[k].taps/segMap[k].lenM; if(d>maxD) maxD=d; } });
+  segKeys.forEach(function(k) {
+    var s=segMap[k]; if (s.taps===0) return;
+    var t=Math.sqrt(Math.min(1, s.lenM>0?s.taps/s.lenM:0));
+    drawLine(s.geom, heatColorPreview(t), Math.max(3,W/100), null);
+  });
+
+  // Stats
+  var nGeteld = segKeys.filter(function(k){return segMap[k].taps>0;}).length;
+  var kmStr   = gpsTrack.length>1?(polyLenM(gpsTrack)/1000).toFixed(2):'—';
+  document.getElementById('pstat-tikken').textContent = telCount;
+  document.getElementById('pstat-segs').textContent   = nGeteld+'/'+segKeys.length;
+  document.getElementById('pstat-km').textContent     = kmStr;
+  document.getElementById('pstat-max').textContent    = maxD>0?maxD.toFixed(2):'—';
+  document.getElementById('preview-overlay').classList.add('visible');
+}
+
+function closePreview() {
+  document.getElementById('preview-overlay').classList.remove('visible');
+  exportBevestigd();   // export bevestigd gezien \u2192 herstelkopie weg, en weg houden (v2.76)
+  if (pkDirect) startParkeren();   // v2.70: directe ingang, geen keuzemenu
+}
+
+// Vangnet: biedt de laatst gegenereerde ZIP opnieuw aan. Deze tik is een verse
+// user-gesture, dus dit slaagt ook als de automatische poging in stopTelling
+// faalde door een verlopen gebaar (typisch iOS na de async zip-generatie).
+function savePreviewZip() {
+  if (lastZipBlob) saveBlob(lastZipBlob, lastZipName, 'application/zip')
+    .then(function (ok) { if (ok) exportBevestigd(); });
+}
+
+// Stuur de zojuist gebouwde ZIP door naar de reconstructor en open die.
+function openReconstructie() {
+  if (!lastZipBlob) { alert('Nog geen ZIP beschikbaar \u2014 stop eerst de telling.'); return; }
+  stuurNaarReconstructie(lastZipBlob, lastZipName)
+    .catch(function () { alert('Doorsturen mislukt \u2014 sla de ZIP op en sleep hem in telreconstructie.html.'); });
+}
+
+// ── OSM SNAP MODULE (transect/pocket variant) ─────────────────────────────────
+// Vereenvoudigd t.o.v. parkeertelling: geen L/R weging, geen minimap,
+// geen kompas-fusie. Graceful degradeert als Overpass niet bereikbaar is.
+
+var SNAP_ROAD_FETCH_RADIUS = 250;
+// Snap-netwerk highway-filter — HOUD GELIJK over alle tools (grep HIGHWAY_RE).
+var HIGHWAY_RE = 'residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path|track|bridleway|steps|corridor';
+
+/* ---- Gedeelde OSM-tegelcache (zelfde IndexedDB als telreconstructie.html) ----
+   Wat hier tijdens het tellen wordt opgehaald, hoeft de reconstructor later niet
+   opnieuw te fetchen. Formaat identiek: { key:'t_<ty>_<tx>', ts, ways:[...] }.
+   BELANGRIJK: we schrijven alleen tegels weg die VOLLEDIG binnen de opgehaalde
+   cirkel liggen. Een half gevulde tegel zou de reconstructor als 'vers' lezen en
+   dan wegen missen. */
+var TILE_DEG_SHARED = 0.01, TILE_DB = 'telsuite_osm', TILE_STORE = 'tiles';
+function _tileDb() {
+  return new Promise(function (res, rej) {
+    if (typeof indexedDB === 'undefined' || !indexedDB) return rej(new Error('geen IndexedDB'));
+    var q = indexedDB.open(TILE_DB, 1);
+    q.onupgradeneeded = function (e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains(TILE_STORE))  db.createObjectStore(TILE_STORE, { keyPath: 'key' });
+      if (!db.objectStoreNames.contains('handoff'))   db.createObjectStore('handoff', { keyPath: 'key' });
+    };
+    q.onsuccess = function (e) { res(e.target.result); };
+    q.onerror = function () { rej(q.error); };
+  });
+}
+// Bewaar ways per tegel, maar pas als een tegel VOLLEDIG gedekt is door de
+// opgehaalde cirkels van deze sessie. Eén fetch (r=250m) dekt nooit een hele
+// tegel (~1,1km); al lopend groeit de dekking en komt de tegel alsnog compleet.
+// We rasteren elke tegel in 8x8 cellen en markeren welke cellen binnen een
+// fetch-cirkel liggen; bij 64/64 is de tegel compleet en gaat hij de cache in.
+var _tileCov = {};      // tegelsleutel -> { cells:Set, ways:{id:way} }
+var _TILE_N = 8;
+function cacheWaysInTiles(elements, lat, lon, radiusM) {
+  try {
+    if (!elements || !elements.length) return;
+    var mPerLat = 111320, mPerLon = 111320 * Math.cos(lat * Math.PI / 180) || 1;
+    var dLat = radiusM / mPerLat, dLon = radiusM / mPerLon;
+    // 1) dekking bijwerken voor elke tegel die de cirkel raakt
+    var ty0 = Math.floor((lat - dLat) / TILE_DEG_SHARED), ty1 = Math.floor((lat + dLat) / TILE_DEG_SHARED);
+    var tx0 = Math.floor((lon - dLon) / TILE_DEG_SHARED), tx1 = Math.floor((lon + dLon) / TILE_DEG_SHARED);
+    var raak = [];
+    for (var ty = ty0; ty <= ty1; ty++) {
+      for (var tx = tx0; tx <= tx1; tx++) {
+        var key = 't_' + ty + '_' + tx;
+        var rec = _tileCov[key] || (_tileCov[key] = { cells: {}, n: 0, ways: {} });
+        for (var i = 0; i < _TILE_N; i++) {
+          for (var j = 0; j < _TILE_N; j++) {
+            var ci = i * _TILE_N + j;
+            if (rec.cells[ci]) continue;
+            var cLat = (ty + (i + 0.5) / _TILE_N) * TILE_DEG_SHARED;
+            var cLon = (tx + (j + 0.5) / _TILE_N) * TILE_DEG_SHARED;
+            var dy = (cLat - lat) * mPerLat, dx = (cLon - lon) * mPerLon;
+            if (dy * dy + dx * dx <= radiusM * radiusM) { rec.cells[ci] = 1; rec.n++; }
+          }
+        }
+        raak.push(key);
+      }
+    }
+    // 2) ways toewijzen aan de tegels die ze raken
+    var norm = elements.filter(function (el) { return el.type === 'way' && el.geometry && el.geometry.length >= 2; })
+      .map(function (el) {
+        return { type: 'way', id: el.id, nodes: el.nodes || [], geometry: el.geometry,
+                 tags: { highway: (el.tags && el.tags.highway) || '',
+                         name:    (el.tags && el.tags.name)    || '' } };
+      });
+    norm.forEach(function (w) {
+      w.geometry.forEach(function (p) {
+        var k = 't_' + Math.floor(p.lat / TILE_DEG_SHARED) + '_' + Math.floor(p.lon / TILE_DEG_SHARED);
+        if (_tileCov[k]) _tileCov[k].ways[w.id] = w;
+      });
+    });
+    // 3) volledig gedekte tegels wegschrijven (en daarna niet meer bijhouden)
+    var klaar = raak.filter(function (k) { return _tileCov[k] && _tileCov[k].n >= _TILE_N * _TILE_N; });
+    if (!klaar.length) return;
+    var now = Date.now();
+    var recs = klaar.map(function (k) {
+      var ws = []; for (var id in _tileCov[k].ways) ws.push(_tileCov[k].ways[id]);
+      return { key: k, ts: now, v: TEGEL_SCHEMA, ways: ws };
+    });
+    klaar.forEach(function (k) { _tileCov[k].opgeslagen = 1; delete _tileCov[k].ways; });
+    _tileDb().then(function (db) {
+      var tx2 = db.transaction(TILE_STORE, 'readwrite'), st = tx2.objectStore(TILE_STORE);
+      recs.forEach(function (r) { st.put(r); });
+    }).catch(function () {});
+  } catch (e) { /* cache is best-effort: nooit het tellen verstoren */ }
+}
+
+/* ---- Tegel-cache LEZEN (v2.49) --------------------------------------------
+   GEDEELD BLOK — houd byte-identiek over de vier veld-apps (grep leesTegels).
+
+   Sinds v2.43 schrijven de veld-apps hun opgehaalde netwerk in tegels, maar
+   las alleen de reconstructor ze terug. Wie dezelfde straat voor de derde keer
+   telt, haalde hem dus ook voor de derde keer op. Nu kijken we eerst.
+
+   Alles-of-niets: de fetch wordt alleen overgeslagen als ÁLLE tegels die de
+   fetch-cirkel raken aanwezig én vers zijn. Deelresultaten mengen we niet —
+   een half gedekte cirkel zou stil wegen missen, precies de fout die de
+   schrijfkant met het 8x8-raster al vermijdt.
+
+   TTL is hier korter dan de 60 dagen van de reconstructor. Daar ziet de
+   gebruiker de tegelouderdom in beeld en kan hij verversen; hier gebeurt het
+   stil, en stille veroudering verdient een strakkere grens.
+
+   Schemaversie: tegels van vóór v2.49 dragen geen straatnaam. Die tellen als
+   misser, worden opnieuw opgehaald en meteen mét naam teruggeschreven — dus
+   geen migratie, de cache geneest zichzelf.                                   */
+var TEGEL_TTL_MS  = 14 * 24 * 3600 * 1000;
+var TEGEL_SCHEMA  = 2;
+function leesTegels(lat, lon, radiusM) {
+  return new Promise(function (res) {
+    try {
+      var mPerLat = 111320, mPerLon = 111320 * Math.cos(lat * Math.PI / 180) || 1;
+      var dLat = radiusM / mPerLat, dLon = radiusM / mPerLon;
+      var ty0 = Math.floor((lat - dLat) / TILE_DEG_SHARED), ty1 = Math.floor((lat + dLat) / TILE_DEG_SHARED);
+      var tx0 = Math.floor((lon - dLon) / TILE_DEG_SHARED), tx1 = Math.floor((lon + dLon) / TILE_DEG_SHARED);
+      var keys = [];
+      for (var ty = ty0; ty <= ty1; ty++) {
+        for (var tx = tx0; tx <= tx1; tx++) keys.push('t_' + ty + '_' + tx);
+      }
+      if (!keys.length) return res(null);
+      _tileDb().then(function (db) {
+        var st = db.transaction(TILE_STORE, 'readonly').objectStore(TILE_STORE);
+        var grens = Date.now() - TEGEL_TTL_MS;
+        var pending = keys.length, mis = false, seen = {}, out = [];
+        keys.forEach(function (k) {
+          var r = st.get(k);
+          r.onsuccess = function () {
+            var rec = r.result;
+            if (!rec || !rec.ts || rec.ts < grens || (rec.v || 1) < TEGEL_SCHEMA) {
+              mis = true;
+            } else {
+              // Een way die twee tegels raakt staat in beide: ontdubbelen op id.
+              (rec.ways || []).forEach(function (w) {
+                if (!seen[w.id]) { seen[w.id] = 1; out.push(w); }
+              });
+            }
+            if (--pending === 0) res(mis ? null : out);
+          };
+          r.onerror = function () { mis = true; if (--pending === 0) res(null); };
+        });
+      }).catch(function () { res(null); });
+    } catch (e) { res(null); }   // cache is best-effort: nooit het tellen blokkeren
+  });
+}
+
+
+// Geef de zojuist gebouwde ZIP door aan telreconstructie.html en open die.
+function stuurNaarReconstructie(blob, naam) {
+  return _tileDb().then(function (db) {
+    return new Promise(function (res, rej) {
+      if (!db.objectStoreNames.contains('handoff')) return rej(new Error('geen handoff-store'));
+      var tx = db.transaction('handoff', 'readwrite');
+      tx.objectStore('handoff').put({ key: 'zip', blob: blob, naam: naam || 'telling.zip', ts: Date.now() });
+      tx.oncomplete = function () { res(); };
+      tx.onerror = function () { rej(tx.error); };
+    });
+  }).then(function () {
+    location.href = 'telreconstructie.html?handoff=1';
+  });
+}
+
+// Een way blijft snap-kandidaat zolang z'n geometrie binnen deze straal van de
+// huidige fetch-positie ligt. Afgeleid: fetch-radius + de max. drift vóór een
+// re-fetch (re-fetch triggert bij 0.6×fetch-radius = 150m), dus precies het
+// gebied vanwaar een way bij de vórige fetch nog snapbaar geweest kán zijn.
+// Voorkomt dat ways net buiten de verse 250m-cirkel hun segs verliezen.
+var SNAP_SEGS_RADIUS       = Math.round(SNAP_ROAD_FETCH_RADIUS * 1.6);  // 400 m
+var SNAP_MAX_M             = 50;   // max snap-afstand voor verse fixes
+var SNAP_RESET_M           = 50;   // boven deze afstand tot huidig anker → anker breekt (gelijk aan SNAP_MAX_M: een anker dat buiten snap-bereik ligt is irrelevant)
+var ANCHOR_PREFER_M        = 50;   // boven deze afstand vervalt anker-voorkeur (= SNAP_MAX_M; voorkeur geldt over hele kandidatenbereik)
+var HYSTERESIS_M           = 5;    // minimum-meterdrempel: buur moet ≥ deze meters dichterbij zijn
+var HYSTERESIS_RATIO       = 0.3;  // bovendien: ≥ deze fractie van d_anchor moet het verschil zijn
+var SWITCH_CONFIRM         = 2;    // jitter-debounce: een buur moet zóveel opeenvolgende GPS-fixes substantieel dichterbij zijn vóór het anker omklapt (1 = direct, oude gedrag)
+
+// ── Zekerheids-heuristiek ────────────────────────────────────────────────────
+// Drie deelscores in [0,1] (marge tot runner-up, afstand tot gekozen way, GPS-
+// accuracy). We nemen de ZWAKSTE schakel (min) — een snap is maar zo zeker als
+// zijn slechtste signaal. Pending challenger of glitch_hold deksel op amber.
+// Resultaat wordt met EMA gladgestreken zodat de stip niet flikkert.
+var CONF_MARGIN_LO = 6,  CONF_MARGIN_HI = 20;   // m verschil chosen↔runner-up
+var CONF_DIST_LO   = 10, CONF_DIST_HI   = 40;   // m afstand tot gekozen way
+var CONF_ACC_LO    = 10, CONF_ACC_HI    = 30;   // m GPS-accuracy-straal
+var CONF_GREEN     = 0.66, CONF_AMBER = 0.33;   // tier-drempels
+var CONF_EMA       = 0.5;                        // smoothing (1 = geen smoothing)
+
+// ── GPS-stabiliteit ───────────────────────────────────────────────────────────
+// Tweede indicator naast de snap-stip: hoe betrouwbaar het GPS-signaal zélf is,
+// los van welke straat gekozen wordt. Zelf-kalibrerend op het eigen tempo via
+// mediaan + MAD over een tijdvenster, dus geen vaste snelheidsdrempel (een
+// fietser hoort niet als "sprong" gemarkeerd te worden).
+var GPS_WIN_MS     = 15000;   // tijdvenster voor mediaan/MAD
+var GPS_WIN_MIN    = 3;       // minder fixes in venster → nog "onbekend" (grijs)
+var GPS_JUMP_K     = 3.5;     // snelheid > mediaan + K·MAD ⇒ sprong (robuuste z-score)
+var GPS_TURN_DEG   = 90;      // gem. koerswijziging waarboven 't als zigzag telt
+var GPS_ACC_GOOD   = 12;      // m: acc ≤ dit telt als goed
+var GPS_ACC_BAD    = 35;      // m: acc ≥ dit telt als slecht
+var GPS_STAB_EMA   = 0.4;     // smoothing van de stabiliteitsscore
+var GPS_STAB_GREEN = 0.66, GPS_STAB_AMBER = 0.33;
+/* ---- Verse-data-garantie -------------------------------------------------
+   Elk Overpass-antwoord draagt osm3s.timestamp_osm_base: het moment waarop de
+   dataset van die server voor het laatst is bijgewerkt. Een mirror die achter-
+   loopt levert stilzwijgend verouderde wegen — nieuwe of gewijzigde straten
+   ontbreken dan zonder dat je het merkt. We keuren daarom elk antwoord zelf.
+   Te oud → als mislukt behandelen, zodat de volgende endpoint aan de beurt is. */
+var OSM_MAX_LAG_DAGEN = 7;
+function dataIsVers(data) {
+  try {
+    var ts = data && data.osm3s && data.osm3s.timestamp_osm_base;
+    if (!ts) return true;                       // geen stempel → niet afkeuren
+    var lag = (Date.now() - new Date(ts).getTime()) / 86400000;
+    if (isNaN(lag)) return true;
+    return lag <= OSM_MAX_LAG_DAGEN;
+  } catch (e) { return true; }                  // nooit het tellen blokkeren op een parseerfout
+}
+
+var SNAP_OVERPASS          = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+
+/* ---- Overpass-antwoord classificeren (v2.49) ------------------------------
+   GEDEELD BLOK — houd byte-identiek over alle tools (grep OVP_LIMIET).
+
+   Vóór v2.49 ging élk niet-ideaal antwoord door dezelfde catch: een gebied
+   zónder wegen liet de app net zo hard opnieuw vragen als een netwerkstoring.
+   Erger nog: Overpass meldt rate-limiting niet altijd als HTTP 429, maar soms
+   als een 200 met de melding in data.remark. Die zagen wij als 'geen wegen' en
+   dus als reden om meteen de andere mirror te proberen — precies wanneer de
+   servers vol zitten, sloegen wij er het hardst op. En een geweigerd verzoek
+   is niet gratis: Overpass voert de query eerst uit en meldt de limiet daarna.
+
+   Vijf uitkomsten, elk met eigen gedrag:
+     ok     -> verwerken
+     leeg   -> geldig antwoord; hier liggen geen wegen. NIET opnieuw vragen.
+     oud    -> deze mirror loopt achter (> OSM_MAX_LAG_DAGEN). Andere proberen.
+     limiet -> server wijst ons af of zit vol. Lang wachten, niets proberen.
+     fout   -> netwerk-/HTTP-storing. Kort exponentieel wachten.               */
+var OVP_OK = 'ok', OVP_LEEG = 'leeg', OVP_OUD = 'oud',
+    OVP_LIMIET = 'limiet', OVP_FOUT = 'fout';
+var OVP_LIMIET_WACHT_MS = 30000;      // rate-limit: slots komen per ~minuut vrij
+var OVP_OUD_WACHT_MS    = 300000;     // alle mirrors achter: lost niet op in seconden
+function ovpStatusUitHttp(status) {
+  return (status === 429 || status === 503 || status === 504) ? OVP_LIMIET : OVP_FOUT;
+}
+function ovpKeur(data) {
+  if (!data || typeof data !== 'object') return OVP_FOUT;
+  var rem = '' + (data.remark || '');
+  if (rem) {
+    // Overpass legt runtime-meldingen in 'remark' bij een verder normale 200.
+    if (/rate_?limit|too many requests|Dispatcher_Client/i.test(rem)) return OVP_LIMIET;
+    return OVP_FOUT;
+  }
+  if (!dataIsVers(data)) return OVP_OUD;
+  if (!data.elements || !data.elements.length) return OVP_LEEG;
+  return OVP_OK;
+}
+// Exponentieel wachten met plafond: 500 . 2^(n-1), max 8s. Lang genoeg om een
+// overbelaste server te ontzien, kort genoeg om terug te zijn zodra het kan.
+function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000); }
+
+
+// Wegvakken worden bij export opgeknipt in segmenten van ~SEGMENT_TARGET_M.
+// Wegen korter dan SEGMENT_MIN_M blijven heel (één segment).
+// Toewijzing van segIdx per snap gebeurt via midpoint van elke OSM-edge.
+var SEGMENT_TARGET_M       = 40;
+var SEGMENT_MIN_M          = 60;
+
+// ── v2.17 fase 1: stall-detector + tijdspoort ────────────────────────────────
+// Stall: 'ik verplaats me, maar mijn positie-langs-de-link (snapM) vordert
+// niet' — het anker volgt de beweging niet meer (haaks kruisen, of vastgeklemd
+// op een way-uiteinde). Drempels veldgevalideerd via replay op 4 rig-sessies
+// (juli 2026): raak op alle echte stalls, nul valse triggers, robuust over
+// S_MIN 3–4 / RATIO 0.3–0.5 / K 2–3. Zie overdracht v2.17.
+var STALL_S_MIN      = 3;    // m verplaatsing per routepunt vóór de meting meetelt
+var STALL_RATIO      = 0.3;  // |ΔsnapM| < ratio·stap ⇒ beweging projecteert niet op de link
+var STALL_K          = 3;    // opeenvolgende stall-metingen → volledige anker-reset
+// Tijdspoort: GPS-stilte (gebouwpassage; 222s waargenomen) is onzichtbaar voor
+// alle afstands-poorten. Langer dan dit = teleport: continuïteit is verbroken.
+var TIME_GAP_RESET_S = 25;
+
+var snap = {
+  // ── Snap-subsysteem state (alle mutable runtime-state in één bag) ──
+  // Constanten blijven gewone globals hierboven; functies houden hun snap*-prefix.
+  segs:         [],
+  cacheLat:     null,
+  cacheLon:     null,
+  elements:     {},      // wayId → {highway, osmName, geometry} — voor netwerk.csv en anker-erven
+  ready:        false,
+  pendingQueue: [],      // tikken die wachten op eerste snap-respons
+
+  // Adjacency: twee ways verbonden als ze een OSM-node delen. Cumulatief
+  // (groeit met elke Overpass-fetch) zodat het anker over refetches blijft werken.
+  nodeToWays:   {},      // nodeId → {wayId:true, ...}
+  adjacency:    {},      // wayId  → {wayId:true, ...}
+
+  // Anker — de way waarvan we zeker zijn dat de teller er ‘zit’. Verspringt
+  // alleen naar adjacent ways; null bij reset (> SNAP_RESET_M) of sessie-start.
+  anchorWayId:  null,
+  anchorSegIdx: 0,
+
+  // Uitdager-debounce: de buur die het anker uitdaagt over opeenvolgende fixes.
+  // Klapt pas om na SWITCH_CONFIRM keer; één jitter-fix laat de count niet vollopen.
+  challenger:   null,    // {wayId, count}
+
+  // Stall-detector (v2.17): teller + vorige-routepunt-referentie op ~5m-cadans.
+  stallCount:   0,
+  stallPrev:    null,    // {wayId, snapM} van het vorige routepunt
+
+  // Fetch-volgorde-guard (v2.17): een trage, voorbijgestreefde Overpass-respons
+  // mag cacheLat/Lon niet met een verouderde positie overschrijven.
+  fetchSeq:     0,       // oplopend id per logische fetch-aanvraag
+  fetchApplied: 0,       // hoogste id waarvan de respons is toegepast
+
+  // Fetch-discipline (v2.18): voorkom de fetch-storm die ontstond wanneer het
+  // netwerk aanhoudend onbereikbaar was (bv. slechte dekking of iOS-achtergrond-
+  // onderdrukking). Zonder rem vuurde snapCheckRefresh bij ELKE GPS-fix een verse
+  // fetch zolang cacheLat null bleef — in één veldsessie 610 pogingen.
+  fetchInFlight: false,  // true zolang er een fetch loopt (één tegelijk)
+  fetchCooldownUntil: 0, // ms-timestamp: vóór dit moment geen nieuwe fetch starten
+  fetchFailStreak: 0,    // opeenvolgende mislukte logische aanvragen (voedt backoff)
+
+  // Live zekerheidstoestand (UI + geërfd door taps).
+  confScore:    null,    // gesmoothed [0,1], of null = nog onbekend
+  confLevel:    'none',  // 'green' | 'amber' | 'red' | 'none'
+  confName:     '',      // OSM-naam van de huidige gekozen way
+
+  // GPS-signaalstabiliteit.
+  gpsFixWin:    [],      // [{ts, lat, lon, acc}] binnen GPS_WIN_MS
+  gpsStabScore: null,
+  gpsStabLevel: 'none',
+
+  // Debug trace → <sessieID>_snap_trace.csv (telrapport negeert dit bestand).
+  trace:        [],
+  traceSeq:     0
+};
+
+function snapToXY(lat, lon, refLat, refLon) {
+  var cos = Math.cos(refLat * Math.PI / 180);
+  return { x:(lon-refLon)*111320*cos, y:(lat-refLat)*111320 };
+}
+
+function snapClosest(px,py,ax,ay,bx,by) {
+  var dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy;
+  if (l2===0) return {x:ax,y:ay};
+  var t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
+  return {x:ax+t*dx, y:ay+t*dy};
+}
+
+function snapBuildSegs(elements, refLat, refLon) {
+  var segs=[];
+  elements.forEach(function(el) {
+    if (el.type!=='way'||!el.geometry||el.geometry.length<2) return;
+    var xy = el.geometry.map(function(p){ return snapToXY(p.lat, p.lon, refLat, refLon); });
+    // Cumulatieve afstand per knoop (in meters)
+    var cum = [0];
+    for (var k=1; k<xy.length; k++) {
+      var ex = xy[k].x - xy[k-1].x, ey = xy[k].y - xy[k-1].y;
+      cum.push(cum[k-1] + Math.sqrt(ex*ex + ey*ey));
+    }
+    var totalLen = cum[cum.length-1];
+    var nSeg   = (totalLen < SEGMENT_MIN_M) ? 1 : Math.max(1, Math.round(totalLen / SEGMENT_TARGET_M));
+    var segLen = (nSeg > 0) ? (totalLen / nSeg) : totalLen;
+    for (var i=0; i<xy.length-1; i++) {
+      segs.push({
+        ax:xy[i].x,   ay:xy[i].y,
+        bx:xy[i+1].x, by:xy[i+1].y,
+        wayId:String(el.id),
+        cumStart: cum[i],          // m langs way tot deze edge begint
+        edgeLen:  cum[i+1]-cum[i], // m van deze edge
+        segLen:   segLen,          // m per segment van deze way
+        nSeg:     nSeg,
+        osmName:(el.tags&&el.tags.name)||'',
+        highway:(el.tags&&el.tags.highway)||''
+      });
+    }
+  });
+  return segs;
+}
+
+// Registreer een way in de adjacency-administratie. Idempotent: bij refetch
+// van overlappend gebied gaan er geen dubbele edges in. Voegt zowel ‘way zit
+// op deze nodes’ als ‘deze ways zijn nu aan elkaar verbonden’ toe.
+function snapRegisterWay(el) {
+  if (!el.nodes || el.nodes.length < 2) return;
+  var wayId = String(el.id);
+  for (var i = 0; i < el.nodes.length; i++) {
+    var nid = el.nodes[i];
+    if (!snap.nodeToWays[nid]) snap.nodeToWays[nid] = {};
+    if (snap.nodeToWays[nid][wayId]) continue;  // al geregistreerd
+    snap.nodeToWays[nid][wayId] = true;
+    if (!snap.adjacency[wayId]) snap.adjacency[wayId] = {};
+    // Verbind wayId met alle ways die deze node ook delen
+    Object.keys(snap.nodeToWays[nid]).forEach(function(other) {
+      if (other === wayId) return;
+      snap.adjacency[wayId][other] = true;
+      if (!snap.adjacency[other]) snap.adjacency[other] = {};
+      snap.adjacency[other][wayId] = true;
+    });
+  }
+}
+
+// Bouw een Overpass-achtige elements-lijst uit het CUMULATIEVE snap.elements,
+// beperkt tot ways waarvan minstens één knoop binnen SNAP_SEGS_RADIUS van
+// (lat,lon) ligt. Het huidige anker wordt altijd meegenomen, ongeacht
+// knoopafstand — zo verliest de way waarop je staat nooit z'n segs, ook niet
+// als 't een lange weg met ver uiteenliggende knopen is.
+// snapBuildSegs herprojecteert de output tegen (lat,lon), dus er is geen
+// frame-menging: oude en nieuwe ways krijgen hetzelfde origin.
+function snapElementsNear(lat, lon) {
+  var cos = Math.cos(lat * Math.PI / 180);
+  var R2  = SNAP_SEGS_RADIUS * SNAP_SEGS_RADIUS;
+  var anchorId = (snap.anchorWayId != null) ? String(snap.anchorWayId) : null;
+  var out = [];
+  var ids = Object.keys(snap.elements);
+  for (var i = 0; i < ids.length; i++) {
+    var id = ids[i];
+    var el = snap.elements[id];
+    var keep = (id === anchorId);
+    if (!keep) {
+      var g = el.geometry;
+      for (var k = 0; k < g.length; k++) {
+        var dx = (g[k].lon - lon) * 111320 * cos;
+        var dy = (g[k].lat - lat) * 111320;
+        if (dx*dx + dy*dy <= R2) { keep = true; break; }
+      }
+    }
+    if (keep) out.push({
+      type: 'way', id: id, geometry: el.geometry,
+      tags: { name: el.osmName, highway: el.highway }
+    });
+  }
+  return out;
+}
+
+// Geef de set van wayIds die binnen ‘depth’ sprongen bereikbaar is vanaf wayId.
+// depth=1 = anker + directe buren. depth=2 = ook buren-van-buren (voor het geval
+// een korte tussen-way nooit een eigen fix kreeg, bijv. bij snelheid).
+function snapAdjacencySet(wayId, depth) {
+  var result = {};
+  result[wayId] = true;
+  var frontier = [wayId];
+  for (var d = 0; d < depth; d++) {
+    var next = [];
+    for (var i = 0; i < frontier.length; i++) {
+      var adj = snap.adjacency[frontier[i]];
+      if (!adj) continue;
+      var keys = Object.keys(adj);
+      for (var j = 0; j < keys.length; j++) {
+        if (!result[keys[j]]) { result[keys[j]] = true; next.push(keys[j]); }
+      }
+    }
+    frontier = next;
+    if (!frontier.length) break;
+  }
+  return result;
+}
+
+// Minimum-afstand van punt p naar een specifieke way (zonder SNAP_MAX_M-cutoff).
+// Nodig om te beslissen of het anker echt onbereikbaar ver weg is (→ reset)
+// of slechts tijdelijk net buiten 50m valt door GPS-jitter (→ anker behouden).
+function snapDistanceToWay(p, wayId) {
+  var best = Infinity;
+  for (var i = 0; i < snap.segs.length; i++) {
+    var s = snap.segs[i];
+    if (s.wayId !== wayId) continue;
+    var dx = s.bx - s.ax, dy = s.by - s.ay, l2 = dx*dx + dy*dy;
+    var t = (l2 === 0) ? 0 : Math.max(0, Math.min(1, ((p.x-s.ax)*dx + (p.y-s.ay)*dy) / l2));
+    var cx = s.ax + t*dx, cy = s.ay + t*dy;
+    var d = Math.sqrt((cx-p.x)*(cx-p.x) + (cy-p.y)*(cy-p.y));
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+// Read-only: projecteer een punt loodrecht op één specifieke way en geef
+// {lat, lon, wayId, segIdx, osmName, d} terug (of null). Muteert GEEN anker-state.
+// Gebruikt door taps om het GPS-anker te erven i.p.v. zelf opnieuw te beslissen.
+function snapProjectOnto(lat, lon, wayId) {
+  if (!snap.segs.length || snap.cacheLat===null) return null;
+  var p = snapToXY(lat, lon, snap.cacheLat, snap.cacheLon);
+  var best=null;
+  for (var i=0;i<snap.segs.length;i++) {
+    var s=snap.segs[i];
+    if (s.wayId!==wayId) continue;
+    var dx=s.bx-s.ax, dy=s.by-s.ay, l2=dx*dx+dy*dy;
+    var t=(l2===0)?0:Math.max(0,Math.min(1,((p.x-s.ax)*dx+(p.y-s.ay)*dy)/l2));
+    var cx=s.ax+t*dx, cy=s.ay+t*dy;
+    var d=Math.sqrt((cx-p.x)*(cx-p.x)+(cy-p.y)*(cy-p.y));
+    if (!best || d<best.d) best={d:d, seg:s, cx:cx, cy:cy, t:t};
+  }
+  if (!best) return null;
+  var s=best.seg;
+  var snapM=s.cumStart + best.t*s.edgeLen;
+  var segIdx=(s.nSeg<=1||s.segLen===0)?0:Math.min(s.nSeg-1,Math.floor(snapM/s.segLen));
+  var cos=Math.cos(snap.cacheLat*Math.PI/180);
+  return {
+    lat: snap.cacheLat + best.cy/111320,
+    lon: snap.cacheLon + best.cx/(111320*cos),
+    wayId: wayId, segIdx: segIdx, osmName: s.osmName, d: best.d
+  };
+}
+
+// Read-only: dichtstbijzijnde way overall binnen SNAP_MAX_M (geen adjacency, geen
+// anker-mutatie). Voor cold-start taps en retro-snap van wachtrij-tikken.
+function snapNearestAny(lat, lon) {
+  if (!snap.segs.length || snap.cacheLat===null) return null;
+  var p=snapToXY(lat, lon, snap.cacheLat, snap.cacheLon);
+  var bestPerWay={};
+  for (var i=0;i<snap.segs.length;i++) {
+    var s=snap.segs[i];
+    var dx=s.bx-s.ax, dy=s.by-s.ay, l2=dx*dx+dy*dy;
+    var t=(l2===0)?0:Math.max(0,Math.min(1,((p.x-s.ax)*dx+(p.y-s.ay)*dy)/l2));
+    var cx=s.ax+t*dx, cy=s.ay+t*dy;
+    var d=Math.sqrt((cx-p.x)*(cx-p.x)+(cy-p.y)*(cy-p.y));
+    if (d>SNAP_MAX_M) continue;
+    if (!bestPerWay[s.wayId] || d<bestPerWay[s.wayId]) bestPerWay[s.wayId]=d;
+  }
+  var bestId=null, bestD=Infinity;
+  Object.keys(bestPerWay).forEach(function(w){ if (bestPerWay[w]<bestD){ bestD=bestPerWay[w]; bestId=w; } });
+  return bestId ? snapProjectOnto(lat, lon, bestId) : null;
+}
+
+// Bereken een ruwe zekerheid in [0,1] uit de signalen die we per fix al hebben.
+// rampUp:  >= hi → 1, <= lo → 0 (groter = beter, bijv. marge)
+// rampDown: <= lo → 1, >= hi → 0 (kleiner = beter, bijv. afstand, accuracy)
+function _ramp(v, lo, hi, up) {
+  if (v == null || isNaN(v)) return 1;           // onbekend signaal telt niet mee
+  var t = (v - lo) / (hi - lo);
+  t = Math.max(0, Math.min(1, t));
+  return up ? t : (1 - t);
+}
+// bestPerWay: {wayId→{d,...}} alle kandidaten; chosenWayId: gekozen way;
+// chosenD: afstand tot gekozen; acc: GPS-accuracy; path: snapPath; pending: challenger actief
+function snapComputeConfidence(bestPerWay, chosenWayId, chosenD, acc, path, pending) {
+  // Harde gevallen: geen bruikbare fix
+  if (path === 'no_network' || path === 'null_no_candidate' ||
+      path === 'reset_no_candidate' || chosenWayId == null) {
+    return { score: 0, level: 'red' };
+  }
+  // Marge tot de op-één-na-dichtste way (de échte ambiguïteitsmaat)
+  var runnerUp = Infinity;
+  var keys = Object.keys(bestPerWay);
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i] === chosenWayId) continue;
+    if (bestPerWay[keys[i]].d < runnerUp) runnerUp = bestPerWay[keys[i]].d;
+  }
+  var margin = (runnerUp === Infinity) ? CONF_MARGIN_HI : (runnerUp - chosenD);
+
+  var sMargin = _ramp(margin,  CONF_MARGIN_LO, CONF_MARGIN_HI, true);
+  var sDist   = _ramp(chosenD, CONF_DIST_LO,   CONF_DIST_HI,   false);
+  var sAcc    = _ramp(acc,     CONF_ACC_LO,    CONF_ACC_HI,    false);
+
+  var raw = Math.min(sMargin, sDist, sAcc);   // zwakste schakel
+  // Onopgeloste strijd of mislukte verse fix → niet hoger dan amber
+  if (pending || path === 'glitch_hold') raw = Math.min(raw, CONF_AMBER + 0.001);
+
+  return { score: raw, level: null };  // level wordt na EMA bepaald
+}
+
+// GPS-anker-pad. ENIGE schrijver van snap.anchorWayId / snap.challenger. Alleen de
+// GPS-watcher roept dit aan; taps erven het anker via snapProjectOnto (read-only).
+function snapNearestWay(lat, lon, eventInfo) {
+  // eventInfo (optioneel): {type:'gps'|'tap', tijdstip, accuracy, tap_nr}
+  //   gebruikt voor _snap_trace.csv schrijven. Zonder eventInfo wordt niet getraced.
+  if (!snap.segs.length || snap.cacheLat===null) {
+    // v2.71: hier ontbrak één argument (dChosen), waardoor alts undefined was en
+    // traceWrite() op alts.map() crashte. Die fout brak de GPS-callback af vóór
+    // routeLog.push(): zolang er geen wegennet was (start, of Overpass
+    // onbereikbaar) werd er geen enkel routepunt bewaard.
+    if (eventInfo) traceWrite(eventInfo, lat, lon, 'no_network', null, null, null, null, []);
+    return null;
+  }
+  var p = snapToXY(lat, lon, snap.cacheLat, snap.cacheLon);
+  var anchorBefore = snap.anchorWayId;
+
+  // Stap 1: beste edge per way binnen SNAP_MAX_M verzamelen
+  var bestPerWay = {};  // wayId → {d, seg, pt:{x,y}, t}
+  for (var i=0;i<snap.segs.length;i++) {
+    var s=snap.segs[i];
+    var dx=s.bx-s.ax, dy=s.by-s.ay, l2=dx*dx+dy*dy;
+    var t = (l2===0) ? 0 : Math.max(0,Math.min(1,((p.x-s.ax)*dx+(p.y-s.ay)*dy)/l2));
+    var cx=s.ax+t*dx, cy=s.ay+t*dy;
+    var d=Math.sqrt((cx-p.x)*(cx-p.x)+(cy-p.y)*(cy-p.y));
+    if (d>SNAP_MAX_M) continue;
+    if (!bestPerWay[s.wayId] || d<bestPerWay[s.wayId].d) {
+      bestPerWay[s.wayId] = {d:d, seg:s, pt:{x:cx,y:cy}, t:t};
+    }
+  }
+
+  // Top-3 alternatieven (alle kandidaten exclusief de uiteindelijk gekozene)
+  function topAlternatives(exceptWayId) {
+    var arr = [];
+    Object.keys(bestPerWay).forEach(function(w) {
+      if (w !== exceptWayId) arr.push({wayId:w, d:bestPerWay[w].d});
+    });
+    arr.sort(function(a,b){return a.d-b.d;});
+    return arr.slice(0,3);
+  }
+
+  // Helper: kies dichtstbijzijnde wayId uit een toegestane set
+  function pickWithin(allowedSet) {
+    var bestId=null, bestC=null;
+    var keys = Object.keys(bestPerWay);
+    for (var k=0;k<keys.length;k++) {
+      if (!allowedSet[keys[k]]) continue;
+      var c = bestPerWay[keys[k]];
+      if (!bestC || c.d < bestC.d) { bestC=c; bestId=keys[k]; }
+    }
+    return bestId ? {info:bestC, wayId:bestId} : null;
+  }
+
+  // Helper: bouw return-object en update anker-state
+  function buildResult(chosen) {
+    var s = chosen.info.seg;
+    var snapM = s.cumStart + chosen.info.t * s.edgeLen;
+    var segIdx = (s.nSeg <= 1 || s.segLen === 0)
+               ? 0
+               : Math.min(s.nSeg - 1, Math.floor(snapM / s.segLen));
+    var cos=Math.cos(snap.cacheLat*Math.PI/180);
+    snap.anchorWayId  = chosen.wayId;
+    snap.anchorSegIdx = segIdx;
+    return {
+      lat: snap.cacheLat + chosen.info.pt.y/111320,
+      lon: snap.cacheLon + chosen.info.pt.x/(111320*cos),
+      wayId: chosen.wayId,
+      segIdx: segIdx,
+      osmName: s.osmName,
+      snapM: snapM   // v2.17: positie langs de link, input voor de stall-detector
+    };
+  }
+
+  // Resultaat-variabelen voor de trace
+  var result = null, snapPath = '', dAnchorTrace = null, dChosenTrace = null;
+
+  // Stap 2: keuze op basis van anker-state
+  // 2a: geen anker → globaal dichtstbijzijnde (initialisatie)
+  if (snap.anchorWayId === null) {
+    var all = {};
+    var akeys = Object.keys(bestPerWay);
+    for (var ak=0;ak<akeys.length;ak++) all[akeys[ak]] = true;
+    var chosen = pickWithin(all);
+    if (chosen) {
+      snapPath = 'bootstrap';
+      dChosenTrace = chosen.info.d;
+      snap.challenger = null;
+      result = buildResult(chosen);
+    } else {
+      snapPath = 'null_no_candidate';
+    }
+  } else {
+    // 2b-pre: anker écht ver weg (> SNAP_RESET_M)?
+    // Voorheen werd dit gemist als depth-1 toevallig een dichtbije buur vond:
+    // een d1-wissel maskeerde dan dat de teller fysiek lang weg is van de
+    // anker-way. Direct resetten geeft een schone bootstrap.
+    var preAnchorD = snapDistanceToWay(p, snap.anchorWayId);
+    if (preAnchorD > SNAP_RESET_M) {
+      snap.anchorWayId  = null;
+      snap.anchorSegIdx = 0;
+      snap.challenger   = null;
+      var preAll = {};
+      var prekeys = Object.keys(bestPerWay);
+      for (var pk=0;pk<prekeys.length;pk++) preAll[prekeys[pk]] = true;
+      var preChosen = pickWithin(preAll);
+      if (preChosen) {
+        snapPath = 'reset';
+        dChosenTrace = preChosen.info.d;
+        result = buildResult(preChosen);
+      } else {
+        snapPath = 'reset_no_candidate';
+      }
+    } else {
+    // 2b: anker bestaat → depth-1 (anker + directe buren) met hysterese + debounce
+    var depth1Set = snapAdjacencySet(snap.anchorWayId, 1);
+    var chosen1   = pickWithin(depth1Set);
+    if (chosen1) {
+      var anchorCand = bestPerWay[snap.anchorWayId];
+      if (chosen1.wayId === snap.anchorWayId) {
+        // Anker is zelf de dichtste → geen uitdager
+        snap.challenger = null;
+        snapPath = 'd1';
+        dChosenTrace = chosen1.info.d;
+        result = buildResult(chosen1);
+      } else {
+        // Een buur is het dichtst binnen depth-1
+        var d_other = chosen1.info.d;
+        var holdOnAnchor = false;
+        if (anchorCand) {
+          var d_anchor = anchorCand.d;
+          dAnchorTrace = d_anchor;
+          // Glijdende drempel: dichtbij anker volstaat 5m verschil, ver weg moet
+          // het verschil substantieel zijn (30% van d_anchor). Boven
+          // ANCHOR_PREFER_M vervalt de voorkeur volledig.
+          var threshold = Math.max(HYSTERESIS_M, d_anchor * HYSTERESIS_RATIO);
+          if (d_anchor <= ANCHOR_PREFER_M && (d_anchor - d_other) < threshold) {
+            holdOnAnchor = true;  // buur niet substantieel beter
+          }
+        }
+        if (holdOnAnchor) {
+          // Vasthouden op anker; uitdager vervalt
+          snap.challenger = null;
+          snapPath = 'd1_hold';
+          dChosenTrace = anchorCand.d;
+          result = buildResult({info: anchorCand, wayId: snap.anchorWayId});
+        } else {
+          // Buur is substantieel dichterbij → confirmatie-debounce vóór omklap.
+          // Eén jitter-fix laat de count niet vollopen; bij echte verplaatsing
+          // klapt het anker na SWITCH_CONFIRM opeenvolgende fixes om.
+          if (snap.challenger && snap.challenger.wayId === chosen1.wayId) {
+            snap.challenger.count++;
+          } else {
+            snap.challenger = { wayId: chosen1.wayId, count: 1 };
+          }
+          dChosenTrace = d_other;
+          if (snap.challenger.count >= SWITCH_CONFIRM) {
+            // Bevestigd → omklap
+            snap.challenger = null;
+            snapPath = 'd1_switch';
+            result = buildResult(chosen1);
+          } else if (anchorCand) {
+            // Nog niet bevestigd → blijf op anker (debounce)
+            snapPath = 'd1_pending';
+            result = buildResult({info: anchorCand, wayId: snap.anchorWayId});
+          } else {
+            // Randgeval: anker niet binnen SNAP_MAX_M maar nog niet ge-reset →
+            // klap toch om (er is geen anker-punt om op te blijven)
+            snap.challenger = null;
+            snapPath = 'd1_switch_noanchor';
+            result = buildResult(chosen1);
+          }
+        }
+      }
+    } else {
+      // 2c: depth-2 (genuine sprong over een korte tussen-way; debounce n.v.t.)
+      var chosen2 = pickWithin(snapAdjacencySet(snap.anchorWayId, 2));
+      if (chosen2) {
+        snapPath = 'd2';
+        dChosenTrace = chosen2.info.d;
+        snap.challenger = null;
+        result = buildResult(chosen2);
+      } else {
+        // 2d/2e: geen verbonden kandidaat. Anker écht te ver weg?
+        var anchorD = snapDistanceToWay(p, snap.anchorWayId);
+        dAnchorTrace = anchorD;
+        if (anchorD > SNAP_RESET_M) {
+          snap.anchorWayId  = null;
+          snap.anchorSegIdx = 0;
+          snap.challenger   = null;
+          var all2 = {};
+          var bkeys = Object.keys(bestPerWay);
+          for (var bk=0;bk<bkeys.length;bk++) all2[bkeys[bk]] = true;
+          var chosen3 = pickWithin(all2);
+          if (chosen3) {
+            snapPath = 'reset';
+            dChosenTrace = chosen3.info.d;
+            result = buildResult(chosen3);
+          } else {
+            snapPath = 'reset_no_candidate';
+          }
+        } else {
+          // Glitch hold: anker behouden, geen verse snap
+          snapPath = 'glitch_hold';
+        }
+      }
+    }
+    }  // einde van pre-reset else-tak
+  }
+
+  // ── Zekerheid bijwerken (alleen op GPS-fixes; taps erven snapConf*) ──────────
+  var chosenWay = result ? result.wayId : null;
+  if (eventInfo && eventInfo.type === 'gps') {
+    var chosenD  = (chosenWay && bestPerWay[chosenWay]) ? bestPerWay[chosenWay].d
+                 : (result ? snapDistanceToWay(p, chosenWay) : null);
+    var pending  = !!(snap.challenger && snap.challenger.count < SWITCH_CONFIRM);
+    var conf     = snapComputeConfidence(bestPerWay, chosenWay, chosenD,
+                                         eventInfo.accuracy, snapPath, pending);
+    // EMA-smoothing: een enkele uitschieter trekt de stip niet meteen om
+    snap.confScore = (snap.confScore === null)
+                  ? conf.score
+                  : (CONF_EMA * conf.score + (1 - CONF_EMA) * snap.confScore);
+    snap.confLevel = (conf.level === 'red') ? 'red'
+                  : (snap.confScore >= CONF_GREEN) ? 'green'
+                  : (snap.confScore >= CONF_AMBER) ? 'amber' : 'red';
+    snap.confName  = result ? (result.osmName || '') : '';
+  }
+
+  // Trace schrijven (alleen als event-info meegegeven)
+  if (eventInfo) {
+    var alts = topAlternatives(chosenWay);
+    traceWrite(eventInfo, lat, lon, snapPath, anchorBefore, chosenWay, dAnchorTrace, dChosenTrace, alts);
+  }
+
+  return result;
+}
+
+// ── v2.17: stall-detector ────────────────────────────────────────────────────
+// Pure tellerstap op de ~5m-routepunt-cadans (identiek aan de rig/replay):
+// zelfde way ∧ stap ≥ STALL_S_MIN ∧ |ΔsnapM| < STALL_RATIO·stap → teller +1;
+// anders teller = 0. Stilstand (stap < S_MIN) is geen bewijs: geen decay.
+function snapStallStep(count, sameWay, stepM, dSnapAbs) {
+  if (!sameWay) return 0;
+  if (stepM < STALL_S_MIN) return count;
+  return (dSnapAbs < STALL_RATIO * stepM) ? count + 1 : 0;
+}
+
+// Wrapper om de snap-aanroep, ná snapNearestWay op routepunt-cadans. Bij
+// STALL_K opeenvolgende stalls: volledige anker-reset (hergebruik van het
+// bestaande reset-pad) + herbootstrap binnen dezelfde fix. De herbootstrap mag
+// dezelfde way herkiezen — dan vuurt de detector desnoods opnieuw; de trace
+// maakt dat zichtbaar (snap_path 'stall_reset', anchor_before → chosen_way).
+function snapStallCheck(lat, lon, res, stepM, evt) {
+  if (!res) { snap.stallCount = 0; snap.stallPrev = null; return res; }
+  var sameWay = !!(snap.stallPrev && snap.stallPrev.wayId === res.wayId);
+  var dAbs = sameWay ? Math.abs(res.snapM - snap.stallPrev.snapM) : 0;
+  snap.stallCount = snapStallStep(snap.stallCount, sameWay, stepM, dAbs);
+  if (snap.stallCount >= STALL_K) {
+    var oldWay = res.wayId;
+    snap.anchorWayId = null; snap.anchorSegIdx = 0; snap.challenger = null;
+    snap.stallCount = 0; snap.stallPrev = null;
+    var res2 = snapNearestWay(lat, lon, null);  // herbootstrap, eigen trace hieronder
+    traceWrite({ type:'stall', tijdstip:(evt && evt.tijdstip) || nowIso(),
+                 accuracy:(evt && evt.accuracy != null) ? evt.accuracy : '' },
+               lat, lon, 'stall_reset', oldWay, res2 ? res2.wayId : null,
+               null, null, []);
+    if (res2) res = res2;
+  }
+  snap.stallPrev = { wayId: res.wayId, snapM: res.snapM };
+  return res;
+}
+
+// Schrijf één regel naar de snap-trace. anchor_after = snap.anchorWayId nú,
+// na alle eventuele wijzigingen in deze snap-aanroep.
+function traceWrite(evt, lat, lon, snapPath, anchorBefore, chosenWay, dAnchor, dChosen, alts) {
+  snap.traceSeq++;
+  // Vangnet (v2.71): een fout hier breekt de GPS-callback af en kost dan
+  // routepunten. Een ontbrekende alternatievenlijst mag nooit veldgegevens kosten.
+  alts = alts || [];
+  var altStr = alts.map(function(a){ return a.wayId + ':' + a.d.toFixed(1); }).join('|');
+  snap.trace.push({
+    seq:            snap.traceSeq,
+    tijdstip:       evt.tijdstip,
+    event:          evt.type,
+    lat:            lat.toFixed(6),
+    lon:            lon.toFixed(6),
+    accuracy:       evt.accuracy != null ? evt.accuracy : '',
+    anchor_before:  anchorBefore != null ? anchorBefore : '',
+    snap_path:      snapPath,
+    chosen_way:     chosenWay != null ? chosenWay : '',
+    d_anchor:       dAnchor != null ? dAnchor.toFixed(1) : '',
+    d_chosen:       dChosen != null ? dChosen.toFixed(1) : '',
+    alternatives:   altStr,
+    anchor_after:   snap.anchorWayId != null ? snap.anchorWayId : '',
+    tap_nr:         evt.tap_nr != null ? evt.tap_nr : '',
+    conf:           (snap.confScore === null) ? "" : snap.confScore.toFixed(2),
+    conf_level:     snap.confLevel,
+    gps_stab:       (snap.gpsStabScore === null) ? "" : snap.gpsStabScore.toFixed(2),
+    gps_level:      snap.gpsStabLevel
+  });
+}
+
+// Compacte trace-regel voor fetch-lifecycle-events (fail/stale/giveup) —
+// v2.17: mislukkingen waren voorheen volledig stil (autorit 13 juli: ~80
+// stille misses onvindbaar in de export). snap_path draagt de details.
+function traceFetchEvent(event, lat, lon, detail) {
+  snap.traceSeq++;
+  snap.trace.push({
+    seq: snap.traceSeq, tijdstip: new Date().toISOString().slice(0,19),
+    event: event, lat: lat.toFixed(7), lon: lon.toFixed(7), accuracy: '',
+    anchor_before: snap.anchorWayId||'', snap_path: detail,
+    chosen_way: '', d_anchor: '', d_chosen: '', alternatives: '',
+    anchor_after: snap.anchorWayId||'', tap_nr: '',
+    conf: (snap.confScore === null) ? "" : snap.confScore.toFixed(2),
+    conf_level: snap.confLevel,
+    gps_stab: (snap.gpsStabScore === null) ? "" : snap.gpsStabScore.toFixed(2),
+    gps_level: snap.gpsStabLevel
+  });
+}
+
+// v2.49: een verse aanvraag begint hier, niet in snapFetchNetwork. De poort
+// (in-flight guard, cooldown, fid) is hierheen verhuisd omdat er vóór het
+// eerste verzoek nog een goedkopere bron is: de gedeelde tegel-cache. Een
+// treffer kost nul verzoeken en nul wachttijd. leesTegels geeft een lijst bij
+// volledige dekking (ook een lege lijst — dan weten we dat hier geen wegen
+// liggen) en null bij een misser.
+function snapStartFetch(lat, lon) {
+  if (snap.fetchInFlight) return;                 // één fetch tegelijk
+  if (Date.now() < snap.fetchCooldownUntil) return; // nog in cooldown na fout
+  snap.fetchInFlight = true;
+  var fid = ++snap.fetchSeq;                      // v2.17: id per logische aanvraag
+  leesTegels(lat, lon, SNAP_ROAD_FETCH_RADIUS).then(function(ways) {
+    if (ways) {
+      traceFetchEvent('tegelcache', lat, lon, 'fid:'+fid+'|n_ways:'+ways.length);
+      snapVerwerkNetwerk(ways, lat, lon, fid, 'tegel');
+      return;
+    }
+    snapFetchNetwork(lat, lon, 0, fid);
+  }, function() { snapFetchNetwork(lat, lon, 0, fid); });
+}
+
+// v2.49: het tóépassen van een netwerk zit in één functie, want het komt sinds
+// deze versie uit twee bronnen — een verse Overpass-fetch of de tegel-cache.
+// 'bron' belandt in snap_path, zodat snap_trace.csv laat zien waar het vandaan
+// kwam. Alle v2.17/v2.18-garanties (volgorde-guard, guard vrijgeven, backoff-
+// teller) blijven ongewijzigd en gelden nu ook voor de cache-route.
+function snapVerwerkNetwerk(elements, lat, lon, fid, bron) {
+  // v2.17 volgorde-guard: is er intussen een níéuwere fetch toegepast, dan
+  // is deze respons verouderd — cacheLat/Lon en segs niet overschrijven.
+  if (fid <= snap.fetchApplied) {
+    traceFetchEvent('fetch_stale', lat, lon, 'fid:'+fid+'|applied:'+snap.fetchApplied);
+    snap.fetchInFlight = false;   // v2.18: verouderde respons, maar guard wel vrij
+    return;
+  }
+  snap.fetchApplied = fid;
+  // v2.18: geslaagd — guard vrij, backoff-teller terug naar nul.
+  snap.fetchInFlight = false;
+  snap.fetchFailStreak = 0;
+  snap.fetchCooldownUntil = 0;
+  snap.cacheLat=lat; snap.cacheLon=lon;
+  // Stap 1 — accumuleer het nieuwe netwerk in snap.elements + adjacency ZODAT de
+  // segs-herbouw hieronder de nieuwe ways al meeneemt. (Volgorde t.o.v. <2.8:
+  // dit blok stond na de segs-bouw; nu ervóór.)
+  elements.forEach(function(el) {
+    if (el.type!=='way'||!el.geometry||el.geometry.length<2) return;
+    snapRegisterWay(el);  // adjacency cumulatief bijwerken
+    if (!snap.elements[String(el.id)]) {
+      snap.elements[String(el.id)] = {
+        highway: (el.tags&&el.tags.highway)||'',
+        osmName: (el.tags&&el.tags.name)||'',
+        geometry: el.geometry
+      };
+    }
+  });
+  // Stap 2 — herbouw snap.segs uit het CUMULATIEVE netwerk (niet alleen deze
+  // fetch), beperkt tot SNAP_SEGS_RADIUS rond de huidige positie. snapBuildSegs
+  // herprojecteert alles tegen (lat,lon) → geen frame-menging. Hiermee verliest
+  // een way die net buiten de verse 250m-cirkel valt z'n snap-kandidatuur niet.
+  var segElems = snapElementsNear(lat, lon);
+  snap.segs = snapBuildSegs(segElems, lat, lon);
+  // Log het event in snap_trace zodat de segs-herbouw traceerbaar is.
+  // bron   = fetch | tegel | leeg
+  // n_el   = ways uit deze bron
+  // n_kept = cumulatieve ways binnen SNAP_SEGS_RADIUS (input voor segs)
+  // n_segs = resulterende segmenten
+  snap.traceSeq++;
+  snap.trace.push({
+    seq:            snap.traceSeq,
+    tijdstip:       new Date().toISOString().slice(0,19),
+    event:          'fetch',
+    lat:            lat.toFixed(7),
+    lon:            lon.toFixed(7),
+    accuracy:       '',
+    anchor_before:  snap.anchorWayId||'',
+    snap_path:      'bron:'+bron+'|n_el:'+elements.length+'|n_kept:'+segElems.length+'|n_segs:'+snap.segs.length,
+    chosen_way:     '',
+    d_anchor:       '',
+    d_chosen:       '',
+    alternatives:   '',
+    anchor_after:   snap.anchorWayId||'',
+    tap_nr:         '',
+    conf:           (snap.confScore === null) ? "" : snap.confScore.toFixed(2),
+    conf_level:     snap.confLevel,
+    gps_stab:       (snap.gpsStabScore === null) ? "" : snap.gpsStabScore.toFixed(2),
+    gps_level:      snap.gpsStabLevel
+  });
+  snap.ready=true;
+  // Retro-snap tikken die wachtten op het netwerk: dichtstbijzijnde way op
+  // hun eigen historische positie (read-only, muteert het anker niet).
+  if (snap.pendingQueue.length) {
+    snap.pendingQueue.forEach(function(entry) {
+      if (entry.lat===null) return;
+      var s = snapNearestAny(entry.lat, entry.lon);
+      if (s) { entry.wayId = s.wayId; entry.segIdx = s.segIdx; entry.osmName = s.osmName; }
+      traceWrite({type:'tap_retro', tijdstip:entry.ts}, entry.lat, entry.lon,
+                 s ? 'retro_nearest' : 'no_candidate', snap.anchorWayId, s?s.wayId:null, null, s?s.d:null, []);
+    });
+    snap.pendingQueue = [];
+  }
+}
+
+function snapFetchNetwork(lat, lon, attempt, fid) {
+  if (attempt===undefined) attempt=0;
+  // v2.49: een aanroep zónder fid is een verse aanvraag en hoort via
+  // snapStartFetch te lopen (eerst de tegel-cache, dan pas Overpass).
+  if (fid===undefined) { snapStartFetch(lat, lon); return; }
+  if (attempt>=SNAP_OVERPASS.length*2) {
+    snap.fetchInFlight = false;
+    snap.fetchFailStreak++;
+    // v2.18: zolang er nog NOOIT een netwerk binnenkwam (cacheLat===null) is dit
+    // fataal — zonder netwerk snapt niets. Dan NIET opgeven maar blijven proberen
+    // met oplopende backoff (tot 8s). Pas als er ooit een netwerk was, geldt de
+    // normale giveup: een mislukte refresh is dan niet fataal (oud netwerk blijft).
+    if (snap.cacheLat===null) {
+      traceFetchEvent('fetch_retry_first', lat, lon, 'fid:'+fid+'|streak:'+snap.fetchFailStreak);
+      setTimeout(function(){ snapStartFetch(lat,lon); }, snapBackoffMs(snap.fetchFailStreak));
+      return;
+    }
+    traceFetchEvent('fetch_giveup', lat, lon, 'fid:'+fid+'|attempts:'+attempt);
+    snap.fetchCooldownUntil = Date.now() + snapBackoffMs(snap.fetchFailStreak);
+    return;
+  }
+  var epIdx=attempt%SNAP_OVERPASS.length;
+  // body geom: levert tags + node-IDs (el.nodes) + geometrie. Node-IDs zijn nodig
+  // voor adjacency-detectie (twee ways grenzen aan elkaar via gedeelde node-ID).
+  var query='[out:json][timeout:8];('
+            +'way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"](around:'+SNAP_ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
+            +'way["tunnel"="building_passage"](around:'+SNAP_ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
+            +');out body geom;';
+  fetch(SNAP_OVERPASS[epIdx]+'?data='+encodeURIComponent(query))
+    .then(function(r){ return r.ok?r.json():Promise.reject(ovpStatusUitHttp(r.status)); })
+    .then(function(data) {
+      var uitkomst = ovpKeur(data);
+      if (uitkomst === OVP_LEEG) {
+        // v2.49: geldig antwoord — hier liggen geen wegen (polder, haven, water).
+        // Vóór v2.49 ging dit door de catch, en zolang er nog nóóit een netwerk
+        // was gerapporteerd bleef de 'fataal'-tak hierboven eindeloos doorvragen.
+        // Nu accepteren we het lege netwerk: cacheLat komt te staan, en de
+        // afstandspoort in snapCheckRefresh houdt z'n mond tot we verder zijn.
+        traceFetchEvent('fetch_leeg', lat, lon, 'fid:'+fid+'|ep:'+epIdx);
+        snapVerwerkNetwerk([], lat, lon, fid, 'leeg');
+        return;
+      }
+      if (uitkomst !== OVP_OK) return Promise.reject(uitkomst);
+      cacheWaysInTiles(data.elements, lat, lon, SNAP_ROAD_FETCH_RADIUS);   // deel met de reconstructor
+      snapVerwerkNetwerk(data.elements, lat, lon, fid, 'fetch');
+    })
+    .catch(function(err){
+      // v2.17: elke mislukte poging zichtbaar in de trace (was volledig stil).
+      traceFetchEvent('fetch_fail', lat, lon,
+        'fid:'+fid+'|ep:'+epIdx+'|attempt:'+attempt+'|err:'+String(err).slice(0,60));
+      if (err === OVP_LIMIET) {
+        // v2.49: de server wijst ons af of zit vol. Niet meteen de andere mirror
+        // erbij halen — Overpass voert de query eerst uit en meldt de limiet
+        // daarna, dus een geweigerd verzoek kost net zoveel als een geslaagd.
+        snap.fetchInFlight = false;
+        snap.fetchFailStreak++;
+        snap.fetchCooldownUntil = Date.now() + OVP_LIMIET_WACHT_MS;
+        return;
+      }
+      if (err === OVP_OUD && attempt + 1 >= SNAP_OVERPASS.length && snap.cacheLat !== null) {
+        // v2.49: álle mirrors lopen achter op OSM. Dat lost zich niet op in
+        // seconden. We hebben al een werkend netwerk, dus lang wachten mag.
+        // Zónder netwerk (cacheLat===null) geldt de fataal-regel van v2.18 en
+        // blijven we het gewoon proberen — verouderd nieuws is dan beter dan niets.
+        snap.fetchInFlight = false;
+        snap.fetchFailStreak++;
+        snap.fetchCooldownUntil = Date.now() + OVP_OUD_WACHT_MS;
+        return;
+      }
+      // v2.18: wacht vóór de volgende poging (exponentieel) i.p.v. onmiddellijk
+      // opnieuw vuren. De in-flight guard blijft aan: dit is dezelfde logische
+      // aanvraag die z'n volgende poging afwacht.
+      setTimeout(function(){ snapFetchNetwork(lat,lon,attempt+1,fid); },
+                 snapBackoffMs(attempt+1));
+    });
+}
+
+// v2.18: exponentiële backoff met plafond. 500·2^(n-1), gemaximeerd op 8s, zodat
+// een aanhoudend onbereikbaar netwerk de tool niet laat malen maar ook niet te
+// lang blind blijft zodra de dekking terugkeert.
+// v2.49: de formule zelf staat nu in het gedeelde Overpass-blok (ovpBackoffMs),
+// zodat pocket en de parkeer-apps niet uit elkaar kunnen lopen.
+function snapBackoffMs(n) {
+  return ovpBackoffMs(n);
+}
+
+var _snapRefreshTimer = null;
+function snapCheckRefresh(lat, lon) {
+  if (snap.cacheLat===null) {
+    // v2.18: eerste netwerk nog niet binnen. snapFetchNetwork weigert zelf nieuwe
+    // aanvragen tijdens in-flight of cooldown, dus deze poort veroorzaakt geen
+    // storm meer. We debouncen 'm bovendien, zodat een tros GPS-fixes samenvalt
+    // tot één poging i.p.v. één per fix.
+    if (snap.fetchInFlight || Date.now() < snap.fetchCooldownUntil) return;
+    if (_snapRefreshTimer) clearTimeout(_snapRefreshTimer);
+    _snapRefreshTimer = setTimeout(function(){ snapStartFetch(lat,lon); }, 600);
+    return;
+  }
+  var cos=Math.cos(snap.cacheLat*Math.PI/180);
+  var dx=(lon-snap.cacheLon)*111320*cos, dy=(lat-snap.cacheLat)*111320;
+  if (Math.sqrt(dx*dx+dy*dy) > SNAP_ROAD_FETCH_RADIUS*0.6) {
+    if (_snapRefreshTimer) clearTimeout(_snapRefreshTimer);
+    _snapRefreshTimer = setTimeout(function(){ snapStartFetch(lat,lon); }, 600);
+  }
+}
+// ── EINDE SNAP MODULE ─────────────────────────────────────────────────────────
+
+// Sessieherstel (v2.11): veiligheids-opslag bij scherm-uit/wegnavigeren.
+document.addEventListener('visibilitychange', function(){ if (document.hidden) saveSession(); });
+window.addEventListener('pagehide', saveSession);
+
+// Opstarten (v2.69): pas als de hele pagina er staat. Tot v2.69 stonden
+// applyLang() en restoreSession() hier los in het script. Maar het
+// voorbeeldscherm (#preview-title e.a.) staat pas NA dit script in de HTML;
+// applyLang() liep daarop vast, het script stopte, en restoreSession() werd
+// nooit bereikt. Een onderbroken telling werd dus nooit teruggeboden, en bij
+// de volgende start stil gewist (start* roept clearSession() aan).
+document.addEventListener('DOMContentLoaded', function () {
+  // Pas de taal toe zodat het vertaalsysteem de enige bron van waarheid is
+  // (ook de HTML-defaults lopen er dan doorheen).
+  applyLang();
+  // Een eventuele niet-afgeronde telling terugbieden.
+  restoreSession();
+});
+
+// Directe ingang (v2.69, v2.70): de voorpagina linkt naar pocket_count.html#parkeren.
+// Via deze ingang is pocket een parkeer-app; het keuzemenu met de vier modi
+// verschijnt nooit (klasse .pk-ingang in <head> + pkDirect hieronder):
+//   - niets te herstellen: meteen het parkeerscherm;
+//   - een onderbroken telling: de herstelmelding met alleen de Parkeren-knop.
+//     Eerst herstellen, dan pas starten, want startParkeren() wist de
+//     noodopslag. Na Verwijder of na het voorbeeldscherm door naar parkeren;
+//   - Terug op het parkeerscherm: naar de voorpagina;
+//   - na Stop en het voorbeeldscherm: een verse parkeertelling.
+// Deze listener staat NA die van het opstarten hierboven; listeners draaien in
+// volgorde, dus restoreSession() heeft dan al beslist of de melding er staat.
+// De hash blijft in de adresbalk, zodat je deze ingang als eigen icoon op het
+// beginscherm kunt zetten.
+var pkDirect = false;
+function directeModus(hash, herstelOpen) {
+  if (hash !== '#parkeren') return null;
+  return herstelOpen ? 'herstel' : 'parkeren';
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var herstelOpen = document.getElementById('restore-banner').style.display !== 'none';
+  var ingang = directeModus(location.hash, herstelOpen);
+  if (!ingang) return;
+  pkDirect = true;
+  if (ingang === 'herstel') return;   // melding + alleen de Parkeren-knop (CSS)
+  startParkeren();
+  // Zonder tik vooraf kan de browser het scherm-aan-verzoek weigeren. De eerste
+  // aanraking telt als gebaar en vraagt het dan opnieuw.
+  document.addEventListener('pointerdown', function eenmalig() {
+    document.removeEventListener('pointerdown', eenmalig);
+    if (!wakeLock) acquireWakeLock();
+  });
+});
+
+</script>
+<!-- Preview overlay — verschijnt na opslaan ZIP -->
+<div id="transect-screen">
+  <div id="tc-dir-config">
+    <input id="lbl-a" value="Richting A" oninput="tcSetLabelA(this.value)">
+    <input id="lbl-b" value="Richting B" oninput="tcSetLabelB(this.value)">
+    <button id="btn-compass" onclick="autoDirections()">Kompas</button>
+  </div>
+  <div id="tc-total">
+    <span class="lbl">Totaal</span>
+    <span class="val" id="grand-total">0</span>
+  </div>
+  <div id="tc-counters"></div>
+</div>
+<button id="tc-back" style="display:none" onclick="tcBack()">&#8249; Terug</button>
+<button id="tc-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
+
+<div id="winkel-screen">
+  <div id="ws-total">
+    <span class="lbl">Totaal</span>
+    <span class="val" id="ws-total-val">0</span>
+  </div>
+  <div id="ws-cards"></div>
+</div>
+<button id="ws-back" style="display:none" onclick="wsBack()">&#8249; Terug</button>
+<button id="ws-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
+
+<!-- Parkeren-modus (v2.17): 2×2 vaste kaarten, links/rechts × leeg/bezet -->
+<div id="parkeer-screen">
+  <div id="pk-total">
+    <span class="lbl">Totaal</span>
+    <span class="val" id="pk-total-val">0</span>
+  </div>
+  <div id="pk-cards"></div>
+</div>
+<div id="pk-btnbar">
+  <button id="pk-back" style="display:none" onclick="pkBack()">&#8249; Terug</button>
+  <button id="pk-map" style="display:none" onclick="openPkMap()">&#128506; Kaart</button>
+  <button id="pk-stop" style="display:none" onclick="stopTelling()">&#9632; Stop &amp; Download</button>
+</div>
+
+<div id="pk-map-overlay">
+  <div id="pk-map-bar">
+    <span>Dekking &mdash; waar heb je geteld</span>
+    <button id="pk-map-close" onclick="closePkMap()">&#10005;</button>
+  </div>
+  <div id="pk-map-canvas"></div>
+  <div id="pk-map-legend">
+    <span class="lg"><span class="dot" style="background:#b0342b"></span>bezet</span>
+    <span class="lg"><span class="dot" style="background:#3a7d44"></span>leeg</span>
+    <span class="lg"><span class="dot" style="background:#888;border:2.5px solid #fff"></span>links</span>
+    <span class="lg"><span class="dot" style="background:#888;border:2.5px solid #111"></span>rechts</span>
+    <span class="lg"><span class="ln" style="background:#1f5fbf"></span>route</span>
+  </div>
+</div>
+
+<div id="preview-overlay">
+  <div id="preview-header">
+    <span id="preview-title">Telling afgerond</span>
+    <div>
+      <button id="preview-save" onclick="savePreviewZip()">&#x2913; ZIP opslaan</button>
+      <button id="preview-recon" onclick="openReconstructie()">&#8635; Reconstrueren</button>
+      <button id="preview-close" onclick="closePreview()">&#x2715; Sluiten</button>
+    </div>
+  </div>
+  <canvas id="preview-canvas" width="800" height="800"></canvas>
+  <div id="preview-stats">
+    <div class="pstat"><div class="pstat-val" id="pstat-tikken">—</div><div class="pstat-lbl" id="lbl-tikken">Tikken</div></div>
+    <div class="pstat"><div class="pstat-val" id="pstat-segs">—</div><div class="pstat-lbl" id="lbl-segs">Segmenten</div></div>
+    <div class="pstat"><div class="pstat-val" id="pstat-km">—</div><div class="pstat-lbl" id="lbl-km">Km gelopen</div></div>
+    <div class="pstat"><div class="pstat-val" id="pstat-max">—</div><div class="pstat-lbl" id="lbl-max">Max p/m</div></div>
+  </div>
+  <div id="preview-legend">
+    <div class="pleg"><div class="pleg-swatch" style="background:rgb(0,220,0)"></div><span id="leg-low">weinig</span></div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgb(255,200,0)"></div><span id="leg-med">matig</span></div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgb(255,60,0)"></div><span id="leg-high">druk (≥1/m)</span></div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgba(60,61,66,0.35);border:1.5px dashed #888"></div><span id="leg-zero">bezocht, 0 tikken</span></div>
+    <div class="pleg"><div class="pleg-swatch" style="background:rgba(160,160,180,0.5)"></div><span id="leg-gps">GPS-spoor</span></div>
+  </div>
+</div>
+
+</body>
+</html>

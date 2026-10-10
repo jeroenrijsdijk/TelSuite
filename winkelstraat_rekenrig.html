@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Winkelstraat-rekenrig — Telonline Verkeerstellingen</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root{
+  --bg:#f0f0ec; --ink:#1c1c1a; --muted:#6f6f68; --line:#c9c9c1;
+  --paper:#f7f7f4; --accent:#2f5d62; --warn:#8a5a2b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+     font-family:Oswald,system-ui,sans-serif;font-weight:300;font-size:14px;line-height:1.45}
+header{padding:18px 22px 14px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:19px;font-weight:500;letter-spacing:.03em;text-transform:uppercase}
+.sub{color:var(--muted);font-size:12.5px;margin-top:3px}
+main{display:grid;grid-template-columns:290px 1fr;gap:0;min-height:calc(100vh - 62px)}
+#left{border-right:1px solid var(--line);padding:16px;overflow:auto}
+#right{padding:18px 22px;overflow:auto}
+#drop{border:1.5px dashed var(--line);background:var(--paper);border-radius:3px;
+      padding:20px 14px;text-align:center;cursor:pointer;color:var(--muted);font-size:13px}
+#drop.over{border-color:var(--accent);color:var(--accent)}
+.sect{margin-top:20px}
+.sect h2{font-size:11.5px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;
+         color:var(--muted);margin:0 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+.seglist{list-style:none;margin:0;padding:0}
+.seglist li{padding:5px 7px;cursor:pointer;border-radius:2px;display:flex;
+            justify-content:space-between;gap:8px;align-items:baseline}
+.seglist li:hover{background:#e6e6e0}
+.seglist li.on{background:var(--accent);color:#fff}
+.seglist li.on .q{color:#fff}
+.straat{font-size:11px;font-weight:500;letter-spacing:.09em;text-transform:uppercase;
+        color:var(--muted);margin:12px 0 4px}
+.q{font-variant-numeric:tabular-nums;font-weight:400}
+.dim{color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th{font-weight:500;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+   color:var(--muted);text-align:right;padding:5px 8px;border-bottom:1px solid var(--line)}
+th.l,td.l{text-align:left}
+td{padding:4px 8px;text-align:right;border-bottom:1px solid #e2e2db}
+/* --- grid --- */
+.grid{border-collapse:separate;border-spacing:2px;width:auto;margin-top:4px}
+.grid th{padding:2px 4px;font-size:10px;letter-spacing:.04em}
+.grid th.hr{text-align:center;width:34px}
+.grid td{padding:0;border:none;width:34px;height:30px;position:relative}
+.cell{width:100%;height:100%;border-radius:2px;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;font-size:11px;line-height:1.05}
+.cell.leeg{background:repeating-linear-gradient(45deg,#e8e8e2,#e8e8e2 3px,#f0f0ec 3px,#f0f0ec 6px)}
+.cell.nul{background:var(--paper);border:1px solid var(--line)}
+.cell.nul::after{content:"";width:3px;height:3px;border-radius:50%;background:var(--muted)}
+.cell.val{color:#fff;font-weight:400;cursor:default}
+.cell .n{font-size:8.5px;opacity:.75;font-weight:300}
+.legend{display:flex;gap:16px;align-items:center;margin-top:12px;font-size:11.5px;color:var(--muted)}
+.legend i{display:inline-block;width:15px;height:15px;border-radius:2px;vertical-align:-3px;margin-right:5px}
+.note{background:var(--paper);border-left:2px solid var(--accent);padding:9px 12px;
+      margin:14px 0;font-size:12.5px;color:#3a3a35}
+.note.warn{border-left-color:var(--warn)}
+.big{font-size:26px;font-weight:400;letter-spacing:-.01em}
+.kpi{display:flex;gap:26px;flex-wrap:wrap;margin:10px 0 4px}
+.kpi div span{display:block;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.pill{display:inline-block;padding:1px 6px;border:1px solid var(--line);border-radius:9px;
+      font-size:10.5px;letter-spacing:.06em;color:var(--muted);margin-left:5px}
+.hide{display:none}
+button{font-family:inherit;font-size:12px;font-weight:400;padding:5px 11px;cursor:pointer;
+       background:var(--paper);border:1px solid var(--line);border-radius:2px;color:var(--ink)}
+button:hover{border-color:var(--accent);color:var(--accent)}
+input[type=number]{font-family:inherit;font-size:12px;width:52px;padding:3px 5px;
+       border:1px solid var(--line);border-radius:2px;background:var(--paper)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Winkelstraat-rekenrig</h1>
+  <div class="sub">Passanten per uur uit moving-observer-tellingen · prototype, geen productiecode</div>
+</header>
+
+<main>
+<div id="left">
+  <div id="drop">Sleep hier &eacute;&eacute;n of meer<br>winkelstraat-ZIP's<br><span class="dim">of klik om te kiezen</span></div>
+  <input type="file" id="file" multiple accept=".zip" class="hide">
+
+  <div class="sect">
+    <h2>Aanname</h2>
+    <label>v<sub>voetganger</sub> <input type="number" id="vped" value="1.3" step="0.1" min="0.5" max="2.5"> m/s</label>
+    <div class="dim" style="font-size:11.5px;margin-top:5px">Enige aanname in de methode. Bereik 1,0&ndash;1,5 verschuift de uitkomst ca. &plusmn;10%.</div>
+  </div>
+
+  <div class="sect hide" id="sessieblok">
+    <h2>Sessies</h2>
+    <div id="sessies"></div>
+  </div>
+
+  <div class="sect hide" id="segblok">
+    <h2>Segmenten</h2>
+    <div id="segmenten"></div>
+  </div>
+</div>
+
+<div id="right">
+  <div id="leeg" class="note">Nog geen data geladen. Sleep een winkelstraat-ZIP in het vak linksboven.</div>
+  <div id="inhoud" class="hide"></div>
+</div>
+</main>
+
+<script>
+/* ============================================================================
+   Winkelstraat-rekenrig — prototype
+   ----------------------------------------------------------------------------
+   Schatter (moving observer, Wardrop-Charlesworth):
+
+       q = 3600 * m / (L/v_voet + t)
+
+   m = aantal 'tegemoet'-tikken tijdens de passage
+   L = segmentlengte uit OSM-geometrie (betrouwbaar; géén GPS-afstand)
+   t = aanwezigheidstijd in het segment uit _bezocht.csv
+   De noemer is het ONTMOETINGSVENSTER: de tijd waarin een tegemoetkomer
+   jou had kunnen tegenkomen.
+
+   Pooling over meerdere passages = ratio-of-sums, NIET het gemiddelde van de
+   losse q's (dat weegt korte passages te zwaar; scheelt op veldwerk tot 28%):
+
+       q_cel = 3600 * Σm / Σ(L/v_voet + t)
+
+   Optie 3: per waargenomen LOOPRICHTING pooolen, dan optellen. Loop je A→B,
+   dan meet je uitsluitend de stroom B→A. Heen én terug gelopen = echt totaal;
+   één richting gelopen = die ene stroom, met label.
+
+   Stilstaanders zijn géén stroom maar een momentopname: je passage ziet ieder
+   stilstaand persoon in het segment precies één keer. Dus k = Σm_stil / ΣL,
+   zonder enige snelheidsaanname.
+   ========================================================================== */
+
+var VPED = 1.3;
+var SESSIES = [];     // {id, datum, modus, visits[], nTel, nWees}
+var SEGMENTEN = {};   // "way/seg" -> {way,seg,straat,L,cells{}}
+var HUIDIG = null;
+var DAGEN = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];
+
+/* ---------- laden ---------------------------------------------------------- */
+
+var drop = document.getElementById('drop'), fileInput = document.getElementById('file');
+drop.onclick = function(){ fileInput.click(); };
+fileInput.onchange = function(e){ verwerkBestanden(e.target.files); };
+['dragenter','dragover'].forEach(function(ev){
+  drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('over'); });
+});
+['dragleave','drop'].forEach(function(ev){
+  drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('over'); });
+});
+drop.addEventListener('drop', function(e){ verwerkBestanden(e.dataTransfer.files); });
+
+document.getElementById('vped').onchange = function(e){
+  var v = parseFloat(e.target.value);
+  if (!isFinite(v) || v <= 0) return;
+  VPED = v; herbereken(); teken();
+};
+
+function verwerkBestanden(lijst){
+  var taken = [];
+  for (var i = 0; i < lijst.length; i++){
+    if (/\.zip$/i.test(lijst[i].name)) taken.push(leesZip(lijst[i]));
+  }
+  if (!taken.length){ melding('Geen ZIP-bestanden herkend.'); return; }
+  Promise.all(taken).then(function(){ herbereken(); teken(); });
+}
+
+function leesZip(file){
+  return JSZip.loadAsync(file).then(function(zip){
+    var wanted = {}, namen = Object.keys(zip.files);
+    ['sessie','bezocht','telregels','netwerk','gps'].forEach(function(soort){
+      var n = namen.find(function(x){ return x.indexOf('_' + soort + '.csv') >= 0; });
+      if (n) wanted[soort] = n;
+    });
+    if (!wanted.sessie || !wanted.bezocht || !wanted.telregels || !wanted.netwerk){
+      throw new Error('ZIP mist een van de verplichte CSV\'s: ' + file.name);
+    }
+    var keys = Object.keys(wanted);
+    return Promise.all(keys.map(function(k){ return zip.file(wanted[k]).async('string'); }))
+      .then(function(teksten){
+        var d = {};
+        keys.forEach(function(k, i){ d[k] = parseCsv(teksten[i]); });
+        voegSessieToe(d, file.name);
+      });
+  }).catch(function(err){ melding(err.message || String(err)); });
+}
+
+function parseCsv(txt){
+  return Papa.parse(txt.replace(/^\uFEFF/, '').trim(), {
+    header: true, delimiter: ';', skipEmptyLines: true
+  }).data;
+}
+
+/* ---------- geometrie ------------------------------------------------------ */
+
+function wktPunten(wkt){
+  var m = /\((.*)\)/.exec(wkt || '');
+  if (!m) return [];
+  return m[1].split(',').map(function(p){
+    var xy = p.trim().split(/\s+/);
+    return [parseFloat(xy[0]), parseFloat(xy[1])];   // [lon, lat]
+  });
+}
+
+function haversine(a, b){
+  var R = 6371000, rad = Math.PI / 180;
+  var la1 = a[1]*rad, la2 = b[1]*rad, dla = (b[1]-a[1])*rad, dlo = (b[0]-a[0])*rad;
+  var h = Math.sin(dla/2)*Math.sin(dla/2) +
+          Math.cos(la1)*Math.cos(la2)*Math.sin(dlo/2)*Math.sin(dlo/2);
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function polyLengte(p){
+  var s = 0;
+  for (var i = 0; i < p.length - 1; i++) s += haversine(p[i], p[i+1]);
+  return s;
+}
+
+// positie langs polyline in meters — alleen gebruikt als terugval voor richting
+function langsPolyline(pt, poly){
+  var best = Infinity, bestPos = 0, cum = 0;
+  for (var i = 0; i < poly.length - 1; i++){
+    var a = poly[i], b = poly[i+1], seg = haversine(a, b);
+    if (seg < 1e-9) continue;
+    var dx = b[0]-a[0], dy = b[1]-a[1];
+    var t = ((pt[0]-a[0])*dx + (pt[1]-a[1])*dy) / (dx*dx + dy*dy);
+    t = Math.max(0, Math.min(1, t));
+    var d = haversine(pt, [a[0]+t*dx, a[1]+t*dy]);
+    if (d < best){ best = d; bestPos = cum + t*seg; }
+    cum += seg;
+  }
+  return bestPos;
+}
+
+/* ---------- sessie inlezen ------------------------------------------------- */
+
+function tijdNaarSec(hms){
+  var p = String(hms).split(':').map(Number);
+  return p[0]*3600 + p[1]*60 + (p[2] || 0);
+}
+function isoNaarSec(iso){
+  var t = String(iso).split('T')[1] || '';
+  return tijdNaarSec(t);
+}
+
+function voegSessieToe(d, bestandsnaam){
+  var ses = d.sessie[0] || {};
+  var sid = ses.sessie_id || bestandsnaam;
+  if (SESSIES.some(function(s){ return s.id === sid; })) return;   // dubbel geladen
+
+  // geometrie van dit netwerkbestand
+  var geo = {}, len = {};
+  d.netwerk.forEach(function(r){
+    var k = r.osm_way_id + '/' + r.segment_index;
+    var p = wktPunten(r.geometrie_wkt);
+    if (p.length >= 2){ geo[k] = p; len[k] = polyLengte(p); }
+  });
+
+  // tikken indexeren
+  var tikken = d.telregels.map(function(r){
+    return { k: r.osm_way_id + '/' + r.segment_index, sec: isoNaarSec(r.tijdstip), type: r.type };
+  });
+
+  var visits = d.bezocht.map(function(r){
+    var k = r.osm_way_id + '/' + r.segment_index;
+    var t0 = tijdNaarSec(r.start_tijd), t1 = tijdNaarSec(r.eind_tijd);
+    var teg = 0, stil = 0;
+    tikken.forEach(function(x){
+      if (x.k !== k || x.sec < t0 || x.sec > t1) return;
+      if (x.type === 'tegemoet') teg++; else if (x.type === 'stilstaand') stil++;
+    });
+    return {
+      key: k, way: r.osm_way_id, seg: parseInt(r.segment_index, 10),
+      straat: r.straat || '(naamloos)',
+      L: len[k] || 0, t: parseFloat(r.duur_sec) || 0,
+      t0: t0, t1: t1, teg: teg, stil: stil,
+      datum: r.datum || ses.datum, richting: null, richtingBron: ''
+    };
+  }).filter(function(v){ return v.L > 0 && v.t > 0; });
+
+  bepaalRichtingen(visits, d.gps || [], geo);
+
+  var gekoppeld = visits.reduce(function(s, v){ return s + v.teg + v.stil; }, 0);
+  SESSIES.push({
+    id: sid, datum: ses.datum || '', modus: ses.modus || ses.type || '',
+    visits: visits, nTel: d.telregels.length, nGekoppeld: gekoppeld,
+    nWees: d.telregels.length - gekoppeld
+  });
+
+  visits.forEach(function(v){
+    if (!SEGMENTEN[v.key]){
+      SEGMENTEN[v.key] = { key: v.key, way: v.way, seg: v.seg,
+                           straat: v.straat, L: v.L, passages: [] };
+    }
+    SEGMENTEN[v.key].passages.push(v);
+  });
+}
+
+/* ---------- richting per passage -------------------------------------------
+   Primair uit de VOLGORDE van passages op dezelfde way: 0→1→2 betekent richting
+   A (oplopende segment_index), 2→1→0 betekent B. Die conclusie rust op welk
+   segment je in zat, niet op coördinaten, en is dus ongevoelig voor GPS-ruis.
+   Terugval alleen voor een way met één enkele passage: projectie van de eerste
+   en laatste GPS-fix op de segmentgeometrie, met drempel van 8 m.
+   -------------------------------------------------------------------------- */
+
+function bepaalRichtingen(visits, gps, geo){
+  visits.forEach(function(v, i){
+    var vorige = i > 0 ? visits[i-1] : null;
+    var volgende = i < visits.length - 1 ? visits[i+1] : null;
+    if (vorige && vorige.way === v.way && vorige.seg !== v.seg){
+      v.richting = v.seg > vorige.seg ? 'A' : 'B';
+      v.richtingBron = 'volgorde';
+      return;
+    }
+    if (volgende && volgende.way === v.way && volgende.seg !== v.seg){
+      v.richting = volgende.seg > v.seg ? 'A' : 'B';
+      v.richtingBron = 'volgorde';
+      return;
+    }
+    var poly = geo[v.key];
+    if (!poly) return;
+    var fixes = gps.filter(function(g){
+      var s = isoNaarSec(g.tijdstip);
+      return s >= v.t0 && s <= v.t1 && isFinite(parseFloat(g.lat));
+    });
+    if (fixes.length < 2) return;
+    var a = langsPolyline([parseFloat(fixes[0].lon), parseFloat(fixes[0].lat)], poly);
+    var b = langsPolyline([parseFloat(fixes[fixes.length-1].lon),
+                           parseFloat(fixes[fixes.length-1].lat)], poly);
+    if (Math.abs(b - a) >= 8){
+      v.richting = b > a ? 'A' : 'B';
+      v.richtingBron = 'gps ' + (b > a ? '+' : '') + (b - a).toFixed(0) + ' m';
+    } else {
+      v.richtingBron = 'gps \u0394' + (b - a).toFixed(0) + ' m te klein';
+    }
+  });
+}
+
+/* ---------- aggregatie naar dag/uur-cellen --------------------------------- */
+
+function dagIndex(datum){
+  var d = new Date(datum + 'T12:00:00');
+  return isNaN(d) ? null : (d.getDay() + 6) % 7;      // 0 = maandag
+}
+
+function herbereken(){
+  Object.keys(SEGMENTEN).forEach(function(k){
+    var seg = SEGMENTEN[k];
+    seg.cells = {};
+    seg.passages.forEach(function(v){
+      var dag = dagIndex(v.datum);
+      if (dag === null) return;
+      var uur = Math.floor(((v.t0 + v.t1) / 2) / 3600);   // uur van het midden
+      var ck = dag + ':' + uur;
+      var c = seg.cells[ck];
+      if (!c){
+        c = seg.cells[ck] = { dag: dag, uur: uur, n: 0,
+          stromen: { A: {m:0, w:0, n:0}, B: {m:0, w:0, n:0}, '?': {m:0, w:0, n:0} },
+          stil: 0, stilL: 0 };
+      }
+      var venster = v.L / VPED + v.t;                    // ontmoetingsvenster (s)
+      var r = v.richting || '?';
+      c.stromen[r].m += v.teg;
+      c.stromen[r].w += venster;
+      c.stromen[r].n += 1;
+      c.stil += v.stil;
+      c.stilL += v.L;
+      c.n += 1;
+    });
+    // celwaarden afleiden
+    Object.keys(seg.cells).forEach(function(ck){
+      var c = seg.cells[ck], totaal = 0, labels = [], m = 0;
+      ['A','B','?'].forEach(function(r){
+        var s = c.stromen[r];
+        if (!s.n) return;
+        s.q = 3600 * s.m / s.w;
+        totaal += s.q; m += s.m;
+        // gelopen richting A meet de stroom B→A
+        labels.push(r === '?' ? '?' : (r === 'A' ? 'B\u2192A' : 'A\u2192B'));
+      });
+      c.q = totaal;
+      c.m = m;
+      c.labels = labels;
+      c.kStil = c.stilL > 0 ? 100 * c.stil / c.stilL : 0;
+      c.compleet = c.stromen.A.n > 0 && c.stromen.B.n > 0;
+    });
+  });
+}
+
+/* ---------- tekenen -------------------------------------------------------- */
+
+function melding(tekst){
+  var el = document.getElementById('leeg');
+  el.classList.remove('hide');
+  el.classList.add('warn');
+  el.textContent = tekst;
+}
+
+function teken(){
+  var keys = Object.keys(SEGMENTEN);
+  if (!keys.length) return;
+  document.getElementById('leeg').classList.add('hide');
+  document.getElementById('inhoud').classList.remove('hide');
+  document.getElementById('sessieblok').classList.remove('hide');
+  document.getElementById('segblok').classList.remove('hide');
+  tekenSessies();
+  tekenSegmentlijst();
+  if (!HUIDIG || !SEGMENTEN[HUIDIG]){
+    HUIDIG = keys.sort(function(a, b){
+      return totaalM(SEGMENTEN[b]) - totaalM(SEGMENTEN[a]);
+    })[0];
+  }
+  tekenSegment();
+}
+
+function totaalM(seg){
+  return seg.passages.reduce(function(s, v){ return s + v.teg; }, 0);
+}
+
+function tekenSessies(){
+  var h = '';
+  SESSIES.forEach(function(s){
+    h += '<div style="margin-bottom:9px">' +
+         '<div style="font-size:12px">' + s.datum + ' <span class="dim">' + s.modus + '</span></div>' +
+         '<div class="dim" style="font-size:11.5px">' + s.visits.length + ' passages &middot; ' +
+         s.nGekoppeld + '/' + s.nTel + ' tikken toegewezen';
+    if (s.nWees > 0) h += ' <span class="pill">' + s.nWees + ' wees</span>';
+    h += '</div></div>';
+  });
+  document.getElementById('sessies').innerHTML = h;
+}
+
+function tekenSegmentlijst(){
+  var perStraat = {};
+  Object.keys(SEGMENTEN).forEach(function(k){
+    var s = SEGMENTEN[k];
+    (perStraat[s.straat] = perStraat[s.straat] || []).push(s);
+  });
+  var h = '';
+  Object.keys(perStraat).sort().forEach(function(straat){
+    h += '<div class="straat">' + escHtml(straat) + '</div><ul class="seglist">';
+    perStraat[straat].sort(function(a, b){ return a.way === b.way ? a.seg - b.seg
+                                                : a.way.localeCompare(b.way); })
+      .forEach(function(s){
+        var q = gemiddeldeQ(s);
+        h += '<li data-k="' + s.key + '" class="' + (s.key === HUIDIG ? 'on' : '') + '">' +
+             '<span>' + s.way + '<span class="dim">/' + s.seg + '</span></span>' +
+             '<span class="q">' + (q === null ? '\u2013' : Math.round(q)) + '</span></li>';
+      });
+    h += '</ul>';
+  });
+  var el = document.getElementById('segmenten');
+  el.innerHTML = h;
+  el.querySelectorAll('li').forEach(function(li){
+    li.onclick = function(){ HUIDIG = li.getAttribute('data-k'); teken(); };
+  });
+}
+
+// gemiddelde over alle gevulde cellen — alleen voor de lijst links
+function gemiddeldeQ(seg){
+  var ck = Object.keys(seg.cells || {});
+  if (!ck.length) return null;
+  var s = 0;
+  ck.forEach(function(k){ s += seg.cells[k].q; });
+  return s / ck.length;
+}
+
+function kleur(q, max){
+  if (max <= 0) return '#c9c9c1';
+  var f = Math.pow(Math.min(1, q / max), 0.6);
+  // bleek zeegroen -> diep petrol
+  var r = Math.round(198 + (26 - 198) * f);
+  var g = Math.round(216 + (78 - 216) * f);
+  var b = Math.round(210 + (84 - 210) * f);
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+function tekenSegment(){
+  var seg = SEGMENTEN[HUIDIG];
+  var maxQ = 0;
+  Object.keys(SEGMENTEN).forEach(function(k){
+    var s = SEGMENTEN[k];
+    Object.keys(s.cells || {}).forEach(function(ck){ maxQ = Math.max(maxQ, s.cells[ck].q); });
+  });
+
+  var h = '<div style="font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)">' +
+          escHtml(seg.straat) + '</div>' +
+          '<div class="big">' + seg.way + ' / segment ' + seg.seg + '</div>' +
+          '<div class="dim" style="margin-top:2px">' + seg.L.toFixed(0) + ' m &middot; ' +
+          seg.passages.length + ' passage' + (seg.passages.length === 1 ? '' : 's') + '</div>';
+
+  // ---- grid
+  h += '<div class="sect"><h2>Passanten per uur</h2><table class="grid"><tr><th></th>';
+  for (var u = 0; u < 24; u++) h += '<th class="hr">' + u + '</th>';
+  h += '</tr>';
+  for (var d = 0; d < 7; d++){
+    h += '<tr><th class="l">' + DAGEN[d].slice(0, 2) + '</th>';
+    for (u = 0; u < 24; u++){
+      var c = seg.cells[d + ':' + u];
+      if (!c){
+        h += '<td><div class="cell leeg" title="niet gemeten"></div></td>';
+      } else if (c.q === 0){
+        h += '<td><div class="cell nul" title="' + celTitel(c) + '"></div></td>';
+      } else {
+        h += '<td><div class="cell val" style="background:' + kleur(c.q, maxQ) + '" title="' +
+             celTitel(c) + '">' + Math.round(c.q) +
+             '<span class="n">' + c.n + '\u00d7' + (c.compleet ? '' : ' \u00bd') + '</span></div></td>';
+      }
+    }
+    h += '</tr>';
+  }
+  h += '</table>';
+  h += '<div class="legend">' +
+       '<span><i class="cell leeg" style="border:none"></i>niet gemeten</span>' +
+       '<span><i style="background:var(--paper);border:1px solid var(--line)"></i>gemeten nul</span>' +
+       '<span><i style="background:' + kleur(maxQ, maxQ) + '"></i>drukste cel (' + Math.round(maxQ) + '/uur)</span>' +
+       '<span>&frac12; = maar &eacute;&eacute;n looprichting gemeten</span>' +
+       '</div></div>';
+
+  // ---- cel-detail
+  var ckeys = Object.keys(seg.cells).sort();
+  if (ckeys.length){
+    h += '<div class="sect"><h2>Gevulde cellen</h2><table><tr>' +
+         '<th class="l">dag</th><th>uur</th><th>passanten/uur</th><th class="l">stromen</th>' +
+         '<th>&Sigma;m</th><th>venster</th><th>stil/100m</th></tr>';
+    ckeys.forEach(function(ck){
+      var c = seg.cells[ck], w = 0;
+      ['A','B','?'].forEach(function(r){ w += c.stromen[r].w; });
+      h += '<tr><td class="l">' + DAGEN[c.dag] + '</td><td>' + c.uur + '</td>' +
+           '<td><b>' + Math.round(c.q) + '</b></td>' +
+           '<td class="l">' + (c.labels.join(' + ') || '\u2013') +
+           (c.compleet ? '' : ' <span class="pill">half</span>') + '</td>' +
+           '<td>' + c.m + '</td><td>' + Math.round(w) + ' s</td>' +
+           '<td>' + c.kStil.toFixed(1) + '</td></tr>';
+    });
+    h += '</table></div>';
+  }
+
+  // ---- passages
+  h += '<div class="sect"><h2>Passages</h2><table><tr>' +
+       '<th class="l">datum</th><th class="l">start</th><th>L</th><th>t</th>' +
+       '<th>venster</th><th>tegemoet</th><th>q</th><th class="l">richting</th><th>stil</th></tr>';
+  seg.passages.slice().sort(function(a, b){ return a.t0 - b.t0; }).forEach(function(v){
+    var w = v.L / VPED + v.t;
+    h += '<tr><td class="l">' + v.datum + '</td><td class="l">' + hms(v.t0) + '</td>' +
+         '<td>' + v.L.toFixed(0) + '</td><td>' + v.t + ' s</td><td>' + w.toFixed(0) + ' s</td>' +
+         '<td>' + v.teg + '</td><td>' + Math.round(3600 * v.teg / w) + '</td>' +
+         '<td class="l">' + (v.richting || '?') +
+         ' <span class="dim" style="font-size:11px">' + v.richtingBron + '</span></td>' +
+         '<td>' + v.stil + '</td></tr>';
+  });
+  h += '</table></div>';
+
+  // ---- toelichting
+  var wees = SESSIES.reduce(function(s, x){ return s + x.nWees; }, 0);
+  var totTel = SESSIES.reduce(function(s, x){ return s + x.nTel; }, 0);
+  if (wees > 0){
+    h += '<div class="note warn"><b>' + wees + ' van ' + totTel +
+         ' tikken vielen buiten elke passage</b> en tellen dus in g&eacute;&eacute;n enkele cel mee. ' +
+         'Dat is geen ruis maar systematiek: weesregels ontstaan waar de snap onrustig is, ' +
+         'meestal op de drukke plekken. Herstellen hoort in de snap-laag, niet hier.</div>';
+  }
+  h += '<div class="note">Cel = 3600 &middot; &Sigma;m / &Sigma;(L/v + t), per gelopen richting gepoold en daarna opgeteld. ' +
+       'Een cel met &frac12; is in &eacute;&eacute;n looprichting gemeten en toont dus &eacute;&eacute;n van de twee stromen.</div>';
+
+  document.getElementById('inhoud').innerHTML = h;
+}
+
+function celTitel(c){
+  var t = [];
+  ['A','B','?'].forEach(function(r){
+    var s = c.stromen[r];
+    if (!s.n) return;
+    var label = r === '?' ? 'richting onbekend' : (r === 'A' ? 'stroom B\u2192A' : 'stroom A\u2192B');
+    t.push(label + ': ' + Math.round(s.q) + '/uur (' + s.m + ' ontmoetingen, ' +
+           s.n + ' passage' + (s.n === 1 ? '' : 's') + ')');
+  });
+  t.push('stilstaand: ' + c.kStil.toFixed(1) + ' per 100 m');
+  return t.join('\n');
+}
+
+function hms(sec){
+  var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function escHtml(s){
+  return String(s).replace(/[&<>"]/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+  });
+}
+</script>
+</body>
+</html>

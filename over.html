@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Wat is telonline.org? — Online verkeerstellingen | Telonline Verkeerstellingen</title>
+<meta name="description" content="telonline.org (Telonline Verkeerstellingen) is een gratis, browser-gebaseerde set tools om verkeer, fietsen, voetgangers en parkeren te tellen — van veldwaarneming tot kaartrapportage.">
+<link rel="canonical" href="https://telonline.org/over.html">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Wat is telonline.org? — Online verkeerstellingen">
+<meta property="og:description" content="telonline.org (Telonline Verkeerstellingen) is een gratis, browser-gebaseerde set tools om verkeer, fietsen, voetgangers en parkeren te tellen — van veldwaarneming tot kaartrapportage.">
+<meta property="og:url" content="https://telonline.org/over.html">
+<meta property="og:locale" content="nl_NL">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:site_name" content="telonline.org">
+
+<!-- Structured data: AboutPage over de teltools -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  "name": "Wat is telonline.org?",
+  "url": "https://telonline.org/over.html",
+  "description": "telonline.org (Telonline Verkeerstellingen) is een gratis, browser-gebaseerde set tools om verkeer, fietsen, voetgangers en parkeren te tellen — van veldwaarneming tot kaartrapportage.",
+  "inLanguage": "nl",
+  "about": {
+    "@type": "WebApplication",
+    "@id": "https://telonline.org/#app",
+    "name": "Telonline Verkeerstellingen",
+    "url": "https://telonline.org/",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Any (web browser)"
+  },
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "telonline.org",
+    "url": "https://telonline.org/"
+  }
+}
+</script>
+
+<style>
+/* ── kale stijl (v3.3): gewone HTML, systeemletter; kleur alleen waar die iets uitlegt ── */
+body{font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;max-width:46em;margin:2em auto;padding:0 1em;color:#222;background:#fff}
+h1,h2,h3,h4{line-height:1.25}h2{margin-top:2.5em;padding-bottom:.2em;border-bottom:1px solid #bbb}h4{margin-bottom:.3em}
+table{display:block;overflow-x:auto;border-collapse:collapse;margin:.6em 0}td,th{border:1px solid #ccc;padding:.25em .5em;vertical-align:top;text-align:left}
+code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,samp,a{overflow-wrap:break-word}img{max-width:100%;height:auto}
+.kleur{display:inline-block;width:.8em;height:.8em;border:1px solid #666;vertical-align:-.05em;margin-right:.35em}.rond{border-radius:50%}td:has(>.kleur){white-space:nowrap}
+/* ── einde kale stijl ── */
+</style>
+</head>
+<body>
+<p><a href="index.html">‹ Terug naar alle tellingen</a></p>
+<h1>Wat is telonline.org?</h1>
+<p>Online verkeerstellingen — van veldwaarneming tot kaartrapportage</p>
+<p>telonline.org is <strong>een set online browser-teltools</strong> om verkeer te tellen — auto's, fietsen, voetgangers, geparkeerde voertuigen en parkeercapaciteit. Alles draait in je eigen browser, er is niets te installeren en geen account nodig. De apps gebruiken GPS en fitten je waarnemingen op het OpenStreetMap-netwerk, zodat elke telling een bruikbare, plaatsgebonden dataset oplevert.</p>
+<p>Het doel van deze telapps is om een laagdrempelige tel-app in je zak te hebben. Veel metadata wordt automatisch verzameld, en ook de verdere verwerking is zo makkelijk mogelijk gemaakt. Maar de set tools is ook geschikt voor structurele tellingen.</p>
+<p><strong>Voor wie is dit?</strong></p>
+<ul>
+<li><strong>Verkeerskundigen</strong> bij gemeenten, provincies en adviesbureaus die snel en gestructureerd veldtellingen willen uitvoeren zonder installatie van software.</li>
+<li><strong>Studenten en onderzoekers</strong> die verkeers- of mobiliteitsdata verzamelen voor een studie of scriptie.</li>
+<li><strong>Iedereen die geïnteresseerd is</strong> in hoe druk een straat, winkelgebied of parkeerzone werkelijk is — de tools zijn vrij te gebruiken, zonder drempel.</li>
+</ul>
+<p><strong>In het kort</strong> — tellen → ZIP → reconstrueren → kaart.</p>
+<ul>
+<li><strong>Tellen.</strong> Kies een app, druk op start, tik wat je ziet. GPS loopt mee en snapt je tikken op het OpenStreetMap-netwerk. Aan het eind krijg je één ZIP-bestand. Niet uitpakken.</li>
+<li><strong>Nabewerken.</strong> Sleep die ZIP in de reconstructie. Die kijkt naar je hele route in één keer en zet elke tik alsnog op de juiste straat, met de kant van de weg en de looprichting erbij. Je telling zelf verandert niet — alleen de plaatsbepaling wordt beter.</li>
+<li><strong>Bekijken.</strong> Sleep één of meerdere ZIP's in Telrapport: drukte per wegvak, een dag×uur-weekprofiel, filters op tijd en sessie. Staat de kaart zoals je 'm wilt, bewaar 'm dan als verzamel-ZIP en je bent er later in één handeling weer.</li>
+</ul>
+<p>Geen installatie, geen account, geen upload — alles draait in je eigen browser. Liever GIS? De ZIP's gaan rechtstreeks in QGIS, en Telrapport bewaart de kaart als GeoPackage met een kant-en-klaar QGIS-project.</p>
+<h2>De werkwijze — drie stappen</h2>
+<h3>Stap 1 — Tellen</h3>
+<p>Ga naar telonline.org en kies een veldapp die past bij wat je wilt weten.</p>
+<p>Elke telling wordt met GPS op het wegennetwerk van Openstreetmap gesnapt. Aan het eind van de sessie exporteert de app het resultaat als één <code>.zip</code>-bestand met de tellingen en de GPS-route. Hou de .zips intact - uitpakken hoeft niet. Als je de .zip bestanden op een logische manier organiseert, maakt dit het raadplegen een stuk eenvoudiger. De handleding gaat hier verder op in (<i>gepland</i>). Elke telling krijgt een unieke 3-letterige code.</p>
+<p>Stilstaand</p>
+<p><b>▢ Stilstaand Tellen ▫▫ </b> Tel auto's, voetgangers, fietsers vanaf een vast punt,</p>
+<p>Parkeertellingen</p>
+<p><b>▢ Fietsparkeren ▫▫ </b> wandel een traject en tel gestalde fietsen - naar keuze ook brommers, bakfietsen en fietswrakken apart,</p>
+<p><b>▢ Autoparkeren ▫▫ </b> wandel een traject en tel geparkeerde auto's - naar keuze ook foutparkeerders, lege vakken, of speciale vakken,</p>
+<p><b>▢ Fiets-parkeercapaciteit ▫▫ </b> <i>deze optie is gepland</i>,</p>
+<p><b>▢ Auto-parkeercapaciteit ▫▫ </b> maak via verschillende opties een parkeer-capaciteitskaart,</p>
+<p><b>▢ Parkeervakken-bestand ▫▫ </b> <i>deze optie is gepland</i>.</p>
+<p>Wandelend tellen, Moving Observer</p>
+<p><b>▢ Simpel ▫▫ </b> wandel een traject en tel auto's, voetgangers, fietsers of iets anders naar keuze,</p>
+<p><b>▢ Transect ▫▫ </b> wandel een traject en tel alles dat je tegenkomt, in benoemde categorieën.</p>
+<p><b>▢ Winkelstraat ▫▫ </b> tel stilstaande en tegemoetkomende personen, speciaal gericht op winkelgebieden,</p>
+<p><b>▢ Parkeren ▫▫ </b>  tel het aantal bezette en het aantal vrije parkeervakken, links en rechts van de weg. Je hoeft bij de autotelling niet de op de rijbaan te lopen: de app zet punten op de rijbaan die naast het voetpad of fietspad ligt.</p>
+<img src="screenshot-tellen.jpg" alt="Screenshot van een veldapp tijdens het tellen" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+<p style="display:none">📷 · screenshot-tellen.jpg · Plaats dit bestand naast over.html</p>
+<p><a href="index.html">Bekijk alle teltools &gt;</a></p>
+<h3>Stap 2 — ZIP nabewerken (<em>warm aanbevolen</em>)</h3>
+<p>Tijdens het tellen weet de app ongeveer waar je bent, maar niet altijd precies. GPS is nu eenmaal een paar meter onnauwkeurig, en bij een kruising of tussen hoge gebouwen kan een tik net op de verkeerde straat belanden.</p>
+<p>De <strong>reconstructie</strong> kijkt achteraf naar je hele wandeling in één keer. Omdat de route als geheel bekend is, kan de app veel beter bepalen welke straat je werkelijk gelopen hebt — en zet elke tik alsnog op de juiste plek. Ook voegt hij toe aan welke kant van de weg je telde en in welke richting je liep. Blijft er toch een tik verkeerd staan, dan corrigeer je die zelf met een klik op de kaart.</p>
+<p>Het resultaat is een schonere kaart: tellingen staan op de goede straat, en je rapport klopt beter. <strong>Je telling zelf verandert niet</strong> — het aantal blijft precies wat je geteld hebt, alleen de plaatsbepaling wordt nauwkeuriger.</p>
+<img src="screenshot-nabewerken.jpg" alt="Screenshot van de telreconstructie kaartinterface" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+<p style="display:none">📷 · screenshot-nabewerken.jpg · Plaats dit bestand naast over.html</p>
+<p><a href="telreconstructie.html">Open de reconstructie-tool &gt;</a></p>
+<h3>Stap 3 — Presentatie in Telrapport</h3>
+<p>Sleep één of meerdere ZIP's in <strong>Telrapport</strong> voor een gecombineerde kaartvisualisatie van de tellingen: drukte per wegvak, een dag×uur-weekprofiel dat laat zien wanneer het structureel druk is, intensiteitsklassen, en filters op tijd en sessie-soort. Precies waar de eerdere twee stappen naartoe werken — van los veldwerk naar één leesbaar beeld van de drukte.</p>
+<p>Heb je een kaart staan zoals je 'm hebben wilt — een paar tellingen naast elkaar, de juiste lagen aan, het juiste kaartbeeld — dan bewaar je die als <strong>verzamel-ZIP</strong>. Eén bestand met alle tellingen erin, plus hoe de kaart erbij stond. Sleep het later terug in Telrapport en je bent in één handeling weer waar je was, inclusief kleuren, zichtbaarheid en zoomniveau. Correcties die je met de hand hebt gemaakt gaan mee. Bewaar je eigen tel-ZIP's er wel gewoon naast: de verzameling is je werkkaart, niet je archief.</p>
+<img src="screenshot-telrapport.jpg" alt="Screenshot van een kaartvisualisatie in telrapport" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+<p style="display:none">📷 · screenshot-telrapport.jpg · Plaats dit bestand naast over.html</p>
+<p><a href="telrapport.html">Open Telrapport &gt;</a></p>
+<p>Werk je liever in GIS-software? De ZIP's zijn ook rechtstreeks in <strong>QGIS</strong> te laden, per telpunttype op een eigen laag. Het python loader script vind je op <a href="https://telonline.org/telonline_qgis_loader.py" target="_blank">telonline_qgis_loader.py</a>. Wil je vooral een nette kaart, bewaar dan in <strong>Telrapport</strong> de kaart zoals je hem ziet als <strong>GeoPackage</strong>. Dat is één bestand met de waarnemingen, de clusterbollen, de wegvakken en de gelopen routes, met de kleuren van Telrapport erin. Er zit ook een QGIS-project in: open het met <em>Project → Openen vanuit → GeoPackage</em> en de kaart staat klaar, op een PDOK-ondergrond en met een printopmaak op A4 voor een PDF. Kies de bestandsnaam bij het bewaren en hernoem het bestand daarna niet, anders vindt het project zijn lagen niet meer. Meer in de <a href="traffic_counter_help.html#rapport-gpkg">handleiding</a>.</p>
+<ul><li><a href="index.html">Ga naar tellen &gt; &gt;</a></li><li><a href="traffic_counter_help.html">uitgebreide handleiding &gt; &gt;</a></li><li><a href="zip_format_reference.html">Meer informatie over de zips  &gt; &gt;</a></li><li><a href="privacy.html">Privacy: wat blijft op je toestel, wat niet  &gt; &gt;</a></li><li><a href="verantwoording.html">Een telling beoordelen: toelichting voor juristen  &gt; &gt;</a></li></ul>
+<p>Vragen, opmerkingen, of resultaten die je wilt delen? Mail naar <a href="mailto:verkeer@telonline.org">verkeer@telonline.org</a>, of meld het op <a href="https://github.com/jeroenrijsdijk/TelSuite/issues">GitHub</a>.</p>
+<p><small>Built by JRI and Claude - Anthropic</small></p>
+</body>
+</html>

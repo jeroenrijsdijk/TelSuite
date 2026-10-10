@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- ── SEO ────────────────────────────────────────────────────────────── -->
+<title>Online Traffic Counting — Vehicle &amp; Parking Surveys | telonline.org</title>
+<meta name="description" content="Free online traffic counting — count vehicles, pedestrians and parked cars directly in your browser. GPS-aware survey tools for fieldwork, no installation.">
+<link rel="canonical" href="https://telonline.org/">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Online Traffic counting — Vehicle &amp; Parking Surveys">
+<meta property="og:description" content="Free online traffic counting — count vehicles, pedestrians and parked cars directly in your browser. GPS-aware survey tools for fieldwork, no installation.">
+<meta property="og:url" content="https://telonline.org/">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="nl_NL">
+<meta property="og:site_name" content="telonline.org">
+
+<!-- Structured data: WebApplication -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "@id": "https://telonline.org/#app",
+  "name": "Online Traffic Counting",
+  "alternateName": "Telonline Verkeerstellingen",
+  "url": "https://telonline.org/",
+  "description": "Free online traffic counting for vehicle, pedestrian and parking surveys. Browser-based, GPS-aware, no installation required.",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Any (web browser)",
+  "browserRequirements": "Requires a modern browser with GPS support for fieldwork features.",
+  "inLanguage": ["en", "nl"],
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+  },
+  "creator": {
+    "@type": "Organization",
+    "name": "telonline.org",
+    "url": "https://telonline.org/"
+  }
+}
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg:      #f0f0ec;
+    --panel:   #ffffff;
+    --border:  #b0b0a8;
+    --text:    #111111;
+    --dim:     #555555;
+    --subdim:  #888880;
+    --green:   #0a8a30;
+    --amber:   #c07800;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Oswald', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    gap: 0;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* ── Title ── */
+  .title-block {
+    text-align: center;
+    padding-bottom: 20px;
+    border-bottom: 3px solid var(--text);
+    margin-bottom: 8px;
+  }
+
+  .title-block h1 {
+    font-size: 1.6rem;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .title-block .sub {
+    font-size: 1.4rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--subdim);
+    margin-top: 8px;
+    font-weight: 500;
+  }
+
+  /* ── Intro note ── */
+  .intro-note {
+    text-align: center;
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--dim);
+    line-height: 1.55;
+    margin: -2px 0 6px;
+    padding: 0 6px;
+  }
+  .intro-note a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }   /* v2.75 */
+
+  /* ── Mode cards ── */
+  .mode-card {
+    display: block;
+    text-decoration: none;
+    background: var(--panel);
+    border: 3px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px;
+    transition: border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mode-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 8px;
+    height: 100%;
+    background: var(--accent);
+  }
+
+  .mode-card:active { transform: scale(0.98); }
+
+  .mode-card.static-card {
+    --accent: var(--green);
+  }
+  .mode-card.static-card:hover {
+    border-color: var(--green);
+    box-shadow: 0 4px 20px rgba(10,138,48,0.12);
+  }
+
+  .mode-card.parking-card {
+    --accent: var(--amber);
+  }
+  .mode-card.parking-card:hover {
+    border-color: var(--amber);
+    box-shadow: 0 4px 20px rgba(192,120,0,0.12);
+  }
+
+  .mode-card.bike-card {
+    --accent: #2980b9;
+  }
+  .mode-card.bike-card:hover {
+    border-color: #2980b9;
+    box-shadow: 0 4px 20px rgba(41,128,185,0.12);
+  }
+
+  .mode-card.pkpark-card {
+    --accent: #2e6b8a;              /* zelfde kleur als de Parkeren-knop in pocket */
+  }
+  .mode-card.pkpark-card:hover {
+    border-color: #2e6b8a;
+    box-shadow: 0 4px 20px rgba(46,107,138,0.12);
+  }
+
+  /* ── Groepen (v2.69): ingedeeld naar wat je telt ── */
+  .groep {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .groep + .groep { margin-top: 18px; }
+  .groep-kop {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--text);
+  }
+  .groep-kop h2 {
+    white-space: nowrap;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .groep-kop p {
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    color: var(--subdim);
+    text-align: right;
+  }
+
+  /* ── Bureau: de desktoptools, compact ── */
+  /* Rijen delen hun kolommen (subgrid), zodat de omschrijvingen onder elkaar
+     beginnen, hoe lang de langste titel ook is. Zonder subgrid-steun komt de
+     omschrijving onder de titel te staan; ook leesbaar. */
+  .bureau {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    background: var(--panel);
+    border: 3px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .bureau a {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+    column-gap: 16px;
+    padding: 14px 20px;
+    text-decoration: none;
+    color: var(--text);
+    border-top: 1px solid var(--border);
+  }
+  .bureau a:first-child { border-top: none; }
+  .bureau a:hover { background: var(--bg); }
+  .bureau b {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .bureau span {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--dim);
+    line-height: 1.4;
+  }
+
+  .mode-card:focus-visible, .bureau a:focus-visible {
+    outline: 3px solid var(--text);
+    outline-offset: 3px;
+  }
+
+  .mode-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+
+  .mode-title {
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text);
+    line-height: 1.15;
+    margin-bottom: 10px;
+  }
+
+  .mode-desc {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--dim);
+    line-height: 1.6;
+  }
+
+  .mode-arrow {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.6rem;
+    color: var(--border);
+    transition: color 0.15s, right 0.15s;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  .mode-card:hover .mode-arrow {
+    color: var(--accent);
+    right: 16px;
+  }
+
+  /* ── Help link ── */
+  .help-link {
+    text-align: center;
+    padding-top: 6px;
+  }
+
+  .help-link a {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--subdim);
+    text-decoration: none;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 2px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .help-link a:hover {
+    color: var(--text);
+    border-color: var(--text);
+  }
+
+  /* ── Versie: per release ophogen, valideer.py controleert het ── */
+  .versie {
+    text-align: center;
+    padding-top: 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 1px;
+    color: var(--subdim);
+  }
+
+  /* ── Branding ── */
+  .branding {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding-top: 20px; margin-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+  .branding-logo {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, #cc785c, #a05a3c);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; flex-shrink: 0;
+    box-shadow: 0 0 8px rgba(160,90,60,0.3);
+  }
+  .branding-text .built { font-size: 0.55rem; letter-spacing: 2px; text-transform: uppercase; color: var(--subdim); display: block; }
+  .branding-text .name  {
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 1px;
+    background: linear-gradient(90deg, #a05a3c, #cc785c);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+
+  /* ── Intro-link (bovenaan) ── */
+  .intro-link {
+    text-align: center;
+    padding-bottom: 2px;
+  }
+  .intro-link a {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--dim);
+    text-decoration: none;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 2px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .intro-link a:hover {
+    color: var(--text);
+    border-color: var(--text);
+  }
+
+  /* ── Language toggle ── */
+  .lang-toggle {
+    position: fixed; top: 14px; right: 16px;
+    display: flex; align-items: center; gap: 4px;
+    z-index: 100;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 2px;
+  }
+  .lang-btn {
+    background: none; border: none;
+    font: inherit; letter-spacing: inherit;
+    color: var(--subdim); cursor: pointer;
+    padding: 4px 6px;
+    transition: color 0.15s, border-color 0.15s;
+    border-bottom: 2px solid transparent;
+  }
+  .lang-btn:hover { color: var(--text); }
+  .lang-btn.active {
+    color: var(--text);
+    border-bottom-color: var(--text);
+  }
+  .lang-sep { color: var(--border); }
+</style>
+</head>
+<body>
+
+<div class="lang-toggle">
+  <button class="lang-btn" data-lang="nl">NL</button>
+  <span class="lang-sep">|</span>
+  <button class="lang-btn" data-lang="en">EN</button>
+</div>
+
+<div class="wrap">
+
+  <div class="intro-link">
+    <a href="over.html" data-i18n="introLink">&#10067; New here? What is this?</a>
+  </div>
+
+  <div class="title-block">
+    <h1 data-i18n="appName">Traffic Counting</h1>
+    <h3>TELONLINE.ORG</h3>
+    <div class="sub" data-i18n="sub">Online traffic counting — choose your mode</div>
+  </div>
+
+  <div class="intro-note" data-i18n="introNote">Standalone traffic-counting tools — each runs entirely in your browser. No install, no account; your counts stay on your device. Map, road and street-name services do see where you count — <a href="privacy.html">privacy</a>.</div>
+
+<section class="groep" aria-labelledby="grp-verkeer">
+  <div class="groep-kop">
+    <h2 id="grp-verkeer" data-i18n="grpTraffic">Count traffic</h2>
+    <p data-i18n="grpTrafficSub">what goes by</p>
+  </div>
+
+  <a class="mode-card static-card" href="traffic_counter.html">
+    <div class="mode-label" data-i18n="staticLabel">Static mode</div>
+    <div class="mode-title" data-i18n="staticTitle">Stand Still<br>and Count</div>
+    <div class="mode-desc" data-i18n="staticDesc">Fixed location at the roadside. One GPS fix. Counts per vehicle type and direction, with hourly extrapolation.</div>
+    <div class="mode-arrow">&gt;</div>
+  </a>
+
+  <a class="mode-card" href="pocket_count.html" style="--accent:#d4007a;">
+    <style>.mode-card[href="pocket_count.html"]:hover { border-color:#d4007a; box-shadow:0 4px 20px rgba(212,0,122,0.12); }</style>
+    <div class="mode-label" data-i18n="pocketLabel">Pocket — three modes</div>
+    <div class="mode-title" data-i18n="pocketTitle">Move and<br>Count</div>
+    <div class="mode-desc" data-i18n="pocketDesc">Three modes in one tool: tap-anywhere simple counting with the phone in your pocket, directional transect counts per vehicle type, or moving-observer pedestrian flow on a shopping street. GPS-snapped to the road network; exports a ZIP.</div>
+    <div class="mode-arrow">&gt;</div>
+  </a>
+</section>
+
+<section class="groep" aria-labelledby="grp-parkeren">
+  <div class="groep-kop">
+    <h2 id="grp-parkeren" data-i18n="grpParking">Count parking</h2>
+    <p data-i18n="grpParkingSub">what is parked</p>
+  </div>
+
+  <a class="mode-card pkpark-card" href="pocket_count.html#parkeren">
+    <div class="mode-label" data-i18n="pkparkLabel">Pocket — parking</div>
+    <div class="mode-title" data-i18n="pkparkTitle">Quick count:<br>taken or free</div>
+    <div class="mode-desc" data-i18n="pkparkDesc">Walk a street and tap per side: taken or free. Four big tiles and a click sound, so your eyes stay on the street. Afterwards the reconstruction puts every tap on the right side of the road.</div>
+    <div class="mode-arrow">&gt;</div>
+  </a>
+
+  <a class="mode-card parking-card" href="parkeertelling.html">
+    <div class="mode-label" data-i18n="parkingLabel">Car parking survey</div>
+    <div class="mode-title" data-i18n="parkingTitle">Space by space,<br>on the map</div>
+    <div class="mode-desc" data-i18n="parkingDesc">For a full survey: every space parked correctly or not, empty or special, per side of the street. Each observation appears on the map straight away, on the side where it is.</div>
+    <div class="mode-arrow">&gt;</div>
+  </a>
+
+  <a class="mode-card bike-card" href="fietsparkeren.html">
+    <div class="mode-label" data-i18n="bikeLabel">Bike parking</div>
+    <div class="mode-title" data-i18n="bikeTitle">Parked<br>bikes</div>
+    <div class="mode-desc" data-i18n="bikeDesc">Walk a street or bike rack and count bikes, mopeds, wide bikes and wrecks. Each observation appears on the map straight away.</div>
+    <div class="mode-arrow">&gt;</div>
+  </a>
+
+  <a class="mode-card" href="capaciteitstelling.html" style="--accent:#8e44ad;">
+    <style>.mode-card[href="capaciteitstelling.html"]:hover { border-color:#8e44ad; box-shadow:0 4px 20px rgba(142,68,173,0.12); }</style>
+    <div class="mode-label" data-i18n="capacityLabel">Capacity</div>
+    <div class="mode-title" data-i18n="capacityTitle">Spaces<br>only</div>
+    <div class="mode-desc" data-i18n="capacityDesc">Map how many parking spaces there are: space by space along the street, or by eye per car park. No occupancy — the base map for later counts.</div>
+    <div class="mode-arrow">&gt;</div>
+  </a>
+</section>
+
+<section class="groep" aria-labelledby="grp-bureau">
+  <div class="groep-kop">
+    <h2 id="grp-bureau" data-i18n="grpDesk">At your desk</h2>
+    <p data-i18n="grpDeskSub">before and after fieldwork</p>
+  </div>
+
+  <nav class="bureau">
+    <a href="telplanning.html"><b data-i18n="deskPlan">Plan</b><span data-i18n="deskPlanDesc">routes and coverage, before you go</span></a>
+    <a href="telreconstructie.html"><b data-i18n="deskRecon">Reconstruct</b><span data-i18n="deskReconDesc">put route and side right afterwards</span></a>
+    <a href="telrapport.html"><b data-i18n="deskReport">Report</b><span data-i18n="deskReportDesc">map and analysis</span></a>
+  </nav>
+</section>
+
+  <div class="help-link">
+    <a href="traffic_counter_help.html" data-i18n="helpLink">Help &amp; documentation</a>
+    &nbsp;&middot;&nbsp; <a href="privacy.html">Privacy</a>
+  </div>
+
+  <div class="versie">v3.5</div>
+
+</div>
+
+<script>
+const i18n = {
+  en: {
+    pageTitle:     'Online Traffic Counting — Vehicle & Parking Surveys | telonline.org',
+    introLink:     '&#10067; New here? What is this?',
+    appName:       'Traffic Counting',
+    sub:           'Online traffic counting — choose your mode',
+    introNote:     'Standalone traffic-counting tools — each runs entirely in your browser. No install, no account; your counts stay on your device. Map, road and street-name services do see where you count — <a href="privacy.html">privacy</a>.',
+    staticLabel:   'Static mode',
+    staticTitle:   'Stand Still<br>and Count',
+    staticDesc:    'Fixed location at the roadside. One GPS fix. Counts per vehicle type and direction, with hourly extrapolation.',
+    pocketLabel:   'Pocket — three modes',
+    pocketTitle:   'Move and<br>Count',
+    pocketDesc:    'Three modes in one tool: tap-anywhere simple counting with the phone in your pocket, directional transect counts per vehicle type, or moving-observer pedestrian flow on a shopping street. GPS-snapped to the road network; exports a ZIP.',
+    grpTraffic:    'Count traffic',
+    grpTrafficSub: 'what goes by',
+    grpParking:    'Count parking',
+    grpParkingSub: 'what is parked',
+    grpDesk:       'At your desk',
+    grpDeskSub:    'before and after fieldwork',
+    pkparkLabel:   'Pocket — parking',
+    pkparkTitle:   'Quick count:<br>taken or free',
+    pkparkDesc:    'Walk a street and tap per side: taken or free. Four big tiles and a click sound, so your eyes stay on the street. Afterwards the reconstruction puts every tap on the right side of the road.',
+    parkingLabel:  'Car parking survey',
+    parkingTitle:  'Space by space,<br>on the map',
+    parkingDesc:   'For a full survey: every space parked correctly or not, empty or special, per side of the street. Each observation appears on the map straight away, on the side where it is.',
+    bikeLabel:     'Bike parking',
+    bikeTitle:     'Parked<br>bikes',
+    bikeDesc:      'Walk a street or bike rack and count bikes, mopeds, wide bikes and wrecks. Each observation appears on the map straight away.',
+    capacityLabel: 'Capacity',
+    capacityTitle: 'Spaces<br>only',
+    capacityDesc:  'Map how many parking spaces there are: space by space along the street, or by eye per car park. No occupancy — the base map for later counts.',
+    deskPlan:      'Plan',
+    deskPlanDesc:  'routes and coverage, before you go',
+    deskRecon:     'Reconstruct',
+    deskReconDesc: 'put route and side right afterwards',
+    deskReport:    'Report',
+    deskReportDesc:'map and analysis',
+    helpLink:      'Help &amp; documentation'
+  },
+  nl: {
+    pageTitle:     'Online Verkeersteller — Verkeers- en Parkeertellingen | telonline.org',
+    introLink:     '&#10067; Nieuw hier? Wat is dit?',
+    appName:       'Verkeerstellingen',
+    sub:           'Online verkeersteller — kies je telling',
+    introNote:     'Standalone verkeerstellingen — alles draait in je browser. Geen installatie, geen account; je tellingen blijven op je toestel. De diensten voor kaart, wegennet en straatnaam zien wel waar je telt — <a href="privacy.html">privacy</a>.',
+    staticLabel:   'Stilstaan aan de wegkant',
+    staticTitle:   'Stilstaand tellen',
+    staticDesc:    'Vaste locatie langs de weg. Eén GPS-fix. Tellingen per voertuigtype en richting, met extrapolatie naar een uur.',
+    pocketLabel:   'Pocket — drie modi',
+    pocketTitle:   'Tellen in beweging',
+    pocketDesc:    'Drie modi in één tool: simpel tikken met de telefoon in je zak, transect-tellingen per voertuigtype en richting, of voetgangersstroom in een winkelstraat. Gesnapt op het wegennet; exporteert een ZIP.',
+    grpTraffic:    'Verkeer tellen',
+    grpTrafficSub: 'wat komt er langs',
+    grpParking:    'Parkeren tellen',
+    grpParkingSub: 'wat staat er',
+    grpDesk:       'Achter je bureau',
+    grpDeskSub:    'voor en na het veldwerk',
+    pkparkLabel:   'Pocket — parkeren',
+    pkparkTitle:   'Snel tellen:<br>bezet of leeg',
+    pkparkDesc:    'Loop een straat en tik per kant: bezet of leeg. Vier grote vlakken en een tikgeluid, zodat je ogen op straat blijven. Achteraf zet de reconstructie elke tik aan de goede kant van de weg.',
+    parkingLabel:  "Parkeertelling auto's",
+    parkingTitle:  'Per vak,<br>op de kaart',
+    parkingDesc:   'Voor een volledige telling: per plek goed of fout geparkeerd, leeg of bijzonder, per kant van de straat. Elke waarneming staat meteen op de kaart, aan de kant waar hij staat.',
+    bikeLabel:     'Fietsparkeren',
+    bikeTitle:     'Geparkeerde<br>fietsen',
+    bikeDesc:      'Loop een straat of stalling en tel fietsen, brommers, brede fietsen en wrakken. Elke waarneming staat meteen op de kaart.',
+    capacityLabel: 'Capaciteit',
+    capacityTitle: 'Alleen<br>de plekken',
+    capacityDesc:  'Breng in kaart hoeveel parkeerplaatsen er zijn: per vak langs de straat, of op het oog per parkeerterrein. Geen bezetting — de basiskaart voor latere tellingen.',
+    deskPlan:      'Plannen',
+    deskPlanDesc:  'routes en dekking, vooraf',
+    deskRecon:     'Reconstrueren',
+    deskReconDesc: 'route en kant achteraf rechtzetten',
+    deskReport:    'Rapport',
+    deskReportDesc:'kaart en analyse',
+    helpLink:      'Help &amp; documentatie'
+  }
+};
+
+// Detectie-volgorde: 1) opgeslagen keuze, 2) browser-taal, 3) EN-default
+function detectLanguage() {
+  try {
+    const saved = localStorage.getItem('tc_lang');
+    if (saved === 'nl' || saved === 'en') return saved;
+  } catch (e) { /* private mode: gewoon door naar browser-detect */ }
+  const bl = (navigator.language || navigator.userLanguage || '').toLowerCase();
+  return bl.startsWith('nl') ? 'nl' : 'en';
+}
+
+function setLanguage(lang) {
+  const dict = i18n[lang] || i18n.en;
+  document.documentElement.lang = lang;
+  document.title = dict.pageTitle;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    const key = el.dataset.i18n;
+    if (dict[key] !== undefined) el.innerHTML = dict[key];
+  });
+  document.querySelectorAll('.lang-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.lang === lang);
+  });
+}
+
+document.querySelectorAll('.lang-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    const lang = btn.dataset.lang;
+    try { localStorage.setItem('tc_lang', lang); } catch (e) { /* private mode */ }
+    setLanguage(lang);
+  });
+});
+
+setLanguage(detectLanguage());
+</script>
+
+</body>
+</html>
