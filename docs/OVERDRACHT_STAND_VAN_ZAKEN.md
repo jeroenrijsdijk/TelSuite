@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.4.** Nieuwe pagina `verantwoording.html`: wat een telling vastlegt en wat er daarna mee gebeurt, met de sterke en zwakke plekken, voor een jurist die een telling beoordeelt. De GPX-tijden van de parkeer-apps zijn nu echte UTC (`overdracht_v3_4.md`). v3.3 maakte de documentatiepagina's kaal, v3.2 zette een QGIS-project in de GeoPackage uit telrapport, v3.1 bracht de GeoPackage zelf; 3.0 was de in het veld geteste v2.77. Sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
+**Laatste release: v3.5.** Contactadres `verkeer@telonline.org` in `privacy.html`, `over.html` en `verantwoording.html`; de GIS-alinea in `over.html` noemt de GeoPackage uit Telrapport (`overdracht_v3_5.md`). v3.4 bracht `verantwoording.html` (toelichting voor juristen) en GPX-tijden in UTC. v3.3 maakte de documentatiepagina's kaal, v3.2 zette een QGIS-project in de GeoPackage uit telrapport, v3.1 bracht de GeoPackage zelf; 3.0 was de in het veld geteste v2.77. Sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
 
 ---
 
@@ -114,8 +114,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ## 4. Nog te doen door Jay (buiten de code)
 
-0a. **Planningmap afschermen (v2.75), vóór het online zetten** — een wachtwoordbestand maken buiten de webroot en het volledige pad invullen bij `AuthUserFile` in `planningen/.htaccess`. Controle in een privévenster: `https://telonline.org/planningen/planning_list.php` moet om een wachtwoord vragen. Vraagt hij niets, dan leest de server geen `.htaccess` en is de map open. Zolang het pad niet klopt, geeft de map een 500-fout (dicht, niet open) en meldt telplanning dat.
-0b. **Contactgegevens in `privacy.html` invullen** — het gele veld bij *Je rechten en contact* (naam en e-mailadres van de beheerder). `valideer.py` meldt het zolang het er staat.
+0a. **Planningmap: laat rusten** (Jay, 10 okt 2026). De afscherming (`planningen/.htaccess`) is ergens in de weken ervoor van de server verdwenen; `planning_list.php` geeft de lijst zonder wachtwoord. Jay accepteert dat voorlopig: tellernamen zijn nooit voluit. De echte oplossing is geen opslag op de server meer, zie de backlog (*Planningen zonder server*). Wil je hem toch tussentijds dicht: Plesk → *Password-Protected Directories* → `/planningen`. Dat staat buiten `httpdocs`, dus geen upload of deploy haalt het weg.
 1. **Screenshots voor `over.html`** — nog niet geleverd. Drie bestanden, exact deze namen, naast `over.html`:
    `screenshot-tellen.jpg` · `screenshot-nabewerken.jpg` · `screenshot-telrapport.jpg`
    Zolang ze ontbreken toont de pagina een nette placeholder met de verwachte bestandsnaam. (PNG kan, vergt dan een `src`-aanpassing.)
@@ -166,6 +165,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - Oude auto- en fietsreconstructies (vóór v2.67) opnieuw draaien of laten staan? Herkenbaar aan het ontbreken van `highway_voorkeur` in de log. Het verschil zit alleen waar een fietspad of voetpad binnen ~17 m van de rijbaan ligt.
 
 **Groter / vraagt ontwerp**
+- **Planningen zonder server** (Jay, 10 okt 2026): geen bestanden meer op de website bewaren. Iedereen bewaart zijn planning zelf als `.json`: telplanning laat hem downloaden en weer inladen, de veld-apps lezen hem ook in. Dan kunnen `planningen/` en de drie PHP-scripts weg, met de afscherming. In de privacyverklaring vervalt dan *Op de server van telonline.org* → planningen. Te bedenken: hoe de opdracht bij de teller komt (bestand delen, of de planning in de link meegeven als hij klein genoeg is).
 - **Autorit-reconstructie — geparkeerd** (v2.67: Jay telt zelden vanuit de auto). De highway-voorkeur, het grootste obstakel, is sinds v2.67 opgelost. Wat nog ontbreekt: een tijdspoort plus verdichten, een rit-profiel met herkenning, en bij lange ritten een corridor-fetch en een ruimtelijke index. Analyse en volgorde in `overdracht_v2_66.md` §4.
 - Zijde-offset live in pocket-parkeren? De ingrediënten zijn er (de gesnapte positie en de wegrichting kent pocket al), zo'n vijftien regels. Twee bezwaren: het voegt `lat_marker`/`lon_marker`/`zijde` toe aan het rauwe pocket-schema en vraagt dus KNIME-afstemming, én "links" is bij pocket relatief aan de looprichting, die de app op het moment van tikken minder zeker kent dan de reconstructor achteraf uit de hele route — precies de reden dat de reconstructor bestaat. Winst is vooral cosmetisch: ongereconstrueerde pocket-parkeertellingen zien er in telrapport dan net zo uit als parkeertellingen.
 - "Save as .png" in telrapport: het kaartbeeld exporteren. De knop is triviaal, het plaatje niet. Tegels zijn niet CORS-schoon (`L.tileLayer` zet geen `crossOrigin`), vectoren zitten in vijf SVG-panes, labels zijn acht `divIcon`-varianten. Drie routes: handgetekend canvas zonder ondergrond (patroon van de veld-apps), eigen tegel-compositor (~150 regels, geen afhankelijkheid), of `html2canvas` van een CDN. Voorstel: tegel-compositor met automatische terugval naar zonder-ondergrond bij een SecurityError. Eerst de CORS-test draaien op OSM/CARTO/PDOK; de bronvermelding moet sowieso in de PNG gebakken worden.
@@ -188,7 +188,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.4 in één oogopslag
+## 6. Releases v2.32 → v3.5 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -243,6 +243,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.2 | **QGIS-project in de GeoPackage** (in QGIS 4 nagelopen door Jay: PDOK laadt, beeld en teksten goed, PDF netjes): RD New, PDOK BRT-A grijs (luchtfoto en OSM klaar), lagen in volgorde, printopmaak A4 liggend op een rond schaalgetal met legenda, schaalstok en noordpijl; je kiest de bestandsnaam bij het opslaan (het project onthoudt hem); sessielabels gerepareerd; `gpkgtest.py` 80 tests |
 | v3.3 | **Kale documentatiepagina's**: handleiding, `over.html` en `privacy.html` in gewone HTML met één gedeeld stijlblok (96,7 → 76,4 kB voor de handleiding), tekst woord voor woord gelijk (nieuwe `tekstgelijk.py`); geen Google Fonts meer op die pagina's; op de telefoon geen zijwaarts schuiven meer; `valideer.py` bewaakt het stijlblok |
 | v3.4 | **`verantwoording.html`**: toelichting voor juristen (wat de app vastlegt, wat er daarna mee gebeurt, sterke en zwakke plekken naast een turflijst, wat een beoordelaar kan nagaan), gelinkt vanuit `over.html` en de handleiding; **GPX-tijden in echte UTC** in de drie parkeer-apps (stonden als lokale tijd met een Z, één of twee uur mis); nieuwe `functest_gpxtijd.js` |
+| v3.5 | **Contactadres** `verkeer@telonline.org` (privacyverklaring, `over.html`, verantwoording; GitHub-issues op `over.html` en in de README); GIS-alinea in `over.html` noemt de GeoPackage met kant-en-klaar QGIS-project |
 
 ---
 

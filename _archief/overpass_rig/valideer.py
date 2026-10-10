@@ -12,12 +12,9 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.4'
-# v3.4: verantwoording.html (toelichting voor juristen); GPX-tijden in echte UTC
-# in de drie parkeer-apps; links in over.html en de handleiding; ZIP-referentie.
-VERWACHT_GEWIJZIGD = {'index.html', 'verantwoording.html', 'over.html', 'traffic_counter_help.html',
-                      'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
-                      'zip_format_reference.html'}
+RELEASE = 'v3.5'
+# v3.5: contactadres (privacy, over, verantwoording); GeoPackage in de GIS-alinea van over.html.
+VERWACHT_GEWIJZIGD = {'index.html', 'over.html', 'privacy.html', 'verantwoording.html'}
 VERWACHT_VERWIJDERD = set()
 
 # v3.3: documentatiepagina's in kale HTML, met hetzelfde stijlblok
