@@ -1,0 +1,82 @@
+# Branch `site` voor Plesk (sinds 10 oktober 2026, na v3.5)
+#
+# Plesk ("Deploy using Git") zet de branch `site` in httpdocs. Die branch
+# bevat precies wat op de server hoort: dezelfde inhoud als de release-ZIP,
+# dus zonder alles wat in .gitattributes op export-ignore staat (docs/,
+# _archief/, CLAUDE.md, .github/, planningen/.htaccess, ...).
+#
+# Na elke push naar main bouwt deze workflow die inhoud opnieuw. Is ze anders
+# dan de laatste stand van `site`, dan komt er één commit bij
+# ("site: v3.5 (abc1234)"), en Plesk haalt hem via de webhook op. Een push met
+# alleen documentatie of tests verandert de inhoud niet en doet dus niets.
+#
+# Bestanden die alleen op de server bestaan (planningen/.htaccess met het echte
+# wachtwoordpad, de opgeslagen planningen) staan nooit in `site`, dus Plesk
+# overschrijft ze niet. Komt zo'n bestand toch in de inhoud, dan stopt deze
+# workflow.
+#
+# Met de hand opnieuw: Actions -> Site -> Run workflow.
+
+name: Site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: site
+  cancel-in-progress: false
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inhoud bouwen en controleren
+        run: |
+          SITE="$RUNNER_TEMP/site"
+          rm -rf "$SITE" && mkdir -p "$SITE"
+          git archive HEAD | tar -x -C "$SITE"
+          (cd "$SITE" && find . -type f | sed 's|^\./||' | sort) > "$RUNNER_TEMP/inhoud.txt"
+          cat "$RUNNER_TEMP/inhoud.txt"
+          # Zelfde vangnet als bij de release: nooit telgegevens of sporen online.
+          if grep -iE '\.(csv|zip|gpx|kml|kmz|geojson|png|json)$' "$RUNNER_TEMP/inhoud.txt"; then
+            echo "::error::de site bevat bestanden die data kunnen zijn (zie hierboven)"; exit 1
+          fi
+          # Wat alleen op de server hoort, mag de site nooit overschrijven.
+          if grep -E '(^|/)\.ht(access|passwd)' "$RUNNER_TEMP/inhoud.txt"; then
+            echo "::error::de site bevat een serverbestand (zie hierboven); zet het op export-ignore"; exit 1
+          fi
+          grep -qx 'index.html' "$RUNNER_TEMP/inhoud.txt" || { echo "::error::index.html ontbreekt"; exit 1; }
+
+      - name: Branch site bijwerken
+        run: |
+          SITE="$RUNNER_TEMP/site"
+          VERSIE=$(grep -oP '<div class="versie">\Kv\d+\.\d+(?=</div>)' index.html || echo '?')
+          KORT=$(git rev-parse --short HEAD)
+          # De boom van de site maken met een eigen index; de checkout blijft ongemoeid.
+          export GIT_INDEX_FILE="$RUNNER_TEMP/site.index"
+          rm -f "$GIT_INDEX_FILE"
+          git -C "$SITE" --git-dir="$GITHUB_WORKSPACE/.git" --work-tree=. add -A --force .
+          BOOM=$(git write-tree)
+          OUDER=""
+          if git ls-remote --exit-code --heads origin site > /dev/null; then
+            git fetch --depth=1 origin site
+            OUDER=$(git rev-parse FETCH_HEAD)
+            if [ "$(git rev-parse "$OUDER^{tree}")" = "$BOOM" ]; then
+              echo "Site ongewijzigd ($VERSIE): niets te doen."
+              exit 0
+            fi
+          fi
+          export GIT_AUTHOR_NAME="github-actions[bot]"
+          export GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+          COMMIT=$(git commit-tree "$BOOM" ${OUDER:+-p "$OUDER"} -m "site: $VERSIE ($KORT)")
+          # Nooit forceren: wijkt `site` af van wat we verwachten, dan faalt de push.
+          git push origin "$COMMIT:refs/heads/site"
+          echo "Branch site: $VERSIE ($KORT) -> $COMMIT"
