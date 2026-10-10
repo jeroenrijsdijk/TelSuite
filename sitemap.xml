@@ -1,72 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset
-      xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-      xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
-            http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
-<!-- created with Free Online Sitemap Generator www.xml-sitemaps.com -->
-
-
-<url>
-  <loc>https://telonline.org/</loc>
-  <lastmod>2026-05-25T09:09:39+00:00</lastmod>
-  <priority>1.00</priority>
-</url>
-<url>
-  <loc>https://telonline.org/traffic_counter.html</loc>
-  <lastmod>2026-05-23T10:05:34+00:00</lastmod>
-  <priority>0.80</priority>
-</url>
-<url>
-  <loc>https://telonline.org/traffic_counter_transect.html</loc>
-  <lastmod>2026-05-23T10:05:41+00:00</lastmod>
-  <priority>0.80</priority>
-</url>
-<url>
-  <loc>https://telonline.org/pocket_count.html</loc>
-  <lastmod>2026-05-25T07:14:22+00:00</lastmod>
-  <priority>0.80</priority>
-</url>
-<url>
-  <loc>https://telonline.org/parkeertelling.html</loc>
-  <lastmod>2026-05-23T10:05:40+00:00</lastmod>
-  <priority>0.80</priority>
-</url>
-<url>
-  <loc>https://telonline.org/fietsparkeren.html</loc>
-  <lastmod>2026-05-23T10:05:38+00:00</lastmod>
-  <priority>0.80</priority>
-</url>
-<url>
-  <loc>https://telonline.org/capaciteitstelling.html</loc>
-  <lastmod>2026-05-23T10:05:37+00:00</lastmod>
-  <priority>0.80</priority>
-</url>
-<url>
-  <loc>https://telonline.org/traffic_counter_help.html</loc>
-  <lastmod>2026-05-25T09:09:39+00:00</lastmod>
-  <priority>0.80</priority>
-</url>
-<url>
-  <loc>https://telonline.org/index.html</loc>
-  <lastmod>2026-05-25T09:09:39+00:00</lastmod>
-  <priority>0.64</priority>
-</url>
-<url>
-  <loc>https://telonline.org/telrapport.html</loc>
-  <lastmod>2026-05-23T10:11:52+00:00</lastmod>
-  <priority>0.64</priority>
-</url>
-<url>
-  <loc>https://telonline.org/telplanning.html</loc>
-  <lastmod>2026-05-23T10:05:34+00:00</lastmod>
-  <priority>0.64</priority>
-</url>
-<url>
-  <loc>https://telonline.org/snap_methodology.html</loc>
-  <lastmod>2026-05-25T09:09:39+00:00</lastmod>
-  <priority>0.64</priority>
-</url>
-
-
+<!-- Openbare pagina's van telonline.org. Bewust zonder lastmod en priority:
+     Google negeert priority, en een lastmod die niet meeloopt is erger dan geen.
+     valideer.py controleert dat elk adres op telonline.org staat en in de release bestaat. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://telonline.org/</loc></url>
+  <url><loc>https://telonline.org/over.html</loc></url>
+  <url><loc>https://telonline.org/traffic_counter_help.html</loc></url>
+  <url><loc>https://telonline.org/traffic_counter.html</loc></url>
+  <url><loc>https://telonline.org/pocket_count.html</loc></url>
+  <url><loc>https://telonline.org/parkeertelling.html</loc></url>
+  <url><loc>https://telonline.org/fietsparkeren.html</loc></url>
+  <url><loc>https://telonline.org/capaciteitstelling.html</loc></url>
+  <url><loc>https://telonline.org/telplanning.html</loc></url>
+  <url><loc>https://telonline.org/telreconstructie.html</loc></url>
+  <url><loc>https://telonline.org/telrapport.html</loc></url>
+  <url><loc>https://telonline.org/zip_format_reference.html</loc></url>
+  <url><loc>https://telonline.org/privacy.html</loc></url>
 </urlset>
