@@ -70,7 +70,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <li><strong>Nabewerken.</strong> Sleep die ZIP in de reconstructie. Die kijkt naar je hele route in één keer en zet elke tik alsnog op de juiste straat, met de kant van de weg en de looprichting erbij. Je telling zelf verandert niet — alleen de plaatsbepaling wordt beter.</li>
 <li><strong>Bekijken.</strong> Sleep één of meerdere ZIP's in Telrapport: drukte per wegvak, een dag×uur-weekprofiel, filters op tijd en sessie. Staat de kaart zoals je 'm wilt, bewaar 'm dan als verzamel-ZIP en je bent er later in één handeling weer.</li>
 </ul>
-<p>Geen installatie, geen account, geen upload — alles draait in je eigen browser. Liever GIS? De ZIP's gaan rechtstreeks in QGIS.</p>
+<p>Geen installatie, geen account, geen upload — alles draait in je eigen browser. Liever GIS? De ZIP's gaan rechtstreeks in QGIS, en Telrapport bewaart de kaart als GeoPackage met een kant-en-klaar QGIS-project.</p>
 <h2>De werkwijze — drie stappen</h2>
 <h3>Stap 1 — Tellen</h3>
 <p>Ga naar telonline.org en kies een veldapp die past bij wat je wilt weten.</p>
@@ -104,8 +104,9 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <img src="screenshot-telrapport.jpg" alt="Screenshot van een kaartvisualisatie in telrapport" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
 <p style="display:none">📷 · screenshot-telrapport.jpg · Plaats dit bestand naast over.html</p>
 <p><a href="telrapport.html">Open Telrapport &gt;</a></p>
-<p>Werk je liever in GIS-software? De ZIP's zijn ook rechtstreeks in <strong>QGIS</strong> te laden, per telpunttype op een eigen laag. Het python loader script vind je op <a href="https://telonline.org/telonline_qgis_loader.py" target="_blank">telonline_qgis_loader.py</a>.</p>
+<p>Werk je liever in GIS-software? De ZIP's zijn ook rechtstreeks in <strong>QGIS</strong> te laden, per telpunttype op een eigen laag. Het python loader script vind je op <a href="https://telonline.org/telonline_qgis_loader.py" target="_blank">telonline_qgis_loader.py</a>. Wil je vooral een nette kaart, bewaar dan in <strong>Telrapport</strong> de kaart zoals je hem ziet als <strong>GeoPackage</strong>. Dat is één bestand met de waarnemingen, de clusterbollen, de wegvakken en de gelopen routes, met de kleuren van Telrapport erin. Er zit ook een QGIS-project in: open het met <em>Project → Openen vanuit → GeoPackage</em> en de kaart staat klaar, op een PDOK-ondergrond en met een printopmaak op A4 voor een PDF. Kies de bestandsnaam bij het bewaren en hernoem het bestand daarna niet, anders vindt het project zijn lagen niet meer. Meer in de <a href="traffic_counter_help.html#rapport-gpkg">handleiding</a>.</p>
 <ul><li><a href="index.html">Ga naar tellen &gt; &gt;</a></li><li><a href="traffic_counter_help.html">uitgebreide handleiding &gt; &gt;</a></li><li><a href="zip_format_reference.html">Meer informatie over de zips  &gt; &gt;</a></li><li><a href="privacy.html">Privacy: wat blijft op je toestel, wat niet  &gt; &gt;</a></li><li><a href="verantwoording.html">Een telling beoordelen: toelichting voor juristen  &gt; &gt;</a></li></ul>
+<p>Vragen, opmerkingen, of resultaten die je wilt delen? Mail naar <a href="mailto:verkeer@telonline.org">verkeer@telonline.org</a>, of meld het op <a href="https://github.com/jeroenrijsdijk/TelSuite/issues">GitHub</a>.</p>
 <p><small>Built by JRI and Claude - Anthropic</small></p>
 </body>
 </html>

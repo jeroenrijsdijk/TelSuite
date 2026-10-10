@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.4.** Nieuwe pagina `verantwoording.html`: wat een telling vastlegt en wat er daarna mee gebeurt, met de sterke en zwakke plekken, voor een jurist die een telling beoordeelt. De GPX-tijden van de parkeer-apps zijn nu echte UTC (`overdracht_v3_4.md`). v3.3 maakte de documentatiepagina's kaal, v3.2 zette een QGIS-project in de GeoPackage uit telrapport, v3.1 bracht de GeoPackage zelf; 3.0 was de in het veld geteste v2.77. Sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
+**Laatste release: v3.5.** Contactadres `verkeer@telonline.org` in `privacy.html`, `over.html` en `verantwoording.html`; de GIS-alinea in `over.html` noemt de GeoPackage uit Telrapport (`overdracht_v3_5.md`). v3.4 bracht `verantwoording.html` (toelichting voor juristen) en GPX-tijden in UTC. v3.3 maakte de documentatiepagina's kaal, v3.2 zette een QGIS-project in de GeoPackage uit telrapport, v3.1 bracht de GeoPackage zelf; 3.0 was de in het veld geteste v2.77. Sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
 
 ---
 
@@ -115,7 +115,6 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 ## 4. Nog te doen door Jay (buiten de code)
 
 0a. **Planningmap afschermen (v2.75), vóór het online zetten** — een wachtwoordbestand maken buiten de webroot en het volledige pad invullen bij `AuthUserFile` in `planningen/.htaccess`. Controle in een privévenster: `https://telonline.org/planningen/planning_list.php` moet om een wachtwoord vragen. Vraagt hij niets, dan leest de server geen `.htaccess` en is de map open. Zolang het pad niet klopt, geeft de map een 500-fout (dicht, niet open) en meldt telplanning dat.
-0b. **Contactgegevens in `privacy.html` invullen** — het gele veld bij *Je rechten en contact* (naam en e-mailadres van de beheerder). `valideer.py` meldt het zolang het er staat.
 1. **Screenshots voor `over.html`** — nog niet geleverd. Drie bestanden, exact deze namen, naast `over.html`:
    `screenshot-tellen.jpg` · `screenshot-nabewerken.jpg` · `screenshot-telrapport.jpg`
    Zolang ze ontbreken toont de pagina een nette placeholder met de verwachte bestandsnaam. (PNG kan, vergt dan een `src`-aanpassing.)
@@ -188,7 +187,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.4 in één oogopslag
+## 6. Releases v2.32 → v3.5 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -243,6 +242,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.2 | **QGIS-project in de GeoPackage** (in QGIS 4 nagelopen door Jay: PDOK laadt, beeld en teksten goed, PDF netjes): RD New, PDOK BRT-A grijs (luchtfoto en OSM klaar), lagen in volgorde, printopmaak A4 liggend op een rond schaalgetal met legenda, schaalstok en noordpijl; je kiest de bestandsnaam bij het opslaan (het project onthoudt hem); sessielabels gerepareerd; `gpkgtest.py` 80 tests |
 | v3.3 | **Kale documentatiepagina's**: handleiding, `over.html` en `privacy.html` in gewone HTML met één gedeeld stijlblok (96,7 → 76,4 kB voor de handleiding), tekst woord voor woord gelijk (nieuwe `tekstgelijk.py`); geen Google Fonts meer op die pagina's; op de telefoon geen zijwaarts schuiven meer; `valideer.py` bewaakt het stijlblok |
 | v3.4 | **`verantwoording.html`**: toelichting voor juristen (wat de app vastlegt, wat er daarna mee gebeurt, sterke en zwakke plekken naast een turflijst, wat een beoordelaar kan nagaan), gelinkt vanuit `over.html` en de handleiding; **GPX-tijden in echte UTC** in de drie parkeer-apps (stonden als lokale tijd met een Z, één of twee uur mis); nieuwe `functest_gpxtijd.js` |
+| v3.5 | **Contactadres** `verkeer@telonline.org` (privacyverklaring, `over.html`, verantwoording; GitHub-issues op `over.html` en in de README); GIS-alinea in `over.html` noemt de GeoPackage met kant-en-klaar QGIS-project |
 
 ---
 
