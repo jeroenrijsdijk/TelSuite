@@ -53,6 +53,7 @@ Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 | `traffic_counter_help.html` | handleiding — de functies per tool staan hier |
 | `zip_format_reference.html` | technische specificatie van alle ZIP's en CSV's (EN) |
 | `privacy.html` | privacyverklaring (NL/EN); `valideer.py` controleert dat elk extern domein erin staat |
+| `sitemap.xml`, `robots.txt` | de openbare pagina's voor zoekmachines; `valideer.py` controleert dat elk adres op telonline.org staat en bestaat, en meldt een pagina die ontbreekt. Een nieuwe openbare pagina hoort erin; een interne in `NIET_IN_SITEMAP` in `valideer.py` |
 
 ### Intern — bewust niet gelinkt
 

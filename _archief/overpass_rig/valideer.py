@@ -337,5 +337,49 @@ else:
     for k in re.findall(r'data-invullen="([a-z]+)"', priv):
         print('  LET OP privacy.html: "%s" nog invullen vóór het online gaat' % k)
 
+print('\n== sitemap en robots.txt ==')
+# Sinds 10 okt 2026 (na v3.3). De sitemap noemde na de verhuizing nog rvmk.nl,
+# en dat bestand gaat met elke release-ZIP mee naar de server. Elk adres moet op
+# telonline.org staan, naar een bestand in de release wijzen en één keer
+# voorkomen ('/' is index.html). Een pagina die er niet in staat is een
+# waarschuwing: zet hem in de sitemap, of hier in NIET_IN_SITEMAP als hij intern is.
+NIET_IN_SITEMAP = {'snap_methodology.html', 'snaptrace.html', 'winkelstraat_rekenrig.html'}
+sm_pad = os.path.join(NIEUW_DIR, 'sitemap.xml')
+if not os.path.exists(sm_pad):
+    print('  FOUT sitemap.xml ontbreekt'); fouten += 1
+else:
+    import xml.etree.ElementTree as ET
+    try:
+        ET.parse(sm_pad)
+        locs = re.findall(r'<loc>\s*([^<\s]+)\s*</loc>', io.open(sm_pad, encoding='utf-8').read())
+    except ET.ParseError as e:
+        print('  FOUT sitemap.xml is geen geldige XML: %s' % e); fouten += 1
+        locs = []
+    voor = fouten
+    paden = []
+    for u in locs:
+        m = re.fullmatch(r'https://telonline\.org/([^?#]*)', u)
+        if not m:
+            print('  FOUT %s staat niet op https://telonline.org/' % u); fouten += 1
+            continue
+        f = m.group(1) or 'index.html'
+        if not os.path.exists(os.path.join(NIEUW_DIR, f)):
+            print('  FOUT %s: %s zit niet in de release' % (u, f)); fouten += 1
+        paden.append(f)
+    dubbel = sorted({f for f in paden if paden.count(f) > 1})
+    if dubbel:
+        print('  FOUT dubbel in de sitemap: %s' % ', '.join(dubbel)); fouten += 1
+    if fouten == voor and locs:
+        print('  sitemap.xml         %d adressen, alle op telonline.org en in de release' % len(locs))
+    for f in sorted(set(html) - set(paden) - NIET_IN_SITEMAP):
+        print('  LET OP %s staat niet in de sitemap (of hoort in NIET_IN_SITEMAP)' % f)
+rb_pad = os.path.join(NIEUW_DIR, 'robots.txt')
+if not os.path.exists(rb_pad):
+    print('  FOUT robots.txt ontbreekt'); fouten += 1
+elif not re.search(r'(?mi)^Sitemap:\s*https://telonline\.org/sitemap\.xml\s*$', io.open(rb_pad, encoding='utf-8').read()):
+    print('  FOUT robots.txt verwijst niet naar https://telonline.org/sitemap.xml'); fouten += 1
+else:
+    print('  robots.txt          verwijst naar de sitemap')
+
 print('\n%s' % ('ALLES OK' if fouten == 0 else '%d PROBLEMEN' % fouten))
 sys.exit(1 if fouten else 0)

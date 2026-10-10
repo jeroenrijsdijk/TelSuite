@@ -105,6 +105,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - **Laadtest bij wijzigingen aan de opstart van een pagina** (sinds v2.69): `laadtest.py` laadt elke pagina echt in Chromium en faalt op elke JS-fout bij het opstarten. `node --check` en de tagbalans zagen de dode herstelfunctie van pocket niet.
 - **Versienummer ophogen bij elke release** (sinds v2.68, op verzoek van Jay): het staat zichtbaar onderaan `index.html` (`<div class="versie">`). Eén nummer op vier plekken: `RELEASE` in `valideer.py`, `index.html`, "Laatste release" hier, en de naam van de overdracht. `valideer.py` faalt als één ervan afwijkt of als het nummer niet hoger is dan in de vorige release. Daardoor staat `index.html` voortaan in élke release bij de gewijzigde bestanden.
 - **Additief werken**: bestaande logica byte-identiek laten waar mogelijk.
+- **Sitemap en robots.txt** (10 okt 2026, na v3.3, zonder eigen release): de sitemap noemde na de verhuizing nog rvmk.nl, en gaat met elke release-ZIP mee naar de server. Nu: 13 openbare pagina's op telonline.org, zonder datums (niets bij te houden), en een `robots.txt` die naar de sitemap wijst. `valideer.py` controleert het; een nieuwe openbare pagina moet erin, een interne in `NIET_IN_SITEMAP`. telonline.org is aangemeld in Google Search Console, met de sitemap erbij (Jay, 10 okt).
 - Ontwerp eerst bespreken bij niet-triviale keuzes; terse goedkeuring = go.
 
 ---
@@ -130,7 +131,6 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 **Klein / afgebakend**
 - Kop van de handleiding zegt nog "Traffic Counter Help" (naam van vóór de rebrand in v2.34) en spreekt de nieuwe `<title>` tegen. Zichtbare tekst, dus Jay's keuze.
 - Hetzelfde metadatablok op `zip_format_reference.html`; dat heeft nu alleen een `<title>`.
-- `robots.txt` en `sitemap.xml` op de server (Jay's kant).
 - Reconstructiescript een losse kaart-PNG naast de `_recon.zip` laten schrijven (afgesproken bij v2.55, nu `_kaart.png` niet meer in de verzameling meegaat).
 - `probeBbox` leren omgaan met verzamelingen; nu is het bbox-filter daar fail-open en doet het dus niets.
 - Besluiten over het losse transect-formaat (`*_trn.zip`): geen enkele app maakt het nog (pocket's transect-modus `_pkt_t` verving het), maar telrapport leest het wel. Liggen er nog `_trn`-ZIP's in het archief? Zo nee: sectie uit de referentie én de leescode in telrapport eruit.

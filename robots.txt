@@ -1,0 +1,5 @@
+# telonline.org: alles mag gelezen worden. De sitemap noemt de openbare pagina's.
+User-agent: *
+Disallow:
+
+Sitemap: https://telonline.org/sitemap.xml
