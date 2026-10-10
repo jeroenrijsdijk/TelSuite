@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Openbare pagina's van telonline.org. Bewust zonder lastmod en priority:
-     Google negeert priority, en een lastmod die niet meeloopt is erger dan geen.
-     valideer.py controleert dat elk adres op telonline.org staat en in de release bestaat. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://telonline.org/</loc></url>
   <url><loc>https://telonline.org/over.html</loc></url>
