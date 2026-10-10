@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Een telling met telonline.org beoordelen — toelichting voor juristen</title>
+<meta name="description" content="Wat telonline.org bij een verkeers- of parkeertelling vastlegt, wat er daarna met de gegevens gebeurt, en de sterke en zwakke plekken vergeleken met turven op papier.">
+<link rel="canonical" href="https://telonline.org/verantwoording.html">
+<!-- Open Graph (no Twitter/X cards by preference) -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="Een telling met telonline.org beoordelen">
+<meta property="og:url" content="https://telonline.org/verantwoording.html">
+<meta property="og:site_name" content="telonline.org">
+<style>
+/* ── kale stijl (v3.3): gewone HTML, systeemletter; kleur alleen waar die iets uitlegt ── */
+body{font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;max-width:46em;margin:2em auto;padding:0 1em;color:#222;background:#fff}
+h1,h2,h3,h4{line-height:1.25}h2{margin-top:2.5em;padding-bottom:.2em;border-bottom:1px solid #bbb}h4{margin-bottom:.3em}
+table{display:block;overflow-x:auto;border-collapse:collapse;margin:.6em 0}td,th{border:1px solid #ccc;padding:.25em .5em;vertical-align:top;text-align:left}
+code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,samp,a{overflow-wrap:break-word}img{max-width:100%;height:auto}
+.kleur{display:inline-block;width:.8em;height:.8em;border:1px solid #666;vertical-align:-.05em;margin-right:.35em}.rond{border-radius:50%}td:has(>.kleur){white-space:nowrap}
+/* ── einde kale stijl ── */
+</style>
+</head>
+<body>
+<h1>Een telling met telonline.org beoordelen</h1>
+<p>Toelichting voor juristen en adviseurs · stand: versie 3.3, oktober 2026</p>
+<p><a href="index.html">← telonline.org</a></p>
+
+<p>Deze toelichting is bedoeld voor wie een verkeers- of parkeertelling beoordeelt die met telonline.org is gemaakt, bijvoorbeeld in een bezwaar- of beroepsprocedure. Ze beschrijft wat de app vastlegt, wat er daarna met de gegevens gebeurt, en waar de sterke en zwakke plekken zitten. De maatstaf is de gangbare werkwijze: turven op papier.</p>
+<p>Of een telling representatief is (de gekozen dagen, tijdstippen en straten), hangt af van de opzet van het onderzoek, niet van het hulpmiddel. Daarover zegt deze toelichting niets.</p>
+
+<h2>In het kort</h2>
+<ul>
+<li><strong>Een mens telt, de app noteert.</strong> De teller ziet een auto, fiets of voetganger en tikt op het scherm. De app telt niets zelf: er is geen camera en geen sensor die voertuigen herkent.</li>
+<li><strong>Wat de app toevoegt aan een turflijst:</strong> bij elke tik het tijdstip op de seconde en de GPS-positie van de telefoon. Bij een lopende telling ook de gelopen route, met een tijdstip bij elk punt. Die route laat zien dat de telefoon er was, wanneer, en welke weg hij aflegde.</li>
+<li><strong>De gegevens blijven bij de teller.</strong> Ze staan op de telefoon en worden opgeslagen als ZIP-bestand met tabellen in tekstformaat (CSV). telonline.org ontvangt ze niet, en kan een telling dus niet bevestigen of ontkennen.</li>
+<li><strong>Een ZIP-bestand is achteraf te bewerken</strong>, net als een uitgewerkte turflijst. Omdat dezelfde gegevens op meerdere plekken in het bestand staan, valt een slordige wijziging op. Een zorgvuldige, consequente vervalsing is met programmeerkennis mogelijk.</li>
+<li><strong>De werking is na te gaan.</strong> De programmacode is openbaar, met een volledige wijzigingsgeschiedenis sinds mei 2026.</li>
+</ul>
+
+<h2>Wat de app vastlegt</h2>
+<p>telonline.org bestaat uit een aantal tel-apps die in de browser van een telefoon draaien. Er wordt niets geïnstalleerd en er is geen account. Bij elke telling legt de app vast:</p>
+<ul>
+<li>een <strong>sessienummer</strong>: datum en begintijd, drie willekeurige letters en de soort telling, bijvoorbeeld <code>20260514_100500_qah</code>;</li>
+<li>de <strong>begin- en eindtijd</strong> en het <strong>aantal tikken</strong>;</li>
+<li>de <strong>naam of initialen van de teller</strong>, zoals de teller die zelf intypt; de app controleert die niet;</li>
+<li>per tik het <strong>tijdstip</strong> (uur, minuut, seconde), de <strong>soort waarneming</strong> (bijvoorbeeld "auto, goed geparkeerd" of "fiets") en, als de telefoon een positie heeft, de <strong>GPS-positie</strong>.</li>
+</ul>
+<p>Tijden komen van de klok van de telefoon en zijn lokale tijd, zonder tijdzone. Voor een telling in Nederland volgt de tijdzone uit de datum: zomer- of wintertijd.</p>
+<p>Verder verschilt het per soort telling:</p>
+<table>
+<tr><th>Soort telling</th><th>Wat de teller doet</th><th>Wat de app daarnaast vastlegt</th></tr>
+<tr><td>Stilstaand tellen (Static)</td><td>Staat op een vast punt en tikt per passerend voertuig of persoon, per soort en per richting.</td><td>Eén GPS-positie van het telpunt, bepaald bij de start. Elke 10 seconden een teken van leven: valt de app weg en telt de teller later door, dan wordt die onderbreking vastgelegd en niet meegeteld in de teltijd.</td></tr>
+<tr><td>Parkeren: auto's, fietsen, capaciteit</td><td>Loopt een route en tikt per geparkeerd voertuig of parkeervak, met de soort (bijvoorbeeld goed geparkeerd, fout, leeg) en de kant van de straat, door de telefoon te kantelen. Voor een parkeerterrein kan de teller ook een aantal vakken invoeren.</td><td>De gelopen route, de positie van elke tik en een afgeleide plek op de straat. De telknoppen werken alleen als de telefoon een GPS-nauwkeurigheid van 25 meter of beter meldt (op een paar seconden marge na).</td></tr>
+<tr><td>Pocket: tellen in beweging, en pocket-parkeren</td><td>Loopt of fietst met de telefoon in de hand of zak en tikt per waarneming.</td><td>De gelopen route, de positie van elke tik, en per tik twee kwaliteitsmaten: hoe zeker de koppeling aan de straat is en hoe stabiel het GPS-signaal was. Tikken kunnen ook zonder GPS; die hebben dan geen positie.</td></tr>
+</table>
+<p><strong>Positie en route.</strong> De positie van een tik is de laatste positie die de telefoon doorgaf, doorgaans hooguit enkele seconden oud. De route bestaat uit GPS-punten, elk met een tijdstip en de nauwkeurigheid die de telefoon zelf opgeeft (in meters). In <code>_gps.csv</code> staat een punt bij elke verplaatsing van 5 meter of meer; de parkeer-apps schrijven daarnaast elk GPS-punt in een GPX-bestand.</p>
+<p><strong>Plek op de straat.</strong> De parkeer-apps leggen elke tik ook op de straat: op de wegas uit OpenStreetMap, 4 meter opzij naar de getelde kant. De oorspronkelijke GPS-positie blijft daarnaast in het bestand staan. Het wegennet waarmee de app werkte, wordt mee opgeslagen (<code>_netwerk.csv</code>).</p>
+
+<h2>Wat er daarna met de gegevens gebeurt</h2>
+<ol>
+<li><strong>Tijdens het tellen</strong> bewaart de browser de telling na elke tik op de telefoon zelf, zodat een vastgelopen app niets kost. Er gaat niets naar een server van telonline.org. De kaart, het wegennet en de straatnaam komen van openbare diensten; die zien de positie, niet de telling (zie de <a href="privacy.html">privacyverklaring</a>).</li>
+<li><strong>Na afloop</strong> slaat de app alles op als één ZIP-bestand: tabellen in CSV, bij de parkeer-apps ook een GPX-bestand en een kaartafbeelding. De opbouw van elk bestand staat in de <a href="zip_format_reference.html">ZIP-referentie</a> (Engels).</li>
+<li><strong>Nabewerking, als de teller daarvoor kiest.</strong> Met telreconstructie wordt achteraf bepaald op welke straat elke tik hoort, met de hele gelopen route als context. Dat verbetert de plek op de kaart. Aantallen en tijdstippen veranderen niet, en de oorspronkelijke GPS-positie blijft staan. De reconstructie maakt een nieuw bestand (<code>…_recon.zip</code>); het originele bestand blijft ongewijzigd. Het nieuwe bestand vermeldt de versie van de reconstructie, per tik hoe die uitviel, en of een tik met de hand is verplaatst (<code>handmatig</code>).</li>
+<li><strong>Rapportage.</strong> Telrapport toont tellingen op de kaart en rekent ze om naar bezetting of intensiteit. Het wijzigt het bestand niet. Verplaatst de gebruiker een tik met de hand naar een andere straat of kant, dan komt dat in een nieuw bestand, met bij die tik de markering <code>manually_corrected</code>.</li>
+</ol>
+
+<h2>Sterke punten, vergeleken met een turflijst</h2>
+<ul>
+<li><strong>Aanwezigheid.</strong> Bij een lopende telling laat de route met tijden zien dat de telefoon ter plekke was, op welk moment, en in welk tempo de route werd afgelegd. Bij een turflijst is daarvoor alleen de verklaring van de teller.</li>
+<li><strong>Tijd per waarneming.</strong> Elke tik heeft een tijdstip op de seconde, niet alleen een totaal per kwartier of per ronde. De spreiding over de tijd is zichtbaar, en een telling kan niet achteraf worden ingevuld zonder het bestand te bewerken.</li>
+<li><strong>Plaats per waarneming.</strong> Elke tik met een positie hoort op de route te liggen, op het moment van die tik. Dat is te controleren.</li>
+<li><strong>De gegevens zeggen zelf waar ze onzeker zijn.</strong> Bij elk GPS-punt staat de nauwkeurigheid. Pocket legt per tik vast hoe zeker de straat en hoe stabiel het signaal was. De parkeer-apps laten niet tellen bij een slecht signaal.</li>
+<li><strong>Na te gaan werking.</strong> Wat de app met een tik doet, is in de openbare code na te lezen. Sinds versie 3.0 (7 oktober 2026) is elke versie als downloadbaar pakket gepubliceerd.</li>
+</ul>
+
+<h2>Zwakke plekken</h2>
+<ul>
+<li><strong>Het blijft een menselijke waarneming.</strong> Een teller kan een voertuig missen, dubbel tikken of de verkeerde soort kiezen. De app controleert niet of er werkelijk een auto stond. Daarin verschilt hij niet van papier.</li>
+<li><strong>Ongedaan maken laat geen spoor na.</strong> De teller kan de laatste tik terugdraaien. Die tik verdwijnt uit het bestand; hoe vaak dat gebeurde, wordt niet vastgelegd.</li>
+<li><strong>De klok van de telefoon.</strong> Telefoons zetten hun klok normaal automatisch gelijk, maar een gebruiker kan hem ook met de hand verzetten. De app heeft geen eigen, onafhankelijke klok. Eén uur per jaar is dubbelzinnig: bij de overgang naar wintertijd (laatste zondag van oktober, 02:00–03:00). De doorlopende tiknummers en de route laten dan wel de volgorde zien.</li>
+<li><strong>GPS-nauwkeurigheid.</strong> Buiten is een telefoon meestal tot op enkele meters nauwkeurig. Tussen hoge gebouwen of onder bomen kan het tientallen meters zijn. De vastgelegde nauwkeurigheid is wat de telefoon zelf opgeeft.</li>
+<li><strong>Koppeling aan een straat.</strong> Waar straten dicht bij elkaar liggen, kan een tik aan de verkeerde straat worden gekoppeld, en de kaart van OpenStreetMap kan onvolledig zijn. De kant van de straat bij de parkeer-apps volgt uit hoe de teller de telefoon kantelt.</li>
+<li><strong>Stilstaand tellen heeft geen route.</strong> Daar is alleen de positie bij de start vastgelegd. Dat de teller daarna op die plek bleef, blijkt niet uit de gegevens.</li>
+<li><strong>De versie van de app staat niet in het bestand</strong> van de tel-apps (wel na een reconstructie). Welke versie gebruikt is, valt af te leiden uit de datum en de openbare versiegeschiedenis.</li>
+<li><strong>Het bestand is achteraf te bewerken.</strong> CSV-bestanden zijn gewone tekst. telonline.org bewaart geen kopie en zet er geen digitale handtekening op. Wel staan dezelfde gegevens op meerdere plekken: het aantal in <code>_sessie.csv</code>, de regels in <code>_telregels.csv</code>, de optelling per straat in <code>_straten.csv</code>, de stippen op de kaartafbeelding, en tijd en plaats van elke tik tegenover de route. Wie één bestand aanpast en de rest niet, valt op. Een consequente vervalsing van alle bestanden is met programmeerkennis mogelijk.</li>
+<li><strong>Tijden in het GPX-bestand.</strong> In versie 3.3 en eerder staan in het GPX-bestand van de parkeer-apps lokale tijden met het teken voor UTC ("Z"). Ze lopen daardoor één of twee uur verkeerd. De tijden in de CSV-bestanden zijn juist en gaan voor.</li>
+</ul>
+
+<h2>Wat een beoordelaar kan nagaan</h2>
+<ol>
+<li>Vraag het <strong>originele ZIP-bestand</strong>, niet alleen een samenvatting, kaart of uitdraai. Is er een reconstructie of correctie gemaakt, vraag dan het origineel én de bewerkte versie.</li>
+<li>Vraag <strong>hoe en wanneer</strong> het bestand is bewaard en doorgegeven, bijvoorbeeld met een e-mail van die datum.</li>
+<li>Vergelijk het <strong>aantal</strong> in <code>_sessie.csv</code> met het aantal regels in <code>_telregels.csv</code> en met de optelling in <code>_straten.csv</code>.</li>
+<li>Leg de <strong>route</strong> (<code>_gps.csv</code> of het GPX-bestand) op een kaart. Past ze bij het gebied en bij de opgegeven telmomenten? Liggen de tikken op de route, op hun tijdstip?</li>
+<li>Kijk naar de <strong>nauwkeurigheid</strong> van de GPS-punten en, bij pocket, naar de kwaliteitsmaten per tik.</li>
+<li>Zoek in een bewerkte versie naar <code>handmatig</code> (reconstructie) en <code>manually_corrected</code> (telrapport).</li>
+</ol>
+
+<h2>Over deze toelichting</h2>
+<p>Opgesteld door de maker van telonline.org. Ze beschrijft de werking van de software en is geen juridisch advies. telonline.org is gratis software onder de GNU General Public License, versie 3, en wordt geleverd zonder garantie. De broncode en de wijzigingsgeschiedenis staan op <a href="https://github.com/jeroenrijsdijk/TelSuite">github.com/jeroenrijsdijk/TelSuite</a>, de pakketten per versie onder <a href="https://github.com/jeroenrijsdijk/TelSuite/releases">Releases</a>.</p>
+<p>Stand: versie 3.3, 10 oktober 2026.</p>
+</body>
+</html>
