@@ -12,10 +12,17 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.5'
-# v3.5: contactadres (privacy, over, verantwoording); GeoPackage in de GIS-alinea van over.html.
-VERWACHT_GEWIJZIGD = {'index.html', 'over.html', 'privacy.html', 'verantwoording.html'}
+RELEASE = 'v3.6'
+# v3.6: SEO-ronde. Titels, descriptions en canonicals in de <head>; de <h1> van
+# capaciteitstelling. Geen functionele wijzigingen.
+VERWACHT_GEWIJZIGD = {'index.html', 'over.html', 'verantwoording.html', 'traffic_counter.html',
+                      'pocket_count.html', 'parkeertelling.html', 'fietsparkeren.html',
+                      'capaciteitstelling.html', 'telplanning.html', 'telreconstructie.html',
+                      'telrapport.html', 'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
+
+# Interne pagina's: niet in de sitemap, geen eisen aan titel en description
+NIET_IN_SITEMAP = {'snap_methodology.html', 'snaptrace.html', 'winkelstraat_rekenrig.html'}
 
 # v3.3: documentatiepagina's in kale HTML, met hetzelfde stijlblok
 KAAL = ['traffic_counter_help.html', 'over.html', 'privacy.html', 'verantwoording.html']
@@ -293,12 +300,15 @@ print('\n== versiestempel reconstructor ==')
 # v2.74: RECON_VERSIE in telreconstructie.html is de release waarin de
 # reconstructor voor het laatst veranderde. Veranderd bestand -> stempel gelijk
 # aan RELEASE; onveranderd -> stempel niet hoger dan RELEASE.
+# v3.6: de <head> telt niet mee. Een andere titel of description verandert de
+# reconstructor niet, en de stempel komt in elke gereconstrueerde ZIP.
 def recon_stempel(map_):
     pad = os.path.join(map_, 'telreconstructie.html')
     if not os.path.exists(pad):
         return None, None
     tekst = io.open(pad, encoding='utf-8').read()
-    return tekst, re.findall(r"^var RECON_VERSIE = '(v\d+\.\d+)';$", tekst, re.M)
+    zonder_kop = re.sub(r'<head>.*?</head>', '<head></head>', tekst, count=1, flags=re.S)
+    return zonder_kop, re.findall(r"^var RECON_VERSIE = '(v\d+\.\d+)';$", tekst, re.M)
 t_nieuw, st_nieuw = recon_stempel(NIEUW_DIR)
 t_oud, _ = recon_stempel(OUD_DIR)
 if t_nieuw is not None:
@@ -341,13 +351,57 @@ else:
     for k in re.findall(r'data-invullen="([a-z]+)"', priv):
         print('  LET OP privacy.html: "%s" nog invullen vóór het online gaat' % k)
 
+print('\n== titel, description, canonical (publieke pagina\'s) ==')
+# v3.6: elke publieke pagina (alles behalve NIET_IN_SITEMAP, bovenaan) heeft
+#  - een <title> van hooguit 65 tekens;
+#  - een meta description van 70 tot en met 160 tekens;
+#  - een canonical op https://telonline.org/<bestand> (index.html: https://telonline.org/);
+#  - als er een og:title is: gelijk aan de titel zonder " | telonline.org".
+# Gemeten in tekens na het omzetten van entiteiten (&amp; telt als één teken).
+class Kop(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.titel, self.meta, self.links, self._in_titel, self.klaar = None, {}, {}, False, False
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == 'body': self.klaar = True
+        if self.klaar: return
+        if tag == 'title': self._in_titel, self.titel = True, ''
+        elif tag == 'meta':
+            sleutel = a.get('name') or a.get('property')
+            if sleutel and sleutel not in self.meta: self.meta[sleutel] = a.get('content', '')
+        elif tag == 'link' and a.get('rel') == 'canonical': self.links['canonical'] = a.get('href', '')
+    def handle_endtag(self, tag):
+        if tag == 'title': self._in_titel = False
+    def handle_data(self, data):
+        if self._in_titel and not self.klaar: self.titel += data
+
+TITEL_MAX, DESC_MIN, DESC_MAX = 65, 70, 160
+for f in sorted(set(html) - NIET_IN_SITEMAP):
+    k = Kop(); k.feed(io.open(os.path.join(NIEUW_DIR, f), encoding='utf-8').read())
+    titel = (k.titel or '').strip()
+    desc = k.meta.get('description', '').strip()
+    canon = k.links.get('canonical', '')
+    verwacht = 'https://telonline.org/' + ('' if f == 'index.html' else f)
+    problemen = []
+    if not titel: problemen.append('geen <title>')
+    elif len(titel) > TITEL_MAX: problemen.append('titel %d tekens (max %d)' % (len(titel), TITEL_MAX))
+    if not desc: problemen.append('geen meta description')
+    elif not DESC_MIN <= len(desc) <= DESC_MAX: problemen.append('description %d tekens (%d-%d)' % (len(desc), DESC_MIN, DESC_MAX))
+    if canon != verwacht: problemen.append('canonical %r, verwacht %r' % (canon, verwacht))
+    og = k.meta.get('og:title')
+    if og is not None and og.strip() != re.sub(r' \| telonline\.org$', '', titel):
+        problemen.append('og:title %r wijkt af van de titel' % og)
+    print('  %-26s %s' % (f, ('FOUT ' + '; '.join(problemen)) if problemen
+                          else 'OK  titel %2d, description %3d' % (len(titel), len(desc))))
+    fouten += len(problemen)
+
 print('\n== sitemap en robots.txt ==')
 # Sinds 10 okt 2026 (na v3.3). De sitemap noemde na de verhuizing nog rvmk.nl,
 # en dat bestand gaat met elke release-ZIP mee naar de server. Elk adres moet op
 # telonline.org staan, naar een bestand in de release wijzen en één keer
 # voorkomen ('/' is index.html). Een pagina die er niet in staat is een
-# waarschuwing: zet hem in de sitemap, of hier in NIET_IN_SITEMAP als hij intern is.
-NIET_IN_SITEMAP = {'snap_methodology.html', 'snaptrace.html', 'winkelstraat_rekenrig.html'}
+# waarschuwing: zet hem in de sitemap, of bovenaan in NIET_IN_SITEMAP als hij intern is.
 sm_pad = os.path.join(NIEUW_DIR, 'sitemap.xml')
 if not os.path.exists(sm_pad):
     print('  FOUT sitemap.xml ontbreekt'); fouten += 1
