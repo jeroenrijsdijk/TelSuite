@@ -35,7 +35,10 @@ Deze CLAUDE.md is een samenvatting. Bij twijfel gelden de documenten in `docs/`.
 - ZIP-namen: `_car`, `_fts`, `_cap`, `_pkt_<s|t|w|p>`, `_sta`;
   reconstructie: `<sessie_id>_recon.zip`. De modusletter zit in de `sessie_id`.
 - Taal: interfaces en handleiding Nederlands, technische referentie Engels.
-- Metadata: Open Graph wel, Twitter/X-kaarten **nooit**.
+- Metadata: Open Graph wel, Twitter/X-kaarten **nooit**. Elke publieke pagina
+  heeft een `<title>` van hooguit 65 tekens ("… | telonline.org"), een meta
+  description van 70–160 tekens en een canonical; een og:title is de titel
+  zonder " | telonline.org". `valideer.py` controleert het.
 - SEO: gebruik "traffic counting" (de activiteit), niet "traffic counter".
 - Huisstijl: Oswald, met Share Tech Mono als monospace, in de tools. De
   documentatiepagina's (handleiding, over, privacy, verantwoording) zijn kale HTML met

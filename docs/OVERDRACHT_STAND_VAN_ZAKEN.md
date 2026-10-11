@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.5.** Contactadres `verkeer@telonline.org` in `privacy.html`, `over.html` en `verantwoording.html`; de GIS-alinea in `over.html` noemt de GeoPackage uit Telrapport (`overdracht_v3_5.md`). v3.4 bracht `verantwoording.html` (toelichting voor juristen) en GPX-tijden in UTC. v3.3 maakte de documentatiepagina's kaal, v3.2 zette een QGIS-project in de GeoPackage uit telrapport, v3.1 bracht de GeoPackage zelf; 3.0 was de in het veld geteste v2.77. Sinds 3.0 maakt GitHub per release automatisch een ZIP (zie §3).
+**Laatste release: v3.6.** SEO-ronde: elke publieke pagina heeft nu een Nederlandse titel van hooguit 65 tekens, een meta description en een canonical; `valideer.py` bewaakt dat (`overdracht_v3_6.md`). v3.5 bracht het contactadres en de GeoPackage op `over.html`; v3.4 `verantwoording.html` en GPX-tijden in UTC.
 
 ---
 
@@ -190,7 +190,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.5 in één oogopslag
+## 6. Releases v2.32 → v3.6 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -246,6 +246,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.3 | **Kale documentatiepagina's**: handleiding, `over.html` en `privacy.html` in gewone HTML met één gedeeld stijlblok (96,7 → 76,4 kB voor de handleiding), tekst woord voor woord gelijk (nieuwe `tekstgelijk.py`); geen Google Fonts meer op die pagina's; op de telefoon geen zijwaarts schuiven meer; `valideer.py` bewaakt het stijlblok |
 | v3.4 | **`verantwoording.html`**: toelichting voor juristen (wat de app vastlegt, wat er daarna mee gebeurt, sterke en zwakke plekken naast een turflijst, wat een beoordelaar kan nagaan), gelinkt vanuit `over.html` en de handleiding; **GPX-tijden in echte UTC** in de drie parkeer-apps (stonden als lokale tijd met een Z, één of twee uur mis); nieuwe `functest_gpxtijd.js` |
 | v3.5 | **Contactadres** `verkeer@telonline.org` (privacyverklaring, `over.html`, verantwoording; GitHub-issues op `over.html` en in de README); GIS-alinea in `over.html` noemt de GeoPackage met kant-en-klaar QGIS-project |
+| v3.6 | **SEO-ronde**: titels, meta descriptions en canonicals voor de negen tools (Nederlands) en de titel van `over.html`; `<h1>` van capaciteitstelling "Parkeercapaciteit"; titel van `index.html` en `verantwoording.html` en de description van `over.html` en `verantwoording.html` ingekort; nieuwe controle in `valideer.py` (titel ≤ 65, description 70–160, canonical, og:title) |
 
 ---
 

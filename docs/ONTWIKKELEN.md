@@ -133,7 +133,14 @@ verraden het gebied of de positie waar je telt.
   `HIGHWAY_RE`, de Overpass-afhandeling, de tegel-cache, de segmentatie) moeten
   byte-identiek blijven. `valideer.py` controleert dat.
 - **Taal**: interfaces en handleiding Nederlands; technische referentie Engels.
-- **Metadata**: Open Graph wel, Twitter/X-kaarten niet.
+- **Metadata**: Open Graph wel, Twitter/X-kaarten niet. Sinds v3.6 heeft elke
+  publieke pagina (alles behalve `NIET_IN_SITEMAP` in `valideer.py`):
+  - een `<title>` van hooguit 65 tekens, in de vorm "Onderwerp | telonline.org";
+  - een meta description van 70 tot en met 160 tekens;
+  - een canonical op `https://telonline.org/<bestand>` (`index.html`: `https://telonline.org/`);
+  - als er een og:title is: de titel zonder " | telonline.org".
+
+  `valideer.py` controleert alle vier. Een nieuwe publieke pagina krijgt ze meteen.
 - **Huisstijl**: Oswald, met Share Tech Mono als monospace, in de tools.
 - **Documentatiepagina's** (`traffic_counter_help.html`, `over.html`,
   `privacy.html` sinds v3.3, `verantwoording.html` sinds v3.4): kale HTML. Koppen, alinea's, lijsten en tabellen,
