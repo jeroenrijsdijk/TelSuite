@@ -3000,8 +3000,11 @@ function openWeekprofile(key) {
 }
 
 // Compacte sessie-tabel: per sessie de bijdrage aan dit segment.
-// Toont datum, aanwezigheidstijd (uit visits), tikken, en p/m·u per sessie.
+// Toont weekdag en datum, aanwezigheidstijd (uit visits), tikken, en p/m·u per sessie.
+// v3.7: nieuwste bovenaan, gesorteerd op het eerste bezoek aan dit segment (een Date,
+// niet de datum als tekst); weekdag zoals in het dag×uur-diagram; tijd altijd in seconden.
 function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
+  const DAGEN = ['ma','di','wo','do','vr','za','zo'];
   const rows = [];
   Object.keys(visitData).forEach(function(sid) {
     if (!pocketZichtbaar(sid)) return;
@@ -3014,8 +3017,12 @@ function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
     const meterHours = lenM * (totSec / 3600);
     const pmh = meterHours > 0 ? totTel / meterHours : 0;
     const sm  = sessions[sid].meta || {};
+    const t0  = matches.reduce((m,v) => (v.tStart && (!m || v.tStart < m)) ? v.tStart : m, null);
+    const pad = n => String(n).padStart(2, '0');
     rows.push({
-      datum: fmtDatum(sm.datum, sm.start_tijd),
+      t0: t0,
+      datum: t0 ? `${DAGEN[(t0.getDay()+6)%7]} ${pad(t0.getDate())}-${pad(t0.getMonth()+1)}-${t0.getFullYear()}`
+                : fmtDatum(sm.datum, sm.start_tijd),
       teller: sm.teller || '',
       visits: matches.length,
       secs: totSec,
@@ -3024,7 +3031,7 @@ function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
     });
   });
   if (!rows.length) return '';
-  rows.sort((a,b) => a.datum.localeCompare(b.datum));
+  rows.sort((a,b) => (b.t0 ? b.t0.getTime() : 0) - (a.t0 ? a.t0.getTime() : 0));
 
   let html = '<div style="margin-top:18px;font-size:10px;color:var(--muted);' +
              'letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">' +
@@ -3033,8 +3040,7 @@ function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
           '<th>datum</th><th>visits</th><th>aanwezig</th><th>tikken</th><th>p/m·u</th><th>klasse</th>' +
           '</tr>';
   rows.forEach(r => {
-    const minStr = (r.secs >= 60) ? (r.secs/60).toFixed(1) + ' min'
-                                  : Math.round(r.secs) + ' s';
+    const minStr = Math.round(r.secs) + ' s';
     const cls = intensityClass(r.pmh);
     html += `<tr><td>${r.datum}</td>` +
             `<td>${r.visits}</td>` +
@@ -3048,8 +3054,7 @@ function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
     const totTel = rows.reduce((a,r) => a + r.tel, 0);
     const totVis = rows.reduce((a,r) => a + r.visits, 0);
     const grand  = (lenM * (totSec/3600)) > 0 ? totTel / (lenM * (totSec/3600)) : 0;
-    const minStr = (totSec >= 60) ? (totSec/60).toFixed(1) + ' min'
-                                  : Math.round(totSec) + ' s';
+    const minStr = Math.round(totSec) + ' s';
     const cls = intensityClass(grand);
     html += `<tr class="sum-row"><td>∑</td><td>${totVis}</td>` +
             `<td>${minStr}</td><td>${totTel}</td>` +
