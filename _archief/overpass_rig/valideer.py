@@ -12,13 +12,10 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.6'
-# v3.6: SEO-ronde. Titels, descriptions en canonicals in de <head>; de <h1> van
-# capaciteitstelling. Geen functionele wijzigingen.
-VERWACHT_GEWIJZIGD = {'index.html', 'over.html', 'verantwoording.html', 'traffic_counter.html',
-                      'pocket_count.html', 'parkeertelling.html', 'fietsparkeren.html',
-                      'capaciteitstelling.html', 'telplanning.html', 'telreconstructie.html',
-                      'telrapport.html', 'zip_format_reference.html'}
+RELEASE = 'v3.7'
+# v3.7: weekprofiel in telrapport: tabel nieuwste bovenaan met weekdag en tijd,
+# seconden, 95%-marge en 'onzeker', koppeling tabel en diagram; handleiding.
+VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description

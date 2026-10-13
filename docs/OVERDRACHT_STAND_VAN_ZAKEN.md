@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.6.** SEO-ronde: elke publieke pagina heeft nu een Nederlandse titel van hooguit 65 tekens, een meta description en een canonical; `valideer.py` bewaakt dat (`overdracht_v3_6.md`). v3.5 bracht het contactadres en de GeoPackage op `over.html`; v3.4 `verantwoording.html` en GPX-tijden in UTC.
+**Laatste release: v3.7.** Weekprofiel in telrapport: de tabel met tellingen staat nieuwste bovenaan met weekdag en tijd, in seconden; elke waarde heeft een 95%-marge (exact Poisson) en staat lichter als hij onzeker is; tabel en dag×uur-diagram zijn aan elkaar gekoppeld (`overdracht_v3_7.md`). v3.6 was de SEO-ronde, v3.5 bracht het contactadres.
 
 ---
 
@@ -190,7 +190,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.6 in één oogopslag
+## 6. Releases v2.32 → v3.7 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -247,6 +247,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.4 | **`verantwoording.html`**: toelichting voor juristen (wat de app vastlegt, wat er daarna mee gebeurt, sterke en zwakke plekken naast een turflijst, wat een beoordelaar kan nagaan), gelinkt vanuit `over.html` en de handleiding; **GPX-tijden in echte UTC** in de drie parkeer-apps (stonden als lokale tijd met een Z, één of twee uur mis); nieuwe `functest_gpxtijd.js` |
 | v3.5 | **Contactadres** `verkeer@telonline.org` (privacyverklaring, `over.html`, verantwoording; GitHub-issues op `over.html` en in de README); GIS-alinea in `over.html` noemt de GeoPackage met kant-en-klaar QGIS-project |
 | v3.6 | **SEO-ronde**: titels, meta descriptions en canonicals voor de negen tools (Nederlands) en de titel van `over.html`; `<h1>` van capaciteitstelling "Parkeercapaciteit"; titel van `index.html` en `verantwoording.html` en de description van `over.html` en `verantwoording.html` ingekort; nieuwe controle in `valideer.py` (titel ≤ 65, description 70–160, canonical, og:title) |
+| v3.7 | **Weekprofiel**: tabel nieuwste bovenaan (sorteerde op de datumtekst), weekdag en tijd, seconden, visits in *aanwezig*; 95%-marge (exact Poisson, getoetst aan scipy) in de tooltips; onzeker = minder dan 5 tikken én marge over een klassegrens, lichter getoond; klik op rij ↔ cel; nieuwe `functest_segmenttabel.js` |
 
 ---
 
