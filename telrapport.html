@@ -238,6 +238,14 @@
     font-size: 9px; color: var(--muted); letter-spacing: 1px; }
   .hm-leg-sw { display: inline-block; width: 18px; height: 10px; border-radius: 2px;
     vertical-align: middle; }
+  /* v3.7: onzekere waarden lichter; tabel en diagram aan elkaar gekoppeld */
+  .hm-tbl td[data-cel] { cursor: pointer; }
+  .hm-tbl td.hm-onzeker { opacity: .45; }
+  .hm-tbl td.hm-sel { outline: 2px solid #fff; outline-offset: -2px; opacity: 1; }
+  .cmp-table tr[data-cellen] { cursor: pointer; }
+  .cmp-table tr.onzeker td { opacity: .5; }
+  .cmp-table tr.rij-sel td { background: rgba(255,255,255,0.08); opacity: 1; }
+  .hm-noot { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
   .hm-leg-lbl { vertical-align: middle; margin-left: 3px; }
 
   /* Weekprofiel-modal (popup over kaart) */
@@ -2814,6 +2822,45 @@ function redrawAllClusters() {
   Object.keys(sessions).forEach(sid=>drawClusters(sid));
 }
 
+// ── Betrouwbaarheid van een p/m·u (v3.7) ──────────────────────────────────
+// Een telling van k tikken is een Poisson-waarneming. De 95%-marge op het
+// werkelijke aantal is het exacte (Garwood-)interval: de λ waarvoor P(X ≥ k)
+// = 2,5% (ondergrens) en P(X ≤ k) = 2,5% (bovengrens). Gedeeld door
+// segmentlengte × uren is dat de marge in p/m·u. De relatieve onzekerheid hangt
+// alleen van k af, niet van de meetduur: met 2 tikken blijft het grof.
+function poissonCdf(k, lam) {               // P(X ≤ k), in log-ruimte: ook voor grote k
+  if (lam <= 0) return 1;
+  if (k < 0) return 0;
+  const logs = [-lam];
+  for (let i = 1; i <= k; i++) logs.push(logs[i-1] + Math.log(lam) - Math.log(i));
+  const max = Math.max.apply(null, logs);
+  let som = 0; logs.forEach(l => { som += Math.exp(l - max); });
+  return Math.min(1, Math.exp(max) * som);
+}
+function poissonMarge(k) {                  // [onder, boven] voor het verwachte aantal tikken
+  k = Math.max(0, Math.round(k));
+  const zoek = (f, doel) => {               // f daalt met λ: bisectie
+    let lo = 0, hi = k + 10 * Math.sqrt(k + 1) + 10;
+    for (let n = 0; n < 60; n++) { const m = (lo + hi) / 2; if (f(m) > doel) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  };
+  return [k === 0 ? 0 : zoek(l => poissonCdf(k - 1, l), 0.975),
+          zoek(l => poissonCdf(k, l), 0.025)];
+}
+// Marge in p/m·u, en het oordeel 'onzeker': minder dan 5 tikken én de marge
+// loopt over een klassegrens. Valt de hele marge in één klasse (lang gemeten en
+// vrijwel niets geteld: zeker Rustig), dan is de waarde niet onzeker.
+function pmhMarge(taps, secs, lenM) {
+  const mu = lenM * (secs / 3600);
+  if (!(mu > 0)) return null;
+  const [a, b] = poissonMarge(taps);
+  const lo = a / mu, hi = b / mu;
+  const kl = v => (intensityClass(v) || {}).index;
+  return { lo: lo, hi: hi, onzeker: Math.round(taps) < 5 && kl(lo) !== kl(hi) };
+}
+function fmtPmh(v) { return v >= 10 ? String(Math.round(v)) : v.toFixed(1); }
+function margeTekst(m) { return m ? `95%-marge ${fmtPmh(m.lo)}–${fmtPmh(m.hi)} p/m·u` : ''; }
+
 // ── 7×24 HEATMAP voor pocket-segment ──────────────────────────────────────
 // Per cel (dag-van-week, uur): aanwezigheidstijd in segment-meter-uren en
 // aantal tikken in dat tijdvenster. Visits over uurgrenzen worden proportioneel
@@ -2938,11 +2985,13 @@ function renderWeeklyHeatmap(hm) {
     for (let h = 0; h < 24; h++) {
       const c = hm.cells[d][h];
       const v = c.value;
+      const m = (v !== null) ? pmhMarge(c.taps, c.secs, hm.lenM) : null;
       const title = (v !== null)
-        ? `${DAGEN[d]} ${h}:00 · ${v.toFixed(1)} p/m·u · ${cellLabel(v)} (${Math.round(c.taps)} tikken in ${(c.secs/60).toFixed(1)} min)`
+        ? `${DAGEN[d]} ${h}:00 · ${v.toFixed(1)} p/m·u · ${cellLabel(v)} (${Math.round(c.taps)} tikken in ${Math.round(c.secs)} s) · ${margeTekst(m)}${m && m.onzeker ? ' · onzeker' : ''}`
         : `${DAGEN[d]} ${h}:00 · niet gemeten`;
       const txt = (v !== null && v >= 0.5) ? fmtVal(v) : '';
-      html += `<td style="${cellStyle(v)}" title="${title}">${txt}</td>`;
+      const extra = (v !== null) ? ` data-cel="${d}-${h}"${m && m.onzeker ? ' class="hm-onzeker"' : ''}` : '';
+      html += `<td style="${cellStyle(v)}" title="${title}"${extra}>${txt}</td>`;
     }
     const rowVal = valOf(dayTot[d].secs, dayTot[d].taps);
     html += `<td class="hm-tot" title="${rowVal !== null ? rowVal.toFixed(1) + ' p/m·u · ' + (intensityClass(rowVal)?.label||'') : 'geen data'}">${fmtVal(rowVal)}</td></tr>`;
@@ -2994,9 +3043,41 @@ function openWeekprofile(key) {
   body += renderSegmentSessionTable(wd, wid, segIdx, hm.lenM);
   body += renderSegmentBreakdown(key, hm.lenM);   // wandel-recon: categorie × richting
 
-  document.getElementById('weekprofile-body').innerHTML = body;
+  const bodyEl = document.getElementById('weekprofile-body');
+  bodyEl.innerHTML = body;
+  bodyEl.onclick = weekprofielKlik;   // toewijzen, niet optellen: elke keer opnieuw openen
   document.getElementById('weekprofile-modal').classList.remove('hidden');
   return true;
+}
+
+// v3.7: tabel en diagram aan elkaar gekoppeld. Klik op een rij: de cellen van
+// die telling lichten op. Klik op een cel: alleen de tellingen in die cel; nog
+// een keer klikken (of op een rij) toont weer alles. Eén selectie tegelijk.
+function weekprofielKlik(e) {
+  const body = e.currentTarget;
+  const cel = e.target.closest('td[data-cel]');
+  const rij = e.target.closest('tr[data-cellen]');
+  if (!cel && !rij) return;
+  const was = cel ? cel.classList.contains('hm-sel') : rij.classList.contains('rij-sel');
+  body.querySelectorAll('.hm-sel').forEach(el => el.classList.remove('hm-sel'));
+  body.querySelectorAll('.rij-sel').forEach(el => el.classList.remove('rij-sel'));
+  body.querySelectorAll('tr[data-cellen]').forEach(tr => { tr.style.display = ''; });
+  const som = body.querySelector('.seg-tellingen .sum-row');
+  if (som) som.style.display = '';
+  if (was) return;                     // tweede klik: alles weer zoals het was
+  if (cel) {
+    cel.classList.add('hm-sel');
+    body.querySelectorAll('tr[data-cellen]').forEach(tr => {
+      if (!tr.dataset.cellen.split(' ').includes(cel.dataset.cel)) tr.style.display = 'none';
+    });
+    if (som) som.style.display = 'none';
+  } else {
+    rij.classList.add('rij-sel');
+    rij.dataset.cellen.split(' ').forEach(id => {
+      const td = body.querySelector(`td[data-cel="${id}"]`);
+      if (td) td.classList.add('hm-sel');
+    });
+  }
 }
 
 // Compacte sessie-tabel: per sessie de bijdrage aan dit segment.
@@ -3019,9 +3100,13 @@ function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
     const sm  = sessions[sid].meta || {};
     const t0  = matches.reduce((m,v) => (v.tStart && (!m || v.tStart < m)) ? v.tStart : m, null);
     const pad = n => String(n).padStart(2, '0');
+    // De cellen (dag-uur) van het diagram waarin deze telling meetelt
+    const cellen = new Set();
+    matches.forEach(v => splitVisitIntoHourBuckets(v).forEach(b => cellen.add(b.dow + '-' + b.hour)));
     rows.push({
       t0: t0,
-      datum: t0 ? `${DAGEN[(t0.getDay()+6)%7]} ${pad(t0.getDate())}-${pad(t0.getMonth()+1)}-${t0.getFullYear()}`
+      cellen: [...cellen].join(' '),
+      datum: t0 ? `${DAGEN[(t0.getDay()+6)%7]} ${pad(t0.getDate())}-${pad(t0.getMonth()+1)}-${t0.getFullYear()} ${pad(t0.getHours())}:${pad(t0.getMinutes())}`
                 : fmtDatum(sm.datum, sm.start_tijd),
       teller: sm.teller || '',
       visits: matches.length,
@@ -3036,17 +3121,17 @@ function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
   let html = '<div style="margin-top:18px;font-size:10px;color:var(--muted);' +
              'letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">' +
              'Tellingen op dit segment</div>';
-  html += '<table class="cmp-table"><tr>' +
-          '<th>datum</th><th>visits</th><th>aanwezig</th><th>tikken</th><th>p/m·u</th><th>klasse</th>' +
+  html += '<table class="cmp-table seg-tellingen"><tr>' +
+          '<th>datum</th><th>aanwezig</th><th>tikken</th><th>p/m·u</th><th>klasse</th>' +
           '</tr>';
   rows.forEach(r => {
-    const minStr = Math.round(r.secs) + ' s';
+    const minStr = Math.round(r.secs) + ' s' + (r.visits > 1 ? ` · ${r.visits}×` : '');
     const cls = intensityClass(r.pmh);
-    html += `<tr><td>${r.datum}</td>` +
-            `<td>${r.visits}</td>` +
+    const m = pmhMarge(r.tel, r.secs, lenM);
+    html += `<tr data-cellen="${r.cellen}"${m && m.onzeker ? ' class="onzeker"' : ''}><td>${r.datum}</td>` +
             `<td>${minStr}</td>` +
             `<td>${r.tel}</td>` +
-            `<td>${r.pmh.toFixed(1)}</td>` +
+            `<td title="${margeTekst(m)}">${r.pmh.toFixed(1)}</td>` +
             `<td style="color:${cls?.kleur||'inherit'};font-weight:600">${cls?.label||''}</td></tr>`;
   });
   if (rows.length > 1) {
@@ -3054,14 +3139,18 @@ function renderSegmentSessionTable(wd, wid, segIdx, lenM) {
     const totTel = rows.reduce((a,r) => a + r.tel, 0);
     const totVis = rows.reduce((a,r) => a + r.visits, 0);
     const grand  = (lenM * (totSec/3600)) > 0 ? totTel / (lenM * (totSec/3600)) : 0;
-    const minStr = Math.round(totSec) + ' s';
+    const minStr = Math.round(totSec) + ' s' + (totVis > 1 ? ` · ${totVis}×` : '');
     const cls = intensityClass(grand);
-    html += `<tr class="sum-row"><td>∑</td><td>${totVis}</td>` +
+    const m = pmhMarge(totTel, totSec, lenM);
+    html += `<tr class="sum-row"><td>∑</td>` +
             `<td>${minStr}</td><td>${totTel}</td>` +
-            `<td>${grand.toFixed(1)}</td>` +
+            `<td title="${margeTekst(m)}">${grand.toFixed(1)}</td>` +
             `<td style="color:${cls?.kleur||'inherit'};font-weight:600">${cls?.label||''}</td></tr>`;
   }
   html += '</table>';
+  html += '<div class="hm-noot">Lichter: minder dan 5 tikken, en de 95%-marge (tooltip op p/m·u) ' +
+          'loopt over een klassegrens. Klik op een rij om de cellen in het diagram te zien, ' +
+          'of op een cel om alleen de tellingen in die cel te tonen.</div>';
   return html;
 }
 
