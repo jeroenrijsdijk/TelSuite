@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v2.76/v2.77 opruimtest — noodopslag weg na een bevestigde download, en alleen dan.
+"""v2.76/v2.77/v3.8 opruimtest — noodopslag weg na een bevestigde download, en alleen dan.
 
 Aanleiding: pocket schreef de noodkopie na Stop + Sluiten opnieuw weg bij de
 eerstvolgende app-wissel (telHistory was nog gevuld), en bood bij heropenen een
@@ -19,6 +19,18 @@ zijn kopie staan tot je Static weer opende.
   E. Voorkeuren blijven: taal, tellernaam en kantelmodus horen er te blijven.
   F. Parkeer-apps (v2.77): de ZIP-knop biedt dezelfde ZIP opnieuw aan, en
      nooit de ZIP van een vorige sessie.
+  G. Twee vensters (v3.8). Venster A heeft de afgebroken telling nog open,
+     venster B herstelt hem, telt door en slaat op. Tot v3.8 schreef A zijn
+     oude stand terug zodra het verborgen werd, en overschreef Static elke 10 s
+     een telling die in B liep. Nu:
+     G1. Doortellen in B: A legt stil en meldt het; na opslaan in B, A verbergen
+         en heropenen staat er niets meer; een oude kopie van die telling wordt
+         niet meer hersteld; herladen vanuit de melding vraagt niets.
+     G2. Static: A overschrijft de lopende telling in B niet meer.
+     G3. A telt nog door nadat B herstelde: Doortellen in B weigert (B zou een
+         verouderde stand voortzetten) en meldt het; A telt gewoon verder.
+     G4. Weggooien in B (pocket: Verwijder; parkeer-app: nieuwe sessie) sluit de
+         telling af: A zet hem niet terug.
 
 Hulp (server, CDN-omleiding, nep-Overpass) komt uit hersteltest.py ernaast.
 Draaien vanuit de suite-root:  python3 _archief/overpass_rig/opruimtest.py
@@ -182,6 +194,122 @@ with sync_playwright() as p:
         len(best) == 3 and best[2][0] != best[0][0], best)
     eis('geen JS-fouten', not fouten, fouten)
     ctx.close()
+
+    print('\n== G. twee vensters (v3.8): het oude venster zet niets terug ==')
+    HERVAT = {'parkeertelling.html': 'hervatSessie', 'fietsparkeren.html': 'hervatSessie',
+              'capaciteitstelling.html': 'hervatSessie', 'pocket_count.html': 'hervatTelling',
+              'traffic_counter.html': 'doortellenStatic'}
+    KNOP = ("(f)=>{var b=[...document.querySelectorAll('button')].find(x=>(x.getAttribute('onclick')||'')"
+            ".indexOf(f+'(')===0&&x.offsetParent!==null);if(!b)return false;b.click();return true}")
+    BUITENSPEL = "(document.getElementById('kopie-elders')||{}).textContent||null"
+    SLEUTEL = "Object.keys(localStorage).filter(k=>/_sessie$/.test(k))[0]"
+    TIKKEN = ("(()=>{var k=%s;if(!k)return null;var d=JSON.parse(localStorage.getItem(k));"
+              "return (d.entries||d.telHistory||d.history||[]).length})()" % SLEUTEL)
+    RUW = "(()=>{var k=%s;return k?[k,localStorage.getItem(k)]:null})()" % SLEUTEL
+
+    def venster(ctx, app):
+        pg = ctx.new_page(); f = []; dlg = []
+        pg.on('pageerror', lambda e: f.append(e.message[:120]))
+        pg.on('dialog', lambda d: (dlg.append(d.type), d.accept()))
+        pg.goto(BASIS + app, wait_until='load'); pg.wait_for_timeout(900)
+        return pg, f, dlg
+
+    print('-- G1. doortellen in B, opslaan, A verborgen --')
+    for naam, app, start, tik, stop, sluit in APPS:
+        ctx = nieuwe_context(b)
+        A, fa, dla = venster(ctx, app)
+        A.evaluate(start); A.wait_for_timeout(500)
+        loop(ctx, A, 4, tik)
+        oud = A.evaluate(RUW)                                   # de afgebroken stand
+        B, fb, dlb = venster(ctx, app)
+        eis('%s: B biedt de afgebroken telling aan' % naam, B.evaluate(MELDING) is not None)
+        eis('%s: Doortellen in B lukt' % naam, B.evaluate(KNOP, HERVAT[app]) and B.evaluate(BUITENSPEL) is None)
+        B.wait_for_timeout(600)
+        melding = A.evaluate(BUITENSPEL) or ''
+        eis('%s: A meldt dat de telling in een ander venster verder gaat' % naam,
+            ('verder in een ander venster' in melding) or ('continues in another window' in melding), melding)
+        loop(ctx, B, 4, tik)
+        eis('%s: de kopie is die van B (8 tikken)' % naam, B.evaluate(TIKKEN) == 8, B.evaluate(TIKKEN))
+        with B.expect_download(timeout=15000):
+            B.evaluate(stop)
+        B.wait_for_timeout(900)
+        if sluit: B.evaluate(sluit); B.wait_for_timeout(200)
+        A.evaluate(VERBERG); A.wait_for_timeout(300)
+        if 'traffic_counter' in app: A.wait_for_timeout(11000)  # de hartslag van Static
+        eis('%s: na opslaan in B en A verborgen: geen kopie' % naam, B.evaluate(KOPIE) == [], B.evaluate(KOPIE))
+        kopie, mld = heropen(ctx, B, app)
+        eis('%s: heropenen: geen kopie, geen melding' % naam, kopie == [] and mld is None, (kopie, mld))
+        # Een oude kopie van deze telling (uit een venster met oude code) wordt niet hersteld
+        B.evaluate("([k,v])=>localStorage.setItem(k,v)", oud)
+        kopie, mld = heropen(ctx, B, app)
+        eis('%s: een oude kopie van een opgeslagen telling: niet hersteld, en weg' % naam,
+            kopie == [] and mld is None, (kopie, mld))
+        A.evaluate("document.querySelector('#kopie-elders button').click()"); A.wait_for_timeout(900)
+        eis('%s: herladen vanuit de melding: geen vraag, geen melding meer' % naam,
+            'beforeunload' not in dla and A.evaluate(BUITENSPEL) is None and A.evaluate(MELDING) is None,
+            (dla, A.evaluate(BUITENSPEL), A.evaluate(MELDING)))
+        eis('%s: geen JS-fouten' % naam, not (fa + fb), fa + fb)
+        ctx.close()
+
+    print('-- G2. Static: A overschrijft de lopende telling in B niet --')
+    ctx = nieuwe_context(b)
+    A, fa, _ = venster(ctx, 'traffic_counter.html')
+    A.evaluate('startSession()'); A.wait_for_timeout(500)
+    loop(ctx, A, 4, lambda i: TIK_STATIC % i)
+    B, fb, _ = venster(ctx, 'traffic_counter.html')
+    B.evaluate(KNOP, 'doortellenStatic'); B.wait_for_timeout(500)
+    loop(ctx, B, 6, lambda i: TIK_STATIC % i)
+    reeks = []
+    for i in range(13):
+        B.wait_for_timeout(1000); reeks.append(B.evaluate(TIKKEN))
+    eis('13 s lang elke seconde: de kopie houdt de 10 tikken van B', set(reeks) == {10}, reeks)
+    eis('geen JS-fouten', not (fa + fb), fa + fb)
+    ctx.close()
+
+    print('-- G3. A telt door nadat B herstelde: Doortellen in B weigert --')
+    for naam, app, start, tik, stop, sluit in APPS:
+        ctx = nieuwe_context(b)
+        A, fa, _ = venster(ctx, app)
+        A.evaluate(start); A.wait_for_timeout(500)
+        loop(ctx, A, 3, tik)
+        B, fb, _ = venster(ctx, app)
+        loop(ctx, A, 2, tik)                                    # A telt gewoon verder
+        B.evaluate(KNOP, HERVAT[app]); B.wait_for_timeout(500)
+        melding = B.evaluate(BUITENSPEL) or ''
+        eis('%s: B weigert en meldt het' % naam,
+            ('verder in een ander venster' in melding) or ('continues in another window' in melding), melding)
+        eis('%s: de kopie blijft die van A (5 tikken), A telt verder' % naam,
+            B.evaluate(TIKKEN) == 5 and A.evaluate(BUITENSPEL) is None, (B.evaluate(TIKKEN), A.evaluate(BUITENSPEL)))
+        loop(ctx, A, 1, tik)
+        eis('%s: A schrijft nog (6 tikken)' % naam, A.evaluate(TIKKEN) == 6, A.evaluate(TIKKEN))
+        eis('%s: geen JS-fouten' % naam, not (fa + fb), fa + fb)
+        ctx.close()
+
+    print('-- G4. weggooien in B sluit de telling af --')
+    for naam, app, start, tik, weg, verwacht in [
+            ('pocket, Verwijder', 'pocket_count.html', 'startParkeren()', lambda i: "adjustParkeer('links_bezet',1)",
+             'restoreDiscard()', []),
+            ('parkeertelling, nieuwe sessie', 'parkeertelling.html', 'startSession()', lambda i: "addEntry('goed','L')",
+             'startSession()', ['parkeertelling_sessie'])]:
+        ctx = nieuwe_context(b)
+        A, fa, _ = venster(ctx, app)
+        A.evaluate(start); A.wait_for_timeout(500)
+        loop(ctx, A, 3, tik)
+        B, fb, _ = venster(ctx, app)
+        sid_b = B.evaluate('typeof sessionId!=="undefined"?sessionId:null')
+        B.evaluate(weg); B.wait_for_timeout(600)
+        if verwacht: loop(ctx, B, 1, tik)                      # de nieuwe sessie in B krijgt een tik
+        A.evaluate(VERBERG); A.wait_for_timeout(300)
+        eis('%s: A legt stil (telling weggegooid)' % naam, 'weggegooid' in (A.evaluate(BUITENSPEL) or ''),
+            A.evaluate(BUITENSPEL))
+        eis('%s: A zet de weggegooide telling niet terug' % naam,
+            [k for k in B.evaluate(KOPIE) if not k.endswith('_netwerk')] == verwacht, B.evaluate(KOPIE))
+        if verwacht:
+            eis('%s: de kopie is die van de nieuwe sessie in B' % naam,
+                B.evaluate('JSON.parse(localStorage.getItem("parkeertelling_sessie")||"{}").sessionId') == B.evaluate('sessionId')
+                and B.evaluate('sessionId') != sid_b)
+        eis('%s: geen JS-fouten' % naam, not (fa + fb), fa + fb)
+        ctx.close()
     b.close()
 srv.shutdown()
 print('\n' + ('ALLE %d TESTS OK' % ok if fout == 0 else '%d ok, %d FOUT' % (ok, fout)))

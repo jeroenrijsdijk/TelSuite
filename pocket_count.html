@@ -897,6 +897,7 @@ function startTransect() {
   if (!magNieuwStarten()) return;   // v2.72
   exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
   clearSession();
+  kopieNieuw();                     // v3.8: dit venster is eigenaar
   currentModus = 'transect';
   telType = 'transect'; telLabel = 'Transect'; telIcon = '\u2194\uFE0F';
   telCount = 0; telHistory = []; routeLog = [];
@@ -1088,6 +1089,7 @@ function startWinkelstraat() {
   if (!magNieuwStarten()) return;   // v2.72
   exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
   clearSession();
+  kopieNieuw();                     // v3.8: dit venster is eigenaar
   currentModus = 'winkelstraat';
   telType = 'winkelstraat'; telLabel = 'Winkelstraat'; telIcon = '\uD83D\uDED2';
   telCount = 0; telHistory = []; routeLog = [];
@@ -1202,6 +1204,7 @@ function startParkeren() {
   if (!magNieuwStarten()) return;   // v2.72
   exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
   clearSession();
+  kopieNieuw();                     // v3.8: dit venster is eigenaar
   currentModus = 'parkeren';
   telType = 'parkeren'; telLabel = 'Parkeren'; telIcon = '\uD83C\uDD7F\uFE0F';
   telCount = 0; telHistory = []; routeLog = [];
@@ -1382,6 +1385,145 @@ function pkBack() {
 // klaar (preview sluiten) of bij een nieuwe sessie \u2014 nooit blind na generateAsync.
 var LS_KEY_POCKET = 'pocket_sessie';
 
+/* ── Noodkopie: één venster schrijft (v3.8) ──────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren,
+   capaciteitstelling, pocket_count en traffic_counter (bewaakt door valideer.py).
+   Een telling kan in twee vensters openstaan: een oud venster met de afgebroken
+   stand, en een nieuw venster dat hem herstelde en doortelt. Tot v3.8 schreef het
+   oude venster zijn stand terug zodra het verborgen werd, ook nadat het nieuwe
+   venster de telling had opgeslagen; Static overschreef zelfs elke 10 s een
+   telling die elders liep. Nu:
+   - de kopie draagt het id van het venster dat hem schreef. Alleen dat venster
+     schrijft verder. Start en Doortellen maken een venster eigenaar; een
+     hersteld venster dat (nog) niet doortelt, schrijft niet;
+   - een opgeslagen of weggegooide telling komt op een korte lijst en wordt nooit
+     meer weggeschreven of hersteld;
+   - een venster dat zo buitenspel komt te staan, legt stil en zegt het.
+   De app levert KOPIE_SLEUTEL, kopieTelling() (het id van de telling in dit
+   venster) en kopieStilleggen() (GPS, klok en schermslot uit). */
+var KOPIE_VENSTER = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+var KOPIE_AFGESLOTEN = 'telsuite_afgesloten';
+var kopieEigen = false;    // dit venster schrijft de kopie
+var kopieBekend = null;    // de kopie zoals dit venster hem het laatst schreef of herstelde
+
+function kopieIsAfgesloten(id) {
+  if (!id) return false;
+  try { return JSON.parse(localStorage.getItem(KOPIE_AFGESLOTEN) || '[]').indexOf(id) >= 0; }
+  catch (e) { return false; }
+}
+
+// Waarom mag dit venster de kopie niet (meer) schrijven? '' = het mag.
+// 'afgesloten': elders opgeslagen of weggegooid; 'elders': de telling gaat in een
+// ander venster verder; 'nieuw': een ander venster begon een nieuwe telling.
+function kopieReden() {
+  var id = kopieTelling(), ruw = null, d = null;
+  if (kopieIsAfgesloten(id)) return 'afgesloten';
+  try { ruw = localStorage.getItem(KOPIE_SLEUTEL); } catch (e) { return ''; }
+  if (ruw === kopieBekend) return '';
+  if (!ruw) return kopieEigen ? '' : 'afgesloten';
+  try { d = JSON.parse(ruw); } catch (e) { return ''; }
+  if (kopieEigen && (!d || !d.venster || d.venster === KOPIE_VENSTER)) return '';
+  return (d && d.telling && d.telling !== id) ? 'nieuw' : 'elders';
+}
+
+// Schrijf de kopie, binnen de try van de app en alleen na kopieMagSchrijven().
+function kopieSchrijf(data) {
+  data.venster = KOPIE_VENSTER;
+  data.telling = kopieTelling();
+  var ruw = JSON.stringify(data);
+  localStorage.setItem(KOPIE_SLEUTEL, ruw);
+  kopieBekend = ruw;
+}
+function kopieMagSchrijven() {
+  if (!kopieEigen) return false;
+  var reden = kopieReden();
+  if (reden) kopieBuitenspel(reden);
+  return !reden;
+}
+// Start van een nieuwe telling: dit venster is eigenaar.
+function kopieNieuw() { kopieEigen = true; kopieBekend = null; }
+// Doortellen: eigenaar worden, tenzij de kopie sinds het herstel veranderde of
+// de telling elders is afgesloten. Geeft de reden terug ('' = gelukt).
+function kopieClaim() {
+  var reden = kopieReden();
+  if (reden) kopieBuitenspel(reden); else kopieEigen = true;
+  return reden;
+}
+// Bij het openen: een afgesloten telling wordt niet hersteld en de kopie gaat weg.
+function kopieHerstelbaar(id) {
+  try {
+    if (kopieIsAfgesloten(id)) {
+      localStorage.removeItem(KOPIE_SLEUTEL); localStorage.removeItem(KOPIE_SLEUTEL + '_netwerk');
+      return false;
+    }
+    kopieBekend = localStorage.getItem(KOPIE_SLEUTEL);
+  } catch (e) {}
+  return true;
+}
+// Opgeslagen (bevestigd) of bewust weggegooid: de kopie weg en de telling op de
+// lijst. Gaat de telling in een ander venster verder, dan blijft alles staan.
+function kopieAfsluiten() {
+  var reden = kopieReden(), id = kopieTelling();
+  try {
+    if (!reden) { localStorage.removeItem(KOPIE_SLEUTEL); localStorage.removeItem(KOPIE_SLEUTEL + '_netwerk'); }
+    if (id && reden !== 'elders') {
+      var lijst = JSON.parse(localStorage.getItem(KOPIE_AFGESLOTEN) || '[]');
+      if (lijst.indexOf(id) < 0) lijst.push(id);
+      localStorage.setItem(KOPIE_AFGESLOTEN, JSON.stringify(lijst.slice(-30)));
+    }
+  } catch (e) {}
+  kopieEigen = false; kopieBekend = null;
+}
+// Dit venster staat buitenspel: stilleggen en een melding over de hele pagina.
+function kopieBuitenspel(reden) {
+  kopieEigen = false; kopieBekend = null;
+  try { kopieStilleggen(); } catch (e) {}
+  if (document.getElementById('kopie-elders')) return;
+  var en = (document.documentElement.lang || '').slice(0, 2) === 'en';
+  var tekst = (en ? {
+    afgesloten: 'This count was saved or discarded in another window.',
+    elders: 'This count continues in another window.',
+    nieuw: 'A new count was started in another window.'
+  } : {
+    afgesloten: 'Deze telling is in een ander venster opgeslagen of weggegooid.',
+    elders: 'Deze telling gaat verder in een ander venster.',
+    nieuw: 'In een ander venster is een nieuwe telling begonnen.'
+  })[reden] + (en ? ' This window no longer counts.' : ' Dit venster telt niet meer mee.');
+  var o = document.createElement('div');
+  o.id = 'kopie-elders';
+  o.setAttribute('role', 'alertdialog');
+  o.setAttribute('style', 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:100000;display:flex;' +
+    'align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(0,0,0,0.85);');
+  o.innerHTML = '<div style="max-width:340px;width:100%;background:#5a3a1a;border:1px solid #b07d2b;' +
+    'border-radius:6px;padding:14px 16px;box-sizing:border-box;color:#fff;font-family:inherit;">' +
+    '<p style="margin:0 0 12px;font-size:0.95rem;font-weight:600;line-height:1.4;">\u26A0\uFE0F ' + tekst + '</p>' +
+    '<button type="button" onclick="location.reload()" style="width:100%;padding:12px;background:#0a8a30;' +
+    'border:none;border-radius:5px;color:#fff;font-family:inherit;font-size:0.85rem;font-weight:700;' +
+    'letter-spacing:1px;text-transform:uppercase;cursor:pointer;">\u21BB ' +
+    (en ? 'Reload' : 'Opnieuw laden') + '</button></div>';
+  document.body.appendChild(o);
+}
+// Een ander venster schreef, wiste of sloot af; of dit venster komt terug in beeld.
+function kopieControle() {
+  if (!kopieEigen && kopieBekend === null) return;   // dit venster heeft geen telling in de opslag
+  var reden = kopieReden();
+  if (reden) kopieBuitenspel(reden);
+}
+window.addEventListener('storage', function (e) {
+  if (e.key === null || e.key === KOPIE_SLEUTEL || e.key === KOPIE_AFGESLOTEN) kopieControle();
+});
+window.addEventListener('pageshow', kopieControle);
+document.addEventListener('visibilitychange', function () { if (!document.hidden) kopieControle(); });
+/* ── einde gedeeld blok noodkopie ── */
+
+// Haken voor het gedeelde blok noodkopie (v3.8). De telling heeft pas bij Stop
+// een sessie-id; tot dan is de starttijd het id (Doortellen houdt hem vast).
+var KOPIE_SLEUTEL = LS_KEY_POCKET;
+function kopieTelling() {
+  try { return startTime ? startTime.toISOString() : ''; } catch (e) { return ''; }
+}
+function kopieStilleggen() { stopGps(); releaseWakeLock(); }
+
 // v2.76: is de telling afgerond en de ZIP bevestigd weggeschreven, dan hoort de
 // noodkopie weg te blijven. Tot v2.76 schreef saveSession() hem bij de eerstvolgende
 // app-wissel of paginawissel opnieuw (telHistory is na Stop nog gevuld), en bood
@@ -1392,18 +1534,19 @@ var exportAfgerond = false;
 // of de gebruiker sloot het voorbeeldscherm: noodkopie weg, en weg houden.
 function exportBevestigd() {
   exportAfgerond = true;
-  clearSession();
+  kopieAfsluiten();   // v3.8: kopie weg, telling op de lijst
 }
 
 function saveSession() {
   if (!telHistory.length || exportAfgerond) return;
+  if (!kopieMagSchrijven()) return;   // v3.8: alleen het venster dat eigenaar is
   try {
-    localStorage.setItem(LS_KEY_POCKET, JSON.stringify({
+    kopieSchrijf({
       modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
       telCount: telCount, telHistory: telHistory, routeLog: routeLog,
       tcCounts: tcCounts, richtingA: tcRichtingA, richtingB: tcRichtingB,
       startTime: startTime ? startTime.toISOString() : null, savedAt: nowIso()
-    }));
+    });
   } catch (e) {}
 }
 
@@ -1418,6 +1561,7 @@ function restoreSession() {
   var data;
   try { data = JSON.parse(raw); } catch (e) { clearSession(); return; }
   if (!data.telHistory || !data.telHistory.length) { clearSession(); return; }
+  if (!kopieHerstelbaar(data.startTime)) return;   // v3.8: elders al opgeslagen of weggegooid
 
   currentModus = data.modus || 'simpel';
   telType = data.telType; telLabel = data.telLabel; telIcon = data.telIcon;
@@ -1442,7 +1586,7 @@ function restoreDownload() {
 
 function restoreDiscard() {
   if (!confirm('Herstelde telling verwijderen? Dit kan niet ongedaan worden gemaakt.')) return;
-  clearSession();
+  kopieAfsluiten();   // v3.8: weggegooid, en op de lijst
   telCount = 0; telHistory = []; routeLog = [];
   document.getElementById('restore-banner').style.display = 'none';
   if (pkDirect) startParkeren();   // v2.70: directe ingang, geen keuzemenu
@@ -1464,12 +1608,14 @@ function magNieuwStarten() {
   if (!herstelZichtbaar()) return true;
   if (!confirm('Nieuwe telling starten? De herstelde telling (' + telCount + ' tikken) wordt dan gewist. '
                + 'Kies anders Doortellen of Download.')) return false;
+  kopieAfsluiten();   // v3.8: de herstelde telling is weggegooid
   document.getElementById('restore-banner').style.display = 'none';
   return true;
 }
 
 function hervatTelling() {
   if (!herstelZichtbaar() || !telHistory.length) return;
+  if (kopieClaim()) return;   // v3.8: niet als de telling intussen elders verder ging
   var bewaard = {
     modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
     telCount: telCount, telHistory: telHistory, routeLog: routeLog, startTime: startTime,
@@ -1548,6 +1694,7 @@ function startTelling(type, icon, label) {
   if (!magNieuwStarten()) return;   // v2.72
   exportAfgerond = false;           // v2.76: nieuwe telling, noodopslag weer aan
   clearSession();
+  kopieNieuw();                     // v3.8: dit venster is eigenaar
   telType    = type;
   telLabel   = label;
   telIcon    = icon;
