@@ -12,10 +12,12 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.7'
-# v3.7: weekprofiel in telrapport: tabel nieuwste bovenaan met weekdag en tijd,
-# seconden, 95%-marge en 'onzeker', koppeling tabel en diagram; handleiding.
-VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html'}
+RELEASE = 'v3.8'
+# v3.8: noodkopie met één eigenaar (gedeeld blok in de vijf veld-apps), melding
+# in een oud venster; handleiding en privacyverklaring.
+VERWACHT_GEWIJZIGD = {'index.html', 'parkeertelling.html', 'fietsparkeren.html',
+                      'capaciteitstelling.html', 'pocket_count.html', 'traffic_counter.html',
+                      'traffic_counter_help.html', 'privacy.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -192,6 +194,12 @@ groepen = [
     # v3.4: GPX-tijd in echte UTC, gedeeld door de drie parkeer-apps
     ('GPX-tijd', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
      '/* ── GPX-tijd (v3.4) ── */', '/* ── einde gedeeld blok GPX-tijd ── */'),
+    # v3.8: noodkopie met één eigenaar, gedeeld door de vijf veld-apps
+    ('noodkopie', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                   'pocket_count.html', 'traffic_counter.html'],
+     '/* ── Noodkopie: één venster schrijft (v3.8)', '/* ── einde gedeeld blok noodkopie ── */'),
+    ('noodkopie-haken', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
+     '/* ── Noodkopie: haken parkeer-apps (v3.8) ── */', '/* ── einde haken noodkopie ── */'),
     # v3.3: de kale stijl van de documentatiepagina's
     ('kale stijl', KAAL,
      '/* ── kale stijl (v3.3)', '/* ── einde kale stijl ── */'),
