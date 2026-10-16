@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.11.** Het teken van het kwaliteitsrapport staat op de eerste regel van de sessierij in telrapport, zonder eigen regel (`overdracht_v3_11.md`). v3.10 bracht het pocket-id bij Start en het kwaliteitsrapport per telling.
+**Laatste release: v3.12.** In de sessielijst van telrapport staat *n/n geclusterd* alleen nog als er tikken buiten een cluster vallen (`overdracht_v3_12.md`). v3.11 zette het kwaliteitsteken op de eerste regel; v3.10 bracht het pocket-id bij Start en het kwaliteitsrapport.
 
 ---
 
@@ -229,7 +229,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.11 in één oogopslag
+## 6. Releases v2.32 → v3.12 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -291,6 +291,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.9 | **Robuustheid**: melding bij volle noodopslag en `storage.persist()` (blok `noodkopie`); pocket vraagt het schermslot terug na een app-wissel; voorpagina toont *Nog niet opgeslagen* tellingen; telplanning: laadmelding zichtbaar (bleef verborgen), tijd en kB, tijdslimiet per server, `ovpKeur` (afgebroken antwoorden niet meer stil gebruikt), foutmelding met *Opnieuw*; privacyverklaring over de planningenmap; nieuwe `robuusttest.py` (87 tests) |
 | v3.10 | **Logica**: pocket-id vast vanaf Start (was: tijd van Stop; een tweede keer inpakken gaf een ander id), ook na Doortellen; **kwaliteitsrapport per telling** in telrapport (aantallen, tijd, GPS-spoor, positie, nauwkeurigheid, op de route), regel in de sessielijst en paneel; verantwoording en ZIP-referentie bijgewerkt; nieuwe `functest_kwaliteit.js` (33) en `logicatest.py` (25) |
 | v3.11 | Kwaliteitsrapport: teken (*✓* / *⚠ n*) rechts op de eerste regel van de sessierij in plaats van een eigen regel (Jay: weinig verticale ruimte in de kolom); `logicatest.py` meet dat de rij niet hoger wordt (27 tests) |
+| v3.12 | Sessielijst in telrapport: *✓ n/n geclusterd* weg als alle tikken in een cluster zitten, *⚠ n/m geclusterd · k buiten* blijft (Jay: ruimte in de kolom; een volledige rij 42 tegen 55 px). Bijwerking: bij capaciteit verborg die regel een melding over terreinen zonder geometrie; die is nu zichtbaar. `logicatest.py` 30 tests |
 
 ---
 
