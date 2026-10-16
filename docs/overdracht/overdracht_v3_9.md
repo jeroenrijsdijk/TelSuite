@@ -164,8 +164,25 @@ Daarnaast bekeken in Chromium:
 ## 5. Validatie
 
 ```
-VALIDATIE
+valideer.py        ALLES OK — 9 verwachte bestanden gewijzigd; 16 groepen gedeelde blokken OK
+                   (OVP-blok nu 7 bestanden, noodkopie 5); 14 publieke pagina's OK
+robuusttest.py     87/87 (nieuw)
+opruimtest.py      139/139
+hersteltest.py     133/133, los twee keer gedraaid (zie hieronder)
+laadtest.py        47/47
+statictest.py      24/24
+gpkgtest.py        80/80
+functests          alle 15 groen
+test_zipref.py     referentie sluit aan op de code
+check_encoding.py  alles geldige UTF-8
 ```
+
+In de volledige ronde gaf `hersteltest` één keer 132/133. De fout zat in de
+nagetekende `_kaart.png` van fietsparkeren, die een paar regels van de referentie
+verschilde. Ik draaide toen tegelijk de nieuwe test tegen v3.8, dus de machine
+was zwaar belast. Los gedraaid slaagde hij twee keer volledig. De kaartafbeelding
+komt niet aan bod in v3.9. Het is de wisselvalligheid die al op de backlog staat
+(vaste wachttijden); daar staat nu ook dit geval bij.
 
 ## 6. Volgende: v3.10
 
