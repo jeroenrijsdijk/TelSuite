@@ -12,9 +12,10 @@
      A5. een kopie van vóór v3.10 (zonder id): het id komt uit de starttijd, en
          twee vensters komen op hetzelfde id uit.
   B. Kwaliteitsrapport in telrapport:
-     B1. echte ZIP's van pocket en Static: "✓ kwaliteit";
+     B1. echte ZIP's van pocket en Static: "✓";
      B2. een parkeertelling, ook met een verschoven tik en met een fout aantal:
-         "✓ kwaliteit" en "⚠ 1 aandachtspunt";
+         "✓" en "⚠ 1"; het teken staat op de eerste regel van de rij en maakt
+         de rij niet hoger (v3.11);
      B3. een klik opent het paneel met de juiste controle, en zet de telling niet
          uit; Escape sluit het; "alles wissen" ruimt de rapporten op.
 
@@ -169,17 +170,27 @@ with sync_playwright() as p:
     pg.set_input_files('#file-input', zips); pg.wait_for_timeout(4000)
     RIJ = ("(sid)=>{var r=document.querySelector('.session-row[data-sid=\"'+sid+'\"]');"
            "var k=r&&r.querySelector('.session-kwaliteit');return k?k.textContent:null}")
-    eis('B1. pocket (echte ZIP, na Doortellen): ✓ kwaliteit', pg.evaluate(RIJ, sid_a) == '✓ kwaliteit',
+    eis('B1. pocket (echte ZIP, na Doortellen): ✓', pg.evaluate(RIJ, sid_a) == '✓',
         (pg.evaluate(RIJ, sid_a), pg.evaluate('kwaliteit[%r]' % sid_a)))
     sid_s = sessie_uit(static_zip)['sessie_id']
-    eis('B1. Static (echte ZIP, met fix): ✓ kwaliteit', pg.evaluate(RIJ, sid_s) == '✓ kwaliteit',
+    eis('B1. Static (echte ZIP, met fix): ✓', pg.evaluate(RIJ, sid_s) == '✓',
         (pg.evaluate(RIJ, sid_s), pg.evaluate('kwaliteit[%r]' % sid_s)))
-    eis('B2. nette parkeertelling: ✓ kwaliteit', pg.evaluate(RIJ, '20261016_100000_goe') == '✓ kwaliteit',
+    eis('B2. nette parkeertelling: ✓', pg.evaluate(RIJ, '20261016_100000_goe') == '✓',
         pg.evaluate('kwaliteit["20261016_100000_goe"]'))
-    eis('B2. een tik 200 m verschoven: ⚠ 1 aandachtspunt', pg.evaluate(RIJ, '20261016_110000_ver') == '⚠ 1 aandachtspunt',
+    eis('B2. een tik 200 m verschoven: ⚠ 1', pg.evaluate(RIJ, '20261016_110000_ver') == '⚠ 1',
         pg.evaluate(RIJ, '20261016_110000_ver'))
-    eis('B2. een fout aantal: ⚠ 1 aandachtspunt', pg.evaluate(RIJ, '20261016_120000_aan') == '⚠ 1 aandachtspunt',
+    eis('B2. een fout aantal: ⚠ 1', pg.evaluate(RIJ, '20261016_120000_aan') == '⚠ 1',
         pg.evaluate(RIJ, '20261016_120000_aan'))
+    # v3.11: het teken staat op de eerste regel en kost de rij geen hoogte
+    plek = pg.evaluate("""(sid)=>{var r=document.querySelector('.session-row[data-sid="'+sid+'"]');
+      var k=r.querySelector('.session-kwaliteit'), h=r.getBoundingClientRect().height;
+      var opRegel1=!!k.closest('.session-line1'), titel=k.title;
+      var kopie=k.cloneNode(true); k.remove(); var h0=r.getBoundingClientRect().height;
+      r.querySelector('.session-line1').appendChild(kopie);
+      return {opRegel1:opRegel1, h:h, h0:h0, titel:titel}}""", '20261016_110000_ver')
+    eis('B2. het teken staat op de eerste regel van de rij, met uitleg in de tooltip',
+        plek['opRegel1'] and plek['titel'] == 'kwaliteit: 1 aandachtspunt — klik voor het rapport', plek)
+    eis('B2. de rij is met het teken even hoog als zonder (%.0f px)' % plek['h0'], abs(plek['h'] - plek['h0']) < 0.5, plek)
     pg.click('.session-row[data-sid="20261016_110000_ver"] .session-kwaliteit'); pg.wait_for_timeout(300)
     paneel = pg.evaluate("(()=>{var o=document.getElementById('kw-overlay');if(!o)return null;"
                          "return [...o.querySelectorAll('tr')].map(t=>[t.className,t.querySelector('.kw-naam').textContent])})()")

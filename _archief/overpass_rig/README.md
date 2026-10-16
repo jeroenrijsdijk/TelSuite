@@ -36,7 +36,7 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/statictest.py        # Static door de keten: export, telrapport, verzameling, reconstructor, 24 tests
     python3 _archief/overpass_rig/opruimtest.py        # noodopslag weg na bevestigde download, en alleen dan; twee vensters (v3.8), 139 tests
     node _archief/overpass_rig/functest_kwaliteit.js   # v3.10: kwaliteitsrapport in telrapport, 33 tests (papaparse)
-    python3 _archief/overpass_rig/logicatest.py        # v3.10: pocket-id bij Start, kwaliteitsrapport in Chromium, 25 tests
+    python3 _archief/overpass_rig/logicatest.py        # v3.10: pocket-id bij Start, kwaliteitsrapport in Chromium, 27 tests
     python3 _archief/overpass_rig/robuusttest.py       # v3.9: volle opslag, persist, schermslot pocket, voorpagina, telplanning ophalen, 87 tests
     python3 _archief/overpass_rig/gpkgtest.py          # GeoPackage uit telrapport: van veld-app tot QGIS, met het QGIS-project, 80 tests
                                                        # (ook sql.js@1.14.2 in node_modules; het QGIS-deel draait als

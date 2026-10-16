@@ -12,11 +12,9 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.10'
-# v3.10: logica. Pocket-id bij Start; kwaliteitsrapport per telling in telrapport;
-# ZIP-referentie, verantwoording, handleiding.
-VERWACHT_GEWIJZIGD = {'index.html', 'pocket_count.html', 'telrapport.html', 'zip_format_reference.html',
-                      'verantwoording.html', 'traffic_counter_help.html'}
+RELEASE = 'v3.11'
+# v3.11: het teken van het kwaliteitsrapport op de eerste regel van de sessierij.
+VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
