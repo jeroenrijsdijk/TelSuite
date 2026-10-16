@@ -690,6 +690,17 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <tr><td>Hover</td><td>Dim alle andere sessies naar 15% opacity (dots, clusters, GPS-spoor) — handig om één sessie te isoleren in een drukke kaart</td></tr>
 </table>
 <p>Hover-tooltip op de rij vat het samen: "klik: aan/uit · shift-klik: alles aan/uit · rechtsklik: solo".</p>
+<h4>Kwaliteit per telling (v3.10)</h4>
+<p>Onder elke rij staat <strong>✓ kwaliteit</strong> of <strong>⚠ n aandachtspunten</strong>. Een klik daarop opent het kwaliteitsrapport; de telling blijft dan aan. Het rapport wordt uitgerekend uit de bestanden in de ZIP en verandert niets aan de telling. Per controle staat er wat de app vond en waarom dat telt.</p>
+<table>
+<tr><td><strong>Aantallen</strong></td><td>Het aantal in <code>_sessie.csv</code> is gelijk aan het aantal regels in <code>_telregels.csv</code> en, bij de parkeer-apps, aan de optelling in <code>_straten.csv</code>.</td></tr>
+<tr><td><strong>Tijd</strong></td><td>Elke tik valt tussen start en eind, met een marge van een minuut.</td></tr>
+<tr><td><strong>GPS-spoor</strong></td><td>Een gat is meer dan een minuut zonder GPS-punt terwijl de positie meer dan 50 m verspringt, bijvoorbeeld een onderbreking. Stilstaan telt niet: de apps leggen pas een punt vast na 5 m lopen. Alleen tikken ín een gat zijn een aandachtspunt, want hun positie kan verouderd zijn. Bij Static staan hier de onderbrekingen.</td></tr>
+<tr><td><strong>Positie</strong></td><td>Elke tik heeft een GPS-positie.</td></tr>
+<tr><td><strong>Nauwkeurigheid</strong></td><td>De mediaan is hooguit 15 m, en hooguit een vijfde van de punten is onnauwkeuriger dan 20 m. Bij Static: de ene fix.</td></tr>
+<tr><td><strong>Op de route</strong></td><td>Elke tik ligt binnen 50 m van het spoor op hetzelfde moment. Hiervoor telt de rauwe GPS-positie, niet de marker, dus een correctie of reconstructie geeft hier geen aandachtspunt.</td></tr>
+</table>
+<p>Een ⚠ is een aandachtspunt om naar te kijken, geen oordeel. ⓘ is ter informatie, bijvoorbeeld een gat door Doortellen zonder tikken erin.</p>
 </section>
 <section id="rapport-kaarten">
 <h3>Kaartopties (nieuw v2.2)</h3>
