@@ -43,5 +43,15 @@ want daar zijn beide rijen even hoog.
 ## 4. Validatie
 
 ```
-VALIDATIE
+valideer.py           ALLES OK — 3 verwachte bestanden gewijzigd; gedeelde blokken OK
+logicatest.py         30/30
+robuusttest.py        87/87
+opruimtest.py         139/139
+hersteltest.py        133/133
+laadtest.py           47/47
+statictest.py         24/24
+gpkgtest.py           80/80
+functests             alle 16 groen
+test_zipref.py        referentie sluit aan op de code
+check_encoding.py     alles geldige UTF-8
 ```
