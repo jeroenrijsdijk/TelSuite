@@ -242,7 +242,54 @@
     line-height: 1.4;
   }
 
-  .mode-card:focus-visible, .bureau a:focus-visible {
+  /* ── Nog niet opgeslagen tellingen (v3.9) ── */
+  /* Noodkopieën van de veld-apps op dit toestel; alleen zichtbaar als er een is. */
+  .open-tellingen {
+    background: var(--panel);
+    border: 3px solid var(--amber);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .open-tellingen h2 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--amber);
+    padding: 12px 20px 2px;
+  }
+  .open-tellingen p {
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--dim);
+    line-height: 1.5;
+    padding: 0 20px 10px;
+  }
+  .open-tellingen a {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    column-gap: 16px;
+    padding: 12px 20px;
+    text-decoration: none;
+    color: var(--text);
+    border-top: 1px solid var(--border);
+  }
+  .open-tellingen a:hover { background: var(--bg); }
+  .open-tellingen b {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .open-tellingen span {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--dim);
+  }
+
+  .mode-card:focus-visible, .bureau a:focus-visible, .open-tellingen a:focus-visible {
     outline: 3px solid var(--text);
     outline-offset: 3px;
   }
@@ -410,6 +457,12 @@
 
   <div class="intro-note" data-i18n="introNote">Standalone traffic-counting tools — each runs entirely in your browser. No install, no account; your counts stay on your device. Map, road and street-name services do see where you count — <a href="privacy.html">privacy</a>.</div>
 
+<section class="open-tellingen" id="open-tellingen" aria-labelledby="open-kop" hidden>
+  <h2 id="open-kop">Not saved yet</h2>
+  <p id="open-uitleg"></p>
+  <div id="open-lijst"></div>
+</section>
+
 <section class="groep" aria-labelledby="grp-verkeer">
   <div class="groep-kop">
     <h2 id="grp-verkeer" data-i18n="grpTraffic">Count traffic</h2>
@@ -486,7 +539,7 @@
     &nbsp;&middot;&nbsp; <a href="privacy.html">Privacy</a>
   </div>
 
-  <div class="versie">v3.8</div>
+  <div class="versie">v3.9</div>
 
 </div>
 
@@ -591,6 +644,71 @@ function setLanguage(lang) {
   document.querySelectorAll('.lang-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.dataset.lang === lang);
   });
+  toonOpenTellingen(lang);
+}
+
+// ── Nog niet opgeslagen tellingen (v3.9) ──────────────────────────────────
+// De veld-apps bewaren een lopende telling in localStorage (de noodkopie) tot de
+// ZIP is opgeslagen. Ze staan op hetzelfde domein, dus de voorpagina ziet ze ook.
+// Een vergeten telling blijft zo niet liggen tot de browser hem wist. Tellingen
+// op de lijst telsuite_afgesloten (opgeslagen of weggegooid, v3.8) tellen niet.
+var OPEN_APPS = [
+  { sleutel: 'parkeertelling_sessie', pad: 'parkeertelling.html', nl: 'Parkeertelling', en: 'Car parking' },
+  { sleutel: 'fietsparkeren_sessie', pad: 'fietsparkeren.html', nl: 'Fietsparkeren', en: 'Bike parking' },
+  { sleutel: 'capaciteitstelling_sessie', pad: 'capaciteitstelling.html', nl: 'Capaciteit', en: 'Capacity' },
+  { sleutel: 'pocket_sessie', pad: 'pocket_count.html', nl: 'Pocket', en: 'Pocket' },
+  { sleutel: 'static_sessie', pad: 'traffic_counter.html', nl: 'Stilstaand', en: 'Static' }
+];
+var POCKET_MODUS = {
+  simpel: { nl: 'simpel', en: 'simple' }, transect: { nl: 'transect', en: 'transect' },
+  winkelstraat: { nl: 'winkelstraat', en: 'shopping street' }, parkeren: { nl: 'parkeren', en: 'parking' }
+};
+
+function openTellingen() {
+  var lijst = [], dicht = [];
+  try { dicht = JSON.parse(localStorage.getItem('telsuite_afgesloten') || '[]'); } catch (e) {}
+  OPEN_APPS.forEach(function (a) {
+    var d = null;
+    try { d = JSON.parse(localStorage.getItem(a.sleutel) || 'null'); } catch (e) { return; }
+    if (!d || typeof d !== 'object') return;
+    var id = d.telling || d.sessionId || d.sessieId || d.startTime;
+    if (id && dicht.indexOf(id) >= 0) return;
+    var n = 0;
+    if (d.entries) n = d.entries.length + ((d.terreinEntries || []).length);
+    else if (d.telHistory) n = (d.telCount != null) ? d.telCount : d.telHistory.length;
+    else if (d.history) n = d.history.length;
+    if (!n) return;
+    var t = d.savedAt ? new Date(String(d.savedAt).replace(' ', 'T')) : null;
+    lijst.push({ app: a, d: d, n: n, t: (t && !isNaN(t)) ? t : null });
+  });
+  return lijst.sort(function (x, y) { return (y.t || 0) - (x.t || 0); });
+}
+
+function toonOpenTellingen(lang) {
+  var sectie = document.getElementById('open-tellingen');
+  var lijst = openTellingen();
+  sectie.hidden = !lijst.length;
+  if (!lijst.length) return;
+  var en = lang === 'en';
+  var dagen = en ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+  var p = function (x) { return (x < 10 ? '0' : '') + x; };
+  document.getElementById('open-kop').textContent = en ? 'Not saved yet' : 'Nog niet opgeslagen';
+  document.getElementById('open-uitleg').textContent = en
+    ? 'Still in this device\'s emergency storage, not saved as a ZIP. Open to continue, download or discard.'
+    : 'Staat nog in de noodopslag van dit toestel, niet als ZIP. Open om door te tellen, te downloaden of weg te gooien.';
+  document.getElementById('open-lijst').innerHTML = lijst.map(function (o) {
+    var naam = o.app[en ? 'en' : 'nl'], pad = o.app.pad;
+    if (o.app.sleutel === 'pocket_sessie') {
+      var m = POCKET_MODUS[o.d.modus] || POCKET_MODUS.simpel;
+      naam += ' \u00b7 ' + m[en ? 'en' : 'nl'];
+      if (o.d.modus === 'parkeren') pad += '#parkeren';
+    }
+    var wat = o.n + ' ' + (en ? (o.n === 1 ? 'tap' : 'taps') : (o.n === 1 ? 'tik' : 'tikken'));
+    if (o.t) wat += ' \u00b7 ' + dagen[o.t.getDay()] + ' ' + p(o.t.getDate()) + '-' + p(o.t.getMonth() + 1) +
+                    ' ' + p(o.t.getHours()) + ':' + p(o.t.getMinutes());
+    if (o.d.state === 'ended') wat += ' \u00b7 ' + (en ? 'ended' : 'afgerond');
+    return '<a href="' + pad + '"><b>' + naam + '</b><span>' + wat + '</span></a>';
+  }).join('');
 }
 
 document.querySelectorAll('.lang-btn').forEach(function(btn) {

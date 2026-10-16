@@ -852,14 +852,35 @@ function stopGps() {
 }
 
 // ── Wake Lock ─────────────────────────────────────────────────────────────────
+// v3.9: de browser geeft het slot vrij als je de app even verlaat. Tot v3.9
+// vroeg pocket het daarna niet terug, en ging het scherm midden in een telling
+// uit. Nu: zolang er geteld wordt, terugvragen zodra de pagina weer zichtbaar
+// is, en anders bij de eerstvolgende aanraking (sommige browsers willen een gebaar).
+var wakeLockGewenst = false, wakeLockBezig = false;
 async function acquireWakeLock() {
-  if (!('wakeLock' in navigator)) return;
-  try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+  wakeLockGewenst = true;
+  if (!('wakeLock' in navigator) || wakeLock || wakeLockBezig) return;
+  wakeLockBezig = true;
+  try {
+    var slot = await navigator.wakeLock.request('screen');
+    slot.addEventListener('release', function () { if (wakeLock === slot) wakeLock = null; });
+    wakeLock = slot;
+    if (!wakeLockGewenst) releaseWakeLock();   // intussen gestopt
+  } catch(e) {}
+  wakeLockBezig = false;
 }
 
 function releaseWakeLock() {
-  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+  wakeLockGewenst = false;
+  if (wakeLock) { var slot = wakeLock; wakeLock = null; try { slot.release(); } catch(e) {} }
 }
+
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden && wakeLockGewenst) acquireWakeLock();
+});
+document.addEventListener('pointerdown', function () {
+  if (wakeLockGewenst && !wakeLock) acquireWakeLock();
+});
 
 // ── Scherm-beheer ─────────────────────────────────────────────────────────────
 // Modus-keuze (v2.11): simpel | transect | winkelstraat \u2014 gaat als 'modus' mee in sessie.csv.
@@ -1399,6 +1420,9 @@ var LS_KEY_POCKET = 'pocket_sessie';
    - een opgeslagen of weggegooide telling komt op een korte lijst en wordt nooit
      meer weggeschreven of hersteld;
    - een venster dat zo buitenspel komt te staan, legt stil en zegt het.
+   v3.9: lukt wegschrijven niet (opslag vol), dan staat er een melding bovenin
+   tot het weer lukt; tot v3.9 werd dat stil ingeslikt. Start en Doortellen
+   vragen de browser bovendien de opslag niet op te ruimen (persist).
    De app levert KOPIE_SLEUTEL, kopieTelling() (het id van de telling in dit
    venster) en kopieStilleggen() (GPS, klok en schermslot uit). */
 var KOPIE_VENSTER = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -1426,13 +1450,40 @@ function kopieReden() {
   return (d && d.telling && d.telling !== id) ? 'nieuw' : 'elders';
 }
 
-// Schrijf de kopie, binnen de try van de app en alleen na kopieMagSchrijven().
+// Schrijf de kopie, alleen na kopieMagSchrijven(). Mislukt het (opslag vol),
+// dan blijft de vorige kopie staan en verschijnt de melding (v3.9).
 function kopieSchrijf(data) {
   data.venster = KOPIE_VENSTER;
   data.telling = kopieTelling();
   var ruw = JSON.stringify(data);
-  localStorage.setItem(KOPIE_SLEUTEL, ruw);
+  try { localStorage.setItem(KOPIE_SLEUTEL, ruw); }
+  catch (e) { kopieVol(true); return; }
   kopieBekend = ruw;
+  kopieVol(false);
+}
+// Melding bovenin zolang wegschrijven mislukt. Neemt geen tikken af
+// (pointer-events: none) en verdwijnt zodra het weer lukt.
+function kopieVol(vol) {
+  var el = document.getElementById('kopie-vol');
+  if (!vol) { if (el) el.parentNode.removeChild(el); return; }
+  if (el) return;
+  var en = (document.documentElement.lang || '').slice(0, 2) === 'en';
+  el = document.createElement('div');
+  el.id = 'kopie-vol';
+  el.setAttribute('role', 'status');
+  el.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:99999;pointer-events:none;' +
+    'background:#b07d2b;color:#fff;font-family:inherit;font-size:0.8rem;font-weight:600;' +
+    'line-height:1.35;padding:8px 12px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.3);');
+  el.textContent = '\u26A0\uFE0F ' + (en
+    ? 'Emergency storage full: new taps are no longer kept in case the browser crashes. The count itself goes on; stop and save as soon as you can.'
+    : 'Noodopslag vol: nieuwe tikken worden niet meer bewaard voor als de browser crasht. De telling zelf loopt door; stop en sla op zodra het kan.');
+  document.body.appendChild(el);
+}
+// Vraag de browser de opslag niet op te ruimen (Safari wist websitegegevens na
+// een week zonder bezoek). Of hij dat honoreert, bepaalt de browser.
+function kopieBlijvend() {
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); }
+  catch (e) {}
 }
 function kopieMagSchrijven() {
   if (!kopieEigen) return false;
@@ -1441,12 +1492,12 @@ function kopieMagSchrijven() {
   return !reden;
 }
 // Start van een nieuwe telling: dit venster is eigenaar.
-function kopieNieuw() { kopieEigen = true; kopieBekend = null; }
+function kopieNieuw() { kopieEigen = true; kopieBekend = null; kopieBlijvend(); }
 // Doortellen: eigenaar worden, tenzij de kopie sinds het herstel veranderde of
 // de telling elders is afgesloten. Geeft de reden terug ('' = gelukt).
 function kopieClaim() {
   var reden = kopieReden();
-  if (reden) kopieBuitenspel(reden); else kopieEigen = true;
+  if (reden) kopieBuitenspel(reden); else { kopieEigen = true; kopieBlijvend(); }
   return reden;
 }
 // Bij het openen: een afgesloten telling wordt niet hersteld en de kopie gaat weg.

@@ -12,12 +12,13 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.8'
-# v3.8: noodkopie met één eigenaar (gedeeld blok in de vijf veld-apps), melding
-# in een oud venster; handleiding en privacyverklaring.
+RELEASE = 'v3.9'
+# v3.9: robuustheid. Volle opslag melden en persist (blok noodkopie), schermslot
+# in pocket, niet opgeslagen tellingen op de voorpagina, telplanning: wegen ophalen
+# met voortgang en foutmelding (en het OVP-blok); privacyverklaring, handleiding.
 VERWACHT_GEWIJZIGD = {'index.html', 'parkeertelling.html', 'fietsparkeren.html',
                       'capaciteitstelling.html', 'pocket_count.html', 'traffic_counter.html',
-                      'traffic_counter_help.html', 'privacy.html'}
+                      'telplanning.html', 'traffic_counter_help.html', 'privacy.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -163,7 +164,8 @@ groepen = [
                     'pocket_count.html', 'telreconstructie.html', 'snaptrace.html'],
      "var HIGHWAY_RE = '", "corridor';"),
     ('OVP-blok', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
-                  'pocket_count.html', 'telreconstructie.html', 'telrapport.html'],
+                  'pocket_count.html', 'telreconstructie.html', 'telrapport.html',
+                  'telplanning.html'],   # telplanning sinds v3.9
      '/* ---- Overpass-antwoord classificeren (v2.49)',
      'function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000); }'),
     ('leesTegels', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
