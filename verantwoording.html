@@ -23,7 +23,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 </head>
 <body>
 <h1>Een telling met telonline.org beoordelen</h1>
-<p>Toelichting voor juristen en adviseurs · stand: versie 3.4, oktober 2026</p>
+<p>Toelichting voor juristen en adviseurs · stand: versie 3.10, oktober 2026</p>
 <p><a href="index.html">← telonline.org</a></p>
 
 <p>Deze toelichting is bedoeld voor wie een verkeers- of parkeertelling beoordeelt die met telonline.org is gemaakt, bijvoorbeeld in een bezwaar- of beroepsprocedure. Ze beschrijft wat de app vastlegt, wat er daarna met de gegevens gebeurt, en waar de sterke en zwakke plekken zitten. De maatstaf is de gangbare werkwijze: turven op papier.</p>
@@ -83,7 +83,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <li><strong>Koppeling aan een straat.</strong> Waar straten dicht bij elkaar liggen, kan een tik aan de verkeerde straat worden gekoppeld, en de kaart van OpenStreetMap kan onvolledig zijn. De kant van de straat bij de parkeer-apps volgt uit hoe de teller de telefoon kantelt.</li>
 <li><strong>Stilstaand tellen heeft geen route.</strong> Daar is alleen de positie bij de start vastgelegd. Dat de teller daarna op die plek bleef, blijkt niet uit de gegevens.</li>
 <li><strong>De versie van de app staat niet in het bestand</strong> van de tel-apps (wel na een reconstructie). Welke versie gebruikt is, valt af te leiden uit de datum en de openbare versiegeschiedenis.</li>
-<li><strong>Het bestand is achteraf te bewerken.</strong> CSV-bestanden zijn gewone tekst. telonline.org bewaart geen kopie en zet er geen digitale handtekening op. Wel staan dezelfde gegevens op meerdere plekken: het aantal in <code>_sessie.csv</code>, de regels in <code>_telregels.csv</code>, de optelling per straat in <code>_straten.csv</code>, de stippen op de kaartafbeelding, en tijd en plaats van elke tik tegenover de route. Wie één bestand aanpast en de rest niet, valt op. Een consequente vervalsing van alle bestanden is met programmeerkennis mogelijk.</li>
+<li><strong>Het bestand is achteraf te bewerken.</strong> CSV-bestanden zijn gewone tekst. telonline.org bewaart geen kopie en zet er geen digitale handtekening op. Wel staan dezelfde gegevens op meerdere plekken: het aantal in <code>_sessie.csv</code>, de regels in <code>_telregels.csv</code>, de optelling per straat in <code>_straten.csv</code>, de stippen op de kaartafbeelding, en tijd en plaats van elke tik tegenover de route. Wie één bestand aanpast en de rest niet, valt op. Sinds versie 3.10 doet telrapport een deel van die vergelijking zelf: bij elke ingeladen telling staat een kwaliteitsrapport, dat de aantallen, de tijden en de ligging van elke tik tegenover de route naloopt. Een consequente vervalsing van alle bestanden is met programmeerkennis mogelijk; die valt ook in dat rapport niet op.</li>
 <li><strong>Tijden in oudere GPX-bestanden.</strong> Tot en met versie 3.3 stonden in het GPX-bestand van de parkeer-apps lokale tijden met het teken voor UTC ("Z"). Die tijden lopen één of twee uur verkeerd. Sinds versie 3.4 zijn het de juiste UTC-tijden. De tijden in de CSV-bestanden waren altijd juist en gaan voor.</li>
 </ul>
 
@@ -91,6 +91,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <ol>
 <li>Vraag het <strong>originele ZIP-bestand</strong>, niet alleen een samenvatting, kaart of uitdraai. Is er een reconstructie of correctie gemaakt, vraag dan het origineel én de bewerkte versie.</li>
 <li>Vraag <strong>hoe en wanneer</strong> het bestand is bewaard en doorgegeven, bijvoorbeeld met een e-mail van die datum.</li>
+<li>Laad het ZIP-bestand in telrapport en open het <strong>kwaliteitsrapport</strong> bij de telling (sinds versie 3.10). Het loopt een groot deel van de punten hieronder voor je na: het aantal in alle bestanden, of elke tik binnen de sessietijd valt, gaten in de route, de nauwkeurigheid, en of elke tik op de route ligt op zijn tijdstip. Een ⚠ is een aandachtspunt om naar te kijken, geen oordeel over de telling.</li>
 <li>Vergelijk het <strong>aantal</strong> in <code>_sessie.csv</code> met het aantal regels in <code>_telregels.csv</code> en met de optelling in <code>_straten.csv</code>.</li>
 <li>Leg de <strong>route</strong> (<code>_gps.csv</code> of het GPX-bestand) op een kaart. Past ze bij het gebied en bij de opgegeven telmomenten? Liggen de tikken op de route, op hun tijdstip?</li>
 <li>Kijk naar de <strong>nauwkeurigheid</strong> van de GPS-punten en, bij pocket, naar de kwaliteitsmaten per tik.</li>
@@ -99,6 +100,6 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 
 <h2>Over deze toelichting</h2>
 <p>Opgesteld door de maker van telonline.org. Ze beschrijft de werking van de software en is geen juridisch advies. telonline.org is gratis software onder de GNU General Public License, versie 3, en wordt geleverd zonder garantie. De broncode en de wijzigingsgeschiedenis staan op <a href="https://github.com/jeroenrijsdijk/TelSuite">github.com/jeroenrijsdijk/TelSuite</a>, de pakketten per versie onder <a href="https://github.com/jeroenrijsdijk/TelSuite/releases">Releases</a>. Vragen over deze toelichting: <a href="mailto:verkeer@telonline.org">verkeer@telonline.org</a>.</p>
-<p>Stand: versie 3.4, 10 oktober 2026.</p>
+<p>Stand: versie 3.10, 16 oktober 2026.</p>
 </body>
 </html>

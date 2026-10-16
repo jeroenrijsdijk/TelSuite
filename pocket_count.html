@@ -781,8 +781,29 @@ function fmtTime(d) {
   return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
 }
 
-function genSid() {
-  var d = new Date();
+// Sessie-id (v3.10): vast vanaf Start, zoals in de andere veld-apps. Tot v3.10
+// ontstond het bij Stop, met de tijd van dat moment. Dezelfde telling kreeg dan
+// een ander id als hij na een mislukt deelvenster opnieuw werd ingepakt, en de
+// tijd in het id was de eindtijd. De moduscode komt er pas bij het inpakken
+// achter, want de modus ligt bij Start nog niet in alle gevallen vast.
+var pocketStam = null;   // <jjjjmmdd>_<uummss>_<xyz>
+var POCKET_MODUSCODE = { simpel: 's', transect: 't', winkelstraat: 'w', parkeren: 'p' };
+function pocketSid() {
+  if (!pocketStam && startTime && !isNaN(startTime)) pocketStam = stamUitStart(startTime);
+  return pocketStam ? pocketStam + '_pkt_' + (POCKET_MODUSCODE[currentModus] || 's') : '';
+}
+// Een kopie van vóór v3.10 heeft geen id: dan uit de starttijd, met letters die
+// ook uit de starttijd volgen. Twee vensters met dezelfde kopie komen zo op
+// hetzelfde id uit.
+function stamUitStart(d) {
+  var n = d.getTime() % 17576, chars = 'abcdefghijklmnopqrstuvwxyz';
+  return pad(d.getFullYear())+pad(d.getMonth()+1)+pad(d.getDate())
+    +'_'+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds())
+    +'_'+chars[n % 26]+chars[Math.floor(n / 26) % 26]+chars[Math.floor(n / 676) % 26];
+}
+
+function genSid(d) {
+  d = d || new Date();
   var chars = 'abcdefghijklmnopqrstuvwxyz';
   var rnd = [0,1,2].map(function(){ return chars[Math.floor(Math.random()*26)]; }).join('');
   return pad(d.getFullYear())+pad(d.getMonth()+1)+pad(d.getDate())
@@ -927,6 +948,7 @@ function startTransect() {
   snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
   snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
   startTime = new Date();
+  pocketStam = genSid(startTime);   // v3.10: id vast vanaf Start
   tcCounts = {};
   TC_TYPES.forEach(function(t){ tcCounts[t.id] = { a:0, b:0 }; });
   tcRichtingA = 'Richting A'; tcRichtingB = 'Richting B';
@@ -1119,6 +1141,7 @@ function startWinkelstraat() {
   snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
   snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
   startTime = new Date();
+  pocketStam = genSid(startTime);   // v3.10: id vast vanaf Start
   wsCounts = {}; WS_CATS.forEach(function(c){ wsCounts[c.id] = 0; });
 
   document.getElementById('choose-screen').style.display = 'none';
@@ -1234,6 +1257,7 @@ function startParkeren() {
   snap.confScore = null; snap.confLevel = 'none'; snap.confName = '';
   snap.gpsFixWin = []; snap.gpsStabScore = null; snap.gpsStabLevel = 'none';
   startTime = new Date();
+  pocketStam = genSid(startTime);   // v3.10: id vast vanaf Start
   pkCounts = {}; PK_CATS.forEach(function(c){ pkCounts[pkKey(c)] = 0; });
 
   document.getElementById('choose-screen').style.display = 'none';
@@ -1567,11 +1591,11 @@ window.addEventListener('pageshow', kopieControle);
 document.addEventListener('visibilitychange', function () { if (!document.hidden) kopieControle(); });
 /* ── einde gedeeld blok noodkopie ── */
 
-// Haken voor het gedeelde blok noodkopie (v3.8). De telling heeft pas bij Stop
-// een sessie-id; tot dan is de starttijd het id (Doortellen houdt hem vast).
+// Haken voor het gedeelde blok noodkopie (v3.8). Het id van de telling is sinds
+// v3.10 het sessie-id, dat vanaf Start vastligt (v3.8/v3.9: de starttijd).
 var KOPIE_SLEUTEL = LS_KEY_POCKET;
 function kopieTelling() {
-  try { return startTime ? startTime.toISOString() : ''; } catch (e) { return ''; }
+  try { return pocketSid(); } catch (e) { return ''; }
 }
 function kopieStilleggen() { stopGps(); releaseWakeLock(); }
 
@@ -1596,7 +1620,7 @@ function saveSession() {
       modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
       telCount: telCount, telHistory: telHistory, routeLog: routeLog,
       tcCounts: tcCounts, richtingA: tcRichtingA, richtingB: tcRichtingB,
-      startTime: startTime ? startTime.toISOString() : null, savedAt: nowIso()
+      sessieId: pocketSid(), startTime: startTime ? startTime.toISOString() : null, savedAt: nowIso()
     });
   } catch (e) {}
 }
@@ -1612,7 +1636,11 @@ function restoreSession() {
   var data;
   try { data = JSON.parse(raw); } catch (e) { clearSession(); return; }
   if (!data.telHistory || !data.telHistory.length) { clearSession(); return; }
-  if (!kopieHerstelbaar(data.startTime)) return;   // v3.8: elders al opgeslagen of weggegooid
+  // v3.8: elders al opgeslagen of weggegooid. Het id is sinds v3.10 het sessie-id;
+  // een kopie van v3.8/v3.9 werd afgesloten onder zijn starttijd.
+  var kopieSid = data.sessieId || (data.startTime ? stamUitStart(new Date(data.startTime)) + '_pkt_' +
+                 (POCKET_MODUSCODE[data.modus] || 's') : '');
+  if (!kopieHerstelbaar(kopieSid) || !kopieHerstelbaar(data.startTime)) return;
 
   currentModus = data.modus || 'simpel';
   telType = data.telType; telLabel = data.telLabel; telIcon = data.telIcon;
@@ -1623,6 +1651,7 @@ function restoreSession() {
   tcRichtingB = data.richtingB || 'Richting B';
   tcCounts = data.tcCounts || {};
   startTime = data.startTime ? new Date(data.startTime) : new Date();
+  pocketStam = data.sessieId ? String(data.sessieId).replace(/_pkt_[a-z]$/, '') : null;   // v3.10
 
   document.getElementById('restore-text').textContent = '\u26A0\uFE0F ' + telCount +
     ' tikken hersteld van ' + (data.savedAt || '?') +
@@ -1669,7 +1698,7 @@ function hervatTelling() {
   if (kopieClaim()) return;   // v3.8: niet als de telling intussen elders verder ging
   var bewaard = {
     modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
-    telCount: telCount, telHistory: telHistory, routeLog: routeLog, startTime: startTime,
+    telCount: telCount, telHistory: telHistory, routeLog: routeLog, startTime: startTime, stam: pocketStam,
     tcCounts: tcCounts, tcRichtingA: tcRichtingA, tcRichtingB: tcRichtingB
   };
   document.getElementById('restore-banner').style.display = 'none';
@@ -1681,6 +1710,7 @@ function hervatTelling() {
 
   telCount = bewaard.telCount; telHistory = bewaard.telHistory;
   routeLog = bewaard.routeLog; startTime = bewaard.startTime;
+  pocketStam = bewaard.stam;   // v3.10: hetzelfde id (zonder: uit de starttijd)
   var laatste = routeLog[routeLog.length - 1];
   if (laatste) { lastRouteLat = laatste.lat; lastRouteLon = laatste.lon; }
 
@@ -1755,6 +1785,7 @@ function startTelling(type, icon, label) {
   routeLog    = [];
   lastRouteLat = null; lastRouteLon = null;
   startTime  = new Date();
+  pocketStam = genSid(startTime);   // v3.10: id vast vanaf Start
 
   var color = getComputedStyle(document.documentElement).getPropertyValue('--c-' + type).trim();
   var screen = document.getElementById('count-screen');
@@ -2408,8 +2439,7 @@ function stopTelling() {
   var endTime = new Date();
   // modus-code in de sid → zichtbaar in de bestandsnaam én de sessie_id, zodat de
   // reconstructor (die op sessie_id naamt) de code vanzelf behoudt.
-  var modusCode = ({ simpel: 's', transect: 't', winkelstraat: 'w', parkeren: 'p' })[currentModus] || 's';
-  var sid     = genSid() + '_pkt_' + modusCode;
+  var sid     = pocketSid();   // v3.10: vast vanaf Start, met de moduscode erachter
   var datum   = fmtDate(startTime);
   var start   = fmtTime(startTime);
   var eind    = fmtTime(endTime);

@@ -171,6 +171,24 @@
   .session-dekking { font-size: 9.5px; color: var(--muted); margin-top: 2px;
     line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .session-dekking.incompleet { color: #e0a03a; font-weight: 600; }
+  /* v3.10: kwaliteitsrapport per telling */
+  .session-kwaliteit { font-size: 9.5px; color: var(--muted); margin-top: 2px; line-height: 1.2;
+    cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; display: inline-block; }
+  .session-kwaliteit.let { color: #e0a03a; font-weight: 600; }
+  .session-kwaliteit:hover { color: var(--text); }
+  .kw-modal { max-width: 640px; }
+  .kw-sub { font-size: 11px; color: var(--muted); margin-bottom: 12px; font-family: 'Courier New', monospace; }
+  .kw-sluit { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px 8px; }
+  .kw-sluit:hover { color: var(--text); }
+  .kw-tabel { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .kw-tabel td { padding: 7px 6px; border-top: 1px solid var(--border); vertical-align: top; }
+  .kw-tabel td.kw-icoon { width: 18px; text-align: center; font-weight: 700; }
+  .kw-tabel tr.ok td.kw-icoon { color: #27ae60; }
+  .kw-tabel tr.let td.kw-icoon { color: #e0a03a; }
+  .kw-tabel tr.info td.kw-icoon, .kw-tabel tr.nvt td.kw-icoon { color: var(--muted); }
+  .kw-tabel .kw-naam { font-weight: 600; white-space: nowrap; }
+  .kw-tabel .kw-uitleg { color: var(--muted); margin-top: 3px; line-height: 1.45; }
+  .kw-noot { font-size: 10.5px; color: var(--muted); margin-top: 12px; line-height: 1.5; }
 
   #reset-footer {
     padding: 8px 16px 10px; border-top: 1px solid var(--border);
@@ -1046,6 +1064,7 @@ setBasemap('osm');
 
 // ── STATE ─────────────────────────────────────────────────────────
 const sessions      = {};
+const kwaliteit     = {};   // v3.10: sid → kwaliteitsrapport (uit de ZIP-bestanden)
 const collapsedGroups = new Set();   // v2.15: ingeklapte type-groepen in de sessielijst
 // wayData en wayLayers keyen op composite key "wayId:segIdx".
 // Voor pocket v2.3 zijn dit echte sub-segmenten; voor andere app-types
@@ -3747,6 +3766,9 @@ async function loadZip(file, voorgeladenZip) {
   if (ssOverzicht) {
     const ssSm = sessieCSV ? parseCSV(sessieCSV)[0] : null;
     const ssSid = (ssSm && (ssSm.app_type || '').trim() === 'standstill' && ssSm.sessie_id) ? ssSm.sessie_id : null;
+    if (ssSid && !sessions[ssSid]) {
+      try { kwaliteit[ssSid] = kwaliteitRapport(F, ssSm); } catch (e) { console.warn('kwaliteit', ssSid, e); }   // v3.10
+    }
     return toonStandStill(F[ssOverzicht], file.name || ssOverzicht, file, ssSid);
   }
 
@@ -3755,6 +3777,7 @@ async function loadZip(file, voorgeladenZip) {
   const sm=parseCSV(sessieCSV)[0];
   const sid=sm.sessie_id;
   if (sessions[sid]) return;
+  try { kwaliteit[sid] = kwaliteitRapport(F, sm); } catch (e) { console.warn('kwaliteit', sid, e); }   // v3.10
 
   // ── Correctie-tool: bewaar originele File + alle telregels (incl. unsnapped) ──
   originalFile[sid] = file;
@@ -3938,6 +3961,235 @@ function clusterDekking(sid) {
 }
 
 // Bouwt één sessie-rij (ongewijzigde markup; klik/shift/solo blijven via delegatie werken).
+// ── Kwaliteit van een telling (v3.10) ─────────────────────────────────────
+// Een gezondheidsrapport per telling, uitgerekend bij het inladen uit de
+// bestanden die al in de ZIP zitten. Er komt niets bij in de ZIP. Elke controle
+// geeft ok, let op (een aandachtspunt), info (een feit, geen probleem) of n.v.t.
+//   Aantallen        n_waarnemingen = regels in _telregels (en de som in _straten)
+//   Tijd             elke tik tussen start en eind, met KW.MARGE_S marge
+//   GPS-spoor        sprongen van > KW.GAT_M na > KW.GAT_S zonder punt; tikken
+//                    daarin hebben mogelijk een verouderde positie (Static:
+//                    de onderbrekingen)
+//   Positie          elke tik heeft een GPS-positie
+//   Nauwkeurigheid   mediaan ≤ KW.ACC_MEDIAAN_M en hooguit KW.ACC_AANDEEL van de
+//                    punten boven KW.ACC_GROOT_M (Static: de ene fix)
+//   Op de route      elke tik binnen KW.ROUTE_M van het spoor op dat moment
+// De apps loggen een GPS-punt pas na 5 m verplaatsing. Stilstaan geeft dus geen
+// punten; daarom telt een gat alleen als de positie erover verspringt, en is
+// "verse fix" niet uit de ZIP af te leiden. De routecontrole gebruikt de rauwe
+// GPS-kolommen (lat_gps/lon_gps, of lat/lon), die correctie en reconstructie
+// ongemoeid laten.
+const KW = { MARGE_S: 60, GAT_S: 60, GAT_M: 50, ROUTE_M: 50, ACC_MEDIAAN_M: 15, ACC_GROOT_M: 20, ACC_AANDEEL: 0.2 };
+
+// Tijd uit een CSV-veld: '2026-10-16 11:41:00', '2026-10-16T11:41:00' (lokaal),
+// een ISO-tijd met zone, of '11:41:00' met de datum van de sessie.
+function kwTijd(s, datum) {
+  s = String(s || '').trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?(\.\d+)?$/);
+  if (m) return new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) { const d = new Date(s); return isNaN(d) ? null : d; }
+  m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  const dm = String(datum || '').trim().match(/^(\d{4})-?(\d{2})-?(\d{2})/);
+  if (m && dm) return new Date(+dm[1], dm[2] - 1, +dm[3], +m[1], +m[2], +(m[3] || 0));
+  return null;
+}
+function kwAfstand(a, b) {
+  const k = Math.PI / 180, x = (b.lon - a.lon) * k * Math.cos((a.lat + b.lat) / 2 * k), y = (b.lat - a.lat) * k;
+  return Math.sqrt(x * x + y * y) * 6371000;
+}
+function kwDuur(sec) {
+  sec = Math.round(sec);
+  if (sec < 90) return sec + ' s';
+  if (sec < 5400) return Math.round(sec / 60) + ' min';
+  return Math.floor(sec / 3600) + ' u ' + String(Math.round(sec % 3600 / 60)).padStart(2, '0') + ' min';
+}
+function kwKlok(d) {
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+}
+function kwMeer(n, een, meer) { return n + ' ' + (n === 1 ? een : meer); }
+
+function kwaliteitRapport(F, sm) {
+  const get = suf => { const k = Object.keys(F).find(k => k.endsWith(suf)); return k ? F[k] : null; };
+  const rijen = suf => { const t = get(suf); return t ? parseCSV(t) : null; };
+  const tel = rijen('_telregels.csv'), gps = rijen('_gps.csv'),
+        straten = rijen('_straten.csv'), onder = rijen('_onderbrekingen.csv');
+  const app = String(sm.app_type || '').trim(), datum = sm.datum, stil = app === 'standstill';
+  const start = kwTijd(sm.start_tijd, datum);
+  let eind = kwTijd(sm.eind_tijd, datum);
+  if (start && eind && eind < start) eind = new Date(eind.getTime() + 86400000);   // over middernacht
+  const controles = [];
+  const voeg = (naam, oordeel, waarde, uitleg) => controles.push({ naam, oordeel, waarde, uitleg });
+
+  const latK = tel && tel.length && ('lat_gps' in tel[0]) ? 'lat_gps' : 'lat';
+  const lonK = latK === 'lat_gps' ? 'lon_gps' : 'lon';
+  const tikken = (tel || []).map(r => {
+    const lat = parseFloat(r[latK]), lon = parseFloat(r[lonK]);
+    return { t: kwTijd(r.tijdstip, datum), lat, lon, pos: !isNaN(lat) && !isNaN(lon) && !(lat === 0 && lon === 0) };
+  });
+
+  // 1. Aantallen
+  const n = parseInt(sm.n_waarnemingen, 10);
+  if (!tel || isNaN(n)) {
+    voeg('Aantallen', 'nvt', '—', 'Geen _telregels.csv, of geen aantal in _sessie.csv.');
+  } else {
+    let waarde = n + ' in _sessie, ' + tel.length + ' in _telregels', klopt = n === tel.length;
+    if (straten && straten.length) {
+      let som = null;
+      if ('totaal' in straten[0]) som = straten.reduce((a, r) => a + (parseInt(r.totaal, 10) || 0), 0);
+      else if ('goed' in straten[0])
+        som = straten.reduce((a, r) => a + ['goed', 'fout', 'leeg', 'spec'].reduce((b, k) => b + (parseInt(r[k], 10) || 0), 0), 0);
+      if (som !== null) { waarde += ', ' + som + ' in _straten'; klopt = klopt && som === n; }
+    }
+    voeg('Aantallen', klopt ? 'ok' : 'let', waarde, klopt
+      ? 'Elk bestand telt hetzelfde aantal.'
+      : 'De bestanden tellen niet hetzelfde. Is de ZIP achteraf bewerkt, of ging er iets mis bij het wegschrijven?');
+  }
+
+  // 2. Tijd
+  if (!tikken.length || !start || !eind) {
+    voeg('Tijd', 'nvt', '—', 'Geen tikken, of geen start- of eindtijd in _sessie.csv.');
+  } else {
+    const m = KW.MARGE_S * 1000;
+    const zonder = tikken.filter(k => !k.t).length;
+    const buiten = tikken.filter(k => k.t && (k.t.getTime() < start.getTime() - m || k.t.getTime() > eind.getTime() + m)).length;
+    const klopt = !zonder && !buiten;
+    voeg('Tijd', klopt ? 'ok' : 'let',
+      klopt ? 'alle tikken tussen ' + kwKlok(start) + ' en ' + kwKlok(eind)
+            : [buiten ? kwMeer(buiten, 'tik', 'tikken') + ' buiten ' + kwKlok(start) + '–' + kwKlok(eind) : '',
+               zonder ? kwMeer(zonder, 'tik', 'tikken') + ' zonder tijd' : ''].filter(Boolean).join(', '),
+      klopt ? 'Elke tik valt binnen de sessietijd.'
+            : 'Een tik hoort tussen start en eind te vallen (marge ' + KW.MARGE_S + ' s). Is de ZIP achteraf bewerkt, of stond de klok van het toestel verkeerd?');
+  }
+
+  // GPS-spoor: punten op tijd, en gaten met een sprong
+  const spoor = (gps || []).map(r => ({ t: kwTijd(r.tijdstip, datum), lat: parseFloat(r.lat), lon: parseFloat(r.lon),
+                                        acc: parseFloat(r.nauwkeurigheid) }))
+    .filter(p => p.t && !isNaN(p.lat) && !isNaN(p.lon)).sort((a, b) => a.t - b.t);
+  const gaten = [];
+  for (let i = 1; i < spoor.length; i++) {
+    const dt = (spoor[i].t - spoor[i - 1].t) / 1000;
+    if (dt > KW.GAT_S && kwAfstand(spoor[i - 1], spoor[i]) > KW.GAT_M) gaten.push({ van: spoor[i - 1].t, tot: spoor[i].t, s: dt });
+  }
+  const inGat = k => k.t && gaten.some(g => k.t > g.van && k.t < g.tot);
+
+  // 3. GPS-spoor (Static: onderbrekingen)
+  if (stil) {
+    const o = onder || [], som = o.reduce((a, r) => a + (parseFloat(r.duur_s) || 0), 0);
+    voeg('Onderbrekingen', o.length ? 'info' : 'ok',
+      o.length ? kwMeer(o.length, 'onderbreking', 'onderbrekingen') + ', samen ' + kwDuur(som) : 'geen',
+      o.length ? 'Na een onderbreking is er doorgeteld. De onderbroken tijd telt niet mee in de uurintensiteit.'
+               : 'De telling liep zonder onderbreking.');
+  } else if (!spoor.length) {
+    voeg('GPS-spoor', 'nvt', 'geen GPS-punten', 'Geen _gps.csv, of geen punten met tijd en positie.');
+  } else {
+    const k = tikken.filter(inGat).length;
+    const langste = gaten.reduce((a, g) => Math.max(a, g.s), 0);
+    voeg('GPS-spoor', k ? 'let' : (gaten.length ? 'info' : 'ok'),
+      gaten.length ? kwMeer(gaten.length, 'gat', 'gaten') + ', langste ' + kwDuur(langste) +
+                     (k ? '; ' + kwMeer(k, 'tik', 'tikken') + ' in een gat' : '')
+                   : 'doorlopend (' + kwMeer(spoor.length, 'punt', 'punten') + ')',
+      k ? 'In een gat ontbreekt meer dan ' + KW.GAT_S + ' s een GPS-punt terwijl de positie meer dan ' + KW.GAT_M +
+          ' m verspringt: de GPS was weg, of de app was onderbroken. Tikken in zo\u2019n gat kunnen een verouderde positie hebben.'
+        : gaten.length ? 'Een gat is meer dan ' + KW.GAT_S + ' s zonder GPS-punt met een sprong van meer dan ' + KW.GAT_M +
+                         ' m, bijvoorbeeld een onderbreking met Doortellen. Er vielen geen tikken in.'
+        : 'Geen sprongen in het spoor. Stilstaan geeft geen punten; dat telt niet als gat.');
+  }
+
+  // 4. Positie bij elke tik
+  if (stil) {
+    voeg('Positie', 'nvt', '—', 'Static legt één GPS-fix vast voor de hele telling; zie Nauwkeurigheid.');
+  } else if (!tikken.length) {
+    voeg('Positie', 'nvt', '—', 'Geen tikken.');
+  } else {
+    const zonder = tikken.filter(k => !k.pos).length;
+    voeg('Positie', zonder ? 'let' : 'ok',
+      zonder ? kwMeer(zonder, 'tik', 'tikken') + ' zonder GPS-positie' : 'elke tik heeft een GPS-positie',
+      zonder ? 'Zonder positie staat een tik niet op de kaart en telt hij niet mee per straat.'
+             : 'Elke tik is met een GPS-positie vastgelegd.');
+  }
+
+  // 5. Nauwkeurigheid
+  if (stil) {
+    const acc = parseFloat(sm.nauwkeurigheid), lat = parseFloat(sm.lat);
+    if (isNaN(lat)) voeg('Nauwkeurigheid', 'let', 'geen GPS-fix', 'Zonder fix is de plek van de telling niet vastgelegd.');
+    else if (isNaN(acc)) voeg('Nauwkeurigheid', 'nvt', 'onbekend', 'De fix heeft geen nauwkeurigheid.');
+    else voeg('Nauwkeurigheid', acc > KW.ACC_GROOT_M ? 'let' : 'ok', '\u00b1' + Math.round(acc) + ' m',
+              acc > KW.ACC_GROOT_M ? 'De ene GPS-fix is onnauwkeuriger dan ' + KW.ACC_GROOT_M + ' m.' : 'De GPS-fix is nauwkeurig genoeg.');
+  } else {
+    const accs = spoor.map(p => p.acc).filter(a => !isNaN(a)).sort((a, b) => a - b);
+    if (!accs.length) {
+      voeg('Nauwkeurigheid', 'nvt', '—', 'Het spoor heeft geen nauwkeurigheid per punt.');
+    } else {
+      const med = accs[Math.floor((accs.length - 1) / 2)] / 2 + accs[Math.ceil((accs.length - 1) / 2)] / 2;
+      const groot = accs.filter(a => a > KW.ACC_GROOT_M).length / accs.length;
+      const klopt = med <= KW.ACC_MEDIAAN_M && groot <= KW.ACC_AANDEEL;
+      voeg('Nauwkeurigheid', klopt ? 'ok' : 'let',
+        'mediaan \u00b1' + Math.round(med) + ' m, ' + Math.round(groot * 100) + '% boven ' + KW.ACC_GROOT_M + ' m',
+        klopt ? 'De GPS was nauwkeurig genoeg.'
+              : 'Grens: mediaan hooguit ' + KW.ACC_MEDIAAN_M + ' m en hooguit ' + Math.round(KW.ACC_AANDEEL * 100) + '% van de punten boven ' +
+                KW.ACC_GROOT_M + ' m. Tussen hoge gebouwen of onder bomen kan een tik aan de verkeerde straat hangen.');
+    }
+  }
+
+  // 6. Op de route: elke tik bij het spoor op hetzelfde moment
+  if (stil) {
+    voeg('Op de route', 'nvt', '—', 'Static heeft geen spoor.');
+  } else if (!spoor.length || !tikken.length) {
+    voeg('Op de route', 'nvt', '—', 'Geen GPS-spoor of geen tikken.');
+  } else {
+    let ver = 0, verst = 0, getoetst = 0;
+    tikken.forEach(k => {
+      if (!k.t || !k.pos || inGat(k)) return;
+      let j = -1;
+      for (let i = 0; i < spoor.length && spoor[i].t <= k.t; i++) j = i;
+      const a = spoor[j], b = spoor[j + 1];
+      const kandidaten = [a, b].filter(Boolean);
+      if (a && b && b.t > a.t) {
+        const f = (k.t - a.t) / (b.t - a.t);
+        kandidaten.push({ lat: a.lat + f * (b.lat - a.lat), lon: a.lon + f * (b.lon - a.lon) });
+      }
+      const d = Math.min.apply(null, kandidaten.map(p => kwAfstand(k, p)));
+      getoetst++;
+      if (d > KW.ROUTE_M) { ver++; verst = Math.max(verst, d); }
+    });
+    if (!getoetst) voeg('Op de route', 'nvt', '—', 'Geen tikken met tijd en positie buiten een gat.');
+    else voeg('Op de route', ver ? 'let' : 'ok',
+      ver ? kwMeer(ver, 'tik', 'tikken') + ' verder dan ' + KW.ROUTE_M + ' m van het spoor (verst ' + Math.round(verst) + ' m)'
+          : 'elke tik binnen ' + KW.ROUTE_M + ' m van het spoor',
+      ver ? 'Een tik hoort te liggen waar de teller op dat moment was. Een grote afstand past daar niet bij: is de ZIP achteraf bewerkt?'
+          : 'Elke tik ligt bij het GPS-spoor op hetzelfde moment.');
+  }
+  return { controles, aandacht: controles.filter(c => c.oordeel === 'let').length };
+}
+
+function kwEsc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+
+function toonKwaliteit(sid) {
+  const kw = kwaliteit[sid], s = sessions[sid];
+  if (!kw || !s) return;
+  sluitKwaliteit();
+  const icoon = { ok: '\u2713', let: '\u26a0', info: '\u24d8', nvt: '\u2013' };
+  const o = document.createElement('div');
+  o.className = 'ss-overlay';
+  o.id = 'kw-overlay';
+  o.onclick = e => { if (e.target === o) sluitKwaliteit(); };
+  o.innerHTML = '<div class="ss-modal kw-modal" role="dialog" aria-label="Kwaliteit van de telling">' +
+    '<div class="ss-head"><div class="ss-title">Kwaliteit van de telling</div>' +
+    '<button class="kw-sluit" type="button" onclick="sluitKwaliteit()" title="sluiten">\u2715</button></div>' +
+    '<div class="kw-sub">' + kwEsc(sid) + ' \u00b7 ' + kwEsc(fmtDatum(s.meta.datum, s.meta.start_tijd)) + '</div>' +
+    '<table class="kw-tabel">' + kw.controles.map(c =>
+      '<tr class="' + c.oordeel + '"><td class="kw-icoon">' + icoon[c.oordeel] + '</td>' +
+      '<td><span class="kw-naam">' + kwEsc(c.naam) + '</span> \u00b7 ' + kwEsc(c.waarde) +
+      '<div class="kw-uitleg">' + kwEsc(c.uitleg) + '</div></td></tr>').join('') + '</table>' +
+    '<div class="kw-noot">Uitgerekend uit de bestanden in de ZIP; er verandert niets aan de telling. ' +
+    '\u26a0 is een aandachtspunt, geen oordeel over de telling; \u24d8 is ter informatie. ' +
+    'Een ZIP die achteraf consequent is bewerkt, valt hier niet op.</div></div>';
+  document.body.appendChild(o);
+}
+function sluitKwaliteit() { const o = document.getElementById('kw-overlay'); if (o) o.remove(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') sluitKwaliteit(); });
+
 function makeSessionRow(sid) {
   const s = sessions[sid];
   const datum = fmtDatum(s.meta.datum, s.meta.start_tijd);
@@ -3965,6 +4217,11 @@ function makeSessionRow(sid) {
             + (compleet ? '\u2713 ' : '\u26a0 ') + dk.geplaatst + '/' + dk.totaal + ' geclusterd'
             + (compleet ? '' : ' \u00b7 ' + dk.buiten + ' buiten') + '</div>';
   }
+  // v3.10: kwaliteitsrapport, klik voor het paneel
+  const kw = kwaliteit[sid];
+  const kwHtml = kw ? '<div class="session-kwaliteit' + (kw.aandacht ? ' let' : '') + '" data-kw="' + sid +
+      '" title="klik voor het kwaliteitsrapport">' + (kw.aandacht ? '\u26a0 ' + kw.aandacht + ' aandachtspunt' +
+      (kw.aandacht === 1 ? '' : 'en') : '\u2713 kwaliteit') + '</div>' : '';
   const row = document.createElement('div');
   row.className = 'session-row' + (s.visible ? '' : ' off');
   row.dataset.sid = sid;
@@ -3980,7 +4237,7 @@ function makeSessionRow(sid) {
           (teller ? '<span class="stell">' + teller + '</span>' : '') +
         '</div>' +
         '<div class="session-id">' + sid + '</div>' +
-        dekHtml +
+        dekHtml + kwHtml +
       '</div>' +
       (n ? '<div class="session-n">' + n + '</div>' : '') +
     '</div>';
@@ -4097,6 +4354,8 @@ function applySessionVisibility(sid) {
 }
 
 document.getElementById('sessions-list').addEventListener('click', e => {
+  const kwEl = e.target.closest('.session-kwaliteit');   // v3.10: het rapport, geen aan/uit
+  if (kwEl) { toonKwaliteit(kwEl.dataset.kw); return; }
   const row = e.target.closest('.session-row'); if (!row) return;
   const sid = row.dataset.sid; if (!sessions[sid]) return;
 
@@ -4335,6 +4594,7 @@ function resetAll() {
   capSpotLayers.forEach(function(m){ map.removeLayer(m); });
   // Reset state
   Object.keys(sessions).forEach(function(k){ delete sessions[k]; });
+  Object.keys(kwaliteit).forEach(function(k){ delete kwaliteit[k]; });   // v3.10
   Object.keys(wayData).forEach(function(k){ delete wayData[k]; });
   Object.keys(wayLayers).forEach(function(k){ delete wayLayers[k]; });
   Object.keys(wayHitLayers).forEach(function(k){ delete wayHitLayers[k]; });
