@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.9.** Robuustheid: volle noodopslag wordt gemeld, de browser wordt gevraagd de opslag te bewaren, pocket vraagt het schermslot terug na een app-wissel, de voorpagina toont tellingen die nog niet zijn opgeslagen, en telplanning laat zien hoe het ophalen van wegen gaat en waarom het mislukt (`overdracht_v3_9.md`). v3.8 bracht de noodkopie met één eigenaar. **Gepland: v3.10** (na de veldtest van v3.9): het pocket-id bij Start en een gezondheidsrapport per telling.
+**Laatste release: v3.10.** Logica: pocket maakt zijn sessie-id bij Start (zoals de andere apps), en telrapport geeft bij elke telling een kwaliteitsrapport met zes controles uit de ZIP-bestanden (`overdracht_v3_10.md`). v3.9 was de robuustheids-release (volle opslag, schermslot pocket, voorpagina, telplanning ophalen).
 
 ---
 
@@ -84,7 +84,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 **Opruimen na de export** (v2.76, `opruimtest.py`): de noodkopie verdwijnt **zodra de ZIP aantoonbaar is opgeslagen, en niet eerder**. Aantoonbaar = het iOS-deelblad is voltooid (de share-belofte slaagt), of de download is aan de browser overgedragen (desktop/Android). Geannuleerd of gebaar verlopen: de kopie blijft, en de tool biedt de telling de volgende keer weer aan. Na de bevestiging schrijft niets de kopie opnieuw weg (pocket: `exportAfgerond`; Static: `geexporteerd` blokkeert `bewaarStatic`). In pocket geldt *Sluiten* op het voorbeeldscherm ook als bevestiging (ongewijzigd sinds v2.11). De parkeer-apps volgen sinds v2.77 dezelfde regel (gedeeld blok `bewaarZip`, bewaakt): geannuleerd deelvenster → geen ongevraagde download, kopie blijft, statusregel *ZIP niet opgeslagen*, en de ZIP-knop biedt dezelfde ZIP opnieuw aan zonder opnieuw in te pakken (sleutel: sessie-id + aantallen, dus nooit de ZIP van een vorige sessie). Ze schrijven het wegennet alleen nog weg tijdens een lopende sessie, en Stop annuleert een wachtende fetch. Blijvend en bedoeld: taal, tellernaam, kantelmodus, en de wegennet-cache in IndexedDB (openbare OSM-data; legen via telreconstructie of de websitegegevens).
 
-**Eén venster schrijft de noodkopie** (v3.8, `opruimtest.py` deel G). Een telling kan in twee vensters openstaan (op de iPhone opent een beginschermicoon vaak een nieuw tabblad). Tot v3.8 schreef een oud venster zijn afgebroken stand terug zodra het verborgen werd, ook nadat een ander venster de telling had doorgeteld en opgeslagen; Static overschreef elke 10 s een telling die elders liep. Nu, in het gedeelde blok `noodkopie` (byte-identiek in de vijf veld-apps, bewaakt): de kopie draagt het id van het schrijvende venster (`venster`) en van de telling (`telling`); alleen de eigenaar schrijft, en Start en Doortellen maken een venster eigenaar. Een hersteld venster dat niet doortelt, schrijft niet. Na bevestigd opslaan of bewust weggooien gaat het telling-id op de lijst `telsuite_afgesloten` (laatste 30); zo'n telling wordt nooit meer weggeschreven of hersteld. Doortellen weigert als de kopie sinds het herstel veranderde. Een venster dat buitenspel staat, legt stil (GPS, klok, schermslot) en toont `#kopie-elders` met *Opnieuw laden*; het controleert bij elke schrijfpoging, bij `storage`, `pageshow` en zichtbaar worden. Telling-id: `sessionId` (parkeer-apps), `sessieId` (Static), de starttijd (pocket, dat pas bij Stop een sessie-id maakt). Alleen in de browser, niet in de ZIP: geen schemawijziging. Eén kopie per app blijft: twee lopende tellingen van dezelfde app in twee vensters kan niet; wie later start, wint. Sinds v3.9 vangt `kopieSchrijf` een mislukte `setItem` (opslag vol) zelf af: de vorige kopie blijft staan en `#kopie-vol` verschijnt bovenin (neemt geen tikken af) tot wegschrijven weer lukt. Start en Doortellen roepen `navigator.storage.persist()` aan. De voorpagina leest de kopieën van alle vijf de apps en toont ze onder *Nog niet opgeslagen* (afgesloten, lege en kapotte niet).
+**Eén venster schrijft de noodkopie** (v3.8, `opruimtest.py` deel G). Een telling kan in twee vensters openstaan (op de iPhone opent een beginschermicoon vaak een nieuw tabblad). Tot v3.8 schreef een oud venster zijn afgebroken stand terug zodra het verborgen werd, ook nadat een ander venster de telling had doorgeteld en opgeslagen; Static overschreef elke 10 s een telling die elders liep. Nu, in het gedeelde blok `noodkopie` (byte-identiek in de vijf veld-apps, bewaakt): de kopie draagt het id van het schrijvende venster (`venster`) en van de telling (`telling`); alleen de eigenaar schrijft, en Start en Doortellen maken een venster eigenaar. Een hersteld venster dat niet doortelt, schrijft niet. Na bevestigd opslaan of bewust weggooien gaat het telling-id op de lijst `telsuite_afgesloten` (laatste 30); zo'n telling wordt nooit meer weggeschreven of hersteld. Doortellen weigert als de kopie sinds het herstel veranderde. Een venster dat buitenspel staat, legt stil (GPS, klok, schermslot) en toont `#kopie-elders` met *Opnieuw laden*; het controleert bij elke schrijfpoging, bij `storage`, `pageshow` en zichtbaar worden. Telling-id: `sessionId` (parkeer-apps), `sessieId` (Static), en bij pocket sinds v3.10 het sessie-id, dat vanaf Start vastligt (v3.8/v3.9: de starttijd; een kopie van toen wordt ook onder die starttijd nagekeken). Alleen in de browser, niet in de ZIP: geen schemawijziging. Eén kopie per app blijft: twee lopende tellingen van dezelfde app in twee vensters kan niet; wie later start, wint. Sinds v3.9 vangt `kopieSchrijf` een mislukte `setItem` (opslag vol) zelf af: de vorige kopie blijft staan en `#kopie-vol` verschijnt bovenin (neemt geen tikken af) tot wegschrijven weer lukt. Start en Doortellen roepen `navigator.storage.persist()` aan. De voorpagina leest de kopieën van alle vijf de apps en toont ze onder *Nog niet opgeslagen* (afgesloten, lege en kapotte niet).
 
 **Voorpagina: ingedeeld naar wat je telt** (v2.69). Drie groepen: *Verkeer tellen — wat komt er langs* (stroom: stilstaand, pocket in beweging), *Parkeren tellen — wat staat er* (toestand: pocket-parkeren eerst, dan parkeertelling, fietsparkeren, capaciteit) en *Achter je bureau* (planning, reconstructie, rapport, compact onderaan). Een nieuwe tool krijgt een plek in de groep die past bij de vraag, niet bij hoe hij gebouwd is. De kaartteksten zeggen wanneer je welke kiest, vooral binnen parkeren. Pocket-parkeren is **geen eigen tool**: de kaart linkt naar `pocket_count.html#parkeren`. Via die ingang gedraagt pocket zich als parkeer-app en verschijnt het keuzemenu met vier modi **nooit** (v2.70): meteen het parkeerscherm; Terug gaat naar de voorpagina; na Stop en het voorbeeldscherm een verse parkeertelling. Bij een onderbroken telling of als er geen voorbeeldscherm komt (geen GPS-spoor), blijft van het keuzescherm alleen de Parkeren-knop over. Het verbergen gebeurt met de klasse `.pk-ingang` op `<html>`, gezet in `<head>` vóór de eerste weergave, zodat het menu ook niet even zichtbaar is.
 
@@ -97,6 +97,10 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 **Documentatiepagina's zijn kaal** (v3.3, op verzoek van Jay: "veel css en kleurtjes voor een pakket dat toch een beetje voor verkeerskundigen is"). Handleiding, `over.html` en `privacy.html` zijn gewone HTML met één gedeeld stijlblok (`/* ── kale stijl (v3.3)` … `einde kale stijl ── */`), byte-identiek in alle drie, en zonder Google Fonts. Kleur alleen waar die iets uitlegt: kleurstalen (`class="kleur"`, `rond`) met hun kleur in `style`. `valideer.py` bewaakt het blok en dat er geen opmaak terugsluipt (losse `style=""`, extra `<style>`, Google Fonts). Nieuwe stukken tekst dus als `<h3>`/`<h4>`/`<p>`/`<ul>`/`<table>`, niet als kaartje. De tools houden Oswald.
 
 **Telplanning: wegen ophalen** (v3.9, `robuusttest.py` deel E). Na het tekenen van een contour staat midden op de kaart een melding met verstreken tijd en ontvangen kB. Per server een tijdslimiet (`OPHAAL_TIMEOUT_MS`, 45 s; de query zelf 25 s), daarna de volgende server. Elk antwoord gaat door `ovpKeur`: een antwoord met een `remark` is afgebroken en wordt **niet** gebruikt, ook niet als er wegen in zitten (een halve planning valt anders niet op). Leeg gebied: melding *Geen wegen gevonden*, de tweede server wordt niet gevraagd. Lukt het bij geen server: een melding met de reden per server, een advies en *Opnieuw*.
+
+**Pocket-id vast vanaf Start** (v3.10, `logicatest.py` deel A). Pocket maakte zijn `sessie_id` tot v3.10 bij Stop, met de tijd van dat moment; nu bij Start (`pocketStam = genSid(startTime)`), met de moduscode erachter bij het inpakken (`pocketSid()`). Het id gaat mee in de noodkopie (`sessieId`) en Doortellen houdt het vast, dus een telling die twee keer wordt ingepakt heeft één id. Een kopie van vóór v3.10 (zonder id) krijgt het uit de starttijd, met letters die ook uit de starttijd volgen (`stamUitStart`), zodat twee vensters op hetzelfde id uitkomen. Formaat en bestandsnamen zijn ongewijzigd; KNIME gebruikt `_sessie.csv` alleen als lijst (Jay, 16 okt). Binnen de suite leest niets de tijd uit het id.
+
+**Kwaliteitsrapport per telling** (v3.10, `functest_kwaliteit.js`, `logicatest.py` deel B). Telrapport rekent bij het inladen per telling zes controles uit, uit de bestanden die al in de ZIP zitten (`kwaliteitRapport`, constanten in `KW`): *Aantallen* (`n_waarnemingen` = regels in `_telregels` = som in `_straten`), *Tijd* (elke tik tussen start en eind, 60 s marge), *GPS-spoor* (een gat = > 60 s zonder punt én > 50 m sprong; tikken in een gat zijn een aandachtspunt; Static: de onderbrekingen), *Positie* (elke tik een GPS-positie), *Nauwkeurigheid* (mediaan ≤ 15 m, hooguit 20% boven 20 m; Static: de ene fix) en *Op de route* (elke tik binnen 50 m van het spoor op zijn tijdstip). Oordelen: ok, let op (telt als aandachtspunt), info, n.v.t. **De apps loggen een GPS-punt pas na 5 m verplaatsing**: stilstaan geeft geen punten. Daarom telt een gat alleen met een sprong, en is "verse fix" niet uit de ZIP af te leiden (in het voorstel aan Jay stond die nog; vervangen door *Positie* en de tikken in een gat). De routecontrole gebruikt de rauwe GPS-kolommen (`lat_gps`/`lon_gps`, of `lat`/`lon`); correctie en reconstructie verschuiven alleen de marker. In beeld: een regel *✓ kwaliteit* / *⚠ n aandachtspunten* in de sessierij, een klik opent het paneel. Niet in de GeoPackage: eerst kijken hoe het bevalt (mijn voorstel; Jay maakte geen bezwaar).
 
 **Handoff "Direct reconstrueren"**: ZIP-blob via IndexedDB store `handoff` → `telreconstructie.html?handoff=1`. Knop aanwezig in alle vier veld-apps die door de reconstructor gaan.
 
@@ -130,7 +134,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 6. **KNIME**: `snap_path` in `snap_trace.csv` begint sinds v2.49 met `bron:fetch|` / `bron:tegel|` / `bron:leeg|`, en de `event`-kolom kent twee nieuwe waarden (`tegelcache`, `fetch_leeg`). Vrije-tekstkolommen, dus formeel geen schemawijziging — maar een node die op de exacte vorm parst moet mee.
 7. **KNIME: Static heeft sinds v2.73 een ZIP in suitevorm** — `<sid>.zip` (sid eindigt op `_sta`) met `_sessie.csv` (pocket-kolommen + `lat;lon;nauwkeurigheid;straat;plaats;notities;actieve_duur_s;uurfactor`, `app_type` = `standstill`), `_telregels.csv` (`sessie_id;nr;tijdstip;type;richting;lat;lon;nauwkeurigheid`, tijdstip mét datum), `_onderbrekingen.csv` (alleen na doortellen) en het oude leesbare overzicht als `_overzicht.csv`. Wie Static nu nog in KNIME inleest via het overzicht, kan dat blijven doen; de nieuwe bestanden maken Static een gewone sessie. Voor uurintensiteiten `actieve_duur_s` of `uurfactor` gebruiken, niet eind − start.
 8. ~~**Plesk koppelen aan de branch `site`**~~ — klaar (10 okt 2026): Plesk volgt `site` met een webhook; v3.5 staat zo online.
-9. **Veldtest v3.9** (daarna v3.10):
+9. ~~**Veldtest v3.9**~~ — geslaagd (Jay, 16 okt 2026):
    - pocket: tel, wissel even van app, kom terug: blijft het scherm aan?
    - voorpagina: tel een paar tikken, ga naar de voorpagina: staat de telling onder *Nog niet opgeslagen*? Na opslaan weg?
    - telplanning: teken een groot gebied (een hele wijk of meer): zie je de melding met tijd en kB, en bij een te groot gebied een duidelijke foutmelding?
@@ -156,11 +160,9 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - **Bewijswaarde van een telling** (uit `verantwoording.html`, v3.4), in volgorde van nut:
   1. *Vingerafdruk bij de export* (Jay: later): SHA-256 van de ZIP tonen, met een knop "mail deze code naar mezelf". Daarmee is aantoonbaar dat de ZIP sinds dat moment niet veranderd is. WebCrypto, geen server.
   2. *Ongedaan maken tellen* (`n_ongedaan`) en *versienummer* (`app_versie`) in `_sessie.csv`, als kolommen achteraan. Schemawijziging: eerst KNIME.
-  3. *Consistentiecheck* in telrapport: aantallen in alle bestanden gelijk, elke tik binnen de sessietijd en op de route rond zijn tijdstip. Zie ook het *gezondheidsrapport per telling* bij de ideeën na v3.8.
-  Zodra er één klaar is, de zwakke plekken in `verantwoording.html` bijwerken.
+  3. ~~*Consistentiecheck* in telrapport~~ — gedaan in v3.10 als kwaliteitsrapport per telling (zie §2): aantallen in alle bestanden gelijk, elke tik binnen de sessietijd en op de route rond zijn tijdstip. Zie ook het *gezondheidsrapport per telling* bij de ideeën na v3.8.
+  `verantwoording.html` noemt het kwaliteitsrapport sinds v3.10. Bij 1 en 2 de zwakke plekken daar ook bijwerken.
 
-
-**Gepland: v3.10, logica** (Jay, 16 okt 2026): na de veldtest van v3.9 het *pocket-id bij Start* en het *gezondheidsrapport per telling* (beide hieronder bij *Logica*). Daarna de tests op GitHub.
 
 **Ideeën na v3.8** (15 okt 2026)
 
@@ -176,16 +178,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
   Nu ontdek je zulke dingen pas buiten.
 
-*Logica*
-- *v3.10:* **Pocket maakt zijn sessie-id pas bij Stop** (`genSid()` in `stopTelling`, met de tijd van dat moment); de andere veld-apps doen het bij Start. Daardoor betekent de tijd in het id bij pocket iets anders. En wordt dezelfde telling twee keer ingepakt (bijvoorbeeld na een mislukt deelvenster en herstel), dan krijgt hij twee id's: twee "verschillende" sessies in KNIME en telrapport. Het id bij Start maken en in de noodkopie bewaren lost dat op; het blok `noodkopie` kan dan het echte id gebruiken in plaats van de starttijd. Het formaat blijft gelijk, maar de betekenis verandert, dus eerst KNIME nagaan.
-- *v3.10:* **Gezondheidsrapport per telling** in telrapport, als uitbreiding van de consistentiecheck hierboven:
-  - gaten in het GPS-spoor;
-  - tikken zonder verse fix;
-  - de nauwkeurigheid;
-  - onderbrekingen;
-  - aantallen gelijk in alle bestanden.
-
-  Alles is te berekenen uit wat al in de ZIP staat, dus zonder schemawijziging. Het dient de kwaliteitscontrole van veldwerk én de verantwoording.
+*Logica*: beide punten (pocket-id bij Start, gezondheidsrapport) zijn gedaan in v3.10.
 
 *Interface*
 - **Eén herstelmelding voor alle apps.** Er zijn nu drie ontwerpen:
@@ -236,7 +229,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.9 in één oogopslag
+## 6. Releases v2.32 → v3.10 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -296,6 +289,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.7 | **Weekprofiel**: tabel nieuwste bovenaan (sorteerde op de datumtekst), weekdag en tijd, seconden, visits in *aanwezig*; 95%-marge (exact Poisson, getoetst aan scipy) in de tooltips; onzeker = minder dan 5 tikken én marge over een klassegrens, lichter getoond; klik op rij ↔ cel; nieuwe `functest_segmenttabel.js` |
 | v3.8 | **Noodkopie met één eigenaar**: een oud venster zet een afgebroken telling niet meer terug nadat een ander venster hem doortelde en opsloeg (gemeld door Jay); Static overschrijft geen lopende telling meer; opgeslagen of weggegooide tellingen op een lijst; Doortellen weigert een verouderde stand; het oude venster legt stil en meldt het; gedeeld blok `noodkopie` in de vijf veld-apps; `opruimtest.py` deel G (87 tests) |
 | v3.9 | **Robuustheid**: melding bij volle noodopslag en `storage.persist()` (blok `noodkopie`); pocket vraagt het schermslot terug na een app-wissel; voorpagina toont *Nog niet opgeslagen* tellingen; telplanning: laadmelding zichtbaar (bleef verborgen), tijd en kB, tijdslimiet per server, `ovpKeur` (afgebroken antwoorden niet meer stil gebruikt), foutmelding met *Opnieuw*; privacyverklaring over de planningenmap; nieuwe `robuusttest.py` (87 tests) |
+| v3.10 | **Logica**: pocket-id vast vanaf Start (was: tijd van Stop; een tweede keer inpakken gaf een ander id), ook na Doortellen; **kwaliteitsrapport per telling** in telrapport (aantallen, tijd, GPS-spoor, positie, nauwkeurigheid, op de route), regel in de sessielijst en paneel; verantwoording en ZIP-referentie bijgewerkt; nieuwe `functest_kwaliteit.js` (33) en `logicatest.py` (25) |
 
 ---
 

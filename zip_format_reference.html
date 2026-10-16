@@ -667,6 +667,7 @@ Time;Vehicle;Direction
     </tbody>
   </table>
   <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Pocket modus letter.</strong> The modus letter (<code>s</code>/<code>t</code>/<code>w</code>/<code>p</code>) is part of the pocket <code>sessie_id</code> itself &mdash; not just the filename &mdash; so it survives reconstruction (<code>&hellip;_pkt_w.zip</code> &rarr; <code>&hellip;_pkt_w_recon.zip</code>).</p>
+  <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Pocket sessie_id fixed at Start.</strong> Since <strong>v3.10</strong> the pocket <code>sessie_id</code> is made when the count starts, like in the other field apps: <code>&lt;yyyymmdd&gt;_&lt;hhmmss&gt;_&lt;xyz&gt;_pkt_&lt;letter&gt;</code>, with the start date and time. It is kept through Doortellen, so a count that is packed twice (for instance after a cancelled share sheet) carries the same id. v2.x&ndash;v3.9 made it at Stop, with the time of Stop. The format and the file names are unchanged.</p>
   <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Type vocabulary &rarr; modus</strong> &mdash; how a session with an absent or wrong <code>modus</code> is recovered from its tap <code>type</code>s:</p>
   <table>
     <thead><tr><th>tap types present</th><th>resolves to</th></tr></thead>
