@@ -32,11 +32,11 @@ gelijk aan v3.10.
 - de rij is met het teken even hoog als zonder (55 px in de test).
 
 Tegen v3.10 falen beide: het teken stond niet op de eerste regel, en de rij was
-70 px tegen 55 px zonder. De bestaande
-B-tests zoeken nu naar *✓* en *⚠ 1*.
+70 px tegen 55 px zonder. De bestaande B-tests zoeken nu naar *✓* en *⚠ 1*.
 
-Daarnaast bekeken in Chromium: de sessielijst met drie parkeertellingen (*⚠ 1*,
-*⚠ 1*, *✓*), op gelijke hoogte met de regels zonder teken.
+Daarnaast bekeken in Chromium: de sessielijst met drie parkeertellingen. Twee
+tonen *⚠ 1*, één *✓*. Het teken staat rechts op de eerste regel, naast het
+aantal.
 
 ## 3. Gewijzigde bestanden
 
@@ -51,5 +51,15 @@ Daarnaast bekeken in Chromium: de sessielijst met drie parkeertellingen (*⚠ 1*
 ## 4. Validatie
 
 ```
-VALIDATIE
+valideer.py           ALLES OK — 3 verwachte bestanden gewijzigd; gedeelde blokken OK
+logicatest.py         27/27
+robuusttest.py        87/87
+opruimtest.py         139/139
+hersteltest.py        133/133
+laadtest.py           47/47
+statictest.py         24/24
+gpkgtest.py           80/80
+functests             alle 16 groen
+test_zipref.py        referentie sluit aan op de code
+check_encoding.py     alles geldige UTF-8
 ```
