@@ -160,5 +160,20 @@ geen id in de kopie, en als telling-id de starttijd.
 ## 6. Validatie
 
 ```
-VALIDATIE
+valideer.py           ALLES OK — 6 verwachte bestanden gewijzigd; gedeelde blokken ongemoeid en OK;
+                      14 publieke pagina's OK
+logicatest.py         25/25 (nieuw)
+functest_kwaliteit.js 33/33 (nieuw)
+robuusttest.py        87/87
+opruimtest.py         139/139
+hersteltest.py        133/133
+laadtest.py           47/47
+statictest.py         24/24
+gpkgtest.py           80/80
+functests             alle 16 groen
+test_zipref.py        referentie sluit aan op de code
+check_encoding.py     alles geldige UTF-8
 ```
+
+De volledige ronde liep deze keer zonder iets ernaast (lering uit v3.9), en
+`hersteltest` slaagde in één keer.
