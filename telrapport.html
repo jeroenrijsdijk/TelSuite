@@ -4209,14 +4209,12 @@ function makeSessionRow(sid) {
             + s.zonderGeom.length + ' terrein' + (s.zonderGeom.length === 1 ? '' : 'en')
             + ' zonder geometrie</div>';
   }
-  if (dk && dk.totaal) {
-    const compleet = dk.buiten === 0;
-    const titel = compleet
-      ? 'Alle getelde tikken zitten in een cluster.'
-      : dk.buiten + ' tik(ken) niet in een cluster (ongesnapt of buiten het netwerk) \u2014 zichtbaar als vervaagde \u26a0-stippen.';
-    dekHtml = '<div class="session-dekking' + (compleet ? '' : ' incompleet') + '" title="' + titel + '">'
-            + (compleet ? '\u2713 ' : '\u26a0 ') + dk.geplaatst + '/' + dk.totaal + ' geclusterd'
-            + (compleet ? '' : ' \u00b7 ' + dk.buiten + ' buiten') + '</div>';
+  // v3.12: alleen een regel als er tikken buiten een cluster vallen. "44/44
+  // geclusterd" zegt niets en kost een regel in een kolom met weinig ruimte.
+  if (dk && dk.totaal && dk.buiten > 0) {
+    const titel = dk.buiten + ' tik(ken) niet in een cluster (ongesnapt of buiten het netwerk) \u2014 zichtbaar als vervaagde \u26a0-stippen.';
+    dekHtml = '<div class="session-dekking incompleet" title="' + titel + '">\u26a0 '
+            + dk.geplaatst + '/' + dk.totaal + ' geclusterd \u00b7 ' + dk.buiten + ' buiten</div>';
   }
   // v3.10: kwaliteitsrapport, klik voor het paneel. v3.11: een teken op de eerste
   // regel (✓, of ⚠ met het aantal aandachtspunten), geen eigen regel: de kolom

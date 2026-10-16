@@ -15,7 +15,8 @@
      B1. echte ZIP's van pocket en Static: "✓";
      B2. een parkeertelling, ook met een verschoven tik en met een fout aantal:
          "✓" en "⚠ 1"; het teken staat op de eerste regel van de rij en maakt
-         de rij niet hoger (v3.11);
+         de rij niet hoger (v3.11); "n/n geclusterd" staat er alleen als er
+         tikken buiten een cluster vallen (v3.12);
      B3. een klik opent het paneel met de juiste controle, en zet de telling niet
          uit; Escape sluit het; "alles wissen" ruimt de rapporten op.
 
@@ -191,6 +192,14 @@ with sync_playwright() as p:
     eis('B2. het teken staat op de eerste regel van de rij, met uitleg in de tooltip',
         plek['opRegel1'] and plek['titel'] == 'kwaliteit: 1 aandachtspunt — klik voor het rapport', plek)
     eis('B2. de rij is met het teken even hoog als zonder (%.0f px)' % plek['h0'], abs(plek['h'] - plek['h0']) < 0.5, plek)
+    # v3.12: "n/n geclusterd" alleen als er tikken buiten een cluster vallen
+    DEK = ("(sid)=>{var r=document.querySelector('.session-row[data-sid=\"'+sid+'\"]');"
+           "var d=r.querySelector('.session-dekking');return {tekst:d?d.textContent:null,h:r.getBoundingClientRect().height}}")
+    vol, onvol = pg.evaluate(DEK, '20261016_100000_goe'), pg.evaluate(DEK, '20261016_120000_aan')
+    eis('B2. alle tikken geclusterd: geen regel "geclusterd"', vol['tekst'] is None, vol)
+    eis('B2. niet alle tikken geclusterd: de regel blijft ("⚠ 4/5 geclusterd · 1 buiten")',
+        onvol['tekst'] == '⚠ 4/5 geclusterd · 1 buiten', onvol)
+    eis('B2. de volledige rij is een regel lager (%.0f tegen %.0f px)' % (vol['h'], onvol['h']), vol['h'] + 8 < onvol['h'], (vol, onvol))
     pg.click('.session-row[data-sid="20261016_110000_ver"] .session-kwaliteit'); pg.wait_for_timeout(300)
     paneel = pg.evaluate("(()=>{var o=document.getElementById('kw-overlay');if(!o)return null;"
                          "return [...o.querySelectorAll('tr')].map(t=>[t.className,t.querySelector('.kw-naam').textContent])})()")

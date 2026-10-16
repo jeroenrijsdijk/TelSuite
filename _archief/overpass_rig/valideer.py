@@ -12,8 +12,8 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.11'
-# v3.11: het teken van het kwaliteitsrapport op de eerste regel van de sessierij.
+RELEASE = 'v3.12'
+# v3.12: in de sessielijst alleen nog 'n/m geclusterd' als er tikken buiten een cluster vallen.
 VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
