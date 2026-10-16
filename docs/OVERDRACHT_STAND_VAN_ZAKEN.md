@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.10.** Logica: pocket maakt zijn sessie-id bij Start (zoals de andere apps), en telrapport geeft bij elke telling een kwaliteitsrapport met zes controles uit de ZIP-bestanden (`overdracht_v3_10.md`). v3.9 was de robuustheids-release (volle opslag, schermslot pocket, voorpagina, telplanning ophalen).
+**Laatste release: v3.11.** Het teken van het kwaliteitsrapport staat op de eerste regel van de sessierij in telrapport, zonder eigen regel (`overdracht_v3_11.md`). v3.10 bracht het pocket-id bij Start en het kwaliteitsrapport per telling.
 
 ---
 
@@ -100,7 +100,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 **Pocket-id vast vanaf Start** (v3.10, `logicatest.py` deel A). Pocket maakte zijn `sessie_id` tot v3.10 bij Stop, met de tijd van dat moment; nu bij Start (`pocketStam = genSid(startTime)`), met de moduscode erachter bij het inpakken (`pocketSid()`). Het id gaat mee in de noodkopie (`sessieId`) en Doortellen houdt het vast, dus een telling die twee keer wordt ingepakt heeft één id. Een kopie van vóór v3.10 (zonder id) krijgt het uit de starttijd, met letters die ook uit de starttijd volgen (`stamUitStart`), zodat twee vensters op hetzelfde id uitkomen. Formaat en bestandsnamen zijn ongewijzigd; KNIME gebruikt `_sessie.csv` alleen als lijst (Jay, 16 okt). Binnen de suite leest niets de tijd uit het id.
 
-**Kwaliteitsrapport per telling** (v3.10, `functest_kwaliteit.js`, `logicatest.py` deel B). Telrapport rekent bij het inladen per telling zes controles uit, uit de bestanden die al in de ZIP zitten (`kwaliteitRapport`, constanten in `KW`): *Aantallen* (`n_waarnemingen` = regels in `_telregels` = som in `_straten`), *Tijd* (elke tik tussen start en eind, 60 s marge), *GPS-spoor* (een gat = > 60 s zonder punt én > 50 m sprong; tikken in een gat zijn een aandachtspunt; Static: de onderbrekingen), *Positie* (elke tik een GPS-positie), *Nauwkeurigheid* (mediaan ≤ 15 m, hooguit 20% boven 20 m; Static: de ene fix) en *Op de route* (elke tik binnen 50 m van het spoor op zijn tijdstip). Oordelen: ok, let op (telt als aandachtspunt), info, n.v.t. **De apps loggen een GPS-punt pas na 5 m verplaatsing**: stilstaan geeft geen punten. Daarom telt een gat alleen met een sprong, en is "verse fix" niet uit de ZIP af te leiden (in het voorstel aan Jay stond die nog; vervangen door *Positie* en de tikken in een gat). De routecontrole gebruikt de rauwe GPS-kolommen (`lat_gps`/`lon_gps`, of `lat`/`lon`); correctie en reconstructie verschuiven alleen de marker. In beeld: een regel *✓ kwaliteit* / *⚠ n aandachtspunten* in de sessierij, een klik opent het paneel. Niet in de GeoPackage: eerst kijken hoe het bevalt (mijn voorstel; Jay maakte geen bezwaar).
+**Kwaliteitsrapport per telling** (v3.10, `functest_kwaliteit.js`, `logicatest.py` deel B). Telrapport rekent bij het inladen per telling zes controles uit, uit de bestanden die al in de ZIP zitten (`kwaliteitRapport`, constanten in `KW`): *Aantallen* (`n_waarnemingen` = regels in `_telregels` = som in `_straten`), *Tijd* (elke tik tussen start en eind, 60 s marge), *GPS-spoor* (een gat = > 60 s zonder punt én > 50 m sprong; tikken in een gat zijn een aandachtspunt; Static: de onderbrekingen), *Positie* (elke tik een GPS-positie), *Nauwkeurigheid* (mediaan ≤ 15 m, hooguit 20% boven 20 m; Static: de ene fix) en *Op de route* (elke tik binnen 50 m van het spoor op zijn tijdstip). Oordelen: ok, let op (telt als aandachtspunt), info, n.v.t. **De apps loggen een GPS-punt pas na 5 m verplaatsing**: stilstaan geeft geen punten. Daarom telt een gat alleen met een sprong, en is "verse fix" niet uit de ZIP af te leiden (in het voorstel aan Jay stond die nog; vervangen door *Positie* en de tikken in een gat). De routecontrole gebruikt de rauwe GPS-kolommen (`lat_gps`/`lon_gps`, of `lat`/`lon`); correctie en reconstructie verschuiven alleen de marker. In beeld: rechts op de eerste regel van de sessierij een *✓* of *⚠ n* (sinds v3.11; in v3.10 een eigen regel, maar de kolom heeft weinig verticale ruimte), uitleg in de tooltip, een klik opent het paneel. Niet in de GeoPackage: eerst kijken hoe het bevalt (mijn voorstel; Jay maakte geen bezwaar).
 
 **Handoff "Direct reconstrueren"**: ZIP-blob via IndexedDB store `handoff` → `telreconstructie.html?handoff=1`. Knop aanwezig in alle vier veld-apps die door de reconstructor gaan.
 
@@ -229,7 +229,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.10 in één oogopslag
+## 6. Releases v2.32 → v3.11 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -290,6 +290,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.8 | **Noodkopie met één eigenaar**: een oud venster zet een afgebroken telling niet meer terug nadat een ander venster hem doortelde en opsloeg (gemeld door Jay); Static overschrijft geen lopende telling meer; opgeslagen of weggegooide tellingen op een lijst; Doortellen weigert een verouderde stand; het oude venster legt stil en meldt het; gedeeld blok `noodkopie` in de vijf veld-apps; `opruimtest.py` deel G (87 tests) |
 | v3.9 | **Robuustheid**: melding bij volle noodopslag en `storage.persist()` (blok `noodkopie`); pocket vraagt het schermslot terug na een app-wissel; voorpagina toont *Nog niet opgeslagen* tellingen; telplanning: laadmelding zichtbaar (bleef verborgen), tijd en kB, tijdslimiet per server, `ovpKeur` (afgebroken antwoorden niet meer stil gebruikt), foutmelding met *Opnieuw*; privacyverklaring over de planningenmap; nieuwe `robuusttest.py` (87 tests) |
 | v3.10 | **Logica**: pocket-id vast vanaf Start (was: tijd van Stop; een tweede keer inpakken gaf een ander id), ook na Doortellen; **kwaliteitsrapport per telling** in telrapport (aantallen, tijd, GPS-spoor, positie, nauwkeurigheid, op de route), regel in de sessielijst en paneel; verantwoording en ZIP-referentie bijgewerkt; nieuwe `functest_kwaliteit.js` (33) en `logicatest.py` (25) |
+| v3.11 | Kwaliteitsrapport: teken (*✓* / *⚠ n*) rechts op de eerste regel van de sessierij in plaats van een eigen regel (Jay: weinig verticale ruimte in de kolom); `logicatest.py` meet dat de rij niet hoger wordt (27 tests) |
 
 ---
 

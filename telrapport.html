@@ -172,10 +172,11 @@
     line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .session-dekking.incompleet { color: #e0a03a; font-weight: 600; }
   /* v3.10: kwaliteitsrapport per telling */
-  .session-kwaliteit { font-size: 9.5px; color: var(--muted); margin-top: 2px; line-height: 1.2;
-    cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; display: inline-block; }
+  /* v3.11: geen eigen regel meer, maar een teken rechts op de eerste regel van de rij */
+  .session-kwaliteit { margin-left: auto; flex-shrink: 0; font-size: 10px; line-height: 1.2;
+    padding: 0 4px; border-radius: 3px; cursor: pointer; color: #27ae60; }
   .session-kwaliteit.let { color: #e0a03a; font-weight: 600; }
-  .session-kwaliteit:hover { color: var(--text); }
+  .session-kwaliteit:hover { background: rgba(255,255,255,0.1); }
   .kw-modal { max-width: 640px; }
   .kw-sub { font-size: 11px; color: var(--muted); margin-bottom: 12px; font-family: 'Courier New', monospace; }
   .kw-sluit { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px 8px; }
@@ -4217,11 +4218,15 @@ function makeSessionRow(sid) {
             + (compleet ? '\u2713 ' : '\u26a0 ') + dk.geplaatst + '/' + dk.totaal + ' geclusterd'
             + (compleet ? '' : ' \u00b7 ' + dk.buiten + ' buiten') + '</div>';
   }
-  // v3.10: kwaliteitsrapport, klik voor het paneel
+  // v3.10: kwaliteitsrapport, klik voor het paneel. v3.11: een teken op de eerste
+  // regel (✓, of ⚠ met het aantal aandachtspunten), geen eigen regel: de kolom
+  // heeft weinig verticale ruimte.
   const kw = kwaliteit[sid];
-  const kwHtml = kw ? '<div class="session-kwaliteit' + (kw.aandacht ? ' let' : '') + '" data-kw="' + sid +
-      '" title="klik voor het kwaliteitsrapport">' + (kw.aandacht ? '\u26a0 ' + kw.aandacht + ' aandachtspunt' +
-      (kw.aandacht === 1 ? '' : 'en') : '\u2713 kwaliteit') + '</div>' : '';
+  const kwTitel = kw ? 'kwaliteit: ' + (kw.aandacht ? kw.aandacht + ' aandachtspunt' + (kw.aandacht === 1 ? '' : 'en')
+      : 'in orde') + ' \u2014 klik voor het rapport' : '';
+  const kwHtml = kw ? '<span class="session-kwaliteit' + (kw.aandacht ? ' let' : '') + '" data-kw="' + sid +
+      '" title="' + kwTitel + '" aria-label="' + kwTitel + '">' +
+      (kw.aandacht ? '\u26a0 ' + kw.aandacht : '\u2713') + '</span>' : '';
   const row = document.createElement('div');
   row.className = 'session-row' + (s.visible ? '' : ' off');
   row.dataset.sid = sid;
@@ -4235,9 +4240,10 @@ function makeSessionRow(sid) {
           '<span class="stype">' + typeIcon + '</span>' +
           '<span>' + datum + '</span>' +
           (teller ? '<span class="stell">' + teller + '</span>' : '') +
+          kwHtml +
         '</div>' +
         '<div class="session-id">' + sid + '</div>' +
-        dekHtml + kwHtml +
+        dekHtml +
       '</div>' +
       (n ? '<div class="session-n">' + n + '</div>' : '') +
     '</div>';
