@@ -559,7 +559,7 @@
     display: none;
     position: absolute;
     top: 50%;
-    left: calc(280px + 50%);
+    left: calc(140px + 50%);   /* midden van de kaart, naast de zijbalk van 280px (v3.9) */
     transform: translate(-50%, -50%);
     background: rgba(26,25,24,0.85);
     color: #f0f0ec;
@@ -573,6 +573,43 @@
     z-index: 9999;
     pointer-events: none;
   }
+  /* v3.9: voortgang, en bij een fout of leeg gebied een melding met knoppen */
+  #loading .sub {
+    display: block;
+    margin-top: 4px;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: 1px;
+    opacity: 0.75;
+  }
+  #loading.melding {
+    pointer-events: auto;
+    text-transform: none;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    width: max-content;
+    max-width: 420px;
+  }
+  #loading.melding.fout { background: rgba(130,30,20,0.93); }
+  #loading .knoppen { display: flex; gap: 8px; margin-top: 10px; }
+  #loading button {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 3px;
+    background: transparent;
+    color: #fff;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  #loading button.hoofd { background: #f0f0ec; color: #1a1918; border-color: #f0f0ec; }
 </style>
 </head>
 <body class="mode-maken">
@@ -979,6 +1016,48 @@ function dataIsVers(data) {
   } catch (e) { return true; }                  // nooit het tellen blokkeren op een parseerfout
 }
 
+/* ---- Overpass-antwoord classificeren (v2.49) ------------------------------
+   GEDEELD BLOK — houd byte-identiek over alle tools (grep OVP_LIMIET).
+
+   Vóór v2.49 ging élk niet-ideaal antwoord door dezelfde catch: een gebied
+   zónder wegen liet de app net zo hard opnieuw vragen als een netwerkstoring.
+   Erger nog: Overpass meldt rate-limiting niet altijd als HTTP 429, maar soms
+   als een 200 met de melding in data.remark. Die zagen wij als 'geen wegen' en
+   dus als reden om meteen de andere mirror te proberen — precies wanneer de
+   servers vol zitten, sloegen wij er het hardst op. En een geweigerd verzoek
+   is niet gratis: Overpass voert de query eerst uit en meldt de limiet daarna.
+
+   Vijf uitkomsten, elk met eigen gedrag:
+     ok     -> verwerken
+     leeg   -> geldig antwoord; hier liggen geen wegen. NIET opnieuw vragen.
+     oud    -> deze mirror loopt achter (> OSM_MAX_LAG_DAGEN). Andere proberen.
+     limiet -> server wijst ons af of zit vol. Lang wachten, niets proberen.
+     fout   -> netwerk-/HTTP-storing. Kort exponentieel wachten.               */
+var OVP_OK = 'ok', OVP_LEEG = 'leeg', OVP_OUD = 'oud',
+    OVP_LIMIET = 'limiet', OVP_FOUT = 'fout';
+var OVP_LIMIET_WACHT_MS = 30000;      // rate-limit: slots komen per ~minuut vrij
+var OVP_OUD_WACHT_MS    = 300000;     // alle mirrors achter: lost niet op in seconden
+function ovpStatusUitHttp(status) {
+  return (status === 429 || status === 503 || status === 504) ? OVP_LIMIET : OVP_FOUT;
+}
+function ovpKeur(data) {
+  if (!data || typeof data !== 'object') return OVP_FOUT;
+  var rem = '' + (data.remark || '');
+  if (rem) {
+    // Overpass legt runtime-meldingen in 'remark' bij een verder normale 200.
+    if (/rate_?limit|too many requests|Dispatcher_Client/i.test(rem)) return OVP_LIMIET;
+    return OVP_FOUT;
+  }
+  if (!dataIsVers(data)) return OVP_OUD;
+  if (!data.elements || !data.elements.length) return OVP_LEEG;
+  return OVP_OK;
+}
+// Exponentieel wachten met plafond: 500 . 2^(n-1), max 8s. Lang genoeg om een
+// overbelaste server te ontzien, kort genoeg om terug te zijn zodra het kan.
+function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000); }
+// telplanning gebruikt alleen ovpKeur en ovpStatusUitHttp: één interactief
+// verzoek per contour, geen herhaling op de achtergrond (v3.9).
+
 var OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.private.coffee/api/interpreter'
@@ -1144,11 +1223,41 @@ function buildQuery(geojsonPoly) {
   return '[out:json][timeout:25];(way["highway"]["area"!="yes"](poly:"'+polyStr+'");way["highway"]["area"!="yes"](around:'+radius+','+cLat+','+cLon+'););out body geom;';
 }
 
-function fetchWaysForPolygon(geojsonPoly, endpointIdx) {
-  if (endpointIdx === undefined) endpointIdx = 0;
+// ── Ophalen met voortgang en foutmelding (v3.9) ─────────────────────────────
+// Tot v3.9 zag je niet dat er iets gebeurde: de laadmelding bleef onzichtbaar
+// (display '' viel terug op de CSS-regel display:none), een hangend verzoek
+// bleef eeuwig 'ophalen' en de tweede server kwam nooit aan de beurt, en een
+// rate-limit of time-out die Overpass als HTTP 200 met een remark stuurt, gaf
+// stil nul wegen of maar een deel ervan. Nu:
+//   - een melding op de kaart met verstreken tijd en ontvangen kB;
+//   - een tijdslimiet per server, daarna de volgende;
+//   - elk antwoord gekeurd door ovpKeur (gedeeld OVP-blok). Een antwoord met een
+//     remark is afgebroken en wordt niet gebruikt, ook niet als er wegen in zitten;
+//   - lukt het bij geen enkele server: een melding met de reden en Opnieuw.
+var OPHAAL_TIMEOUT_MS = 45000;   // per server; de query zelf mag 25 s rekenen
+var ophalen = [];                // lopende verzoeken: { start, bytes, server }
+var ophaalMislukt = [];          // contouren die mislukten: { geom, redenen }
+var ophaalLeeg = false;          // laatste antwoord: geldig, maar geen wegen
+var ophaalKlok = null;
+
+function fetchWaysForPolygon(geojsonPoly, endpointIdx, redenen) {
   if (!geojsonPoly) return;
-  document.getElementById('loading').style.display = '';
-  setStatus('Overpass ophalen via endpoint ' + (endpointIdx+1) + '\u2026');
+  endpointIdx = endpointIdx || 0;
+  redenen = redenen || [];
+  var job = { start: Date.now(), bytes: 0, server: endpointIdx + 1, klaar: false };
+  ophalen.push(job);
+  ophaalLeeg = false;
+  setStatus('Wegen ophalen via server ' + (endpointIdx + 1) + '\u2026');
+  toonOphalen();
+
+  var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var klok = setTimeout(function () { job.tijdOp = true; if (ctrl) ctrl.abort(); }, OPHAAL_TIMEOUT_MS);
+  function afmelden() {
+    if (job.klaar) return;
+    job.klaar = true;
+    clearTimeout(klok);
+    ophalen.splice(ophalen.indexOf(job), 1);
+  }
 
   var query = buildQuery(geojsonPoly);
   console.log('[Overpass] query:', query);
@@ -1156,31 +1265,127 @@ function fetchWaysForPolygon(geojsonPoly, endpointIdx) {
   fetch(OVERPASS_ENDPOINTS[endpointIdx], {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'data=' + encodeURIComponent(query)
+    body: 'data=' + encodeURIComponent(query),
+    signal: ctrl ? ctrl.signal : undefined
   })
-    .then(function(r) {
+    .then(function (r) {
       if (!r.ok) {
-        return r.text().then(function(body) {
-          console.error('[Overpass] HTTP', r.status, body.slice(0,300));
-          throw new Error('HTTP ' + r.status + ': ' + body.slice(0,120));
-        });
+        var e = new Error('HTTP ' + r.status);
+        e.klasse = ovpStatusUitHttp(r.status);
+        throw e;
       }
-      return r.json();
+      return leesMetVoortgang(r, job);
     })
-    .then(function(data) {
-      if (!dataIsVers(data)) throw new Error('verouderde OSM-data');   // volgende mirror proberen
-      document.getElementById('loading').style.display = 'none';
-      processWays(data.elements || [], geojsonPoly);
+    .then(function (tekst) {
+      var data = null;
+      try { data = JSON.parse(tekst); } catch (e) {}
+      var klasse = ovpKeur(data);
+      if (klasse !== OVP_OK && klasse !== OVP_LEEG) {
+        var f = new Error(data && data.remark ? ('' + data.remark).slice(0, 160) : klasse);
+        f.klasse = (klasse === OVP_FOUT && data && data.remark) ? 'afgebroken' : klasse;
+        throw f;
+      }
+      afmelden();
+      ophaalLeeg = (klasse === OVP_LEEG);
+      toonOphalen();
+      processWays(data.elements || [], geojsonPoly);   // ook bij leeg: de status klopt dan
     })
-    .catch(function(e) {
-      console.error('[Overpass] fout:', e);
+    .catch(function (e) {
+      if (job.klaar) { console.error('[Overpass] verwerken:', e); return; }   // fout ná een goed antwoord
+      afmelden();
+      var reden = job.tijdOp ? 'tijd' : (e.klasse || OVP_FOUT);
+      console.error('[Overpass] server ' + job.server + ':', reden, e.message);
+      redenen.push({ server: job.server, reden: reden, detail: e.message });
       if (endpointIdx < OVERPASS_ENDPOINTS.length - 1) {
-        fetchWaysForPolygon(geojsonPoly, endpointIdx + 1);
+        fetchWaysForPolygon(geojsonPoly, endpointIdx + 1, redenen);
       } else {
-        document.getElementById('loading').style.display = 'none';
-        setStatus('Overpass ophalen mislukt: ' + e.message);
+        ophaalMislukt.push({ geom: geojsonPoly, redenen: redenen });
+        setStatus('Wegen ophalen mislukt \u2014 zie de melding op de kaart');
+        toonOphalen();
       }
     });
+}
+
+// Lees het antwoord in stukken, zodat de melding de ontvangen kB kan tonen.
+function leesMetVoortgang(r, job) {
+  if (!r.body || !r.body.getReader || typeof TextDecoder === 'undefined') return r.text();
+  var lezer = r.body.getReader(), dec = new TextDecoder(), delen = [];
+  function stap() {
+    return lezer.read().then(function (s) {
+      if (s.done) { delen.push(dec.decode()); return delen.join(''); }
+      job.bytes += s.value.length;
+      delen.push(dec.decode(s.value, { stream: true }));
+      return stap();
+    });
+  }
+  return stap();
+}
+
+function ophaalReden(reden) {
+  return ({
+    tijd:       'geen antwoord binnen ' + Math.round(OPHAAL_TIMEOUT_MS / 1000) + ' s',
+    afgebroken: 'Overpass brak de zoekvraag af, waarschijnlijk een te groot gebied of een drukke server',
+    limiet:     'Overpass is overbelast',
+    oud:        'de server heeft alleen verouderde kaartdata',
+    fout:       'geen verbinding of een fout bij de server'
+  })[reden] || reden;
+}
+
+// Eén melding op de kaart: ophalen (met voortgang), mislukt (met Opnieuw), of
+// geen wegen in dit gebied. Lopende verzoeken gaan voor.
+function toonOphalen() {
+  var el = document.getElementById('loading');
+  if (ophalen.length) {
+    if (!ophaalKlok) ophaalKlok = setInterval(toonOphalen, 500);
+    var t = 0, kb = 0, server = 1;
+    ophalen.forEach(function (j) { t = Math.max(t, Date.now() - j.start); kb += j.bytes / 1024; server = Math.max(server, j.server); });
+    var extra = [Math.floor(t / 1000) + ' s', Math.round(kb) + ' kB'];
+    if (server > 1) extra.push('server ' + server);
+    if (ophalen.length > 1) extra.push(ophalen.length + ' gebieden');
+    if (ophaalMislukt.length) extra.push(ophaalMislukt.length + ' mislukt');
+    el.className = '';
+    el.innerHTML = 'Wegen ophalen\u2026<span class="sub">' + extra.join(' \u00b7 ') + '</span>';
+    el.style.display = 'block';
+    return;
+  }
+  if (ophaalKlok) { clearInterval(ophaalKlok); ophaalKlok = null; }
+  if (ophaalMislukt.length) {
+    var redenen = ophaalMislukt[ophaalMislukt.length - 1].redenen;
+    var soorten = redenen.map(function (r) { return r.reden; });
+    var advies = (soorten.indexOf('tijd') >= 0 || soorten.indexOf('afgebroken') >= 0)
+      ? 'Teken een kleiner gebied, of probeer het opnieuw.'
+      : (soorten.indexOf('limiet') >= 0 ? 'Wacht een halve minuut en probeer het opnieuw.' : 'Probeer het opnieuw.');
+    el.className = 'melding fout';
+    el.innerHTML = '<strong>Wegen ophalen mislukt' +
+      (ophaalMislukt.length > 1 ? ' voor ' + ophaalMislukt.length + ' gebieden' : '') + '.</strong><br>' +
+      redenen.map(function (r) { return 'Server ' + r.server + ': ' + ophaalReden(r.reden) + '.'; }).join('<br>') +
+      '<br>' + advies +
+      '<div class="knoppen"><button type="button" class="hoofd" onclick="ophaalOpnieuw()">\u21BB Opnieuw</button>' +
+      '<button type="button" onclick="ophaalSluiten()">Sluiten</button></div>';
+    el.style.display = 'block';
+    return;
+  }
+  if (ophaalLeeg) {
+    el.className = 'melding';
+    el.innerHTML = 'Geen wegen gevonden in dit gebied.' +
+      '<div class="knoppen"><button type="button" onclick="ophaalSluiten()">Sluiten</button></div>';
+    el.style.display = 'block';
+    return;
+  }
+  el.className = '';
+  el.style.display = 'none';
+}
+
+function ophaalOpnieuw() {
+  var opnieuw = ophaalMislukt;
+  ophaalMislukt = [];
+  opnieuw.forEach(function (m) { fetchWaysForPolygon(m.geom); });
+}
+
+function ophaalSluiten() {
+  ophaalMislukt = [];
+  ophaalLeeg = false;
+  toonOphalen();
 }
 
 // ── Wegen verwerken ───────────────────────────────────────────────────────────
