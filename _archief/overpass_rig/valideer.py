@@ -12,9 +12,9 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.12'
-# v3.12: in de sessielijst alleen nog 'n/m geclusterd' als er tikken buiten een cluster vallen.
-VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html'}
+RELEASE = 'v3.13'
+# v3.13: hoofdstuk 'Slim lopen bij parkeertellingen' in de handleiding.
+VERWACHT_GEWIJZIGD = {'index.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description

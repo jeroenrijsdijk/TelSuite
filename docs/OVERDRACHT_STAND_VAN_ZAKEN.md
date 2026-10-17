@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.12.** In de sessielijst van telrapport staat *n/n geclusterd* alleen nog als er tikken buiten een cluster vallen (`overdracht_v3_12.md`). v3.11 zette het kwaliteitsteken op de eerste regel; v3.10 bracht het pocket-id bij Start en het kwaliteitsrapport.
+**Laatste release: v3.13.** De handleiding heeft een hoofdstuk *Slim lopen bij parkeertellingen*, met drie plaatjes (`overdracht_v3_13.md`). v3.12 en v3.11 maakten de sessielijst van telrapport compacter; v3.10 bracht het pocket-id bij Start en het kwaliteitsrapport.
 
 ---
 
@@ -188,6 +188,10 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
   Eén gedeeld blok zoals de melding van v3.8, met dezelfde tekst, dezelfde drie knoppen en tweetalig. Dat neemt een deel van *Static is Engelstalig* mee.
 
+*Slim lopen* (Jay, 17 okt 2026; niveau 1, het hoofdstuk in de handleiding, is gedaan in v3.13)
+- **Niveau 2: dekking per kant in pocket-parkeren.** Pocket snapt de GPS al tijdens het tellen op de OSM-weg en kent de looprichting. De dekkingskaart (knop *Kaart*) kan dan per straatkant tonen of je er al langs liep met die kant rechts: "wat heb je nog niet geteld". Haken: zonder auto's tik je niet, dus welke kant je telde is alleen af te leiden (rechts, behalve in een smalle straat); en pocket kent alleen het netwerk rond waar je liep, niet het hele gebied. Levert ook de toestand per straatkant waar niveau 3 op voortbouwt.
+- **Niveau 3: route uit de planning.** In telplanning per straat kiezen: beide kanten apart (standaard), in één keer, of niet. Telplanning rekent de route uit en toont hem met pijlen, nummers, afstand en tijd. Algoritme: elke straat die twee keer gelopen wordt, is twee gerichte kanten, dus de graaf is in balans en er is altijd een eulercircuit (Hierholzer, met de rand of de blokken als eerste rondjes). Straten in één keer: de knopen met een oneven aantal daarvan koppelen via kortste paden (min-cost perfect matching; exact met een bitmask-DP voor een handvol knopen), dan Hierholzer. Lastig is niet het algoritme maar de graaf: OSM is geen stoepennet (dubbele rijbanen, rotondes, fietspaden naast de weg, parkeerterreinen). Pocket leest nog geen planning (alleen parkeertelling doet dat), en pocket hoort in je zak: de route is om vooraf te bekijken, niet om per bocht te navigeren. Eerst niveau 2.
+
 *Groter, eerst bespreken*
 - **Werken zonder bereik.** De veld-apps halen Leaflet en JSZip van een CDN. Herlaadt Safari een tabblad in het veld zonder bereik, dan laadt de pagina mogelijk niet, en kan hij dus ook niet herstellen. Een service worker die de veld-apps en hun bibliotheken bewaart, lost dat op. Wel goed bedenken hoe een nieuwe release dan binnenkomt (eerst het netwerk proberen voor de HTML). Niet als beginscherm-app installeerbaar maken: op de iPhone heeft zo'n app een eigen opslag, los van Safari, en dan vindt Safari de noodkopie niet meer.
 
@@ -229,7 +233,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.12 in één oogopslag
+## 6. Releases v2.32 → v3.13 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -292,6 +296,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.10 | **Logica**: pocket-id vast vanaf Start (was: tijd van Stop; een tweede keer inpakken gaf een ander id), ook na Doortellen; **kwaliteitsrapport per telling** in telrapport (aantallen, tijd, GPS-spoor, positie, nauwkeurigheid, op de route), regel in de sessielijst en paneel; verantwoording en ZIP-referentie bijgewerkt; nieuwe `functest_kwaliteit.js` (33) en `logicatest.py` (25) |
 | v3.11 | Kwaliteitsrapport: teken (*✓* / *⚠ n*) rechts op de eerste regel van de sessierij in plaats van een eigen regel (Jay: weinig verticale ruimte in de kolom); `logicatest.py` meet dat de rij niet hoger wordt (27 tests) |
 | v3.12 | Sessielijst in telrapport: *✓ n/n geclusterd* weg als alle tikken in een cluster zitten, *⚠ n/m geclusterd · k buiten* blijft (Jay: ruimte in de kolom; een volledige rij 42 tegen 55 px). Bijwerking: bij capaciteit verborg die regel een melding over terreinen zonder geometrie; die is nu zichtbaar. `logicatest.py` 30 tests |
+| v3.13 | Handleiding: hoofdstuk **Slim lopen bij parkeertellingen** (Jay: "mensen vooraf laten nadenken hoe ze het doen"): vijf vragen vooraf, één kant per keer, drie patronen met een plaatje in SVG (drukke straat heen en terug, een rondje twee keer, een wijk met eerst de rand), waarom het altijd past (eulercircuit), onderweg en na afloop. Veldtip parkeertelling over keren aangepast: niet langer een nieuwe sessie voor de terugweg |
 
 ---
 
