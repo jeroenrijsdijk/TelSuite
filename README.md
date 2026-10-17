@@ -5,7 +5,9 @@ in the browser. Live at **[telonline.org](https://telonline.org)**.
 
 Every tool is a single HTML file: no framework, no build step, no account, no
 installation. Fieldwork happens on a phone; processing and reporting on a
-desktop. The interfaces are in Dutch; the technical reference is in English.
+desktop. The interfaces are mostly in Dutch: the start page and the pocket
+tool switch to English, and the fixed-point tool is in English. The technical
+reference is in English.
 
 ## Do you use it? 
 
@@ -27,29 +29,46 @@ network, determines walking direction and places parking observations on the
 correct side of the street. The report tool reads raw and reconstructed ZIPs
 alike. The ZIPs also load into QGIS or a KNIME pipeline.
 
-## Tools
+## The tools
 
-**Field (phone)**
+A survey with telonline.org usually runs in four steps: you plan it at a desk,
+count in the field with a phone, optionally straighten the result out, and look
+at it on a map. Each step has its own tool, and each tool is one HTML file.
 
-| File | Purpose |
-|---|---|
-| `traffic_counter.html` | count from a fixed point |
-| `parkeertelling.html` | car parking, walking a route |
-| `fietsparkeren.html` | bicycle parking, walking a route |
-| `capaciteitstelling.html` | parking capacity per bay and per lot |
-| `pocket_count.html` | phone-in-pocket counting: simple, transect, shopping street, parking |
+**Start**
 
-**Desktop**
+- `index.html` — the start page: pick the tool that fits what you want to count, and see any count on this device that has not been saved yet.
 
-| File | Purpose |
-|---|---|
-| `telplanning.html` | plan a survey and assess coverage |
-| `telreconstructie.html` | post-processing: re-snapping, direction, manual correction |
-| `telrapport.html` | map visualisation and analysis |
+**Before you go**
 
-**Documentation**: `traffic_counter_help.html` (manual, Dutch),
-`zip_format_reference.html` (ZIP and CSV specification, English),
-`snap_methodology.html` (how GPS points are matched to roads, English).
+- `telplanning.html` — draw an area, choose the road types from OpenStreetMap and turn them into a counting assignment, or see which streets have already been counted.
+
+**In the field (phone)**
+
+- `traffic_counter.html` — stand at one spot by the road and count vehicles, cyclists and pedestrians per direction, with an hourly figure at the end.
+- `pocket_count.html` — count while walking: everything that passes (simple), traffic per direction and vehicle type (transect), pedestrians in a shopping street, or taken and free parking spaces per side of the street (`pocket_count.html#parkeren`).
+- `parkeertelling.html` — a full car-parking survey along a route: every space parked correctly, parked wrongly, empty or special, placed on the map on its side of the street.
+- `fietsparkeren.html` — count parked bicycles along a route or at a rack, with mopeds, cargo bikes and wrecks kept apart.
+- `capaciteitstelling.html` — map how many parking spaces there are, bay by bay along the street or per car park, as the base for later occupancy counts.
+
+**Afterwards (desktop)**
+
+- `telreconstructie.html` — optional: put each tap of a walked count on the right street and side of the road, with walking direction, without changing the totals.
+- `telrapport.html` — drop in the ZIPs for a map of the counts per road segment, a day-by-hour week profile, a quality report per count and a GeoPackage export for QGIS.
+
+**Reading**
+
+- `over.html` — what telonline.org is and who it is for (Dutch).
+- `traffic_counter_help.html` — the manual for all tools (Dutch).
+- `verantwoording.html` — for lawyers and advisers: what a count records, what happens to it afterwards, and its strengths and weaknesses next to a tally sheet (Dutch).
+- `privacy.html` — which data is processed and where it goes (Dutch, with a summary in English).
+- `zip_format_reference.html` — the ZIP and CSV format, column by column, for anyone who processes the files further (English).
+- `snap_methodology.html` — how GPS points are matched to roads (English).
+
+**Behind the scenes** (not linked from the site)
+
+- `snaptrace.html` — a test bench that matches a raw GPS trace (GPX or CSV) to OpenStreetMap ways.
+- `winkelstraat_rekenrig.html` — a prototype that turns moving-observer counts in a shopping street into pedestrians per hour.
 
 ## Privacy
 
