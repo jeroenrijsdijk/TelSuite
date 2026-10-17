@@ -51,6 +51,7 @@ table{display:block;overflow-x:auto;border-collapse:collapse;margin:.6em 0}td,th
 code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,samp,a{overflow-wrap:break-word}img{max-width:100%;height:auto}
 .kleur{display:inline-block;width:.8em;height:.8em;border:1px solid #666;vertical-align:-.05em;margin-right:.35em}.rond{border-radius:50%}td:has(>.kleur){white-space:nowrap}
 /* ── einde kale stijl ── */
+figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:auto}.samen{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -82,6 +83,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <!-- Table of contents -->
 <h2>Contents</h2><ul><li>Methodiek<ul>
 <li><a href="#methodiek">Generieke telregels &amp; onze keuzes</a></li>
+<li><a href="#slim-lopen">Slim lopen bij parkeertellingen</a></li>
 </ul></li><li>Traffic Counter<ul>
 <li><a href="#overview">Overview</a></li>
 <li><a href="#session">Starting and ending a session</a></li>
@@ -158,7 +160,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <li>Wegvak: van kruising tot kruising, of tot punt waar configuratie wijzigt. Het systeem gebruikt de straatnaam in Openstreetmap(OSM). Als die straatnaam niet juist, wijzig die dan in OSM. Leeg de OSM cache in de reconstructor om de wijziging mee te nemen.</li>
 <li>Kruising: namen van takken volgens NOZW of richtingnummers van VRI.</li>
 <li>Richting: oost = richting oost. Of Oost naar Zuid. Of volgens QGIS: North is 0, East is 90, South is 180, and West is 270.</li>
-<li>Gebied (parkeren): begrens met herkenbare randen — een straathoek, een poort, het einde van een parkeerstrook.</li>
+<li>Gebied (parkeren): begrens met herkenbare randen — een straathoek, een poort, het einde van een parkeerstrook. Hoe je zo'n gebied loopt: zie <a href="#slim-lopen">Slim lopen bij parkeertellingen</a>.</li>
 <li>Pocket: de GPS legt de route vast; kies een herkenbaar start- en eindpunt, met een logische route, zodat het eenvoudig is om bij een herhaling exact dezelfde route te volgen.</li>
 </ul>
 <h4>Beschrijf keuzes</h4>
@@ -186,6 +188,182 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <p>Bij elke sessie vullen we het notitieveld in met waarneembare context: weer, wegwerkzaamheden, evenementen, schoolvakantie, maandag-maar-2e-paasdag, of opvallend rustige/drukke omstandigheden. Geen bijzonderheden? Vul dat dan ook in!</p>
 <h1>Denk aan je eigen veiligheid</h1>
 <h4><b>belangrijk</b> Tellen kan zeer inspannend zijn. Hou altijd je eigen veiligheid in het oog!</h4>
+</section>
+<!-- Slim lopen (v3.13) -->
+<section id="slim-lopen" lang="nl">
+<h3>Slim lopen bij parkeertellingen</h3>
+<p>Een parkeertelling is een momentopname. Hoe korter je over een gebied doet, hoe beter de cijfers bij elkaar passen. En wat je overslaat, kun je achteraf niet meer tellen. Neem daarom vóór je vertrekt een paar minuten, met de kaart erbij, en bedenk hoe je loopt. Hieronder staan de vaste patronen die we zelf gebruiken. Ze gelden voor Pocket-parkeren, Autoparkeren en Fietsparkeren.</p>
+<h4>Vooraf: vijf vragen</h4>
+<ol>
+<li><strong>Waar begin en eindig je?</strong> Kies één herkenbaar punt. Bij een rondje is het begin ook het eind.</li>
+<li><strong>Welke straten zijn druk of breed?</strong> Die loop je twee keer, en per keer tel je één kant. Een smalle straat, of een straat met maar aan één kant parkeren, loop je één keer en tel je in één keer.</li>
+<li><strong>Waar ligt de rand?</strong> Tel je bij de straten op de grens beide kanten, of alleen de binnenkant? Spreek het af en leg het vast bij de opdracht, zodat een herhaling hetzelfde doet.</li>
+<li><strong>Welke straten lopen dood?</strong> Daar moet je toch terug. Tel heen de ene kant en terug de andere: dat kost geen meter extra.</li>
+<li><strong>Past het in je tijdvak?</strong> Duurt de ronde langer dan het moment dat je wilt meten, verdeel het gebied dan in delen, elk met een eigen telling. Je teltempo leer je kennen uit een vorige telling van een vergelijkbaar gebied.</li>
+</ol>
+<h4>Eén kant per keer</h4>
+<p>Tel per doorgang bij voorkeur één kant van de straat. Je let dan op één rij auto's en mist er minder. Loop je heen en terug, dan tel je beide keren de kant aan je rechterhand. Rechts is rechts in je looprichting; de parkeertelling zet de tik meteen aan de goede kant van de straat, bij Pocket doet de reconstructie dat achteraf. Alleen een smalle straat tel je in één keer aan beide kanten.</p>
+<h4>Patroon 1: drukke straat, heen en terug</h4>
+<figure>
+<svg viewBox="0 0 600 200" role="img" aria-label="Drukke straat: heen de rechterkant tellen, terug de andere kant">
+<rect x="0" y="0" width="600" height="34" fill="#c9c9c9"/>
+<rect x="0" y="166" width="600" height="34" fill="#c9c9c9"/>
+<rect x="0" y="44" width="600" height="112" fill="#e4e4e4"/>
+<rect x="22" y="48" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="22" y="136" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="74" y="48" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="74" y="136" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="126" y="48" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="126" y="136" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="178" y="136" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="230" y="48" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="230" y="136" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="282" y="48" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="334" y="48" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="334" y="136" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="386" y="48" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="386" y="136" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="438" y="136" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="490" y="48" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="490" y="136" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="542" y="48" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="542" y="136" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<path d="M16,114 L562,114" fill="none" stroke="#1f6fb2" stroke-width="4" stroke-linejoin="round"/>
+<path d="M562,114 A14,14 0 0 0 562,86" fill="none" stroke="#777" stroke-width="4" stroke-dasharray="5 5"/>
+<path d="M562,86 L24,86" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="159,114 143.7,120.8 143.7,107.2" fill="#1f6fb2"/>
+<polygon points="141,86 156.3,79.2 156.3,92.8" fill="#d9822b"/>
+<polygon points="309,114 293.7,120.8 293.7,107.2" fill="#1f6fb2"/>
+<polygon points="291,86 306.3,79.2 306.3,92.8" fill="#d9822b"/>
+<polygon points="459,114 443.7,120.8 443.7,107.2" fill="#1f6fb2"/>
+<polygon points="441,86 456.3,79.2 456.3,92.8" fill="#d9822b"/>
+<circle cx="16" cy="114" r="7" fill="#222" stroke="#fff" stroke-width="2"/>
+</svg>
+<figcaption>Heen tel je de rechterkant <span class="samen">(<span class="kleur" style="background:#1f6fb2"></span>blauw)</span>. Aan het eind keer je, en terug tel je weer rechts <span class="samen">(<span class="kleur" style="background:#d9822b"></span>oranje)</span>. De twee kanten zijn kort na elkaar geteld, dus ze laten hetzelfde moment zien. ● is het begin.</figcaption>
+</figure>
+<h4>Patroon 2: een rondje, twee keer</h4>
+<figure>
+<svg viewBox="0 0 600 330" role="img" aria-label="Rondje om een blok, twee keer met de klok mee: eerst de blokkant, dan de overkant">
+<rect x="0" y="0" width="600" height="330" fill="#c9c9c9"/>
+<rect x="60" y="20" width="480" height="290" fill="#e4e4e4"/>
+<rect x="140" y="100" width="320" height="130" fill="#c9c9c9"/>
+<text x="300" y="172" text-anchor="middle" font-size="22" fill="#777" font-family="system-ui,sans-serif">huizenblok</text>
+<rect x="150" y="82" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="150" y="232" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="150" y="22" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="150" y="292" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="194" y="82" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="194" y="232" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="194" y="292" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="238" y="82" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="238" y="22" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="238" y="292" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="282" y="82" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="282" y="232" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="282" y="22" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="326" y="232" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="326" y="22" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="326" y="292" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="370" y="82" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="370" y="232" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="370" y="292" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="414" y="82" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="414" y="232" width="34" height="16" rx="3" fill="#1f6fb2"/>
+<rect x="414" y="22" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="414" y="292" width="34" height="16" rx="3" fill="#d9822b"/>
+<rect x="122" y="120" width="16" height="34" rx="3" fill="#1f6fb2"/>
+<rect x="462" y="120" width="16" height="34" rx="3" fill="#1f6fb2"/>
+<rect x="62" y="120" width="16" height="34" rx="3" fill="#d9822b"/>
+<rect x="522" y="120" width="16" height="34" rx="3" fill="#d9822b"/>
+<rect x="122" y="172" width="16" height="34" rx="3" fill="#1f6fb2"/>
+<rect x="462" y="172" width="16" height="34" rx="3" fill="#1f6fb2"/>
+<rect x="62" y="172" width="16" height="34" rx="3" fill="#d9822b"/>
+<path d="M90,165 L90,52 L510,52 L510,278 L90,278 Z" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="90,99.5 96.8,114.8 83.2,114.8" fill="#d9822b"/>
+<polygon points="309,52 293.7,58.8 293.7,45.2" fill="#d9822b"/>
+<polygon points="510,174 503.2,158.7 516.8,158.7" fill="#d9822b"/>
+<polygon points="291,278 306.3,271.2 306.3,284.8" fill="#d9822b"/>
+<polygon points="90,212.5 96.8,227.8 83.2,227.8" fill="#d9822b"/>
+<path d="M106,165 L106,68 L494,68 L494,262 L106,262 Z" fill="none" stroke="#1f6fb2" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="106,107.5 112.8,122.8 99.2,122.8" fill="#1f6fb2"/>
+<polygon points="309,68 293.7,74.8 293.7,61.2" fill="#1f6fb2"/>
+<polygon points="494,174 487.2,158.7 500.8,158.7" fill="#1f6fb2"/>
+<polygon points="291,262 306.3,255.2 306.3,268.8" fill="#1f6fb2"/>
+<polygon points="106,204.5 112.8,219.8 99.2,219.8" fill="#1f6fb2"/>
+<circle cx="98" cy="165" r="9" fill="#222" stroke="#fff" stroke-width="2"/>
+</svg>
+<figcaption>Kun je om een blok heen, loop dan twee keer hetzelfde rondje, met de klok mee. Het blok heb je dan aan je rechterhand. De eerste ronde tel je rechts, de blokkant <span class="samen">(<span class="kleur" style="background:#1f6fb2"></span>blauw)</span>; de tweede ronde links, de overkant <span class="samen">(<span class="kleur" style="background:#d9822b"></span>oranje)</span>. ● is begin en eind. Met het blok rechts sla je alleen rechtsaf en hoef je niet over te steken.</figcaption>
+</figure>
+<h4>Patroon 3: een wijk, eerst de rand, dan naar binnen</h4>
+<figure>
+<svg viewBox="0 0 600 380" role="img" aria-label="Wijk: eerst één rondje over de rand, dan elke binnenstraat heen en terug">
+<rect x="0" y="0" width="600" height="380" fill="#fff"/>
+<line x1="60" y1="40" x2="540" y2="40" stroke="#e4e4e4" stroke-width="30" stroke-linecap="square"/>
+<line x1="60" y1="340" x2="540" y2="340" stroke="#e4e4e4" stroke-width="30" stroke-linecap="square"/>
+<line x1="60" y1="40" x2="60" y2="340" stroke="#e4e4e4" stroke-width="30" stroke-linecap="square"/>
+<line x1="540" y1="40" x2="540" y2="340" stroke="#e4e4e4" stroke-width="30" stroke-linecap="square"/>
+<line x1="60" y1="190" x2="540" y2="190" stroke="#e4e4e4" stroke-width="30" stroke-linecap="square"/>
+<line x1="220" y1="40" x2="220" y2="340" stroke="#e4e4e4" stroke-width="30" stroke-linecap="square"/>
+<line x1="380" y1="40" x2="380" y2="340" stroke="#e4e4e4" stroke-width="30" stroke-linecap="square"/>
+<rect x="79" y="59" width="122" height="112" fill="#c9c9c9"/>
+<rect x="79" y="209" width="122" height="112" fill="#c9c9c9"/>
+<rect x="239" y="59" width="122" height="112" fill="#c9c9c9"/>
+<rect x="239" y="209" width="122" height="112" fill="#c9c9c9"/>
+<rect x="399" y="59" width="122" height="112" fill="#c9c9c9"/>
+<rect x="399" y="209" width="122" height="112" fill="#c9c9c9"/>
+<path d="M68,190 L68,48 L532,48 L532,332 L68,332 Z" fill="none" stroke="#1f6fb2" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="68,110 74.8,125.3 61.2,125.3" fill="#1f6fb2"/>
+<polygon points="309,48 293.7,54.8 293.7,41.2" fill="#1f6fb2"/>
+<polygon points="532,199 525.2,183.7 538.8,183.7" fill="#1f6fb2"/>
+<polygon points="291,332 306.3,325.2 306.3,338.8" fill="#1f6fb2"/>
+<polygon points="68,252 74.8,267.3 61.2,267.3" fill="#1f6fb2"/>
+<path d="M82,196 L208,196" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="154,196 138.7,202.8 138.7,189.2" fill="#d9822b"/>
+<path d="M208,184 L82,184" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="136,184 151.3,177.2 151.3,190.8" fill="#d9822b"/>
+<path d="M226,178 L226,62" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="226,111 232.8,126.3 219.2,126.3" fill="#d9822b"/>
+<path d="M214,62 L214,178" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="214,129 207.2,113.7 220.8,113.7" fill="#d9822b"/>
+<path d="M214,202 L214,318" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="214,269 207.2,253.7 220.8,253.7" fill="#d9822b"/>
+<path d="M226,318 L226,202" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="226,251 232.8,266.3 219.2,266.3" fill="#d9822b"/>
+<path d="M232,196 L368,196" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="309,196 293.7,202.8 293.7,189.2" fill="#d9822b"/>
+<path d="M368,184 L232,184" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="291,184 306.3,177.2 306.3,190.8" fill="#d9822b"/>
+<path d="M386,178 L386,62" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="386,111 392.8,126.3 379.2,126.3" fill="#d9822b"/>
+<path d="M374,62 L374,178" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="374,129 367.2,113.7 380.8,113.7" fill="#d9822b"/>
+<path d="M374,202 L374,318" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="374,269 367.2,253.7 380.8,253.7" fill="#d9822b"/>
+<path d="M386,318 L386,202" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="386,251 392.8,266.3 379.2,266.3" fill="#d9822b"/>
+<path d="M392,196 L518,196" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="464,196 448.7,202.8 448.7,189.2" fill="#d9822b"/>
+<path d="M518,184 L392,184" fill="none" stroke="#d9822b" stroke-width="4" stroke-linejoin="round"/>
+<polygon points="446,184 461.3,177.2 461.3,190.8" fill="#d9822b"/>
+<circle cx="68" cy="190" r="9" fill="#222" stroke="#fff" stroke-width="2"/>
+<circle cx="140" cy="39" r="13" fill="#1f6fb2"/>
+<text x="140" y="45" text-anchor="middle" font-size="17" font-weight="bold" fill="#fff" font-family="system-ui,sans-serif">1</text>
+<circle cx="140" cy="156" r="13" fill="#d9822b"/>
+<text x="140" y="162" text-anchor="middle" font-size="17" font-weight="bold" fill="#fff" font-family="system-ui,sans-serif">2</text>
+</svg>
+<figcaption>Begin op de rand, op een plek waar een binnenstraat uitkomt (●). Loop eerst de rand rond <span class="samen">(<span class="kleur" style="background:#1f6fb2"></span>1)</span>, met de wijk aan je rechterhand, en tel rechts. Ga dan naar binnen <span class="samen">(<span class="kleur" style="background:#d9822b"></span>2)</span> en loop elke binnenstraat heen en terug, steeds rechts tellend. Je komt uit waar je begon, zonder een meter extra. Tel je de rand aan beide kanten, loop hem dan twee keer, zoals bij het blok.</figcaption>
+</figure>
+<p>De rand eerst legt het gebied vast. Daarna weet je welke straten er binnen nog over zijn.</p>
+<h4>Waarom dit altijd past</h4>
+<p>Loop je elke straat twee keer, één keer in elke richting, en tel je steeds rechts, dan is er altijd een route die elke kant precies één keer telt en uitkomt waar je begon. Je hoeft dus nooit een straat drie keer te lopen. Wiskundig heet zo'n route een eulercircuit.</p>
+<p>Een wijk kun je ook tellen als een reeks blokrondjes. Sla je op elk kruispunt rechtsaf, dan loop je precies om één blok. Loop elk blok één keer rond, met de klok mee, en tel rechts. Samen tellen de blokken alle kanten binnen de wijk, plus de binnenkant van de rand.</p>
+<p>Straten die je maar één keer loopt, maken het iets lastiger. Komt op een kruispunt een oneven aantal van zulke straten samen, dan moet je ergens een stuk dubbel lopen. Valt dat stuk op een smalle straat, tel die dan als een drukke: twee keer lopen, en per keer één kant.</p>
+<h4>Onderweg en na afloop</h4>
+<ul>
+<li><strong>Na het keren eerst een paar passen.</strong> Welke kant van de straat links en rechts is, volgt uit je looprichting, en die moet na een keerpunt eerst bijdraaien. Tik dus niet meteen. In de parkeertelling: wacht tot de pijl in de mini-kaart weer groen of geelgroen is.</li>
+<li><strong>Kijk op de kaart voor je stopt.</strong> Pocket-parkeren heeft tijdens het tellen de knop <em>Kaart</em>, met je route en je tikken. In de parkeertelling kleuren de bezochte straten zandgeel op de mini-kaart. Raakt je route een straat niet, dan ben je er niet geweest.</li>
+<li><strong>Loop een volgende keer dezelfde route.</strong> Dan zijn twee tellingen ook in hun tijdsverloop te vergelijken. De route staat in de ZIP en is te zien in telrapport.</li>
+</ul>
 </section>
 <!-- Overview -->
 <section id="overview">
@@ -433,7 +611,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <h4>Wacht op de groene pijl</h4>
 <p>Tel pas als de pijl in de mini-kaart groen of geelgroen is. Rood of oranje betekent dat de bearing onbetrouwbaar is en markers verkeerd geplaatst kunnen worden.</p>
 <h4>Looprichting</h4>
-<p>Houd de telefoon recht vooruit gericht met de bovenkant naar voren, zodat het kompas de juiste richting aangeeft. Loop de route in één richting — bij een U-vormige route is een nieuwe sessie voor de terugweg nauwkeuriger.</p>
+<p>Houd de telefoon recht vooruit gericht met de bovenkant naar voren, zodat het kompas de juiste richting aangeeft. Keer je, loop dan eerst een paar passen en wacht op de groene pijl voordat je weer tikt. Hoe je een straat of wijk slim loopt: zie <a href="#slim-lopen">Slim lopen bij parkeertellingen</a>.</p>
 <h4>Accu</h4>
 <p>Doorlopend GPS- en schermgebruik kosten veel energie. Neem een powerbank mee bij langere sessies.</p>
 </section>
@@ -576,6 +754,7 @@ code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,s
 <h4>Eigen ingang op de voorpagina</h4>
 <p>De kaart <strong>Pocket — parkeren</strong> op de voorpagina opent <code>pocket_count.html#parkeren</code>. Via die ingang is pocket een parkeer-app: je komt meteen op het parkeerscherm, <strong>‹ Terug</strong> gaat naar de voorpagina, en na opslaan begint een nieuwe, lege telling. Het keuzemenu met de vier modi zie je niet. Tip: zet deze pagina als eigen icoon op je beginscherm (Delen → Zet op beginscherm).</p>
 <p>In <code>_telregels.csv</code> komt de status (<code>bezet</code>/<code>leeg</code>) in de kolom <code>type</code>, de kant (<code>links</code>/<code>rechts</code>) in <code>richting</code> — bestaande kolommen, geen schemawijziging. De sessie krijgt <code>app_type=pocket</code>, <code>modus=parkeren</code>; in QGIS en telrapport valt deze telling dus onder dezelfde parkeren-herkenning als parkeertelling.html, alleen zonder fout/spec-detail.</p>
+<p>Bedenk vooraf hoe je loopt: zie <a href="#slim-lopen">Slim lopen bij parkeertellingen</a>.</p>
 </section>
 <section id="pocket-export">
 <h3>Export &amp; bezocht.csv</h3>
