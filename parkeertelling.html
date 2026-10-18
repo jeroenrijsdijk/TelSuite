@@ -687,15 +687,169 @@ window.addEventListener('beforeunload', function(e) {
   }
 });
 
+/* ── Planning als link (v3.14) ──
+   HOUD GELIJK in telplanning, parkeertelling, fietsparkeren en pocket_count
+   (valideer.py, groep 'planlink'; test: functest_planlink.js).
+   Een planning reist mee in de link, achter het '#'. Dat deel stuurt de browser
+   niet naar de server: de planning gaat van telplanning via mail of app naar de
+   telefoon van de teller, en nergens anders langs.
+     <app>.html#plan=1.<data>               parkeertelling, fietsparkeren
+     pocket_count.html#parkeren&plan=1.<data>
+   <data> = base64url(deflate-raw(JSON)), JSON = {n,d,t,c,y,w:[[id,naam,highway,lijn]]}
+   (naam, datum, tijdstip, teller, teltype; per weg de geometrie als polyline:
+   Google-codering, 5 decimalen, ±1 m). De '1' is de versie van dit formaat. */
+var PLANLINK_VERSIE = '1';
+var PLANLINK_LANG = 6000;   // tekens; een langere link kan een mailprogramma afbreken
+var PLANLINK_APP = {
+  auto:   'parkeertelling.html',
+  fiets:  'fietsparkeren.html',
+  pocket: 'pocket_count.html#parkeren'
+};
+
+function planlinkPolyline(coords) {          // [[lat,lon],…] → tekst
+  var uit = '', vorig = [0, 0];
+  coords.forEach(function (c) {
+    for (var k = 0; k < 2; k++) {
+      var v = Math.round(c[k] * 1e5), d = v - vorig[k];
+      vorig[k] = v;
+      d = d < 0 ? ~(d << 1) : (d << 1);
+      while (d >= 0x20) { uit += String.fromCharCode((0x20 | (d & 0x1f)) + 63); d >>= 5; }
+      uit += String.fromCharCode(d + 63);
+    }
+  });
+  return uit;
+}
+
+function planlinkPolylineTerug(s) {          // tekst → [[lat,lon],…]
+  var coords = [], i = 0, v = [0, 0];
+  while (i < s.length) {
+    var p = [];
+    for (var k = 0; k < 2; k++) {
+      var r = 0, sh = 0, b;
+      do {
+        if (i >= s.length) throw new Error('lijn afgebroken');
+        b = s.charCodeAt(i++) - 63;
+        r |= (b & 0x1f) << sh;
+        sh += 5;
+      } while (b >= 0x20);
+      v[k] += (r & 1) ? ~(r >> 1) : (r >> 1);
+      p.push(v[k] / 1e5);
+    }
+    coords.push(p);
+  }
+  return coords;
+}
+
+function planlinkWktCoords(wkt) {            // 'LINESTRING (lon lat, …)' → [[lat,lon],…]
+  var inner = String(wkt || '').replace(/^\s*LINESTRING\s*\(/i, '').replace(/\)\s*$/, '');
+  return inner.split(',').map(function (p) {
+    var d = p.trim().split(/\s+/).map(Number);
+    return [d[1], d[0]];
+  }).filter(function (c) { return isFinite(c[0]) && isFinite(c[1]); });
+}
+
+function planlinkNaarB64(bytes) {
+  var s = '';
+  for (var i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function planlinkUitB64(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  var bin = atob(s), b = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+  return b;
+}
+
+function planlinkStroom(bytes, stroom) {
+  return new Response(new Blob([bytes]).stream().pipeThrough(stroom)).arrayBuffer()
+    .then(function (buf) { return new Uint8Array(buf); });
+}
+
+// planning (zoals telplanning hem bewaart) → '1.<data>'
+function planlinkInpakken(planning) {
+  if (typeof CompressionStream === 'undefined') {
+    return Promise.reject(new Error('deze browser kan geen link maken'));
+  }
+  var kort = {
+    n: planning.sessie_naam || '', d: planning.datum || '', t: planning.tijdstip || '',
+    c: planning.teller || '', y: planning.tel_type || 'auto',
+    w: (planning.wegen || []).map(function (w) {
+      return [String(w.osm_way_id), w.naam || '', w.highway || '',
+              planlinkPolyline(planlinkWktCoords(w.geometrie_wkt))];
+    })
+  };
+  var bytes = new TextEncoder().encode(JSON.stringify(kort));
+  return planlinkStroom(bytes, new CompressionStream('deflate-raw'))
+    .then(function (z) { return PLANLINK_VERSIE + '.' + planlinkNaarB64(z); });
+}
+
+// '1.<data>' → planning in dezelfde vorm als het JSON-bestand van telplanning
+function planlinkUitpakken(waarde) {
+  // Een mailprogramma plakt soms een punt of haakje achter een link.
+  var m = /^(\d+)\.([A-Za-z0-9_-]+)$/.exec(String(waarde || '').replace(/[^A-Za-z0-9_-]+$/, ''));
+  if (!m) return Promise.reject(new Error('de link is onvolledig'));
+  if (m[1] !== PLANLINK_VERSIE) {
+    return Promise.reject(new Error('de link komt uit een nieuwere versie (formaat ' + m[1] + ')'));
+  }
+  if (typeof DecompressionStream === 'undefined') {
+    return Promise.reject(new Error('deze browser kan de link niet lezen'));
+  }
+  var bytes;
+  try { bytes = planlinkUitB64(m[2]); }
+  catch (e) { return Promise.reject(new Error('de link is beschadigd')); }
+  return planlinkStroom(bytes, new DecompressionStream('deflate-raw')).then(function (buf) {
+    var k = JSON.parse(new TextDecoder().decode(buf));
+    var wegen = (k.w || []).map(function (w) {
+      return {
+        osm_way_id: w[0], naam: w[1], highway: w[2],
+        geometrie_wkt: 'LINESTRING (' + planlinkPolylineTerug(w[3]).map(function (c) {
+          return c[1].toFixed(5) + ' ' + c[0].toFixed(5);
+        }).join(', ') + ')'
+      };
+    });
+    return { sessie_naam: k.n || '', datum: k.d || '', tijdstip: k.t || '', teller: k.c || '',
+             tel_type: k.y || 'auto', n_wegen: wegen.length, wegen: wegen };
+  }).catch(function () {
+    throw new Error('de link is beschadigd of afgebroken');
+  });
+}
+
+// '#plan=…' of '#parkeren&plan=…' → '1.<data>', anders null
+function planlinkUitHash(hash) {
+  var delen = String(hash || '').replace(/^#/, '').split('&');
+  for (var i = 0; i < delen.length; i++) {
+    if (delen[i].indexOf('plan=') === 0) return delen[i].slice(5);
+  }
+  return null;
+}
+
+// De volledige link: basis = adres van telplanning (de apps staan ernaast)
+function planlinkUrl(basis, teltype, waarde) {
+  var app = PLANLINK_APP[teltype] || PLANLINK_APP.auto;
+  var h = app.indexOf('#');
+  var pagina = h < 0 ? app : app.slice(0, h);
+  return new URL(pagina, basis).href + (h < 0 ? '#' : app.slice(h) + '&') + 'plan=' + waarde;
+}
+/* ── einde gedeeld blok planlink ── */
+
 // ── Planningsopdracht laden ────────────────────────────
 (function loadPlanFromUrl() {
   var params = new URLSearchParams(window.location.search);
   var planUrl = params.get('plan');
-  if (!planUrl) return;
-  fetch(planUrl)
-    .then(function(r){ return r.ok ? r.text() : Promise.reject(r.status); })
-    .then(function(txt) {
-      var data = JSON.parse(txt);
+  // v3.14: de planning kan ook in de link zelf staan (#plan=…, blok planlink).
+  // Staan beide er, dan gaat de link voor.
+  var planLink = planlinkUitHash(location.hash);
+  if (!planUrl && !planLink) return;
+  (planLink
+    ? planlinkUitpakken(planLink)
+    : fetch(planUrl)
+        .then(function(r){ return r.ok ? r.text() : Promise.reject(r.status); })
+        .then(function(txt) { return JSON.parse(txt); }))
+    .then(function(data) {
       // Prefill teller-ID
       var tellerEl = document.getElementById('inputTeller');
       if (tellerEl && data.teller && !tellerEl.value) tellerEl.value = data.teller;
@@ -736,7 +890,7 @@ window.addEventListener('beforeunload', function(e) {
       }
       setStatus('Opdracht: ' + (data.sessie_naam||'') + ' · ' + planningWegen.length + ' wegen');
     })
-    .catch(function(e) { setStatus('Opdracht laden mislukt: ' + e); });
+    .catch(function(e) { setStatus('Opdracht laden mislukt: ' + ((e && e.message) || e)); });
 })();
 
 // ── Capaciteitslaag laden ─────────────────────────────

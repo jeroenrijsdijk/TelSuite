@@ -131,6 +131,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 </ul></li><li>Telplanning<ul>
 <li><a href="#planning-overzicht">Wat doet de telplanning?</a></li>
 <li><a href="#planning-gebruik">Gebiedselectie &amp; wegen</a></li>
+<li><a href="#planning-link">Planning als link</a></li>
 <li><a href="#planning-opdrachten">Opdrachten starten vanuit de app</a></li>
 <li><a href="#planning-dekking">Dekkings-modus</a></li>
 </ul></li><li>Algemeen<ul>
@@ -754,7 +755,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <h4>Eigen ingang op de voorpagina</h4>
 <p>De kaart <strong>Pocket — parkeren</strong> op de voorpagina opent <code>pocket_count.html#parkeren</code>. Via die ingang is pocket een parkeer-app: je komt meteen op het parkeerscherm, <strong>‹ Terug</strong> gaat naar de voorpagina, en na opslaan begint een nieuwe, lege telling. Het keuzemenu met de vier modi zie je niet. Tip: zet deze pagina als eigen icoon op je beginscherm (Delen → Zet op beginscherm).</p>
 <p>In <code>_telregels.csv</code> komt de status (<code>bezet</code>/<code>leeg</code>) in de kolom <code>type</code>, de kant (<code>links</code>/<code>rechts</code>) in <code>richting</code> — bestaande kolommen, geen schemawijziging. De sessie krijgt <code>app_type=pocket</code>, <code>modus=parkeren</code>; in QGIS en telrapport valt deze telling dus onder dezelfde parkeren-herkenning als parkeertelling.html, alleen zonder fout/spec-detail.</p>
-<p>Bedenk vooraf hoe je loopt: zie <a href="#slim-lopen">Slim lopen bij parkeertellingen</a>.</p>
+<p>Bedenk vooraf hoe je loopt: zie <a href="#slim-lopen">Slim lopen bij parkeertellingen</a>. Een opdracht uit telplanning komt als link: zie <a href="#planning-link">Planning als link</a>.</p>
 </section>
 <section id="pocket-export">
 <h3>Export &amp; bezocht.csv</h3>
@@ -901,7 +902,7 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <section id="planning-overzicht">
 <h3>Wat doet de telplanning?</h3>
 <p>Telplanning heeft twee modi, kiesbaar via tabs in de header: <strong>📋 Maken</strong> (planning aanmaken) en <strong>🗺️ Dekking</strong> (kijken wat al geteld is).</p>
-<p>In <em>Maken</em>-modus teken je een gebied op de kaart en selecteer je de straten die geteld moeten worden. De planning wordt als JSON op de server opgeslagen en is direct te starten vanuit de <strong>Opdrachten</strong>-knop in de telapp.</p>
+<p>In <em>Maken</em>-modus teken je een gebied op de kaart en selecteer je de straten die geteld moeten worden. Die planning stuur je als link naar de teller (<a href="#planning-link">Planning als link</a>, sinds v3.14), of je slaat hem op de server op en start hem via <strong>Opdrachten</strong>.</p>
 <p>In <em>Dekking</em>-modus laad je pocket-ZIPs en zie je per dagdeel welke wegvakken al voldoende zijn geteld en welke nog.</p>
 </section>
 <section id="planning-gebruik">
@@ -914,11 +915,24 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <h4>Selectie (Maken-modus)</h4>
 <p>Klik op een weg om hem in of uit de planning te zetten. Bulkknoppen: <strong>Alles aan</strong>, <strong>Alles uit</strong>, <strong>Omkeren</strong> (handig om een subset te selecteren: eerst alles aan, uitzonderingen aanklikken, dan omkeren).</p>
 <h4>Maak Telling</h4>
-<p>Vul naam, datum, tijdstip, teller-ID en teltype (auto/fiets) in en klik <strong>Maak Telling</strong>. De JSON wordt gedownload én automatisch opgeslagen op de server in de <code>/planningen/</code> map.</p>
+<p>Vul naam, datum, tijdstip, teller-ID en teltype in en klik <strong>Maak Telling</strong>. De JSON wordt gedownload én automatisch opgeslagen op de server in de <code>/planningen/</code> map. Het teltype bepaalt met welke app er geteld wordt: <em>Autoparkeren</em> (parkeertelling), <em>Fietsparkeren</em> of <em>Pocket-parkeren</em> (sinds v3.14).</p>
+</section>
+<section id="planning-link">
+<h3>Planning als link</h3>
+<p>Met <strong>Deel als link</strong> (boven Maak Telling) zit de hele planning in één link: naam, datum, tijdstip, teller, teltype en de wegen. De teller tikt de link aan, en de telapp opent met de opdracht erin: de wegen in paars, de teller ingevuld, de kaart op het gebied. Daarna drukt hij zelf op Start.</p>
+<ol>
+<li>Teken het gebied, kies de straten en vul de sessiegegevens in, net als voor Maak Telling.</li>
+<li>Klik <strong>Deel als link</strong>. Een venster toont de app, het aantal wegen en de grootte van de link.</li>
+<li><strong>Kopieer link</strong> en plak hem in een mail of bericht. Waar de browser het kan, opent <strong>Delen…</strong> het deelmenu van het toestel. <strong>Openen</strong> laat zien wat de teller krijgt.</li>
+</ol>
+<p><strong>Niet via de server.</strong> De planning staat achter het <code>#</code> in de link, en dat deel stuurt een browser niet naar de server. Deel als link slaat ook niets op de server op. De planning gaat dus alleen langs de mail of de app waarmee je hem verstuurt.</p>
+<p><strong>Open de link in Safari of Chrome.</strong> Tik je een link aan in de Gmail-app, WhatsApp of een andere app, dan opent die vaak een ingebouwde browser. Die heeft zijn eigen opslag: sluit je hem halverwege, dan vindt Safari de onderbroken telling niet. Kies in die browser <em>Open in Safari</em> (of Chrome) voordat je begint. Apple Mail opent links al in Safari.</p>
+<p><strong>Lengte.</strong> Een wijk van een paar tientallen straten geeft een link van een paar kB. Boven 6 kB waarschuwt het venster: sommige mailprogramma's breken zo'n link af. Maak het gebied dan kleiner, of verdeel het over twee opdrachten. Een afgebroken of beschadigde link geeft in de telapp een melding; de app telt gewoon, zonder planning.</p>
+<p><strong>Pocket-parkeren.</strong> Met teltype <em>Pocket-parkeren</em> opent de link pocket meteen op het parkeerscherm. Boven de vier telvakken staat dan welke opdracht er geladen is, en de knop <strong>Kaart</strong> toont de geplande straten in paars, onder je route en je tikken. Van de planning komt niets in de ZIP.</p>
 </section>
 <section id="planning-opdrachten">
 <h3>Opdrachten starten vanuit de app</h3>
-<p>Klik in telplanning.html op <strong>Opdrachten</strong> — een lijst van alle beschikbare planningen verschijnt. Tik een opdracht aan → de juiste telapp opent met de planningslijnen als paarse referentielaag op de kaart, teller-ID is vooringevuld, en de kaart zoomt automatisch in op het planningsgebied.</p>
+<p>Klik in telplanning.html op <strong>Opdrachten</strong> — een lijst van alle beschikbare planningen verschijnt. Tik een opdracht aan → de juiste telapp opent met de planningslijnen als paarse referentielaag op de kaart, teller-ID is vooringevuld, en de kaart zoomt automatisch in op het planningsgebied. Bij Pocket-parkeren staan de lijnen op de <strong>Kaart</strong> van pocket.</p>
 <p>Vereist: <code>planning_list.php</code> en <code>planning_save.php</code> in de map <code>/planningen/</code> op de server.</p>
 </section>
 <section id="planning-dekking">

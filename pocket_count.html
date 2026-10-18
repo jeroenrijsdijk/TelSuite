@@ -9,7 +9,8 @@
 <script>
 // Directe parkeer-ingang (v2.70): al vóór de eerste weergave, zodat het
 // keuzemenu met de vier modi ook niet even zichtbaar is (zie .pk-ingang).
-if (location.hash === '#parkeren') {
+// v3.14: na #parkeren kan een planning volgen (#parkeren&plan=…).
+if (location.hash.split('&')[0] === '#parkeren') {
   document.documentElement.className += ' pk-ingang';
   document.title = 'Pocket Parkeren';
 }
@@ -513,6 +514,11 @@ if (location.hash === '#parkeren') {
     background: #1a1a1a; color: #fff; flex-direction: column;
     padding: 14px 12px calc(70px + env(safe-area-inset-bottom)); gap: 10px; box-sizing: border-box;
   }
+  /* v3.14: welke opdracht er geladen is (alleen met een planning) */
+  #pk-plan { display: none; flex-shrink: 0; font-size: 0.8rem; color: #d7b8ea;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+  #pk-plan.aan { display: block; }
+  #pk-plan.fout { color: #f0a868; white-space: normal; }
   #pk-cards {
     flex: 1; min-height: 0;
     display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px;
@@ -1315,6 +1321,196 @@ function klik(freq, dur) {
   } catch (e) { /* audio niet beschikbaar → stil doorgaan */ }
 }
 
+/* ── Planning als link (v3.14) ──
+   HOUD GELIJK in telplanning, parkeertelling, fietsparkeren en pocket_count
+   (valideer.py, groep 'planlink'; test: functest_planlink.js).
+   Een planning reist mee in de link, achter het '#'. Dat deel stuurt de browser
+   niet naar de server: de planning gaat van telplanning via mail of app naar de
+   telefoon van de teller, en nergens anders langs.
+     <app>.html#plan=1.<data>               parkeertelling, fietsparkeren
+     pocket_count.html#parkeren&plan=1.<data>
+   <data> = base64url(deflate-raw(JSON)), JSON = {n,d,t,c,y,w:[[id,naam,highway,lijn]]}
+   (naam, datum, tijdstip, teller, teltype; per weg de geometrie als polyline:
+   Google-codering, 5 decimalen, ±1 m). De '1' is de versie van dit formaat. */
+var PLANLINK_VERSIE = '1';
+var PLANLINK_LANG = 6000;   // tekens; een langere link kan een mailprogramma afbreken
+var PLANLINK_APP = {
+  auto:   'parkeertelling.html',
+  fiets:  'fietsparkeren.html',
+  pocket: 'pocket_count.html#parkeren'
+};
+
+function planlinkPolyline(coords) {          // [[lat,lon],…] → tekst
+  var uit = '', vorig = [0, 0];
+  coords.forEach(function (c) {
+    for (var k = 0; k < 2; k++) {
+      var v = Math.round(c[k] * 1e5), d = v - vorig[k];
+      vorig[k] = v;
+      d = d < 0 ? ~(d << 1) : (d << 1);
+      while (d >= 0x20) { uit += String.fromCharCode((0x20 | (d & 0x1f)) + 63); d >>= 5; }
+      uit += String.fromCharCode(d + 63);
+    }
+  });
+  return uit;
+}
+
+function planlinkPolylineTerug(s) {          // tekst → [[lat,lon],…]
+  var coords = [], i = 0, v = [0, 0];
+  while (i < s.length) {
+    var p = [];
+    for (var k = 0; k < 2; k++) {
+      var r = 0, sh = 0, b;
+      do {
+        if (i >= s.length) throw new Error('lijn afgebroken');
+        b = s.charCodeAt(i++) - 63;
+        r |= (b & 0x1f) << sh;
+        sh += 5;
+      } while (b >= 0x20);
+      v[k] += (r & 1) ? ~(r >> 1) : (r >> 1);
+      p.push(v[k] / 1e5);
+    }
+    coords.push(p);
+  }
+  return coords;
+}
+
+function planlinkWktCoords(wkt) {            // 'LINESTRING (lon lat, …)' → [[lat,lon],…]
+  var inner = String(wkt || '').replace(/^\s*LINESTRING\s*\(/i, '').replace(/\)\s*$/, '');
+  return inner.split(',').map(function (p) {
+    var d = p.trim().split(/\s+/).map(Number);
+    return [d[1], d[0]];
+  }).filter(function (c) { return isFinite(c[0]) && isFinite(c[1]); });
+}
+
+function planlinkNaarB64(bytes) {
+  var s = '';
+  for (var i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function planlinkUitB64(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  var bin = atob(s), b = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+  return b;
+}
+
+function planlinkStroom(bytes, stroom) {
+  return new Response(new Blob([bytes]).stream().pipeThrough(stroom)).arrayBuffer()
+    .then(function (buf) { return new Uint8Array(buf); });
+}
+
+// planning (zoals telplanning hem bewaart) → '1.<data>'
+function planlinkInpakken(planning) {
+  if (typeof CompressionStream === 'undefined') {
+    return Promise.reject(new Error('deze browser kan geen link maken'));
+  }
+  var kort = {
+    n: planning.sessie_naam || '', d: planning.datum || '', t: planning.tijdstip || '',
+    c: planning.teller || '', y: planning.tel_type || 'auto',
+    w: (planning.wegen || []).map(function (w) {
+      return [String(w.osm_way_id), w.naam || '', w.highway || '',
+              planlinkPolyline(planlinkWktCoords(w.geometrie_wkt))];
+    })
+  };
+  var bytes = new TextEncoder().encode(JSON.stringify(kort));
+  return planlinkStroom(bytes, new CompressionStream('deflate-raw'))
+    .then(function (z) { return PLANLINK_VERSIE + '.' + planlinkNaarB64(z); });
+}
+
+// '1.<data>' → planning in dezelfde vorm als het JSON-bestand van telplanning
+function planlinkUitpakken(waarde) {
+  // Een mailprogramma plakt soms een punt of haakje achter een link.
+  var m = /^(\d+)\.([A-Za-z0-9_-]+)$/.exec(String(waarde || '').replace(/[^A-Za-z0-9_-]+$/, ''));
+  if (!m) return Promise.reject(new Error('de link is onvolledig'));
+  if (m[1] !== PLANLINK_VERSIE) {
+    return Promise.reject(new Error('de link komt uit een nieuwere versie (formaat ' + m[1] + ')'));
+  }
+  if (typeof DecompressionStream === 'undefined') {
+    return Promise.reject(new Error('deze browser kan de link niet lezen'));
+  }
+  var bytes;
+  try { bytes = planlinkUitB64(m[2]); }
+  catch (e) { return Promise.reject(new Error('de link is beschadigd')); }
+  return planlinkStroom(bytes, new DecompressionStream('deflate-raw')).then(function (buf) {
+    var k = JSON.parse(new TextDecoder().decode(buf));
+    var wegen = (k.w || []).map(function (w) {
+      return {
+        osm_way_id: w[0], naam: w[1], highway: w[2],
+        geometrie_wkt: 'LINESTRING (' + planlinkPolylineTerug(w[3]).map(function (c) {
+          return c[1].toFixed(5) + ' ' + c[0].toFixed(5);
+        }).join(', ') + ')'
+      };
+    });
+    return { sessie_naam: k.n || '', datum: k.d || '', tijdstip: k.t || '', teller: k.c || '',
+             tel_type: k.y || 'auto', n_wegen: wegen.length, wegen: wegen };
+  }).catch(function () {
+    throw new Error('de link is beschadigd of afgebroken');
+  });
+}
+
+// '#plan=…' of '#parkeren&plan=…' → '1.<data>', anders null
+function planlinkUitHash(hash) {
+  var delen = String(hash || '').replace(/^#/, '').split('&');
+  for (var i = 0; i < delen.length; i++) {
+    if (delen[i].indexOf('plan=') === 0) return delen[i].slice(5);
+  }
+  return null;
+}
+
+// De volledige link: basis = adres van telplanning (de apps staan ernaast)
+function planlinkUrl(basis, teltype, waarde) {
+  var app = PLANLINK_APP[teltype] || PLANLINK_APP.auto;
+  var h = app.indexOf('#');
+  var pagina = h < 0 ? app : app.slice(0, h);
+  return new URL(pagina, basis).href + (h < 0 ? '#' : app.slice(h) + '&') + 'plan=' + waarde;
+}
+/* ── einde gedeeld blok planlink ── */
+
+/* ── Planning in pocket-parkeren (v3.14) ─────────────────── */
+// Uit de link (#parkeren&plan=…, blok planlink) of van de server (?plan=…).
+// Alleen ter oriëntatie: de geplande straten staan in paars op de dekkingskaart,
+// en een regel boven de telvakken zegt welke opdracht er geladen is. In de ZIP
+// komt niets van de planning.
+var pkPlanning = null;   // {naam, lijnen:[{naam, coords:[[lat,lon],…]}]} of {fout}
+function laadPkPlanning() {
+  var planUrl = new URLSearchParams(location.search).get('plan');
+  var planLink = planlinkUitHash(location.hash);
+  if (!planUrl && !planLink) return;
+  (planLink
+    ? planlinkUitpakken(planLink)
+    : fetch(planUrl).then(function (r) {
+        return r.ok ? r.json() : Promise.reject(new Error('status ' + r.status));
+      }))
+    .then(function (data) {
+      pkPlanning = {
+        naam: data.sessie_naam || '',
+        lijnen: (data.wegen || []).map(function (w) {
+          return { naam: w.naam || w.highway || '', coords: planlinkWktCoords(w.geometrie_wkt) };
+        }).filter(function (l) { return l.coords.length >= 2; })
+      };
+      toonPkPlanning();
+    })
+    .catch(function (e) {
+      pkPlanning = { fout: (e && e.message) || String(e) };
+      toonPkPlanning();
+    });
+}
+function toonPkPlanning() {
+  var el = document.getElementById('pk-plan');
+  if (!el || !pkPlanning) return;
+  el.className = pkPlanning.fout ? 'aan fout' : 'aan';
+  el.textContent = pkPlanning.fout
+    ? '\u26a0 Opdracht niet geladen: ' + pkPlanning.fout
+    : 'Opdracht: ' + (pkPlanning.naam || 'zonder naam') + ' \u00b7 ' + pkPlanning.lijnen.length +
+      ' straten \u00b7 zie Kaart';
+  document.getElementById('pk-map-legend-plan').style.display = pkPlanning.fout ? 'none' : '';
+  if (pkMap) tekenPkMap();
+}
+
 /* ── Dekkingskaart (pocket parkeren) ─────────────────────── */
 var pkMap = null, pkMapLayers = null;
 function openPkMap() {
@@ -1333,6 +1529,14 @@ function tekenPkMap() {
   if (!pkMapLayers) return;
   pkMapLayers.clearLayers();
   var pts = [];
+  // v3.14: geplande straten onderop, in het paars van de parkeertelling
+  if (pkPlanning && pkPlanning.lijnen) {
+    pkPlanning.lijnen.forEach(function (l) {
+      L.polyline(l.coords, { color: '#8e44ad', weight: 6, opacity: 0.55, interactive: false })
+        .addTo(pkMapLayers);
+      l.coords.forEach(function (ll) { pts.push(ll); });
+    });
+  }
   // gelopen/gereden route
   if (typeof routeLog !== 'undefined' && routeLog.length) {
     var rc = [];
@@ -3797,10 +4001,11 @@ document.addEventListener('DOMContentLoaded', function () {
 // beginscherm kunt zetten.
 var pkDirect = false;
 function directeModus(hash, herstelOpen) {
-  if (hash !== '#parkeren') return null;
+  if (String(hash || '').split('&')[0] !== '#parkeren') return null;   // v3.14: &plan=… mag volgen
   return herstelOpen ? 'herstel' : 'parkeren';
 }
 document.addEventListener('DOMContentLoaded', function () {
+  laadPkPlanning();   // v3.14: planning uit de link of van de server, als die er is
   var herstelOpen = document.getElementById('restore-banner').style.display !== 'none';
   var ingang = directeModus(location.hash, herstelOpen);
   if (!ingang) return;
@@ -3848,6 +4053,7 @@ document.addEventListener('DOMContentLoaded', function () {
     <span class="lbl">Totaal</span>
     <span class="val" id="pk-total-val">0</span>
   </div>
+  <div id="pk-plan"></div>
   <div id="pk-cards"></div>
 </div>
 <div id="pk-btnbar">
@@ -3868,6 +4074,7 @@ document.addEventListener('DOMContentLoaded', function () {
     <span class="lg"><span class="dot" style="background:#888;border:2.5px solid #fff"></span>links</span>
     <span class="lg"><span class="dot" style="background:#888;border:2.5px solid #111"></span>rechts</span>
     <span class="lg"><span class="ln" style="background:#1f5fbf"></span>route</span>
+    <span class="lg" id="pk-map-legend-plan" style="display:none"><span class="ln" style="background:#8e44ad"></span>gepland</span>
   </div>
 </div>
 

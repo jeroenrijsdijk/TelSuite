@@ -41,7 +41,7 @@ at it on a map. Each step has its own tool, and each tool is one HTML file.
 
 **Before you go**
 
-- `telplanning.html` — draw an area, choose the road types from OpenStreetMap and turn them into a counting assignment, or see which streets have already been counted.
+- `telplanning.html` — draw an area, choose the road types from OpenStreetMap and turn them into a counting assignment (sent as a link that opens the field app), or see which streets have already been counted.
 
 **In the field (phone)**
 
@@ -83,8 +83,8 @@ Put all files in one folder on any web server. The tools link to each other
 relatively; field app and reconstruction tool must share an origin, because
 the "reconstruct now" hand-off uses IndexedDB.
 
-Saving plannings from `telplanning.html` needs PHP (5.6+) and a writable
-`planningen/` folder. **These endpoints have no authentication** — protect the
+Saving plannings on the server from `telplanning.html` needs PHP (5.6+) and a
+writable `planningen/` folder; sharing a planning as a link needs neither. **These endpoints have no authentication** — protect the
 folder on your server (for example with HTTP basic auth) if it is reachable
 from the internet. Everything else works without a server-side component.
 
