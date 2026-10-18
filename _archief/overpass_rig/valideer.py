@@ -12,9 +12,10 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.16'
-# v3.16: capaciteitscontouren in de parkeertelling standaard uit, met een knop.
-VERWACHT_GEWIJZIGD = {'index.html', 'parkeertelling.html', 'traffic_counter_help.html'}
+RELEASE = 'v3.17'
+# v3.17: backlog opgeruimd (metadata referentie, terugval telrapport, zoekTerreinen, probeBbox).
+VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'telplanning.html', 'capaciteitstelling.html',
+                      'traffic_counter_help.html', 'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description

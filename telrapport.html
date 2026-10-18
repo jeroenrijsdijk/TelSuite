@@ -507,7 +507,7 @@
       <div class="dz-sub" id="dz-pickdir">of kies een map…</div>
     </div>
 
-    <label id="bbox-filter" title="Bij het laden van meerdere bestanden of een map: sla tellingen over die buiten het huidige kaartbeeld vallen. Gemeten op de netwerk-bbox, met 12% marge rondom; deels-in-beeld telt mee.">
+    <label id="bbox-filter" title="Bij het laden van meerdere bestanden of een map: sla tellingen over die buiten het huidige kaartbeeld vallen. Gemeten op de netwerk-bbox, met 12% marge rondom; deels-in-beeld telt mee. Een verzameling telt als geheel.">
       <input type="checkbox" id="bbox-filter-cb">
       <span>alleen binnen huidig kaartbeeld laden</span>
     </label>
@@ -1835,9 +1835,10 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
       }).addTo(map);
   }
 
-  // _netwerk.csv (pocket v2.1+) levert geometrie van alle bezochte wegvakken.
-  // v2.3: één rij per segment (segment_index, segment_count, eigen sub-LINESTRING).
-  // v2.2 backward-compat: één rij per way zonder segment_index → segIdx=0.
+  // _netwerk.csv levert de geometrie van alle wegvakken die de snap-motor zag
+  // (kan ontbreken, zie de Overpass-terugval verderop): één rij per segment
+  // (segment_index, segment_count, eigen sub-LINESTRING). Ontbreekt de kolom
+  // segment_index (pocket v2.2), dan is het segment 0: de hele way.
   // Elke (wayId, segIdx) wordt een eigen entry in wayData met sub-geometrie.
   const netKeys = [];
   if (netCSV) {
@@ -1974,9 +1975,13 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
       .forEach(function(k){ addPocketZero(sid, sm, k); });
   }
 
-  // Geometrie ophalen voor getelde segmenten zonder geometrie
-  // (alleen nodig als netCSV ontbreekt — backwards compat met heel oude pocket-ZIPs).
-  // We fetchen op wayId-niveau via Overpass en mappen dat op segIdx=0 alleen.
+  // Geometrie ophalen voor getelde segmenten zonder geometrie, via Overpass.
+  // Stond op de opruimlijst als terugval voor oude pocket-ZIP's, maar is nog
+  // nodig (v3.17): pocket schrijft _netwerk.csv alleen als de snap-motor bij
+  // Stop een netwerk in het geheugen heeft, en de noodkopie bewaart dat netwerk
+  // niet. Na Doortellen, zonder dat er daarna een netwerk is opgehaald, ontbreekt
+  // het bestand terwijl de tikken van vóór de onderbreking wel een way-id dragen.
+  // We fetchen op wayId-niveau en mappen dat op segIdx=0 alleen.
   if (hasSnap) {
     const sessKeys = Object.keys(wayData).filter(function(k){
       return wayData[k].sessions.some(function(s){ return s.sid===sid; });
@@ -1989,7 +1994,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
       const missingWids = missing.map(function(k){ return parseKey(k).wid; });
       haalWayGeometrie(missingWids, function(geomMap){
         Object.keys(geomMap).forEach(function(wid){
-          // Alleen segIdx=0 vullen (oude pocket had geen segmenten)
+          // Alleen segIdx=0 vullen (Overpass kent geen segmenten)
           const k = wkey(wid, 0);
           if (wayData[k]) {
             wayData[k].geometry = geomMap[wid];
@@ -2193,7 +2198,10 @@ function pmuForKey(key) {
       }
     });
   });
-  // Tikken uit wayData als visitData geen nTel heeft (backward compat)
+  // Geen tikken in de bezoeken, wel getelde tikken op dit segment: dan tellen
+  // die. Dat kan als _bezocht.csv en _telregels.csv een tik aan verschillende
+  // segmenten toekennen. Stond als oude-formaatcode op de opruimlijst, maar het
+  // vangt dit geval op; daarom blijft het (v3.17).
   if (totTel === 0) {
     const visSess = wd.sessions.filter(s => pocketZichtbaar(s.sid) && !s.zeroVisited);
     totTel = visSess.reduce((a,s) => a + (s.totaal||0), 0);
@@ -6623,6 +6631,11 @@ function accWKTBounds(wkt,b){              // pak alle "lon lat"-paren (LINESTRI
   }
 }
 // → {minLat,maxLat,minLon,maxLon} of null als de bbox niet te bepalen is (dan: meenemen).
+// v3.17: een verzameling krijgt de bbox van al haar tellingen samen (tot v3.17
+// vond probeBbox daar geen _netwerk.csv en liet hij haar altijd door). Ze laadt
+// als geheel of niet: een verzameling is een bewaarde kaart, geen stapel losse
+// tellingen. Is van één van haar tellingen de bbox niet te bepalen, dan gaat de
+// hele verzameling mee, net als een los bestand.
 async function probeBbox(file){
   const n=(file.name||'').toLowerCase();
   if(n.endsWith('.csv')){                 // losse stilstaand-telling: één punt
@@ -6636,6 +6649,11 @@ async function probeBbox(file){
   if(!n.endsWith('.zip')) return null;
   let zip;
   try{ zip=await JSZip.loadAsync(file); }catch(e){ return null; }
+  if(zip.file(VERZAMELING_MANIFEST)) return bboxVerzameling(zip);
+  return bboxUitZip(zip);
+}
+// De bbox van één tel-ZIP: uit _netwerk.csv, anders uit _gps.csv.
+async function bboxUitZip(zip){
   const pick=suf=>{ const k=Object.keys(zip.files)
         .find(k=>!zip.files[k].dir && k.toLowerCase().endsWith(suf)); return k?zip.files[k]:null; };
   const net=pick('_netwerk.csv');         // voorkeursbron: gesnapte netwerk-geometrie
@@ -6661,6 +6679,23 @@ async function probeBbox(file){
     }catch(e){}
   }
   return null;
+}
+// De bbox van een verzameling: alle tellingen uit het manifest samen.
+async function bboxVerzameling(zip){
+  let lijst;
+  try{ lijst=JSON.parse(await zip.file(VERZAMELING_MANIFEST).async('text')).tellingen; }catch(e){ return null; }
+  if(!Array.isArray(lijst) || !lijst.length) return null;
+  const b=emptyBB();
+  for(const t of lijst){
+    const e=t && zip.file(t.bestand);
+    if(!e) continue;                      // ontbrekend lid: loadVerzameling slaat het ook over
+    let bb=null;
+    try{ bb=await bboxUitZip(await JSZip.loadAsync(await e.async('arraybuffer'))); }catch(err){ bb=null; }
+    if(!bb) return null;                  // één onbekende telling: de hele verzameling meenemen
+    b.minLat=Math.min(b.minLat,bb.minLat); b.maxLat=Math.max(b.maxLat,bb.maxLat);
+    b.minLon=Math.min(b.minLon,bb.minLon); b.maxLon=Math.max(b.maxLon,bb.maxLon);
+  }
+  return validBB(b)?b:null;
 }
 
 // Laadt de aangeleverde bestanden ÉÉN VOOR ÉÉN (sequentieel), op naam gesorteerd
