@@ -140,6 +140,10 @@
   .map-panel { background: var(--surface); border: 1px solid var(--border); margin-bottom: 8px; overflow: hidden; }
   .map-header { padding: 6px 12px 5px; border-bottom: 1px solid var(--border); font-size: 9px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
   #map { height: 380px; width: 100%; }
+  /* v3.16: schakelaar voor de capaciteitscontouren in de kaartkop, standaard uit */
+  .kaart-schakel { font: inherit; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 2px; padding: 2px 6px; margin-left: 8px; cursor: pointer; }
+  .kaart-schakel[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: #fff; }
+  .kaart-schakel:disabled { opacity: 0.5; cursor: default; }
   .map-legend { font-size: 10px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .leg { display: flex; align-items: center; gap: 3px; }
   .leg-dot { width: 7px; height: 7px; border-radius: 50%; }
@@ -316,7 +320,7 @@
 
   <div class="map-panel">
     <div class="map-header">
-      <span>Looproute</span>
+      <span>Looproute <button id="btnCap" class="kaart-schakel" onclick="schakelCapLaag()" aria-pressed="false" title="Contouren van de bekende parkeerzones tonen of verbergen">capaciteit</button></span>
       <div class="map-legend">
         <div class="leg"><div class="leg-dot" style="background:var(--c-goed)"></div>goed</div>
         <div class="leg"><div class="leg-dot" style="background:var(--c-fout)"></div>fout</div>
@@ -643,7 +647,7 @@ map.setView([51.8714, 4.1913], 12);
 var routeLine = L.polyline([], { color: '#2471a3', weight: 3, opacity: 0.75 }).addTo(map);
 var posMarker = null;
 var markerLayer = L.layerGroup().addTo(map);
-capLayer = L.layerGroup().addTo(map);
+capLayer = L.layerGroup();   // v3.16: pas op de kaart met de knop 'capaciteit'
 planningLayer = L.layerGroup().addTo(map);
 planningLayer = L.layerGroup().addTo(map);
 
@@ -887,9 +891,29 @@ function planlinkUrl(basis, teltype, waarde) {
     .catch(function(e) { setStatus('Opdracht laden mislukt: ' + ((e && e.message) || e)); });
 })();
 
-// ── Capaciteitslaag laden ─────────────────────────────
-(function loadCapNetwerk() {
-  fetch('cap_netwerk.csv')  // relatief pad: werkt ook vanuit een submap
+// ── Capaciteitslaag (v3.16: standaard uit) ────────────
+// Jay: "Als je de geplande telling opent mag je de capaciteitscontouren
+// weglaten. Het kaartje is te druk om te lezen." De laag staat uit; de knop
+// 'capaciteit' in de kaartkop zet hem aan en uit. Het bestand wordt pas bij de
+// eerste keer aanzetten opgehaald.
+var capGeladen = null;   // de belofte van het ophalen, na de eerste klik
+function schakelCapLaag() {
+  var knop = document.getElementById('btnCap');
+  var aan = knop.getAttribute('aria-pressed') !== 'true';
+  knop.setAttribute('aria-pressed', aan ? 'true' : 'false');
+  if (!aan) { map.removeLayer(capLayer); return; }
+  map.addLayer(capLayer);
+  if (!capGeladen) capGeladen = loadCapNetwerk().then(function (n) {
+    if (n) return;
+    map.removeLayer(capLayer);
+    knop.setAttribute('aria-pressed', 'false');
+    knop.disabled = true;
+    knop.title = 'Geen capaciteitslaag beschikbaar';
+  });
+}
+// Geeft het aantal getekende contouren (0 als er geen laag is).
+function loadCapNetwerk() {
+  return fetch('cap_netwerk.csv')  // relatief pad: werkt ook vanuit een submap
     .then(function(r){ return r.ok ? r.text() : Promise.reject(r.status); })
     .then(function(txt) {
       var lines = txt.trim().split('\n');
@@ -926,12 +950,14 @@ function planlinkUrl(basis, teltype, waarde) {
         }
       });
     })
+    .then(function() { return capNetwerk.length; })
     .catch(function(e) {
       // Optionele laag — stilletjes overslaan als 'ie er niet is: geen 404-ruis in
-      // de statusbalk tijdens een gewone telling.
+      // de statusbalk tijdens een gewone telling. De knop gaat dan uit.
       console.warn('[capNetwerk] laden overgeslagen:', e);
+      return 0;
     });
-})();
+}
 
 document.addEventListener('visibilitychange', function() {
   if (sessionActive && document.visibilityState === 'visible') acquireWakeLock();
