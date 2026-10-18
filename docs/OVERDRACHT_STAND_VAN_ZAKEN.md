@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.16.** In de parkeertelling staan de capaciteitscontouren standaard uit, met een knop *capaciteit* in de kaartkop (`overdracht_v3_16.md`). v3.15 haalde de planningen van de server, een planning gaat alleen nog als link (v3.14, ook voor pocket-parkeren).
+**Laatste release: v3.17.** Vijf punten van de backlog opgepakt: metadata voor de ZIP-referentie, een fout commentaar in capaciteitstelling, `zoekTerreinen` met geheugen, het bbox-filter voor verzamelingen, en de "oude terugvalcode" in telrapport en telplanning. Die bleek niet dood: een pocket-ZIP na Doortellen kan zonder `_netwerk.csv` zijn (`overdracht_v3_17.md`). Tussen v3.16 en v3.17, zonder versienummer: scheidingslijnen en duidelijkere koppen in de documentatiepagina's. v3.16 zette de capaciteitscontouren in de parkeertelling standaard uit.
 
 ---
 
@@ -125,7 +125,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ## 4. Nog te doen door Jay (buiten de code)
 
-0a. **Planningmap op de server opruimen** (na de merge van v3.15). De repo heeft geen `planningen/` meer, maar de opgeslagen planningen (`planning_*.json`, met tellernamen) zijn nooit via git gekomen en blijven dus op de server staan. In Plesk → Bestanden → `httpdocs/planningen` de hele map weg. Controle: `https://telonline.org/planningen/planning_list.php` geeft daarna 404. Stond er nog een *Password-Protected Directory* op `/planningen`, die mag ook weg. De privacyverklaring zegt sinds v3.15 dat er geen planningen meer op de server staan.
+0a. ~~**Planningmap op de server opruimen**~~ — gedaan (Jay, 18 okt 2026: "Alles opgeruimd"). Na de merge van v3.15: De repo heeft geen `planningen/` meer, maar de opgeslagen planningen (`planning_*.json`, met tellernamen) zijn nooit via git gekomen en blijven dus op de server staan. In Plesk → Bestanden → `httpdocs/planningen` de hele map weg. Controle: `https://telonline.org/planningen/planning_list.php` geeft daarna 404. Stond er nog een *Password-Protected Directory* op `/planningen`, die mag ook weg. De privacyverklaring zegt sinds v3.15 dat er geen planningen meer op de server staan.
 1. **Screenshots voor `over.html`** — nog niet geleverd. Drie bestanden, exact deze namen, naast `over.html`:
    `screenshot-tellen.jpg` · `screenshot-nabewerken.jpg` · `screenshot-telrapport.jpg`
    Zolang ze ontbreken toont de pagina een nette placeholder met de verwachte bestandsnaam. (PNG kan, vergt dan een `src`-aanpassing.)
@@ -149,14 +149,11 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 **Klein / afgebakend**
 - Kop van de handleiding zegt nog "Traffic Counter Help" (naam van vóór de rebrand in v2.34) en spreekt de nieuwe `<title>` tegen. Zichtbare tekst, dus Jay's keuze.
-- Hetzelfde metadatablok op `zip_format_reference.html`; dat heeft nu alleen een `<title>`.
 - Reconstructiescript een losse kaart-PNG naast de `_recon.zip` laten schrijven (afgesproken bij v2.55, nu `_kaart.png` niet meer in de verzameling meegaat).
-- `probeBbox` leren omgaan met verzamelingen; nu is het bbox-filter daar fail-open en doet het dus niets.
 - Besluiten over het losse transect-formaat (`*_trn.zip`): geen enkele app maakt het nog (pocket's transect-modus `_pkt_t` verving het), maar telrapport leest het wel. Liggen er nog `_trn`-ZIP's in het archief? Zo nee: sectie uit de referentie én de leescode in telrapport eruit.
-- Terugvalcode voor oude formats opruimen (telrapport r.998/1044/1736/1872/2090, telplanning r.885). Die op r.1872 haalt geometrie via Overpass op als `_netwerk.csv` ontbreekt — een van de laatste netwerkverzoeken in de suite, en alleen voor ZIP's die niet meer bestaan. Wel met een expliciete melding erbij, zodat een niet-omgezette ZIP luid faalt in plaats van stil.
-- Tegenstrijdig commentaar in `capaciteitstelling.html`: `exportZip()` zegt dat `_terrein.csv` een eigen schema heeft (osm_id+osm_type, geen zijde), terwijl `buildTerreinCsvString()` bewust dezelfde header als `_capaciteit.csv` schrijft. Eén van de twee moet weg.
-- `zoekTerreinen` in `capaciteitstelling.html` ontdubbelen op afstand tot het vorige zoekcentrum: vuurt nu één Overpass-verzoek per kaartpan, zonder cache.
-- Veiligheidsblok-kop in de handleiding: `<h1>` → `<h4>` voor consistentie (Jay's keuze — hij schreef die sectie zelf). In de kale opmaak (v3.3) is het een van de drie gewone `<h1>`'s op de pagina.
+- Veiligheidsblok-kop in de handleiding: `<h1>` → `<h4>` voor consistentie (Jay's keuze — hij schreef die sectie zelf). Sinds de duidelijkere koppen (na v3.16) valt hij nog meer op dan de hoofdstukken.
+- Overpass-terugval voor het losse transect-formaat (`_trn`, telrapport `loadTransectZip`) gaat mee met het besluit over `_trn` hierboven; v3.17 liet hem staan.
+- **Pocket: netwerk ook na Doortellen in de ZIP** (gevonden in v3.17). Pocket schrijft `_netwerk.csv` alleen als de snap-motor bij Stop een netwerk in het geheugen heeft, en de noodkopie bewaart dat netwerk niet. Na Doortellen, zonder nieuw netwerk, ontbreekt het bestand; telrapport haalt de geometrie dan via Overpass (de terugval die daarom bleef). Oplossing: het netwerk in de noodkopie bewaren (zoals de parkeer-apps met `<sleutel>_netwerk`), of na Doortellen meteen de tegelcache of Overpass vragen. Dan kan de terugval in telrapport alsnog weg.
 - Ook kaal maken? `zip_format_reference.html` en `snap_methodology.html` hebben nog de oude opmaak (Jay's keuze; v3.3 deed alleen de drie pagina's voor gebruikers).
 - Engelse variant van `over.html`.
 - **Bewijswaarde van een telling** (uit `verantwoording.html`, v3.4), in volgorde van nut:
@@ -234,7 +231,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.16 in één oogopslag
+## 6. Releases v2.32 → v3.17 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -301,6 +298,8 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.14 | **Planning als link** (Jay: "vanuit een mail of link een telling kunnen starten"): *Deel als link* in telplanning, planning achter het `#` (polyline + deflate-raw + base64url, formaatversie 1), niet via de server; parkeertelling, fietsparkeren en pocket lezen hem (gedeeld blok `planlink`); teltype *Pocket-parkeren*; pocket toont de opdracht boven de telvakken en de straten in paars op de *Kaart*, ook via *Opdrachten* (`?plan=…#parkeren`); handleiding, privacyverklaring, ZIP-referentie; nieuwe `functest_planlink.js` (29) en `planlinktest.py` (42) |
 | v3.15 | **Geen planningen meer op de server** (Jay, na de veldtest van de link: "We hoeven de .json niet meer op te slaan op de server"): *Maak Telling* (download + opslaan) en *Opdrachten* weg uit telplanning, *Deel als link* is de hoofdknop; `planningen/` met de drie PHP-scripts en `.htaccess` uit de repo; de apps lezen `?plan=` niet meer; handleiding, privacyverklaring, ZIP-referentie, README, CLAUDE.md, ONTWIKKELEN bijgewerkt; `laadtest` deel D vervallen, `planlinktest` deel D test nu dat er niets meer naar `/planningen/` gaat (44) |
 | v3.16 | Parkeertelling: **capaciteitscontouren standaard uit** (Jay: "Het kaartje is te druk om te lezen"), knop *capaciteit* in de kop van de kaart; `cap_netwerk.csv` pas opgehaald bij de eerste keer aanzetten, zonder bestand gaat de knop uit; handleiding bij *Mini-kaart & bearing*; `planlinktest` deel E (51) |
+| — | Zonder versienummer (Jay): scheidingslijnen tussen de secties van de handleiding en `over.html`; h1 en h2 groter met een dikke lijn in de gedeelde kale stijl (alle vier de documentatiepagina's) |
+| v3.17 | **Backlog opgeruimd**: Open Graph en TechArticle op `zip_format_reference.html`; de "terugvalcode" in telrapport en telplanning bleek niet dood (een pocket-ZIP na Doortellen kan zonder `_netwerk.csv` zijn; de Overpass-terugval vangt dat op) en kreeg eerlijk commentaar; fout commentaar over `_terrein.csv` in capaciteitstelling; `zoekTerreinen` met geheugen (geen verzoek binnen 150 m van een eerdere zoekplek, terreinen blijven staan, `ovpKeur`, niet doorvragen bij een rate-limit); bbox-filter kent verzamelingen (bbox van alle tellingen samen, laadt als geheel); nieuwe `functest_bbox.js` (11) en `onderhoudtest.py` (17) |
 
 ---
 

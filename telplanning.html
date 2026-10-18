@@ -843,9 +843,10 @@ function dagdeelForTime(hh) {
   return 'nacht';
 }
 
-// Composite key voor coverage: "wayId:segIdx".
-// v2.2 ZIPs zonder segment_index → segIdx=0 (alle telregels op segment 0;
-// onderrapportage maar geaccepteerd voor backward compat).
+// Composite key voor coverage: "wayId:segIdx". Een _bezocht.csv zonder
+// segment_index (pocket vóór v2.3) telt op segment 0, de hele way. Die
+// tolerantie kost niets en blijft (v3.17); de hertelling leest het netwerk van
+// parkeer-ZIP's, die geen segmenten kennen, op dezelfde manier.
 function segKey(wid, segIdx) { return wid + ':' + (segIdx || 0); }
 
 var coverage      = {};   // segKey → { 'weekdag|middag': aantal, ... }
