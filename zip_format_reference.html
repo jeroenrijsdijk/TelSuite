@@ -847,13 +847,13 @@ sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_m
 <!-- ── Planning link (v3.14) ── -->
 <div class="summary-section">
   <h2>Planning link (telplanning &rarr; field apps)</h2>
-  <p style="color:var(--dim);max-width:72ch">Since v3.14, <code>telplanning.html</code> can put a planning in a link (<em>Deel als link</em>) instead of, or next to, a JSON file on the server. This is an input for the field apps, not part of any ZIP: the KNIME schema is unchanged, and nothing of the planning ends up in the counts.</p>
+  <p style="color:var(--dim);max-width:72ch">Since v3.14, <code>telplanning.html</code> puts a planning in a link (<em>Deel als link</em>); until v3.15 it could also save a JSON file on the server. This is an input for the field apps, not part of any ZIP: the KNIME schema is unchanged, and nothing of the planning ends up in the counts.</p>
   <ul style="max-width:72ch">
     <li><strong>Where it lives.</strong> After the <code>#</code>, so browsers never send it to the server: <code>parkeertelling.html#plan=1.&lt;data&gt;</code>, <code>fietsparkeren.html#plan=1.&lt;data&gt;</code>, <code>pocket_count.html#parkeren&amp;plan=1.&lt;data&gt;</code>. The app follows from <code>tel_type</code> (<code>auto</code>, <code>fiets</code>, <code>pocket</code>). The leading <code>1</code> is the format version; an app that meets a higher version says so instead of guessing.</li>
     <li><strong>Data.</strong> <code>base64url( deflate-raw( UTF-8 JSON ) )</code>, no padding. The JSON is <code>{"n": sessie_naam, "d": datum, "t": tijdstip, "c": teller, "y": tel_type, "w": [[osm_way_id, naam, highway, line], &hellip;]}</code>.</li>
     <li><strong>Geometry.</strong> <code>line</code> is the way as an encoded polyline (Google&rsquo;s algorithm, precision 1e5, i.e. &plusmn;1&nbsp;m; lat before lon). The app turns it back into <code>geometrie_wkt</code> (<code>LINESTRING (lon lat, &hellip;)</code>, 5 decimals), so the result has the same shape as the planning JSON from the server.</li>
     <li><strong>Size.</strong> A neighbourhood of a few dozen streets gives a link of a few kB. Telplanning warns above 6,000 characters, as some mail programs break long links.</li>
-    <li><strong>Precedence.</strong> The server route (<code>?plan=/planningen/&lt;file&gt;.json</code>) still works, also for pocket (<code>pocket_count.html?plan=&hellip;#parkeren</code>). If a page has both, the link wins.</li>
+    <li><strong>The only route.</strong> Since v3.15 there is no planning on the server: telplanning no longer saves one, and the apps no longer read <code>?plan=/planningen/&lt;file&gt;.json</code>.</li>
     <li>Encoding and decoding are one shared block (<code>planlink</code>) in telplanning and the three apps, kept byte-identical by <code>valideer.py</code> and tested by <code>functest_planlink.js</code>.</li>
   </ul>
 </div>
