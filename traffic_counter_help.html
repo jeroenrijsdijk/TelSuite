@@ -677,6 +677,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <li>Herhaal voor meerdere terreinen binnen dezelfde sessie</li>
 <li>Druk op <strong>Stop</strong> en exporteer de ZIP</li>
 </ol>
+<p>Verschuif je de kaart, dan zoekt de app rond het nieuwe middelpunt, maar alleen als dat meer dan 150 m van een eerdere zoekplek ligt; dichterbij is alles al bekend. Gevonden terreinen blijven op de kaart staan, ook een terrein dat je al telde (sinds v3.17).</p>
 <p>Staat een terrein niet in OSM? Dan is het niet zichtbaar op de kaart. Je kunt het terrein later in JOSM of iD toevoegen aan OSM.</p>
 </section>
 <hr>
@@ -822,6 +823,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <section id="rapport-laden">
 <h3>ZIPs laden</h3>
 <p>Sleep ZIP-bestanden op de kaart of gebruik de uploadknop rechtsonder. Meerdere ZIPs van dezelfde locatie maar verschillende momenten kunnen tegelijk worden geladen — de tijdfilter helpt dan om ze apart te bekijken.</p>
+<p>Laad je een map of veel bestanden tegelijk, dan kan het vinkje <em>alleen binnen huidig kaartbeeld laden</em> de tellingen overslaan die buiten het huidige kaartbeeld vallen. Een verzameling telt daarbij als geheel: ligt één van haar tellingen in beeld, dan laadt de hele verzameling (sinds v3.17; daarvoor werd een verzameling nooit overgeslagen).</p>
 <p><strong>Static-tellingen</strong> (stilstaand) laden in drie vormen: de ZIP van v2.73 en later, de oudere <code>traffic_count_….zip</code> en een losse CSV. Ze verschijnen als punt op de kaart en gaan ook mee in een verzameling.</p>
 <p>De kapaciteitsreferentielaag (<code>cap_netwerk.csv</code> en <code>cap_capaciteit.csv</code> op de server) wordt automatisch geladen als achtergrond — paarse contouren voor de bekende parkeerzones.</p>
 </section>

@@ -2192,8 +2192,10 @@ function exportZip() {
     zip.file(sid + '_sessie.csv',    sessieStr);
     zip.file(sid + '_telregels.csv',  telregelsStr);
     zip.file(sid + '_capaciteit.csv', stratenStr);
-    // Terrein heeft een eigen schema (osm_id+osm_type, geen zijde) en gaat
-    // naar een eigen bestand i.p.v. onder de straten-header geplakt.
+    // Terreinen gaan naar een eigen bestand, niet onder de straten geplakt.
+    // Het schema is wél gelijk aan _capaciteit.csv (osm_way_id, zijde 'nvt'):
+    // zie buildTerreinCsvString. (Tot v3.17 stond hier dat het een eigen
+    // schema met osm_id+osm_type had; dat klopte niet.)
     if ((terreinEntries||[]).length) {
       zip.file(sid + '_terrein.csv', terreinStr);
     }
@@ -2580,57 +2582,120 @@ function updateGpsCircle() {
   }
 }
 
+/* ── Parkeerterreinen zoeken (v3.17: met geheugen) ─────────────────────
+   Tot v3.17 ging er bij elke kaartpan (na 600 ms rust) een nieuw Overpass-
+   verzoek uit, ook als je maar een paar meter verschoof, en wiste elk antwoord
+   de terreinen van het vorige. Nu onthoudt de app waar hij al zocht en wat hij
+   vond:
+   - ligt het nieuwe middelpunt binnen TERREIN_HERGEBRUIK_M van een eerdere
+     zoekplek (of van het verzoek dat nog loopt), dan is alles binnen
+     TERREIN_ZOEK_M - TERREIN_HERGEBRUIK_M = 250 m al bekend: geen verzoek;
+   - gevonden terreinen blijven op de kaart staan, elk één keer getekend, dus
+     ook een geteld terrein houdt zijn donkere rand na een pan;
+   - het antwoord gaat door ovpKeur (gedeeld OVP-blok): een afgebroken of
+     verouderd antwoord gebruiken we niet (volgende server), bij een
+     rate-limit houden we op. Een plek waar het zoeken mislukte, komt niet in
+     het geheugen, zodat een volgende pan het opnieuw probeert.
+   De polygonen gaan tijdens een sessie, net als voorheen, in het netwerk voor
+   _netwerk.csv: die binnen TERREIN_ZOEK_M van het zoekpunt, zonder dubbelen. */
+var TERREIN_ZOEK_M = 400;
+var TERREIN_HERGEBRUIK_M = 150;
+var terreinZoekPlekken = [];   // [{lat, lon}]: hier is met succes gezocht
+var terreinGevonden = {};      // 'way/123' → {el, lat, lon, naam, cap}
+var terreinGetekend = {};      // 'way/123' → true: staat op de kaart
+var terreinBezig = null;       // {lat, lon} van het verzoek dat nog loopt
+var terreinVerzoeken = 0;      // aantal verstuurde zoekvragen (test)
+
+function terreinAlGezocht(lat, lon) {
+  var plekken = terreinBezig ? terreinZoekPlekken.concat([terreinBezig]) : terreinZoekPlekken;
+  return plekken.some(function (p) { return haversine(lat, lon, p.lat, p.lon) <= TERREIN_HERGEBRUIK_M; });
+}
+
 function zoekTerreinen(zoekLat, zoekLon) {
   var lat = (zoekLat !== undefined ? zoekLat : currentLat);
   var lon = (zoekLon !== undefined ? zoekLon : currentLon);
   if (!lat) return;
-  var query = '[out:json][timeout:10];(node[amenity=parking](around:400,'+lat.toFixed(6)+','+lon.toFixed(6)+');way[amenity=parking](around:400,'+lat.toFixed(6)+','+lon.toFixed(6)+'););out geom tags;';
-  var ENDPOINTS = ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+  if (terreinAlGezocht(lat, lon)) { verwerkTerreinen(lat, lon, false); return; }
+  var plek = { lat: lat, lon: lon };
+  terreinBezig = plek;
+  terreinVerzoeken++;
+  var query = '[out:json][timeout:10];(node[amenity=parking](around:'+TERREIN_ZOEK_M+','+lat.toFixed(6)+','+lon.toFixed(6)+');way[amenity=parking](around:'+TERREIN_ZOEK_M+','+lat.toFixed(6)+','+lon.toFixed(6)+'););out geom tags;';
+  var klaar = function () { if (terreinBezig === plek) terreinBezig = null; };
   var tryEp = function(idx) {
-    if (idx >= ENDPOINTS.length) return;
-    fetch(ENDPOINTS[idx]+'?data='+encodeURIComponent(query))
-      .then(function(r){ return r.json(); })
+    if (idx >= OVERPASS_ENDPOINTS.length) { klaar(); return; }
+    fetch(OVERPASS_ENDPOINTS[idx]+'?data='+encodeURIComponent(query))
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(ovpStatusUitHttp(r.status)); })
       .then(function(data) {
-        if (!dataIsVers(data)) throw new Error('verouderde OSM-data');   // volgende mirror proberen
-        terreinMarkers.forEach(function(m){ terreinMap.removeLayer(m); });
-        terreinPolygons.forEach(function(p){ terreinMap.removeLayer(p); });
-        terreinMarkers=[]; terreinPolygons=[];
-        (data.elements||[]).forEach(function(el) {
-          var naam = (el.tags&&el.tags.name)?el.tags.name:'Parkeerterrein';
-          var lat  = el.lat||(el.center&&el.center.lat);
-          var lon  = el.lon||(el.center&&el.center.lon);
-          if (el.type==='way' && el.geometry && el.geometry.length>1) {
-            var sum={lat:0,lon:0};
-            el.geometry.forEach(function(p){sum.lat+=p.lat;sum.lon+=p.lon;});
-            lat=sum.lat/el.geometry.length; lon=sum.lon/el.geometry.length;
-          }
-          if (!lat||!lon) return;
-          var cap = (el.tags&&el.tags.capacity)?' · '+el.tags.capacity+' plk':'';
-          var tData = {id:String(el.id),type:el.type,naam:naam,lat:lat,lon:lon,cap:cap};
-          if (el.type==='way'&&el.geometry&&el.geometry.length>2) {
-            var poly=L.polygon(el.geometry.map(function(p){return[p.lat,p.lon];}),
-              {color:'#8e44ad',weight:2,fillColor:'#8e44ad',fillOpacity:0.15});
-            poly.terreinData=tData;
-            poly.on('click',function(){selecteerTerrein(this.terreinData);});
-            poly.addTo(terreinMap); terreinPolygons.push(poly);
-            // Sla geometrie op voor export in netwerk.csv
-            snap.networkElements.push({id:String(el.id),type:'way',geometry:el.geometry,tags:{amenity:'parking',name:naam}});
-          }
-          var mk=L.marker([lat,lon],{icon:L.divIcon({className:'',
-            html:'<div style="background:#8e44ad;color:white;padding:3px 7px;border-radius:3px;font-family:Oswald,sans-serif;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3)">'+naam+cap+'</div>',
-            iconAnchor:[0,14]})});
-          mk.terreinData=tData;
-          mk.on('click',function(){selecteerTerrein(this.terreinData);});
-          mk.addTo(terreinMap); terreinMarkers.push(mk);
-        });
-        if (terreinMarkers.length && !handmatigGepand) {
-          terreinProgrammaticMove = true;
-          terreinMap.fitBounds(L.featureGroup(terreinMarkers.concat(terreinPolygons)).getBounds().pad(0.3));
-          terreinProgrammaticMove = false;
-        }
-      }).catch(function(){tryEp(idx+1);});
+        var uitkomst = ovpKeur(data);
+        if (uitkomst !== OVP_OK && uitkomst !== OVP_LEEG) return Promise.reject(uitkomst);
+        (data.elements || []).forEach(onthoudTerrein);
+        terreinZoekPlekken.push(plek);
+        klaar();
+        verwerkTerreinen(lat, lon, true);
+      })
+      .catch(function(reden) {
+        if (reden === OVP_LIMIET) { klaar(); return; }   // server vol: niet de volgende belasten
+        tryEp(idx + 1);
+      });
   };
   tryEp(0);
+}
+
+function onthoudTerrein(el) {
+  var naam = (el.tags && el.tags.name) ? el.tags.name : 'Parkeerterrein';
+  var lat  = el.lat || (el.center && el.center.lat);
+  var lon  = el.lon || (el.center && el.center.lon);
+  if (el.type === 'way' && el.geometry && el.geometry.length > 1) {
+    var sum = { lat: 0, lon: 0 };
+    el.geometry.forEach(function(p){ sum.lat += p.lat; sum.lon += p.lon; });
+    lat = sum.lat / el.geometry.length; lon = sum.lon / el.geometry.length;
+  }
+  if (!lat || !lon) return;
+  var cap = (el.tags && el.tags.capacity) ? ' · ' + el.tags.capacity + ' plk' : '';
+  terreinGevonden[el.type + '/' + el.id] = { el: el, lat: lat, lon: lon, naam: naam, cap: cap };
+}
+
+// Tekent wat nog niet op de kaart staat, zet tijdens een sessie de polygonen
+// rond het zoekpunt in het netwerk, en zoomt na een nieuw antwoord in op de
+// terreinen rond het zoekpunt (niet als je zelf aan het pannen bent).
+function verwerkTerreinen(lat, lon, nieuw) {
+  var rond = [];
+  Object.keys(terreinGevonden).forEach(function (k) {
+    var t = terreinGevonden[k], el = t.el;
+    var tData = { id: String(el.id), type: el.type, naam: t.naam, lat: t.lat, lon: t.lon, cap: t.cap };
+    var dichtbij = haversine(lat, lon, t.lat, t.lon) <= TERREIN_ZOEK_M;
+    var isVlak = el.type === 'way' && el.geometry && el.geometry.length > 2;
+    if (!terreinGetekend[k]) {
+      terreinGetekend[k] = true;
+      if (isVlak) {
+        var geteld = (terreinEntries || []).some(function (e) { return e.osmWayId === tData.id; });
+        var poly = L.polygon(el.geometry.map(function(p){ return [p.lat, p.lon]; }),
+          geteld ? { color:'#1a1918', weight:3, fillColor:'#8e44ad', fillOpacity:0.22 }
+                 : { color:'#8e44ad', weight:2, fillColor:'#8e44ad', fillOpacity:0.15 });
+        poly.terreinData = tData;
+        poly.on('click', function(){ selecteerTerrein(this.terreinData); });
+        poly.addTo(terreinMap); terreinPolygons.push(poly);
+      }
+      var mk = L.marker([t.lat, t.lon], { icon: L.divIcon({ className:'',
+        html:'<div style="background:#8e44ad;color:white;padding:3px 7px;border-radius:3px;font-family:Oswald,sans-serif;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3)">'+t.naam+t.cap+'</div>',
+        iconAnchor:[0,14] }) });
+      mk.terreinData = tData;
+      mk.on('click', function(){ selecteerTerrein(this.terreinData); });
+      mk.addTo(terreinMap); terreinMarkers.push(mk);
+    }
+    if (!dichtbij) return;
+    rond.push([t.lat, t.lon]);
+    // Geometrie bewaren voor export in _netwerk.csv (alleen tijdens een sessie;
+    // bij Start wordt het netwerk geleegd en zoekt de app opnieuw).
+    if (isVlak && sessionActive && !snap.networkElements.some(function (n) { return String(n.id) === tData.id; })) {
+      snap.networkElements.push({ id: tData.id, type: 'way', geometry: el.geometry, tags: { amenity: 'parking', name: t.naam } });
+    }
+  });
+  if (nieuw && rond.length && !handmatigGepand) {
+    terreinProgrammaticMove = true;
+    terreinMap.fitBounds(L.latLngBounds(rond).pad(0.3));
+    terreinProgrammaticMove = false;
+  }
 }
 
 function selecteerTerrein(data) {
