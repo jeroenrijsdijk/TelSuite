@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.15.** Geen planningen meer op de server: *Maak Telling*, *Opdrachten* en `planningen/` zijn weg, een planning gaat alleen nog als link (`overdracht_v3_15.md`). v3.14 bracht die link, ook voor pocket-parkeren; v3.13 het hoofdstuk *Slim lopen bij parkeertellingen*.
+**Laatste release: v3.16.** In de parkeertelling staan de capaciteitscontouren standaard uit, met een knop *capaciteit* in de kaartkop (`overdracht_v3_16.md`). v3.15 haalde de planningen van de server, een planning gaat alleen nog als link (v3.14, ook voor pocket-parkeren).
 
 ---
 
@@ -234,7 +234,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.15 in één oogopslag
+## 6. Releases v2.32 → v3.16 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -300,6 +300,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.13 | Handleiding: hoofdstuk **Slim lopen bij parkeertellingen** (Jay: "mensen vooraf laten nadenken hoe ze het doen"): vijf vragen vooraf, één kant per keer, drie patronen met een plaatje in SVG (drukke straat heen en terug, een rondje twee keer, een wijk met eerst de rand), waarom het altijd past (eulercircuit), onderweg en na afloop. Veldtip parkeertelling over keren aangepast: niet langer een nieuwe sessie voor de terugweg |
 | v3.14 | **Planning als link** (Jay: "vanuit een mail of link een telling kunnen starten"): *Deel als link* in telplanning, planning achter het `#` (polyline + deflate-raw + base64url, formaatversie 1), niet via de server; parkeertelling, fietsparkeren en pocket lezen hem (gedeeld blok `planlink`); teltype *Pocket-parkeren*; pocket toont de opdracht boven de telvakken en de straten in paars op de *Kaart*, ook via *Opdrachten* (`?plan=…#parkeren`); handleiding, privacyverklaring, ZIP-referentie; nieuwe `functest_planlink.js` (29) en `planlinktest.py` (42) |
 | v3.15 | **Geen planningen meer op de server** (Jay, na de veldtest van de link: "We hoeven de .json niet meer op te slaan op de server"): *Maak Telling* (download + opslaan) en *Opdrachten* weg uit telplanning, *Deel als link* is de hoofdknop; `planningen/` met de drie PHP-scripts en `.htaccess` uit de repo; de apps lezen `?plan=` niet meer; handleiding, privacyverklaring, ZIP-referentie, README, CLAUDE.md, ONTWIKKELEN bijgewerkt; `laadtest` deel D vervallen, `planlinktest` deel D test nu dat er niets meer naar `/planningen/` gaat (44) |
+| v3.16 | Parkeertelling: **capaciteitscontouren standaard uit** (Jay: "Het kaartje is te druk om te lezen"), knop *capaciteit* in de kop van de kaart; `cap_netwerk.csv` pas opgehaald bij de eerste keer aanzetten, zonder bestand gaat de knop uit; handleiding bij *Mini-kaart & bearing*; `planlinktest` deel E (51) |
 
 ---
 
