@@ -38,6 +38,8 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_kwaliteit.js   # v3.10: kwaliteitsrapport in telrapport, 33 tests (papaparse)
     python3 _archief/overpass_rig/logicatest.py        # v3.10: pocket-id bij Start, kwaliteitsrapport in Chromium, sessierij compact (v3.11/v3.12), 30 tests
     python3 _archief/overpass_rig/robuusttest.py       # v3.9: volle opslag, persist, schermslot pocket, voorpagina, telplanning ophalen, 87 tests
+    node _archief/overpass_rig/functest_planlink.js    # v3.14: planning als link, inpakken en uitpakken, 29 tests (Node 18+)
+    python3 _archief/overpass_rig/planlinktest.py      # v3.14: link maken in telplanning, openen in parkeertelling/fiets/pocket, 42 tests
     python3 _archief/overpass_rig/gpkgtest.py          # GeoPackage uit telrapport: van veld-app tot QGIS, met het QGIS-project, 80 tests
                                                        # (ook sql.js@1.14.2 in node_modules; het QGIS-deel draait als
                                                        #  PyQGIS er is, via gpkg_qgis.py, anders overgeslagen)

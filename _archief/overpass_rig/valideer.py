@@ -12,9 +12,11 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.13'
-# v3.13: hoofdstuk 'Slim lopen bij parkeertellingen' in de handleiding.
-VERWACHT_GEWIJZIGD = {'index.html', 'traffic_counter_help.html'}
+RELEASE = 'v3.14'
+# v3.14: planning als link (blok planlink), pocket-parkeren leest een planning.
+VERWACHT_GEWIJZIGD = {'index.html', 'telplanning.html', 'parkeertelling.html', 'fietsparkeren.html',
+                      'pocket_count.html', 'traffic_counter_help.html', 'privacy.html',
+                      'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -198,6 +200,9 @@ groepen = [
      '/* ── Noodkopie: één venster schrijft (v3.8)', '/* ── einde gedeeld blok noodkopie ── */'),
     ('noodkopie-haken', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
      '/* ── Noodkopie: haken parkeer-apps (v3.8) ── */', '/* ── einde haken noodkopie ── */'),
+    # v3.14: planning als link, inpakken en uitpakken
+    ('planlink', ['telplanning.html', 'parkeertelling.html', 'fietsparkeren.html', 'pocket_count.html'],
+     '/* ── Planning als link (v3.14) ──', '/* ── einde gedeeld blok planlink ── */'),
     # v3.3: de kale stijl van de documentatiepagina's
     ('kale stijl', KAAL,
      '/* ── kale stijl (v3.3)', '/* ── einde kale stijl ── */'),

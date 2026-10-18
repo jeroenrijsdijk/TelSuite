@@ -418,6 +418,50 @@
   #btn-export:hover { opacity: 0.85; }
   #btn-export:disabled { opacity: 0.3; cursor: not-allowed; }
 
+  /* ── Deel als link (v3.14) ── */
+  #btn-link {
+    width: 100%; padding: 9px; margin-bottom: 8px;
+    background: none; border: 1px solid var(--border); border-radius: 3px;
+    font-family: var(--font); font-size: 0.7rem; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--dim); cursor: pointer;
+  }
+  #btn-link:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+  #btn-link:disabled { opacity: 0.3; cursor: not-allowed; }
+  #link-overlay {
+    display: none; position: absolute; inset: 0; z-index: 2000;
+    background: rgba(26,25,24,0.55); align-items: center; justify-content: center;
+  }
+  #link-overlay.open { display: flex; }
+  #link-panel {
+    background: var(--surface); width: 460px; max-width: calc(100vw - 32px);
+    border-radius: 4px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); overflow: hidden;
+  }
+  #link-header {
+    padding: 14px 16px; background: var(--text); color: var(--bg);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  #link-header h2 { font-size: 0.85rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  #btn-close-link { background: none; border: none; color: var(--bg); font-size: 1.2rem; cursor: pointer; opacity: 0.7; }
+  #btn-close-link:hover { opacity: 1; }
+  #link-body { padding: 14px 16px; font-size: 0.75rem; color: var(--text); }
+  #link-info { font-family: var(--mono); font-size: 0.7rem; color: var(--dim); margin-bottom: 8px; }
+  #link-tekst {
+    width: 100%; box-sizing: border-box; font-family: var(--mono); font-size: 0.65rem;
+    border: 1px solid var(--border); border-radius: 3px; padding: 6px; resize: vertical;
+    word-break: break-all; color: var(--text); background: var(--bg);
+  }
+  #link-lang { color: #c0392b; margin: 6px 0 0; }
+  #link-lang:empty { display: none; }
+  #link-knoppen { display: flex; gap: 8px; margin: 10px 0 6px; flex-wrap: wrap; }
+  #link-knoppen button, #link-knoppen a {
+    padding: 8px 12px; border: 1px solid var(--border); border-radius: 3px; background: none;
+    font-family: var(--font); font-size: 0.7rem; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--text); cursor: pointer; text-decoration: none;
+  }
+  #link-knoppen #link-kopieer { background: var(--text); color: var(--bg); border-color: var(--text); }
+  #link-melding { font-family: var(--mono); font-size: 0.7rem; color: var(--dim); min-height: 1.2em; }
+  #link-uitleg { color: var(--muted); line-height: 1.5; margin: 6px 0 0; }
+
   /* ── Kaart ── */
   #map { flex: 1; }
 
@@ -528,6 +572,7 @@
   }
   .opdracht-type.auto  { background: #fef3e8; color: #c07800; }
   .opdracht-type.fiets { background: #e8f4fb; color: #2980b9; }
+  .opdracht-type.pocket { background: #f3eaf8; color: #8e44ad; }
   #opdrachten-leeg {
     padding: 24px;
     text-align: center;
@@ -736,6 +781,7 @@
         <select class="meta-input" id="meta-teltype">
           <option value="auto">Autoparkeren (Walk and Survey Parked Cars)</option>
           <option value="fiets">Fietsparkeren (Walk and Survey Parked Bikes)</option>
+          <option value="pocket">Pocket-parkeren (bezet/leeg, telefoon in de zak)</option>
         </select>
       </div>
     </div>
@@ -791,6 +837,9 @@
         onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--dim)'">
         &#9776; Opdrachten
       </button>
+      <button id="btn-link" disabled onclick="deelAlsLink()">
+        &#128279; Deel als link
+      </button>
       <button id="btn-export" disabled onclick="exportPlanning()">
         &#8595; Maak Telling
       </button>
@@ -812,6 +861,31 @@
     </div>
     <div id="opdrachten-list">
       <div id="opdrachten-leeg">Laden&hellip;</div>
+    </div>
+  </div>
+</div>
+
+<!-- v3.14: planning als link -->
+<div id="link-overlay" onclick="if (event.target === this) sluitLink()">
+  <div id="link-panel">
+    <div id="link-header">
+      <h2>&#128279; Planning als link</h2>
+      <button id="btn-close-link" onclick="sluitLink()">&#10005;</button>
+    </div>
+    <div id="link-body">
+      <div id="link-info"></div>
+      <textarea id="link-tekst" readonly rows="4" onclick="this.select()"></textarea>
+      <div id="link-lang"></div>
+      <div id="link-knoppen">
+        <button id="link-kopieer" onclick="kopieerLink()">Kopieer link</button>
+        <button id="link-deel" onclick="deelLinkVia()">Delen&hellip;</button>
+        <a id="link-open" target="_blank" rel="noopener">Openen &#8599;</a>
+      </div>
+      <div id="link-melding"></div>
+      <p id="link-uitleg">De planning zit in de link zelf en gaat niet via de server.
+        Plak de link in een mail of bericht aan de teller. Op de telefoon: open hem
+        in Safari of Chrome, niet in de ingebouwde browser van een mail- of
+        chat-app. Daar blijft een onderbroken telling niet bewaard.</p>
     </div>
   </div>
 </div>
@@ -1201,7 +1275,7 @@ function clearAll() {
   updateStats(); updateCounts();
   document.getElementById('btn-clear').style.display = 'none';
   document.getElementById('btn-draw').textContent = '\u270E Teken contour';
-  document.getElementById('btn-export').disabled = true;
+  document.getElementById('btn-link').disabled = document.getElementById('btn-export').disabled = true;
   setStatus('Teken een contour om te beginnen');
 }
 
@@ -1449,7 +1523,7 @@ function processWays(elements, geojsonPoly) {
   applyVisibility();
   updateCounts();
   updateStats();
-  document.getElementById('btn-export').disabled =
+  document.getElementById('btn-link').disabled = document.getElementById('btn-export').disabled =
     (ways.filter(function(w){ return w.visible && w.selected; }).length === 0);
 
   var nIn  = ways.filter(function(w){ return w.selected; }).length;
@@ -1641,7 +1715,7 @@ function updateStats() {
       + (visible - selected) + ' uitgesloten';
   }
   updateCounts();
-  document.getElementById('btn-export').disabled = (selected === 0);
+  document.getElementById('btn-link').disabled = document.getElementById('btn-export').disabled = (selected === 0);
 }
 
 // ── Status ────────────────────────────────────────────────────────────────────
@@ -1652,9 +1726,10 @@ function setStatus(msg) {
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
-function exportPlanning() {
+// v3.14: het planning-object apart, zodat Maak Telling en Deel als link hetzelfde maken
+function maakPlanning() {
   var selected = ways.filter(function(w){ return w.visible && w.selected; });
-  if (!selected.length) return;
+  if (!selected.length) return null;
 
   var nu = new Date();
   var pad = function(n){ return String(n).padStart(2,'0'); };
@@ -1685,6 +1760,14 @@ function exportPlanning() {
     })
   };
 
+  return planning;
+}
+
+function exportPlanning() {
+  var planning = maakPlanning();
+  if (!planning) return;
+  var naam  = planning.sessie_naam;
+  var datum = planning.datum;
   var json = JSON.stringify(planning, null, 2);
 
   // 1. Download in browser
@@ -1719,11 +1802,158 @@ function exportPlanning() {
   });
 }
 
-// ── Opdrachten ───────────────────────────────────────────────────────────────
-var TELAPP_MAP = {
-  auto:  'parkeertelling.html',
-  fiets: 'fietsparkeren.html'
+/* ── Planning als link (v3.14) ──
+   HOUD GELIJK in telplanning, parkeertelling, fietsparkeren en pocket_count
+   (valideer.py, groep 'planlink'; test: functest_planlink.js).
+   Een planning reist mee in de link, achter het '#'. Dat deel stuurt de browser
+   niet naar de server: de planning gaat van telplanning via mail of app naar de
+   telefoon van de teller, en nergens anders langs.
+     <app>.html#plan=1.<data>               parkeertelling, fietsparkeren
+     pocket_count.html#parkeren&plan=1.<data>
+   <data> = base64url(deflate-raw(JSON)), JSON = {n,d,t,c,y,w:[[id,naam,highway,lijn]]}
+   (naam, datum, tijdstip, teller, teltype; per weg de geometrie als polyline:
+   Google-codering, 5 decimalen, ±1 m). De '1' is de versie van dit formaat. */
+var PLANLINK_VERSIE = '1';
+var PLANLINK_LANG = 6000;   // tekens; een langere link kan een mailprogramma afbreken
+var PLANLINK_APP = {
+  auto:   'parkeertelling.html',
+  fiets:  'fietsparkeren.html',
+  pocket: 'pocket_count.html#parkeren'
 };
+
+function planlinkPolyline(coords) {          // [[lat,lon],…] → tekst
+  var uit = '', vorig = [0, 0];
+  coords.forEach(function (c) {
+    for (var k = 0; k < 2; k++) {
+      var v = Math.round(c[k] * 1e5), d = v - vorig[k];
+      vorig[k] = v;
+      d = d < 0 ? ~(d << 1) : (d << 1);
+      while (d >= 0x20) { uit += String.fromCharCode((0x20 | (d & 0x1f)) + 63); d >>= 5; }
+      uit += String.fromCharCode(d + 63);
+    }
+  });
+  return uit;
+}
+
+function planlinkPolylineTerug(s) {          // tekst → [[lat,lon],…]
+  var coords = [], i = 0, v = [0, 0];
+  while (i < s.length) {
+    var p = [];
+    for (var k = 0; k < 2; k++) {
+      var r = 0, sh = 0, b;
+      do {
+        if (i >= s.length) throw new Error('lijn afgebroken');
+        b = s.charCodeAt(i++) - 63;
+        r |= (b & 0x1f) << sh;
+        sh += 5;
+      } while (b >= 0x20);
+      v[k] += (r & 1) ? ~(r >> 1) : (r >> 1);
+      p.push(v[k] / 1e5);
+    }
+    coords.push(p);
+  }
+  return coords;
+}
+
+function planlinkWktCoords(wkt) {            // 'LINESTRING (lon lat, …)' → [[lat,lon],…]
+  var inner = String(wkt || '').replace(/^\s*LINESTRING\s*\(/i, '').replace(/\)\s*$/, '');
+  return inner.split(',').map(function (p) {
+    var d = p.trim().split(/\s+/).map(Number);
+    return [d[1], d[0]];
+  }).filter(function (c) { return isFinite(c[0]) && isFinite(c[1]); });
+}
+
+function planlinkNaarB64(bytes) {
+  var s = '';
+  for (var i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function planlinkUitB64(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  var bin = atob(s), b = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+  return b;
+}
+
+function planlinkStroom(bytes, stroom) {
+  return new Response(new Blob([bytes]).stream().pipeThrough(stroom)).arrayBuffer()
+    .then(function (buf) { return new Uint8Array(buf); });
+}
+
+// planning (zoals telplanning hem bewaart) → '1.<data>'
+function planlinkInpakken(planning) {
+  if (typeof CompressionStream === 'undefined') {
+    return Promise.reject(new Error('deze browser kan geen link maken'));
+  }
+  var kort = {
+    n: planning.sessie_naam || '', d: planning.datum || '', t: planning.tijdstip || '',
+    c: planning.teller || '', y: planning.tel_type || 'auto',
+    w: (planning.wegen || []).map(function (w) {
+      return [String(w.osm_way_id), w.naam || '', w.highway || '',
+              planlinkPolyline(planlinkWktCoords(w.geometrie_wkt))];
+    })
+  };
+  var bytes = new TextEncoder().encode(JSON.stringify(kort));
+  return planlinkStroom(bytes, new CompressionStream('deflate-raw'))
+    .then(function (z) { return PLANLINK_VERSIE + '.' + planlinkNaarB64(z); });
+}
+
+// '1.<data>' → planning in dezelfde vorm als het JSON-bestand van telplanning
+function planlinkUitpakken(waarde) {
+  // Een mailprogramma plakt soms een punt of haakje achter een link.
+  var m = /^(\d+)\.([A-Za-z0-9_-]+)$/.exec(String(waarde || '').replace(/[^A-Za-z0-9_-]+$/, ''));
+  if (!m) return Promise.reject(new Error('de link is onvolledig'));
+  if (m[1] !== PLANLINK_VERSIE) {
+    return Promise.reject(new Error('de link komt uit een nieuwere versie (formaat ' + m[1] + ')'));
+  }
+  if (typeof DecompressionStream === 'undefined') {
+    return Promise.reject(new Error('deze browser kan de link niet lezen'));
+  }
+  var bytes;
+  try { bytes = planlinkUitB64(m[2]); }
+  catch (e) { return Promise.reject(new Error('de link is beschadigd')); }
+  return planlinkStroom(bytes, new DecompressionStream('deflate-raw')).then(function (buf) {
+    var k = JSON.parse(new TextDecoder().decode(buf));
+    var wegen = (k.w || []).map(function (w) {
+      return {
+        osm_way_id: w[0], naam: w[1], highway: w[2],
+        geometrie_wkt: 'LINESTRING (' + planlinkPolylineTerug(w[3]).map(function (c) {
+          return c[1].toFixed(5) + ' ' + c[0].toFixed(5);
+        }).join(', ') + ')'
+      };
+    });
+    return { sessie_naam: k.n || '', datum: k.d || '', tijdstip: k.t || '', teller: k.c || '',
+             tel_type: k.y || 'auto', n_wegen: wegen.length, wegen: wegen };
+  }).catch(function () {
+    throw new Error('de link is beschadigd of afgebroken');
+  });
+}
+
+// '#plan=…' of '#parkeren&plan=…' → '1.<data>', anders null
+function planlinkUitHash(hash) {
+  var delen = String(hash || '').replace(/^#/, '').split('&');
+  for (var i = 0; i < delen.length; i++) {
+    if (delen[i].indexOf('plan=') === 0) return delen[i].slice(5);
+  }
+  return null;
+}
+
+// De volledige link: basis = adres van telplanning (de apps staan ernaast)
+function planlinkUrl(basis, teltype, waarde) {
+  var app = PLANLINK_APP[teltype] || PLANLINK_APP.auto;
+  var h = app.indexOf('#');
+  var pagina = h < 0 ? app : app.slice(0, h);
+  return new URL(pagina, basis).href + (h < 0 ? '#' : app.slice(h) + '&') + 'plan=' + waarde;
+}
+/* ── einde gedeeld blok planlink ── */
+
+// ── Opdrachten ───────────────────────────────────────────────────────────────
+// v3.14: welke app bij welk teltype hoort, staat in PLANLINK_APP (blok planlink)
+var TELTYPE_LABEL = { auto: 'Autoparkeren', fiets: 'Fietsparkeren', pocket: 'Pocket-parkeren' };
 
 function openOpdrachten() {
   document.getElementById('opdrachten-overlay').classList.add('open');
@@ -1761,8 +1991,9 @@ function loadOpdrachten() {
       items.forEach(function(item) {
         var row = document.createElement('div');
         row.className = 'opdracht-row';
-        var typeLabel = item.tel_type === 'fiets' ? 'Fietsparkeren' : 'Autoparkeren';
-        row.innerHTML = '<div class="opdracht-type ' + (item.tel_type||'auto') + '">'
+        var tt = TELTYPE_LABEL[item.tel_type] ? item.tel_type : 'auto';
+        var typeLabel = TELTYPE_LABEL[tt];
+        row.innerHTML = '<div class="opdracht-type ' + tt + '">'
           + typeLabel + '</div>'
           + '<div class="opdracht-naam">' + escHtml(item.sessie_naam) + '</div>'
           + '<div class="opdracht-meta">'
@@ -1791,8 +2022,64 @@ function loadOpdrachten() {
 }
 
 function startOpdracht(item) {
-  var app = TELAPP_MAP[item.tel_type] || 'parkeertelling.html';
-  window.location.href = app + '?plan=' + encodeURIComponent('/planningen/' + item.bestand);
+  var app = PLANLINK_APP[item.tel_type] || PLANLINK_APP.auto;
+  var h = app.indexOf('#');                        // pocket: ?plan=… vóór #parkeren
+  var pagina = h < 0 ? app : app.slice(0, h), anker = h < 0 ? '' : app.slice(h);
+  window.location.href = pagina + '?plan=' + encodeURIComponent('/planningen/' + item.bestand) + anker;
+}
+
+// ── Deel als link (v3.14) ────────────────────────────────────────────────────
+// Zelfde planning als Maak Telling, maar in de link zelf (blok planlink). Niets
+// naar de server; de link gaat per mail of app naar de teller.
+var linkUrl = '';
+function deelAlsLink() {
+  var planning = maakPlanning();
+  if (!planning) return;
+  planlinkInpakken(planning).then(function (waarde) {
+    linkUrl = planlinkUrl(location.href, planning.tel_type, waarde);
+    var kb = (linkUrl.length / 1000).toFixed(1).replace('.', ',');
+    document.getElementById('link-info').textContent =
+      (TELTYPE_LABEL[planning.tel_type] || 'Autoparkeren') + ' \u00b7 ' + planning.n_wegen +
+      ' wegen \u00b7 ' + kb + ' kB';
+    document.getElementById('link-tekst').value = linkUrl;
+    document.getElementById('link-lang').textContent = linkUrl.length > PLANLINK_LANG
+      ? 'Lange link (' + kb + ' kB): sommige mailprogramma\u2019s breken hem af. ' +
+        'Maak het gebied kleiner, of verdeel het over twee opdrachten.'
+      : '';
+    document.getElementById('link-open').href = linkUrl;
+    document.getElementById('link-deel').style.display = navigator.share ? '' : 'none';
+    document.getElementById('link-melding').textContent = '';
+    document.getElementById('link-overlay').classList.add('open');
+    planningVoorDelen = planning;
+  }).catch(function (e) {
+    setStatus('Link maken mislukt: ' + ((e && e.message) || e));
+  });
+}
+var planningVoorDelen = null;
+function sluitLink() {
+  document.getElementById('link-overlay').classList.remove('open');
+}
+function kopieerLink() {
+  var melding = document.getElementById('link-melding');
+  var klaar = function () { melding.textContent = 'Gekopieerd \u2014 plak hem in een mail of bericht.'; };
+  var oud = function () {
+    var ta = document.getElementById('link-tekst');
+    ta.focus(); ta.select();
+    try { if (document.execCommand('copy')) { klaar(); return; } } catch (e) {}
+    melding.textContent = 'Kopi\u00ebren lukte niet: de link staat geselecteerd, kopieer hem met Ctrl+C.';
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(linkUrl).then(klaar, oud);
+  } else oud();
+}
+function deelLinkVia() {
+  var p = planningVoorDelen || {};
+  navigator.share({
+    title: 'Telopdracht ' + (p.sessie_naam || ''),
+    text: 'Telopdracht ' + (p.sessie_naam || '') + ' (' + (p.datum || '') + ' ' + (p.tijdstip || '') +
+          '). Open de link op je telefoon in Safari of Chrome.',
+    url: linkUrl
+  }).catch(function () { /* geannuleerd: niets aan de hand */ });
 }
 
 function verwijderOpdracht(item) {
@@ -2144,7 +2431,8 @@ function prefillUitSessie(sessieTxt, gemist) {
   naamEl.value = 'hertelling' + (bronLabel ? ' ' + bronLabel : '');
 
   if (teller) document.getElementById('meta-teller').value = teller;
-  document.getElementById('meta-teltype').value = (appType === 'fiets') ? 'fiets' : 'auto';
+  document.getElementById('meta-teltype').value =
+    (appType === 'fiets' || appType === 'pocket') ? appType : 'auto';   // pocket sinds v3.14
 
   var when = nextComparableMoment(srcDatum, srcTijd);
   if (when) {
