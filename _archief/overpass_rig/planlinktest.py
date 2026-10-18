@@ -14,6 +14,9 @@
   D. Zonder server (v3.15): telplanning heeft geen Maak Telling en geen
      Opdrachten meer, Deel als link is de hoofdknop, en niets vraagt nog iets
      op bij /planningen/. Een oude server-link (?plan=…) laadt niets.
+  E. Parkeertelling (v3.16): de capaciteitscontouren staan standaard uit en
+     worden niet opgehaald; de knop 'capaciteit' haalt ze één keer op en zet ze
+     aan en uit; zonder cap_netwerk.csv gaat de knop uit.
 
 Hulp (server, CDN-omleiding, nep-Overpass) komt uit opruimtest.py en hersteltest.py.
 Draaien vanuit de suite-root:  python3 _archief/overpass_rig/planlinktest.py
@@ -190,6 +193,47 @@ with sync_playwright() as p:
     eis('geen enkel verzoek naar /planningen/', not PLANVERZOEK, PLANVERZOEK)
     eis('geen JS-fouten', not f and not f3, (f, f3))
     ctx.close()
+
+    print('\n== E. parkeertelling: capaciteitscontouren standaard uit (v3.16) ==')
+    CAPCSV = ('osm_id;naam;geometrie_wkt\n'
+              '1;terrein;POLYGON ((%.6f %.6f, %.6f %.6f, %.6f %.6f, %.6f %.6f))\n'
+              '2;strook;LINESTRING (%.6f %.6f, %.6f %.6f)\n'
+              % (LON, LAT, LON + 0.001, LAT, LON + 0.001, LAT + 0.001, LON, LAT, LON - 0.001, LAT, LON - 0.001, LAT + 0.001))
+    for metcsv in (True, False):
+        CAPVERZOEK = []
+        def maak_route(met):              # Playwright geeft (route, request) mee: geen standaardargument gebruiken
+            def route_cap(r, *_):
+                if r.request.url.split('?')[0].endswith('/cap_netwerk.csv'):
+                    CAPVERZOEK.append(r.request.url)
+                    return r.fulfill(body=CAPCSV, content_type='text/csv') if met else r.fulfill(status=404, body='')
+                return route_plan(r)
+            return route_cap
+        route_cap = maak_route(metcsv)
+        ctx = context(b); ctx.unroute('**/*'); ctx.route('**/*', route_cap)
+        pg, f = pagina(ctx, links['auto'])
+        CAP = ("(()=>{var k=document.getElementById('btnCap');return {aan:k.getAttribute('aria-pressed'),uit:k.disabled,"
+               "opkaart:map.hasLayer(capLayer),n:capLayer.getLayers().length,plan:planningWegen.length}})()")
+        st = pg.evaluate(CAP)
+        if metcsv:
+            eis('bij openen met planning: contouren uit, niet opgehaald, planning wel geladen',
+                st['aan'] == 'false' and not st['opkaart'] and not CAPVERZOEK and st['plan'] == n, (st, CAPVERZOEK))
+            pg.evaluate("document.getElementById('btnCap').click()"); pg.wait_for_timeout(500)
+            st = pg.evaluate(CAP)
+            eis('knop aan: één keer opgehaald, 2 contouren op de kaart', st['aan'] == 'true' and st['opkaart'] and st['n'] == 2
+                and len(CAPVERZOEK) == 1, (st, CAPVERZOEK))
+            pg.evaluate("document.getElementById('btnCap').click()"); pg.wait_for_timeout(200)
+            st = pg.evaluate(CAP)
+            eis('knop uit: van de kaart', st['aan'] == 'false' and not st['opkaart'], st)
+            pg.evaluate("document.getElementById('btnCap').click()"); pg.wait_for_timeout(300)
+            st = pg.evaluate(CAP)
+            eis('weer aan: niet opnieuw opgehaald', st['opkaart'] and st['n'] == 2 and len(CAPVERZOEK) == 1, (st, CAPVERZOEK))
+        else:
+            pg.evaluate("document.getElementById('btnCap').click()"); pg.wait_for_timeout(500)
+            st = pg.evaluate(CAP)
+            eis('zonder cap_netwerk.csv: knop gaat uit en is niet meer te kiezen', st['aan'] == 'false' and st['uit']
+                and not st['opkaart'], st)
+        eis('geen JS-fouten (%s)' % ('met laag' if metcsv else 'zonder laag'), not f, f)
+        ctx.close()
 
     b.close()
 
