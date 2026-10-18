@@ -12,8 +12,8 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.14'
-# v3.14: planning als link (blok planlink), pocket-parkeren leest een planning.
+RELEASE = 'v3.15'
+# v3.15: geen planningen meer op de server; alleen de link.
 VERWACHT_GEWIJZIGD = {'index.html', 'telplanning.html', 'parkeertelling.html', 'fietsparkeren.html',
                       'pocket_count.html', 'traffic_counter_help.html', 'privacy.html',
                       'zip_format_reference.html'}

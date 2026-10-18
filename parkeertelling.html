@@ -838,17 +838,11 @@ function planlinkUrl(basis, teltype, waarde) {
 
 // ── Planningsopdracht laden ────────────────────────────
 (function loadPlanFromUrl() {
-  var params = new URLSearchParams(window.location.search);
-  var planUrl = params.get('plan');
-  // v3.14: de planning kan ook in de link zelf staan (#plan=…, blok planlink).
-  // Staan beide er, dan gaat de link voor.
+  // De planning staat in de link zelf (#plan=…, blok planlink, v3.14). Tot v3.15
+  // kon hij ook van de server komen (?plan=/planningen/…); die opslag is weg.
   var planLink = planlinkUitHash(location.hash);
-  if (!planUrl && !planLink) return;
-  (planLink
-    ? planlinkUitpakken(planLink)
-    : fetch(planUrl)
-        .then(function(r){ return r.ok ? r.text() : Promise.reject(r.status); })
-        .then(function(txt) { return JSON.parse(txt); }))
+  if (!planLink) return;
+  planlinkUitpakken(planLink)
     .then(function(data) {
       // Prefill teller-ID
       var tellerEl = document.getElementById('inputTeller');

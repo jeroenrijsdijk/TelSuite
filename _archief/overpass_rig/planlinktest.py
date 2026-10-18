@@ -11,8 +11,9 @@
      opdracht, de straten in paars op de kaart met 'gepland' in de legenda;
      tellen en Stop werken gewoon. Zonder planning: geen regel, geen legenda.
      Een kapotte link: de regel zegt waarom.
-  D. De server-route blijft werken (?plan=/planningen/…), ook voor pocket, en
-     Opdrachten bouwt voor pocket ?plan=… vóór #parkeren.
+  D. Zonder server (v3.15): telplanning heeft geen Maak Telling en geen
+     Opdrachten meer, Deel als link is de hoofdknop, en niets vraagt nog iets
+     op bij /planningen/. Een oude server-link (?plan=…) laadt niets.
 
 Hulp (server, CDN-omleiding, nep-Overpass) komt uit opruimtest.py en hersteltest.py.
 Draaien vanuit de suite-root:  python3 _archief/overpass_rig/planlinktest.py
@@ -167,24 +168,27 @@ with sync_playwright() as p:
     eis('geen JS-fouten', not f and not f2, (f, f2))
     ctx.close()
 
-    print('\n== D. de server-route blijft werken ==')
-    ctx = context(b)
-    pg, f = pagina(ctx, BASIS + 'parkeertelling.html?plan=/planningen/test.json')
-    eis('parkeertelling ?plan=: 2 wegen, teller S9',
-        pg.evaluate('planningWegen.length') == 2 and pg.evaluate("document.getElementById('inputTeller').value") == 'S9')
-    pg, f2 = pagina(ctx, BASIS + 'pocket_count.html?plan=/planningen/test.json#parkeren')
-    s = pg.evaluate(PK)
-    eis('pocket ?plan=…#parkeren: parkeerscherm en de opdracht', s['scherm'] == 'flex' and s['plan'] == 2
-        and 'Server-opdracht' in s['regel'], s)
-    ctx.close()
+    print('\n== D. zonder server (v3.15) ==')
+    PLANVERZOEK = []
     ctx = context(b, breed=True)
-    pg, f3 = pagina(ctx, BASIS + 'telplanning.html')
-    with pg.expect_navigation():
-        pg.evaluate("startOpdracht({tel_type:'pocket', bestand:'test.json'})")
-    eis('Opdrachten, pocket: ?plan=… vóór #parkeren', pg.url == BASIS + 'pocket_count.html?plan=%2Fplanningen%2Ftest.json#parkeren', pg.url)
-    pg.wait_for_timeout(700)
-    eis('en pocket laadt hem', pg.evaluate('pkPlanning && pkPlanning.lijnen ? pkPlanning.lijnen.length : 0') == 2)
-    eis('geen JS-fouten', not f and not f2 and not f3, (f, f2, f3))
+    ctx.on('request', lambda r: PLANVERZOEK.append(r.url) if '/planningen/' in r.url.split('?')[0] else None)
+    pg, f = pagina(ctx, BASIS + 'telplanning.html')
+    knoppen = pg.evaluate("({maak:!!document.getElementById('btn-export'),opdr:!!document.getElementById('btn-opdrachten'),"
+                          "paneel:!!document.getElementById('opdrachten-overlay'),"
+                          "link:getComputedStyle(document.getElementById('btn-link')).backgroundColor})")
+    eis('telplanning: geen Maak Telling, geen Opdrachten', not knoppen['maak'] and not knoppen['opdr'] and not knoppen['paneel'], knoppen)
+    eis('Deel als link is de hoofdknop (gevuld)', knoppen['link'] not in ('rgba(0, 0, 0, 0)', 'transparent'), knoppen['link'])
+    pg.evaluate('fetchWaysForPolygon(%s)' % GEOM); pg.wait_for_timeout(1200)
+    dlg = maak_link(pg, 'auto')
+    eis('link maken werkt nog', dlg['open'] and '#plan=1.' in dlg['link'])
+    pg2, f2 = pagina(ctx, BASIS + 'parkeertelling.html?plan=/planningen/test.json')
+    eis('parkeertelling met een oude server-link: geen planning, geen fout',
+        pg2.evaluate('planningWegen.length') == 0 and not f2, f2)
+    pg3, f3 = pagina(ctx, BASIS + 'pocket_count.html?plan=/planningen/test.json#parkeren')
+    s = pg3.evaluate(PK)
+    eis('pocket met een oude server-link: parkeerscherm, geen planning', s['scherm'] == 'flex' and not s['zicht'] and s['plan'] is None, s)
+    eis('geen enkel verzoek naar /planningen/', not PLANVERZOEK, PLANVERZOEK)
+    eis('geen JS-fouten', not f and not f3, (f, f3))
     ctx.close()
 
     b.close()

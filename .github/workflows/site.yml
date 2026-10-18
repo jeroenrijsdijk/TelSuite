@@ -3,17 +3,17 @@
 # Plesk ("Deploy using Git") zet de branch `site` in httpdocs. Die branch
 # bevat precies wat op de server hoort: dezelfde inhoud als de release-ZIP,
 # dus zonder alles wat in .gitattributes op export-ignore staat (docs/,
-# _archief/, CLAUDE.md, .github/, planningen/.htaccess, ...).
+# _archief/, CLAUDE.md, .github/, ...).
 #
 # Na elke push naar main bouwt deze workflow die inhoud opnieuw. Is ze anders
 # dan de laatste stand van `site`, dan komt er één commit bij
 # ("site: v3.5 (abc1234)"), en Plesk haalt hem via de webhook op. Een push met
 # alleen documentatie of tests verandert de inhoud niet en doet dus niets.
 #
-# Bestanden die alleen op de server bestaan (planningen/.htaccess met het echte
-# wachtwoordpad, de opgeslagen planningen) staan nooit in `site`, dus Plesk
-# overschrijft ze niet. Komt zo'n bestand toch in de inhoud, dan stopt deze
-# workflow.
+# Bestanden die alleen op de server horen (een .htaccess of .htpasswd) staan
+# nooit in `site`, dus Plesk overschrijft ze niet. Komt zo'n bestand toch in de
+# inhoud, dan stopt deze workflow. (Tot v3.15 ging dit vooral om
+# planningen/.htaccess; die map is weg, planningen gaan nu als link.)
 #
 # Met de hand opnieuw: Actions -> Site -> Run workflow.
 

@@ -172,22 +172,8 @@ with sync_playwright() as p:
         w = pg.evaluate('document.documentElement.scrollWidth'); ctx.close()
         eis('%s: niets breder dan 360 px' % taal.upper(), w <= 360, w)
 
-    print('\n== D. telplanning met afgeschermde planningmap (v2.75) ==')
-    for status, verwacht in [(401, 'afgeschermd'), (500, 'serverfout (500)')]:
-        ctx = b.new_context(viewport={'width': 1200, 'height': 800}); pg = ctx.new_page(); fouten = []
-        pg.on('pageerror', lambda e: fouten.append(e.message[:120]))
-        def maak_weiger(code):
-            def weiger(r, *_):   # Playwright geeft ook het request mee
-                if '/planningen/' in r.request.url:
-                    return r.fulfill(status=code, body='<html>geweigerd</html>', content_type='text/html')
-                return route(r)
-            return weiger
-        pg.route('**/*', maak_weiger(status))
-        pg.goto(BASIS + 'telplanning.html', wait_until='load'); pg.wait_for_timeout(500)
-        pg.evaluate('loadOpdrachten()'); pg.wait_for_timeout(500)
-        tekst = pg.evaluate("document.getElementById('opdrachten-list').textContent")
-        eis('opdrachtenlijst bij %d: leesbare melding' % status, verwacht in tekst and not fouten, (tekst, fouten))
-        ctx.close()
+    # D (telplanning met afgeschermde planningmap, v2.75) is vervallen in v3.15:
+    # er staan geen planningen meer op de server. Zie planlinktest.py, deel D.
 
     print('\n== E. privacy ==')
     eis('voorpagina linkt naar privacy.html', 'href="privacy.html"' in html)

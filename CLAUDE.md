@@ -51,7 +51,7 @@ Deze CLAUDE.md is een samenvatting. Bij twijfel gelden de documenten in `docs/`.
 2. Tagbalans van het HTML controleren.
 3. md5 van gedeelde blokken vergelijken als er meer dan één bestand meedoet.
 4. `git diff --stat`: alleen de bedoelde bestanden.
-5. PHP gewijzigd: `php -l`.
+5. (Vervallen sinds v3.15: er is geen PHP meer in de repo.)
 6. De regressietests in `_archief/overpass_rig/` (zie de README daar). Draai
    ze vanuit de repo-root, bijvoorbeeld `node _archief/overpass_rig/functest.js`.
    - Tests die jszip of papaparse nodig hebben: installeer die **buiten** de
@@ -81,8 +81,8 @@ Deze CLAUDE.md is een samenvatting. Bij twijfel gelden de documenten in `docs/`.
   - **Elke merge naar `main` gaat live.** `.github/workflows/site.yml` zet de
     inhoud van de release-ZIP op de branch `site`, en Plesk zet die branch op
     telonline.org. Ook een wijziging zonder versienummer staat dus meteen online.
-- Het planning-endpoint in `planningen/` heeft geen authenticatie. De
-  afscherming gebeurt op de server, niet in de repo.
+- Er is geen backend. Planningen gaan sinds v3.15 als link van telplanning naar
+  de veld-app (blok `planlink`); niets wordt op de server bewaard.
 - **Geen sessielink in commits of PR's.** De repo is openbaar. Zet geen
   `Claude-Session:`-regel en geen `https://claude.ai/code/session_…` in
   commitberichten, PR-beschrijvingen of reacties (afspraak met Jay, v3.2).

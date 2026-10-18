@@ -1471,20 +1471,15 @@ function planlinkUrl(basis, teltype, waarde) {
 /* ── einde gedeeld blok planlink ── */
 
 /* ── Planning in pocket-parkeren (v3.14) ─────────────────── */
-// Uit de link (#parkeren&plan=…, blok planlink) of van de server (?plan=…).
-// Alleen ter oriëntatie: de geplande straten staan in paars op de dekkingskaart,
-// en een regel boven de telvakken zegt welke opdracht er geladen is. In de ZIP
-// komt niets van de planning.
+// Uit de link (#parkeren&plan=…, blok planlink). Alleen ter oriëntatie: de
+// geplande straten staan in paars op de dekkingskaart, en een regel boven de
+// telvakken zegt welke opdracht er geladen is. In de ZIP komt niets van de
+// planning. (v3.14 las ook ?plan= van de server; die opslag is weg sinds v3.15.)
 var pkPlanning = null;   // {naam, lijnen:[{naam, coords:[[lat,lon],…]}]} of {fout}
 function laadPkPlanning() {
-  var planUrl = new URLSearchParams(location.search).get('plan');
   var planLink = planlinkUitHash(location.hash);
-  if (!planUrl && !planLink) return;
-  (planLink
-    ? planlinkUitpakken(planLink)
-    : fetch(planUrl).then(function (r) {
-        return r.ok ? r.json() : Promise.reject(new Error('status ' + r.status));
-      }))
+  if (!planLink) return;
+  planlinkUitpakken(planLink)
     .then(function (data) {
       pkPlanning = {
         naam: data.sessie_naam || '',
@@ -4005,7 +4000,7 @@ function directeModus(hash, herstelOpen) {
   return herstelOpen ? 'herstel' : 'parkeren';
 }
 document.addEventListener('DOMContentLoaded', function () {
-  laadPkPlanning();   // v3.14: planning uit de link of van de server, als die er is
+  laadPkPlanning();   // v3.14: planning uit de link, als die er is
   var herstelOpen = document.getElementById('restore-banner').style.display !== 'none';
   var ingang = directeModus(location.hash, herstelOpen);
   if (!ingang) return;

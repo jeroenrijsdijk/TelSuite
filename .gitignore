@@ -22,8 +22,10 @@ desktop.ini
 *.png
 !docs/img/*.png
 
-# Op de server opgeslagen planningen (kunnen namen van tellers bevatten)
-planningen/*.json
+# Planningen (kunnen namen van tellers bevatten). Tot v3.15 op de server in
+# planningen/ en als download planning_<naam>_<datum>.json; nu alleen nog als link.
+planningen/
+planning_*.json
 
 # Python
 __pycache__/

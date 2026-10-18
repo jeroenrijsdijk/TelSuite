@@ -31,7 +31,7 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_hwvoorkeur.js  # highway-voorkeur in de matcher + versiestempel, 22 tests
     node _archief/overpass_rig/functest_gpxtijd.js     # GPX-tijden in echte UTC, drie parkeer-apps, 31 tests
     node _archief/overpass_rig/functest_segmenttabel.js  # weekprofiel: tabel, 95%-marge, koppeling met het diagram, 23 tests
-    python3 _archief/overpass_rig/laadtest.py          # elke pagina echt laden in Chromium, 46 tests
+    python3 _archief/overpass_rig/laadtest.py          # elke pagina echt laden in Chromium, 45 tests (v3.15: deel D vervallen)
     python3 _archief/overpass_rig/hersteltest.py       # harde crash + doortellen, alle veld-apps, 133 tests
     python3 _archief/overpass_rig/statictest.py        # Static door de keten: export, telrapport, verzameling, reconstructor, 24 tests
     python3 _archief/overpass_rig/opruimtest.py        # noodopslag weg na bevestigde download, en alleen dan; twee vensters (v3.8), 139 tests
@@ -39,7 +39,7 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/logicatest.py        # v3.10: pocket-id bij Start, kwaliteitsrapport in Chromium, sessierij compact (v3.11/v3.12), 30 tests
     python3 _archief/overpass_rig/robuusttest.py       # v3.9: volle opslag, persist, schermslot pocket, voorpagina, telplanning ophalen, 87 tests
     node _archief/overpass_rig/functest_planlink.js    # v3.14: planning als link, inpakken en uitpakken, 29 tests (Node 18+)
-    python3 _archief/overpass_rig/planlinktest.py      # v3.14: link maken in telplanning, openen in parkeertelling/fiets/pocket, 42 tests
+    python3 _archief/overpass_rig/planlinktest.py      # v3.14: link maken in telplanning, openen in parkeertelling/fiets/pocket; v3.15: zonder server, 44 tests
     python3 _archief/overpass_rig/gpkgtest.py          # GeoPackage uit telrapport: van veld-app tot QGIS, met het QGIS-project, 80 tests
                                                        # (ook sql.js@1.14.2 in node_modules; het QGIS-deel draait als
                                                        #  PyQGIS er is, via gpkg_qgis.py, anders overgeslagen)
