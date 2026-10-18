@@ -9,6 +9,3 @@ _archief            export-ignore
 docs                export-ignore
 build_bezocht.py    export-ignore
 
-# Op de server staat hier het echte AuthUserFile-pad. Een upload van de ZIP mag
-# dat niet overschrijven; eenmalig inrichten, zie het bestand zelf.
-planningen/.htaccess export-ignore

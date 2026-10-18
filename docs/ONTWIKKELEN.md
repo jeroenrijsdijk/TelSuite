@@ -2,7 +2,7 @@
 
 Losse HTML-tools voor Nederlandse verkeers- en parkeertellingen, online op
 **telonline.org**. Elk hulpmiddel is één HTML-bestand: geen framework, geen
-buildstap, geen account, geen backend (op het opslaan van planningen na).
+buildstap, geen account, geen backend (sinds v3.15 ook niet meer voor planningen: die gaan als link).
 Veldwerk op de telefoon (iPhone/Safari), verwerking op de desktop.
 
 Dit bestand is de plattegrond. Wat er nu speelt, welke afspraken vastliggen en
@@ -66,9 +66,10 @@ Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 
 ### Server
 
-`planningen/` — `planning_list.php`, `planning_save.php`, `planning_delete.php`, afgeschermd met een wachtwoord via `planningen/.htaccess` (sinds v2.75; eenmalig inrichten, zie de uitleg in dat bestand).
-Nodig voor het bewaren van planningen vanuit `telplanning.html`: PHP 5.6+ en een
-schrijfbare map `/planningen/`. Zonder server werkt de rest gewoon.
+Geen. Tot v3.15 bewaarde `planningen/` (drie PHP-scripts en een `.htaccess`)
+de planningen van telplanning; sinds v3.15 gaat een planning als link
+(`#plan=…`, blok `planlink`) en is die map uit de repo. Op de server zelf moet
+de map met de oude planningen met de hand weg (Plesk, bestandsbeheer).
 
 ### Scripts
 
@@ -92,8 +93,8 @@ schrijfbare map `/planningen/`. Zonder server werkt de rest gewoon.
 wat in `.gitattributes` op `export-ignore` staat) op de branch `site`. Plesk
 volgt die branch ("Deploy using Git", automatisch via een webhook) en zet hem in
 `httpdocs`. Een push met alleen documentatie of tests verandert `site` niet.
-Bestanden die alleen op de server horen (`planningen/.htaccess` met het echte
-wachtwoordpad, de opgeslagen planningen) staan nooit in `site`; de workflow
+Bestanden die alleen op de server horen (een `.htaccess` of `.htpasswd`; tot
+v3.15 ook de opgeslagen planningen) staan nooit in `site`; de workflow
 stopt als er toch een `.htaccess` of `.htpasswd` in de inhoud komt.
 
 Elders: zet alles in één map op een webserver en klaar. De tools linken relatief naar
@@ -168,6 +169,7 @@ op GitHub. Zonder nieuw nummer gebeurt er niets.
 
 De ZIP is `git archive` van de commit: precies wat op de server hoort. Wat er
 niet in gaat, staat in `.gitattributes` (`export-ignore`): ontwikkelspul
-(`_archief/`, `docs/`, `.github/`, `CLAUDE.md`, …) en `planningen/.htaccess`,
-zodat een upload het echte wachtwoordpad op de server niet overschrijft. Komt er
-een bestand bij dat niet op de server hoort, zet het dan in `.gitattributes`.
+(`_archief/`, `docs/`, `.github/`, `CLAUDE.md`, …). Tot v3.15 stond daar ook
+`planningen/.htaccess`, zodat een upload het echte wachtwoordpad op de server
+niet overschreef. Komt er een bestand bij dat niet op de server hoort, zet het
+dan in `.gitattributes`.
