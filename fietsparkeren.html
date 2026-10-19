@@ -2450,13 +2450,19 @@ function exportZip() {
    Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren en
    capaciteitstelling (bewaakt door valideer.py). Zelfde regel als pocket en
    Static: de noodkopie gaat pas weg als de ZIP aantoonbaar is opgeslagen.
-   - deelvenster voltooid -> bevestigd;
-   - geen deelvenster (desktop): download aan de browser overgedragen -> bevestigd;
+   - iOS: deelvenster voltooid -> bevestigd;
+   - Android en desktop: download aan de browser overgedragen -> bevestigd;
    - deelvenster geannuleerd of mislukt (op de iPhone kan het tikgebaar na het
      inpakken verlopen zijn) -> de kopie blijft, geen ongevraagde download, en
-     de ZIP-knop biedt dezelfde ZIP opnieuw aan, binnen de nieuwe tik.
+     de ZIP-knop biedt dezelfde ZIP opnieuw aan, binnen de nieuwe tik;
+   - ingebouwde browser van een app (Android-WebView, "; wv)" in de
+     user-agent): de download gaat wel, maar telt niet als opgeslagen. Zo'n
+     browser bewaart hem meestal niet, dus de kopie blijft.
    Tot v2.77 viel een geannuleerd deelvenster terug op een download-link en
-   werd de kopie daarna altijd gewist, ook als die download niets opleverde. */
+   werd de kopie daarna altijd gewist, ook als die download niets opleverde.
+   Tot v3.18 probeerde ook Android eerst het deelvenster. Chrome op Android
+   deelt geen ZIP en weigerde meteen; de app meldde "niet opgeslagen", en elke
+   tik op de ZIP-knop deed hetzelfde, zonder ooit te downloaden. */
 function zipSleutel() {
   // Zelfde sessie en zelfde inhoud -> dezelfde ZIP mag opnieuw aangeboden worden.
   return [sessionId, entries.length, gpsLog.length,
@@ -2470,12 +2476,19 @@ function bewaarZip(zipBlob, zipName) {
     kopieAfsluiten();   // v3.8: kopie weg, telling op de lijst
     setStatus('ZIP opgeslagen · ' + zipName);
   }
-  if (navigator.canShare && navigator.canShare({files:[zipFile]})) {
+  var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+           || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS && navigator.canShare && navigator.canShare({files:[zipFile]})) {
     return navigator.share({files:[zipFile], title:zipName}).then(bevestigd, function () {
       setStatus('ZIP niet opgeslagen — tik op ⬇ Download ZIP om het opnieuw te proberen. De telling blijft bewaard.');
     });
   }
   downloadBlob(zipBlob, zipName);
+  if (/; wv\)/.test(navigator.userAgent)) {
+    setStatus('ZIP aangeboden, maar de ingebouwde browser van deze app slaat hem meestal niet op. '
+      + 'De telling blijft bewaard. Open de link in Chrome of Samsung Internet.');
+    return Promise.resolve();
+  }
   bevestigd();
   return Promise.resolve();
 }
