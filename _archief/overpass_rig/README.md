@@ -70,6 +70,11 @@ Een nieuwe test met zo'n naam doet dus vanzelf mee. Een hulpscript mag niet op
 `test.py` eindigen. Elke test moet bij een fout met een andere code dan 0
 eindigen (`sys.exit(1)`, `process.exit(1)`); anders ziet GitHub hem als groen.
 
+**Geen vaste tijdzone.** De runner van GitHub draait in UTC, de Claude-omgeving
+in Europe/Amsterdam. Een test die een kloktijd verwacht, rekent die uit in de
+tijdzone van de browser (zie `logicatest.py` A5). Faalt een test alleen op
+GitHub, probeer hem dan lokaal met `TZ=UTC`.
+
 De tests van `gpx_snap.html` zijn sinds v2.65 mee verhuisd naar de aparte gpx-tak.
 IndexedDB en Overpass worden nagebouwd, dus er gaat geen verkeer de deur uit.
 

@@ -118,15 +118,21 @@ with sync_playwright() as p:
     for veld in ('sessieId', 'venster', 'telling'): kop.pop(veld, None)
     kop['startTime'] = '2026-10-16T07:30:15.123Z'               # 09:30:15 in Amsterdam
     legacy = json.dumps({'pocket_sessie': json.dumps(kop)})
+    # De verwachte tijd in het id is die starttijd in de tijdzone van de browser:
+    # 09:30:15 in Amsterdam, 07:30:15 op GitHub (UTC). Tot de tests op GitHub
+    # draaiden stond hier vast 093015.
+    LOKAAL = ("(()=>{var d=new Date('2026-10-16T07:30:15.123Z'),p=n=>String(n).padStart(2,'0');"
+              "return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())})()")
     namen = []
     for i in range(2):
         ctx, C, fc = herlaad_met(b, 'pocket_count.html', legacy, geo=True)
+        stam = C.evaluate(LOKAAL)
         with C.expect_download(timeout=15000) as d:
             C.evaluate('restoreDownload()')
         namen.append(d.value.suggested_filename)
         eis('A5. geen JS-fouten (venster %d)' % (i + 1), not fc, fc)
         ctx.close()
-    eis('A5. id uit de starttijd: 20261016_093015_..._pkt_p', re.fullmatch(r'20261016_093015_[a-z]{3}_pkt_p\.zip', namen[0]), namen)
+    eis('A5. id uit de starttijd: %s_..._pkt_p' % stam, re.fullmatch(stam + r'_[a-z]{3}_pkt_p\.zip', namen[0]), (stam, namen))
     eis('A5. twee vensters, hetzelfde id', namen[0] == namen[1], namen)
 
     # Static: een echte ZIP met GPS-fix voor deel B
