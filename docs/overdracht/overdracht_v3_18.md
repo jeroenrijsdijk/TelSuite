@@ -110,5 +110,20 @@ Tegen v3.17 blijft in deel A de download uit (time-out), zoals bij Jay.
 ## 7. Validatie
 
 ```
-VALIDATIE
+valideer.py           ALLES OK — 5 verwachte bestanden gewijzigd; gedeelde blokken OK (bewaarZip nieuw: 64cf99f1)
+opslaantest.py        48/48 (nieuw; tegen v3.17 blijft de download in deel A uit)
+laadtest.py           45/45
+hersteltest.py        133/133
+statictest.py         24/24
+opruimtest.py         139/139 (iPhone-deelvenster en noodkopie ongewijzigd)
+logicatest.py         30/30
+robuusttest.py        87/87
+planlinktest.py       51/51
+onderhoudtest.py      17/17
+gpkgtest.py           80/80
+functests             alle 18 groen
+test_zipref.py        referentie sluit aan op de code
+check_encoding.py     alles geldige UTF-8
+node --check          inline JavaScript van de drie parkeer-apps en index.html
+tagbalans             OK
 ```
