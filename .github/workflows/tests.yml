@@ -25,6 +25,13 @@
 # sql.js, leaflet, lettertypen) en Chromium staan alleen op de runner, zie
 # .github/actions/testopzet. Er gaan geen secrets of schrijfrechten mee.
 #
+# Faalt een browsertest, dan staan zijn FOUT-regels als melding bij de
+# controle (.github/scripts/meldingen.sh). Zo zie je in de PR wat er misging,
+# zonder het hele log te openen.
+#
+# ubuntu-24.04 en niet ubuntu-latest: Playwright installeert de systeem-
+# bibliotheken voor Chromium per Ubuntu-versie, en ubuntu-latest schuift op.
+#
 # Met de hand opnieuw: Actions -> Tests -> Run workflow.
 
 name: Tests
@@ -49,10 +56,10 @@ env:
 jobs:
   snel:
     name: valideer en functests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 2          # HEAD^1: de stand van main vóór deze wijziging
 
@@ -102,12 +109,12 @@ jobs:
 
   lijst:
     name: browsertests zoeken
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       tests: ${{ steps.zoek.outputs.tests }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: zoek
         run: |
           cd _archief/overpass_rig
@@ -118,25 +125,30 @@ jobs:
   browser:
     name: ${{ matrix.test }}
     needs: lijst
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         test: ${{ fromJSON(needs.lijst.outputs.tests) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/testopzet
         with:
           chromium: 'true'
       - name: ${{ matrix.test }}.py
-        run: python _archief/overpass_rig/${{ matrix.test }}.py
+        run: |
+          set -o pipefail
+          python _archief/overpass_rig/${{ matrix.test }}.py 2>&1 | tee "$RUNNER_TEMP/uitvoer.txt"
+      - name: Fouten als melding
+        if: failure()
+        run: bash .github/scripts/meldingen.sh "${{ matrix.test }}" "$RUNNER_TEMP/uitvoer.txt"
 
   klaar:
     name: alles groen
     if: always()
     needs: [snel, browser]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Uitslag
         run: |
