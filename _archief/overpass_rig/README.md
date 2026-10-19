@@ -42,6 +42,7 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/planlinktest.py      # v3.14: link maken in telplanning, openen in parkeertelling/fiets/pocket; v3.15: zonder server; v3.16: capaciteitscontouren standaard uit, 51 tests
     node _archief/overpass_rig/functest_bbox.js        # v3.17: bbox-filter van telrapport, ook voor verzamelingen, 11 tests (jszip papaparse)
     python3 _archief/overpass_rig/onderhoudtest.py     # v3.17: pocket zonder _netwerk.csv, zoekTerreinen met geheugen, 17 tests
+    python3 _archief/overpass_rig/opslaantest.py       # v3.18: ZIP opslaan in de parkeer-apps per platform (Android, ingebouwde browser, desktop, iPhone), 48 tests
     python3 _archief/overpass_rig/gpkgtest.py          # GeoPackage uit telrapport: van veld-app tot QGIS, met het QGIS-project, 80 tests
                                                        # (ook sql.js@1.14.2 in node_modules; het QGIS-deel draait als
                                                        #  PyQGIS er is, via gpkg_qgis.py, anders overgeslagen)

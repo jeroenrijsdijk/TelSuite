@@ -12,10 +12,10 @@ OUD_DIR = '/home/claude/suite'
 NIEUW_DIR = '/home/claude/build'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.17'
-# v3.17: backlog opgeruimd (metadata referentie, terugval telrapport, zoekTerreinen, probeBbox).
-VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'telplanning.html', 'capaciteitstelling.html',
-                      'traffic_counter_help.html', 'zip_format_reference.html'}
+RELEASE = 'v3.18'
+# v3.18: ZIP opslaan op Android als download (gedeeld blok bewaarZip), handleiding.
+VERWACHT_GEWIJZIGD = {'index.html', 'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                      'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
