@@ -55,7 +55,20 @@ ook verborgen tekst, en slaat script, stijl en witruimte over. De scheidingsteke
 `· — ( )` tellen niet mee; geef met `--negeer` een andere set.
 
 `valideer.py` vergelijkt met een vorige release; pas OUD_DIR/NIEUW_DIR en de
-verwachte sets (gewijzigd/verwijderd) aan.
+verwachte sets (gewijzigd/verwijderd) aan. De mappen mogen ook uit de omgeving
+komen (`VALIDEER_OUD`, `VALIDEER_NIEUW`). Met `VALIDEER_ZONDER_RELEASE=1` slaan
+de release-controles over (welke bestanden veranderden, het nummer, de
+overdracht): voor een PR zonder nieuw versienummer.
+
+**Op GitHub** draait `.github/workflows/tests.yml` dit alles bij elke PR, zie
+`docs/ONTWIKKELEN.md`. Hij vindt de tests op hun naam:
+- `functest*.js`: Node, in één job, met jszip, papaparse en sql.js via `NODE_PATH`;
+- `<naam>test.py` (kleine letters, eindigt op `test.py`): een browsertest met een
+  eigen job; `test_zipref.py` valt daar buiten en draait in de eerste job.
+
+Een nieuwe test met zo'n naam doet dus vanzelf mee. Een hulpscript mag niet op
+`test.py` eindigen. Elke test moet bij een fout met een andere code dan 0
+eindigen (`sys.exit(1)`, `process.exit(1)`); anders ziet GitHub hem als groen.
 
 De tests van `gpx_snap.html` zijn sinds v2.65 mee verhuisd naar de aparte gpx-tak.
 IndexedDB en Overpass worden nagebouwd, dus er gaat geen verkeer de deur uit.

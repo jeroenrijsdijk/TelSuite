@@ -159,6 +159,19 @@ tagbalans, byte-identiteit, gedeelde blokken), de functionele tests uit
 `_archief/overpass_rig/`, en een nieuwe `docs/overdracht/overdracht_vX_Y.md`. Het versienummer
 onderaan `index.html` gaat elke release omhoog; `valideer.py` controleert dat.
 
+**Op GitHub** (sinds 19 oktober 2026). Bij elke PR naar `main`, en na elke merge,
+draait `.github/workflows/tests.yml` dezelfde tests:
+- `valideer.py`, tegen de stand van `main` vóór de wijziging. Houdt `index.html`
+  hetzelfde versienummer, dan is het geen release en slaan de release-controles
+  over (`VALIDEER_ZONDER_RELEASE=1`).
+- Alle `functest*.js`, `test_zipref.py` en `check_encoding.py`.
+- Elke browsertest (`<naam>test.py`) in een eigen job, naast elkaar, in Chromium.
+
+De controle **alles groen** vat het samen. Een nieuwe test vindt de workflow
+vanzelf, zolang hij die naam draagt. De bibliotheken voor de tests installeert
+`.github/actions/testopzet` op de runner, buiten de repo, in de versies van de
+CDN-links hierboven. Gaat een app over op een nieuwe versie, dan daar mee.
+
 ## Release-ZIP
 
 Sinds v3.0 maakt GitHub per versie zelf een release. Na elke push naar `main`

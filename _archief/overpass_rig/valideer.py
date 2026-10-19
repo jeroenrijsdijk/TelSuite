@@ -8,8 +8,15 @@ afwijking telt als fout; verdwenen ruis als verbetering. De enige bekende ruis
 import io, os, re, subprocess, sys, hashlib
 from html.parser import HTMLParser
 
-OUD_DIR = '/home/claude/suite'
-NIEUW_DIR = '/home/claude/build'
+# De twee mappen. Op GitHub (tests.yml) zet de workflow ze via de omgeving.
+OUD_DIR = os.environ.get('VALIDEER_OUD', '/home/claude/suite')
+NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
+# Een PR zonder nieuw versienummer (alleen documentatie, tests of opmaak) heeft
+# geen eigen RELEASE en VERWACHT-sets. Met VALIDEER_ZONDER_RELEASE=1 slaan de
+# release-controles over: welke bestanden er veranderden, het releasenummer en
+# de overdracht. Alle andere controles blijven. tests.yml zet hem zelf als
+# index.html hetzelfde nummer houdt.
+ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
 RELEASE = 'v3.18'
@@ -131,18 +138,21 @@ for f in html:
 gewijzigd |= nieuw_bestand
 onverwacht = gewijzigd - VERWACHT_GEWIJZIGD
 ontbrekend = VERWACHT_GEWIJZIGD - gewijzigd
-if onverwacht:
-    print('  FOUT onverwacht gewijzigd: %s' % sorted(onverwacht)); fouten += 1
-if ontbrekend:
-    print('  FOUT niet gewijzigd terwijl verwacht: %s' % sorted(ontbrekend)); fouten += 1
-if not onverwacht and not ontbrekend:
-    print('  precies de %d verwachte bestanden gewijzigd, de rest byte-identiek'
-          % len(VERWACHT_GEWIJZIGD))
+if ZONDER_RELEASE:
+    print('  geen release: %d bestand(en) gewijzigd, niet vergeleken met VERWACHT_GEWIJZIGD' % len(gewijzigd))
+else:
+    if onverwacht:
+        print('  FOUT onverwacht gewijzigd: %s' % sorted(onverwacht)); fouten += 1
+    if ontbrekend:
+        print('  FOUT niet gewijzigd terwijl verwacht: %s' % sorted(ontbrekend)); fouten += 1
+    if not onverwacht and not ontbrekend:
+        print('  precies de %d verwachte bestanden gewijzigd, de rest byte-identiek'
+              % len(VERWACHT_GEWIJZIGD))
 
 verwijderd = {f for f in os.listdir(OUD_DIR) if f.endswith('.html')} - set(html)
 for f in sorted(verwijderd):
     print('  verwijderd: %s' % f)
-if verwijderd != VERWACHT_VERWIJDERD:
+if not ZONDER_RELEASE and verwijderd != VERWACHT_VERWIJDERD:
     print('  FOUT verwijderd %s, verwacht %s' % (sorted(verwijderd), sorted(VERWACHT_VERWIJDERD)))
     fouten += 1
 
@@ -280,28 +290,36 @@ def als_getal(v):
     return tuple(int(x) for x in v[1:].split('.'))
 
 nieuw_v, oud_v = versie_op_index(NIEUW_DIR), versie_op_index(OUD_DIR)
-if nieuw_v != [RELEASE]:
-    print('  FOUT index.html toont %s, verwacht precies [%s]' % (nieuw_v, RELEASE))
-    fouten += 1
+if ZONDER_RELEASE:
+    # Geen release: het nummer blijft wat het was, en verder is er niets te toetsen.
+    if nieuw_v != oud_v:
+        print('  FOUT VALIDEER_ZONDER_RELEASE, maar index.html ging van %s naar %s' % (oud_v, nieuw_v))
+        fouten += 1
+    else:
+        print('  geen release: index.html houdt %s' % (nieuw_v[0] if nieuw_v else '?'))
 else:
-    print('  index.html          %s' % RELEASE)
-if oud_v and als_getal(oud_v[0]) >= als_getal(RELEASE):
-    print('  FOUT niet opgehoogd: vorige release toonde al %s' % oud_v[0])
-    fouten += 1
-elif oud_v:
-    print('  vorige release      %s' % oud_v[0])
-stand = io.open(os.path.join(NIEUW_DIR, 'OVERDRACHT_STAND_VAN_ZAKEN.md'), encoding='utf-8').read()
-if ('**Laatste release: %s.**' % RELEASE) in stand:
-    print('  stand van zaken     %s' % RELEASE)
-else:
-    print('  FOUT stand van zaken noemt niet "Laatste release: %s."' % RELEASE)
-    fouten += 1
-overdracht = 'overdracht_%s.md' % RELEASE.replace('.', '_')
-if os.path.exists(os.path.join(NIEUW_DIR, overdracht)):
-    print('  overdracht          %s' % overdracht)
-else:
-    print('  FOUT %s ontbreekt' % overdracht)
-    fouten += 1
+    if nieuw_v != [RELEASE]:
+        print('  FOUT index.html toont %s, verwacht precies [%s]' % (nieuw_v, RELEASE))
+        fouten += 1
+    else:
+        print('  index.html          %s' % RELEASE)
+    if oud_v and als_getal(oud_v[0]) >= als_getal(RELEASE):
+        print('  FOUT niet opgehoogd: vorige release toonde al %s' % oud_v[0])
+        fouten += 1
+    elif oud_v:
+        print('  vorige release      %s' % oud_v[0])
+    stand = io.open(os.path.join(NIEUW_DIR, 'OVERDRACHT_STAND_VAN_ZAKEN.md'), encoding='utf-8').read()
+    if ('**Laatste release: %s.**' % RELEASE) in stand:
+        print('  stand van zaken     %s' % RELEASE)
+    else:
+        print('  FOUT stand van zaken noemt niet "Laatste release: %s."' % RELEASE)
+        fouten += 1
+    overdracht = 'overdracht_%s.md' % RELEASE.replace('.', '_')
+    if os.path.exists(os.path.join(NIEUW_DIR, overdracht)):
+        print('  overdracht          %s' % overdracht)
+    else:
+        print('  FOUT %s ontbreekt' % overdracht)
+        fouten += 1
 
 print('\n== versiestempel reconstructor ==')
 # v2.74: RECON_VERSIE in telreconstructie.html is de release waarin de
@@ -321,6 +339,8 @@ t_oud, _ = recon_stempel(OUD_DIR)
 if t_nieuw is not None:
     if len(st_nieuw) != 1:
         print('  FOUT verwacht precies één RECON_VERSIE, gevonden %s' % st_nieuw); fouten += 1
+    elif t_nieuw != t_oud and ZONDER_RELEASE:
+        print('  FOUT telreconstructie.html is gewijzigd zonder release; RECON_VERSIE moet mee met een nieuw nummer'); fouten += 1
     elif t_nieuw != t_oud and st_nieuw[0] != RELEASE:
         print('  FOUT telreconstructie.html is gewijzigd, maar RECON_VERSIE = %s (verwacht %s)' % (st_nieuw[0], RELEASE)); fouten += 1
     elif als_getal(st_nieuw[0]) > als_getal(RELEASE):
