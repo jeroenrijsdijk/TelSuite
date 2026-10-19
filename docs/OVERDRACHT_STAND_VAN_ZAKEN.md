@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.17.** Vijf punten van de backlog opgepakt: metadata voor de ZIP-referentie, een fout commentaar in capaciteitstelling, `zoekTerreinen` met geheugen, het bbox-filter voor verzamelingen, en de "oude terugvalcode" in telrapport en telplanning. Die bleek niet dood: een pocket-ZIP na Doortellen kan zonder `_netwerk.csv` zijn (`overdracht_v3_17.md`). Tussen v3.16 en v3.17, zonder versienummer: scheidingslijnen en duidelijkere koppen in de documentatiepagina's. v3.16 zette de capaciteitscontouren in de parkeertelling standaard uit.
+**Laatste release: v3.18.** De ZIP-knop van de parkeer-apps werkte op Android niet: het gedeelde blok `bewaarZip` probeerde ook daar het deelvenster, en Chrome op Android deelt geen ZIP. Nu alleen iOS via het deelvenster, Android en desktop als download, zoals pocket; in de ingebouwde browser van een app telt een download niet als opgeslagen (`overdracht_v3_18.md`). v3.17 ruimde vijf backlogpunten op; v3.16 zette de capaciteitscontouren in de parkeertelling standaard uit.
 
 ---
 
@@ -125,6 +125,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ## 4. Nog te doen door Jay (buiten de code)
 
+0b. **De telling van de S25 alsnog opslaan** (na de merge van v3.18). Hij staat nog in de noodkopie van Chrome op de telefoon. Open parkeertelling in dezelfde Chrome, tik **niet** op Start (dat vraagt of de herstelde telling weg mag), en tik op ⬇ Download ZIP: de ZIP staat dan in Downloads, en de noodkopie verdwijnt.
 0a. ~~**Planningmap op de server opruimen**~~ — gedaan (Jay, 18 okt 2026: "Alles opgeruimd"). Na de merge van v3.15: De repo heeft geen `planningen/` meer, maar de opgeslagen planningen (`planning_*.json`, met tellernamen) zijn nooit via git gekomen en blijven dus op de server staan. In Plesk → Bestanden → `httpdocs/planningen` de hele map weg. Controle: `https://telonline.org/planningen/planning_list.php` geeft daarna 404. Stond er nog een *Password-Protected Directory* op `/planningen`, die mag ook weg. De privacyverklaring zegt sinds v3.15 dat er geen planningen meer op de server staan.
 1. **Screenshots voor `over.html`** — nog niet geleverd. Drie bestanden, exact deze namen, naast `over.html`:
    `screenshot-tellen.jpg` · `screenshot-nabewerken.jpg` · `screenshot-telrapport.jpg`
@@ -154,6 +155,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - Veiligheidsblok-kop in de handleiding: `<h1>` → `<h4>` voor consistentie (Jay's keuze — hij schreef die sectie zelf). Sinds de duidelijkere koppen (na v3.16) valt hij nog meer op dan de hoofdstukken.
 - Overpass-terugval voor het losse transect-formaat (`_trn`, telrapport `loadTransectZip`) gaat mee met het besluit over `_trn` hierboven; v3.17 liet hem staan.
 - **Pocket: netwerk ook na Doortellen in de ZIP** (gevonden in v3.17). Pocket schrijft `_netwerk.csv` alleen als de snap-motor bij Stop een netwerk in het geheugen heeft, en de noodkopie bewaart dat netwerk niet. Na Doortellen, zonder nieuw netwerk, ontbreekt het bestand; telrapport haalt de geometrie dan via Overpass (de terugval die daarom bleef). Oplossing: het netwerk in de noodkopie bewaren (zoals de parkeer-apps met `<sleutel>_netwerk`), of na Doortellen meteen de tegelcache of Overpass vragen. Dan kan de terugval in telrapport alsnog weg.
+- **Ingebouwde browser van een app** (uit v3.18). Op Android opent een link uit sommige apps in een WebView (`; wv)` in de user-agent): geen ZIP-download, en de noodkopie staat in de opslag van die app, niet in Chrome. v3.18 laat in de parkeer-apps alleen de kopie staan. Nog open: (1) een waarschuwingsbalk bij het openen, met *Kopieer link*, in alle vijf de veld-apps (nieuw gedeeld blok, tweetalig zoals *Noodopslag vol*); (2) pocket en Static: een download in een WebView niet als opgeslagen tellen, en *Sluiten* in het voorbeeldscherm van pocket dan niet laten bevestigen. Pas oppakken als het in het veld voorkomt.
 - Ook kaal maken? `zip_format_reference.html` en `snap_methodology.html` hebben nog de oude opmaak (Jay's keuze; v3.3 deed alleen de drie pagina's voor gebruikers).
 - Engelse variant van `over.html`.
 - **Bewijswaarde van een telling** (uit `verantwoording.html`, v3.4), in volgorde van nut:
@@ -231,7 +233,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.17 in één oogopslag
+## 6. Releases v2.32 → v3.18 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -300,6 +302,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.16 | Parkeertelling: **capaciteitscontouren standaard uit** (Jay: "Het kaartje is te druk om te lezen"), knop *capaciteit* in de kop van de kaart; `cap_netwerk.csv` pas opgehaald bij de eerste keer aanzetten, zonder bestand gaat de knop uit; handleiding bij *Mini-kaart & bearing*; `planlinktest` deel E (51) |
 | — | Zonder versienummer (Jay): scheidingslijnen tussen de secties van de handleiding en `over.html`; h1 en h2 groter met een dikke lijn in de gedeelde kale stijl (alle vier de documentatiepagina's) |
 | v3.17 | **Backlog opgeruimd**: Open Graph en TechArticle op `zip_format_reference.html`; de "terugvalcode" in telrapport en telplanning bleek niet dood (een pocket-ZIP na Doortellen kan zonder `_netwerk.csv` zijn; de Overpass-terugval vangt dat op) en kreeg eerlijk commentaar; fout commentaar over `_terrein.csv` in capaciteitstelling; `zoekTerreinen` met geheugen (geen verzoek binnen 150 m van een eerdere zoekplek, terreinen blijven staan, `ovpKeur`, niet doorvragen bij een rate-limit); bbox-filter kent verzamelingen (bbox van alle tellingen samen, laadt als geheel); nieuwe `functest_bbox.js` (11) en `onderhoudtest.py` (17) |
+| v3.18 | **ZIP opslaan op Android** (Jay, veldtelling op de S25: "Zip niet opgeslagen", en ⬇ Download ZIP reageerde niet): het gedeelde blok `bewaarZip` gebruikt het deelvenster alleen nog op iOS, zoals `saveBlob` en pocket; Android en desktop krijgen een download. Chrome op Android deelt geen ZIP en weigerde, dus er kwam nooit een download. In een Android-WebView telt een download niet als opgeslagen: de noodkopie blijft. Handleiding bij *↓ Download ZIP* en *Planning als link*; nieuwe `opslaantest.py` (48) |
 
 ---
 
