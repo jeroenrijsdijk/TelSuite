@@ -583,7 +583,10 @@ function openReconstructie() {
     .catch(function () { alert('Doorsturen mislukt \u2014 open telreconstructie.html en sleep de ZIP erin.'); });
 }
 
-var ROAD_CACHE_DIST   = 150;  // re-fetch when this far from cache center
+var ROAD_CACHE_DIST   = 220;  // re-fetch when this far from cache center
+// v3.19: was 150 m. Met radius 300 m was dan 69% van elke fetch al bekend
+// gebied; nu blijft er 80 m marge voor een traag antwoord, en scheelt het een
+// derde van de verzoeken. Zelfde waarde in de drie parkeer-apps (valideer.py).
 var SNAP_MAX_DIST     = 50;   // ignore snap if road is further than this
 
 var csvDownloaded = false;
