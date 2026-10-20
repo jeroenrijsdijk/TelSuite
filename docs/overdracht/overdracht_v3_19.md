@@ -192,5 +192,20 @@ haalt nu dus ook het gebied op.
 ## 8. Validatie
 
 ```
-VALIDATIE
+valideer.py           ALLES OK — 8 verwachte bestanden gewijzigd; gedeelde blokken OK (gebied vooraf nieuw: c57af75b; planlink, leesTegels, cacheWaysInTiles, OVP-blok ongewijzigd); constante verversafstand 220 in 3 bestanden
+functest_gebied.js    22/22 (nieuw)
+gebiedtest.py         41/41 (nieuw; drie keer gedraaid)
+laadtest.py           45/45
+hersteltest.py        133/133
+statictest.py         24/24
+opruimtest.py         139/139
+logicatest.py         30/30
+robuusttest.py        87/87
+planlinktest.py       51/51
+onderhoudtest.py      17/17
+opslaantest.py        48/48
+gpkgtest.py           80/80
+functests             alle 19 groen
+test_zipref.py        referentie sluit aan op de code
+check_encoding.py     alles geldige UTF-8
 ```
