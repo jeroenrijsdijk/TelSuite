@@ -136,6 +136,24 @@
   .dropzone input { display: none; }
   .dropzone .dz-icon { font-size: 1.4rem; margin-bottom: 4px; }
 
+  /* ── Planning uit een link (v3.19) ── */
+  #link-invoer-rij { display: flex; gap: 6px; }
+  #link-invoer-rij .meta-input { flex: 1; min-width: 0; }
+  #btn-link-invoer {
+    padding: 0 12px;
+    background: none;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--font);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  #btn-link-invoer:hover { border-color: var(--text); }
+
   .matrix {
     display: grid;
     grid-template-columns: 72px repeat(3, 1fr);
@@ -565,6 +583,15 @@
         <div>Sleep een parkeer- of fiets-ZIP hier<br>voor een hertelling</div>
         <input type="file" id="hertelling-input" accept=".zip">
       </label>
+    </div>
+
+    <!-- Planning uit een link (v3.19): een verstuurde planning aanpassen -->
+    <div class="panel-section maken-only">
+      <div class="section-title">Of: planning uit een link</div>
+      <div id="link-invoer-rij">
+        <input type="text" class="meta-input" id="link-invoer" placeholder="Plak de link uit je mail" autocomplete="off" spellcheck="false">
+        <button type="button" id="btn-link-invoer" onclick="openPlanningUitLink()">Openen</button>
+      </div>
     </div>
 
     <!-- Highway-type toggles — gedeeld (filter werkt in beide modi) -->
@@ -1346,9 +1373,11 @@ function processWays(elements, geojsonPoly) {
     var coords = el.geometry.map(function(n){ return [n.lat, n.lon]; });
     var wkt   = wayToWkt(el.geometry);
 
-    // Bepaal of weg binnen de getekende polygoon valt
+    // Bepaal of weg binnen de getekende polygoon valt. De omgeving van een
+    // planning uit een link (v3.19) komt er nooit gekozen bij.
     var c = wayCentroid(coords);
     var inPoly = geojsonPoly ? ptInGeoJsonPoly(c.lon, c.lat, geojsonPoly) : true;
+    if (geojsonPoly && geojsonPoly.omgeving) inPoly = false;
 
     var way = {
       id:        String(el.id),
@@ -2190,6 +2219,84 @@ function prefillUitSessie(sessieTxt, gemist) {
   });
 })();
 
+// ── Planning uit een link (v3.19) ────────────────────────────────────────────
+// Een verstuurde planning terug in telplanning, om hem aan te passen of opnieuw
+// te gebruiken. Plak de link (naar parkeertelling, fietsparkeren of pocket) in
+// het veld, of open telplanning.html#plan=… . Het blok planlink pakt hem uit.
+//   - de straten gaan, net als bij de hertelling, als pseudo-Overpass-elementen
+//     door processWays, allemaal gekozen; naam, datum, tijd, teller en teltype
+//     komen in de velden;
+//   - daarna haalt telplanning de omgeving op (de straten rond de planning, met
+//     LINK_OMGEVING_M marge). Die komen grijs in beeld, niet gekozen: met een
+//     klik erbij, zoals na het tekenen;
+//   - de getekende contour zit niet in de link en komt dus niet terug.
+var LINK_OMGEVING_M = 100;
+
+// Link, '#plan=…', 'plan=…' of '1.<data>' → '1.<data>', anders null
+function linkWaardeUit(tekst) {
+  tekst = String(tekst || '').trim();
+  var h = tekst.indexOf('#');
+  if (h >= 0) return planlinkUitHash(tekst.slice(h));
+  if (tekst.indexOf('plan=') === 0) return tekst.slice(5);
+  return /^\d+\./.test(tekst) ? tekst : null;
+}
+
+// De rechthoek rond de straten, LINK_OMGEVING_M ruimer, als GeoJSON-polygoon
+function linkOmgeving(elements) {
+  var s = 90, n = -90, w = 180, o = -180;
+  elements.forEach(function (el) {
+    el.geometry.forEach(function (p) {
+      s = Math.min(s, p.lat); n = Math.max(n, p.lat); w = Math.min(w, p.lon); o = Math.max(o, p.lon);
+    });
+  });
+  var dLat = LINK_OMGEVING_M / 111320;
+  var dLon = LINK_OMGEVING_M / (111320 * Math.cos(((s + n) / 2) * Math.PI / 180));
+  s -= dLat; n += dLat; w -= dLon; o += dLon;
+  return { type: 'Polygon', omgeving: true, coordinates: [[[w, s], [o, s], [o, n], [w, n], [w, s]]] };
+}
+
+function openPlanningUitLink(tekst) {
+  if (tekst === undefined) tekst = document.getElementById('link-invoer').value;
+  var waarde = linkWaardeUit(tekst);
+  if (!waarde) {
+    setStatus('Geen planning in deze link: een planning-link bevat #plan=.');
+    return Promise.resolve(false);
+  }
+  return planlinkUitpakken(waarde).then(function (planning) {
+    var elements = planning.wegen.map(function (w) {
+      var coords = parseWktLine(w.geometrie_wkt);
+      return {
+        type: 'way', id: String(w.osm_way_id),
+        tags: { highway: w.highway || '', name: w.naam || ('(' + (w.highway || '') + ')') },
+        geometry: coords.map(function (p) { return { lat: p[0], lon: p[1] }; })
+      };
+    }).filter(function (el) { return el.geometry.length >= 2; });
+    if (!elements.length) { setStatus('Deze link bevat geen straten.'); return false; }
+
+    clearAll();                   // schone lei, zoals bij de hertelling
+    setMode('maken');
+    processWays(elements, null);  // geen contour: alle straten gekozen
+    document.getElementById('meta-naam').value   = planning.sessie_naam || '';
+    if (planning.datum)    document.getElementById('meta-datum').value = planning.datum;
+    if (planning.tijdstip) document.getElementById('meta-tijd').value  = planning.tijdstip;
+    document.getElementById('meta-teller').value = planning.teller || '';
+    var tt = document.getElementById('meta-teltype');
+    if (TELTYPE_LABEL[planning.tel_type]) tt.value = planning.tel_type;
+    document.getElementById('btn-clear').style.display = '';
+    document.getElementById('btn-draw').textContent = '\u270E Voeg contour toe';
+    document.getElementById('link-invoer').value = '';
+    fetchWaysForPolygon(linkOmgeving(elements));   // de omgeving, niet gekozen
+    return true;
+  }, function (e) {
+    setStatus('Link openen mislukt: ' + ((e && e.message) || e));
+    return false;
+  });
+}
+
+document.getElementById('link-invoer').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); openPlanningUitLink(); }
+});
+
 // ── Init: datum en tijdstip prefill ──────────────────────────────────────────
 (function() {
   var nu = new Date();
@@ -2199,6 +2306,9 @@ function prefillUitSessie(sessieTxt, gemist) {
   document.getElementById('meta-tijd').value =
     pad(nu.getHours())+':'+pad(nu.getMinutes());
 })();
+
+// Geopend als telplanning.html#plan=… (v3.19): de planning meteen inlezen.
+if (planlinkUitHash(location.hash)) openPlanningUitLink(location.href);
 </script>
 </body>
 </html>

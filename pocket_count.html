@@ -1470,6 +1470,194 @@ function planlinkUrl(basis, teltype, waarde) {
 }
 /* ── einde gedeeld blok planlink ── */
 
+/* ── Gebied vooraf ophalen (v3.19) ─────────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren en pocket_count
+   (bewaakt door valideer.py; tests: functest_gebied.js en gebiedtest.py).
+   Opent een planning-link (blok planlink), dan haalt de app meteen de wegen van
+   het geplande gebied op en zet ze in de gedeelde tegelcache. Meestal gebeurt
+   dat thuis, op wifi. In het veld vindt leesTegels dan alles, en gaat er geen
+   verzoek naar Overpass zolang je in het gebied blijft. Daarbuiten haalt de app
+   de wegen onderweg op, zoals altijd.
+   - Welke tegels: alle tegels die leesTegels kan vragen voor een fetch-cirkel
+     rond een punt tot GEBIED_MARGE_M naast een geplande straat. De straten
+     worden daarvoor verdicht tot een punt om de GEBIED_STAP_M.
+   - Een tegel die korter dan GEBIED_HOUDBAAR_MS geleden is opgehaald (en dus
+     nog minstens zo lang vers blijft voor leesTegels), slaat hij over. Een
+     tweede keer openen kost dan niets.
+   - De rest komt in één verzoek, met de zoekvraag van het veld, per rij
+     aaneengesloten tegels één bbox. Elke gevraagde tegel is dan helemaal
+     gedekt en mag de cache in (de regel van cacheWaysInTiles); een weg hoort,
+     net als daar, bij elke tegel waarin een punt van de weg ligt.
+   - Het antwoord gaat door ovpKeur. Een rate-limit: niet ook de tweede server
+     vragen. Lukt het nergens, of is het gebied groter dan GEBIED_MAX_TEGELS,
+     dan gebeurt er niets: in het veld werkt alles zoals vroeger.
+   - Opent de teller de link pas in het veld, dan kan de eerste fetch van het
+     veld nog net vóór de tegels komen (pocket-parkeren start meteen). Dat kost
+     één gewoon verzoek; daarna komt alles uit de tegels.
+   gebiedVooraf(lijnen, radiusM, servers): lijnen = [[[lat,lon],…],…],
+   radiusM = de fetch-radius van de app, servers = zijn Overpass-adressen.
+   Geeft een belofte met { tegels, nieuw, kb } of { tegels, fout };
+   gebiedTekst() maakt daar een korte regel van. */
+var GEBIED_STAP_M      = 25;
+var GEBIED_MARGE_M     = 50;                        // het GPS-punt ligt niet precies op de straat
+var GEBIED_MAX_TEGELS  = 30;                        // ~23 km²; groter breekt Overpass vaak af
+var GEBIED_TIMEOUT_MS  = 60000;
+var GEBIED_HOUDBAAR_MS = 7 * 24 * 3600 * 1000;      // de helft van TEGEL_TTL_MS
+
+function gebiedTegels(lijnen, radiusM) {
+  var r = radiusM + GEBIED_MARGE_M, gezien = {}, uit = [];
+  function voeg(lat, lon) {
+    var mPerLat = 111320, mPerLon = 111320 * Math.cos(lat * Math.PI / 180) || 1;
+    var dLat = r / mPerLat, dLon = r / mPerLon;
+    var ty0 = Math.floor((lat - dLat) / TILE_DEG_SHARED), ty1 = Math.floor((lat + dLat) / TILE_DEG_SHARED);
+    var tx0 = Math.floor((lon - dLon) / TILE_DEG_SHARED), tx1 = Math.floor((lon + dLon) / TILE_DEG_SHARED);
+    for (var ty = ty0; ty <= ty1; ty++) {
+      for (var tx = tx0; tx <= tx1; tx++) {
+        var k = 't_' + ty + '_' + tx;
+        if (!gezien[k]) { gezien[k] = 1; uit.push({ key: k, ty: ty, tx: tx }); }
+      }
+    }
+  }
+  (lijnen || []).forEach(function (lijn) {
+    for (var i = 0; i < lijn.length; i++) {
+      voeg(lijn[i][0], lijn[i][1]);
+      if (i + 1 >= lijn.length) break;
+      var a = lijn[i], b = lijn[i + 1];
+      var dy = (b[0] - a[0]) * 111320, dx = (b[1] - a[1]) * 111320 * Math.cos(a[0] * Math.PI / 180);
+      var n = Math.floor(Math.sqrt(dx * dx + dy * dy) / GEBIED_STAP_M);
+      for (var j = 1; j <= n; j++) {
+        voeg(a[0] + (b[0] - a[0]) * j / (n + 1), a[1] + (b[1] - a[1]) * j / (n + 1));
+      }
+    }
+  });
+  return gebiedSorteer(uit);
+}
+function gebiedSorteer(tegels) {
+  return tegels.sort(function (p, q) { return p.ty - q.ty || p.tx - q.tx; });
+}
+
+// De zoekvraag van het veld (fetchRoads), met bboxen in plaats van een cirkel
+function gebiedQuery(tegels) {
+  var delen = [], i = 0;
+  while (i < tegels.length) {
+    var j = i;
+    while (j + 1 < tegels.length && tegels[j + 1].ty === tegels[i].ty && tegels[j + 1].tx === tegels[j].tx + 1) j++;
+    var bb = '(' + [tegels[i].ty, tegels[i].tx, tegels[i].ty + 1, tegels[j].tx + 1].map(function (g) {
+      return (g * TILE_DEG_SHARED).toFixed(2);
+    }).join(',') + ')';
+    delen.push('way["highway"~"' + HIGHWAY_RE + '"]["area"!="yes"]' + bb + ';'
+             + 'way["tunnel"="building_passage"]' + bb + ';');
+    i = j + 1;
+  }
+  return '[out:json][timeout:25];(' + delen.join('') + ');out tags geom;';
+}
+
+// Welke tegels moeten (opnieuw) worden opgehaald?
+function gebiedNodig(tegels) {
+  return _tileDb().then(function (db) {
+    return new Promise(function (res) {
+      var st = db.transaction(TILE_STORE, 'readonly').objectStore(TILE_STORE);
+      var grens = Date.now() - GEBIED_HOUDBAAR_MS, nodig = [], open = tegels.length;
+      if (!open) return res(nodig);
+      tegels.forEach(function (t) {
+        var q = st.get(t.key);
+        q.onsuccess = function () {
+          var rec = q.result;
+          if (!rec || !rec.ts || rec.ts < grens || (rec.v || 1) < TEGEL_SCHEMA) nodig.push(t);
+          if (--open === 0) res(gebiedSorteer(nodig));
+        };
+        q.onerror = function () { nodig.push(t); if (--open === 0) res(gebiedSorteer(nodig)); };
+      });
+    });
+  });
+}
+
+function gebiedHaal(query, servers, idx) {
+  if (idx >= servers.length) return Promise.reject(new Error('geen server gaf een bruikbaar antwoord'));
+  var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  var klok = setTimeout(function () { if (ctrl) ctrl.abort(); }, GEBIED_TIMEOUT_MS);
+  return fetch(servers[idx] + '?data=' + encodeURIComponent(query), ctrl ? { signal: ctrl.signal } : {})
+    .then(function (r) {
+      if (!r.ok) return Promise.reject(ovpStatusUitHttp(r.status));
+      return r.text();
+    })
+    .then(function (tekst) {
+      clearTimeout(klok);
+      var data = null;
+      try { data = JSON.parse(tekst); } catch (e) {}
+      var uitkomst = ovpKeur(data);
+      if (uitkomst === OVP_OK || uitkomst === OVP_LEEG) {
+        return { elements: (data && data.elements) || [], kb: Math.round(tekst.length / 1024) };
+      }
+      return Promise.reject(uitkomst);
+    })
+    .catch(function (uitkomst) {
+      clearTimeout(klok);
+      if (uitkomst === OVP_LIMIET) return Promise.reject(new Error('Overpass is overbelast'));
+      return gebiedHaal(query, servers, idx + 1);
+    });
+}
+
+// Elke gevraagde tegel is volledig gedekt: wegschrijven, ook als hij leeg is
+function gebiedBewaar(elements, tegels) {
+  var per = {};
+  tegels.forEach(function (t) { per[t.key] = {}; });
+  elements.forEach(function (el) {
+    if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) return;
+    var w = { type: 'way', id: el.id, nodes: el.nodes || [], geometry: el.geometry,
+              tags: { highway: (el.tags && el.tags.highway) || '',
+                      name:    (el.tags && el.tags.name)    || '' } };
+    el.geometry.forEach(function (p) {
+      var k = 't_' + Math.floor(p.lat / TILE_DEG_SHARED) + '_' + Math.floor(p.lon / TILE_DEG_SHARED);
+      if (per[k]) per[k][w.id] = w;
+    });
+  });
+  var nu = Date.now();
+  var recs = tegels.map(function (t) {
+    var ws = []; for (var id in per[t.key]) ws.push(per[t.key][id]);
+    return { key: t.key, ts: nu, v: TEGEL_SCHEMA, ways: ws };
+  });
+  return _tileDb().then(function (db) {
+    return new Promise(function (res, rej) {
+      var tx = db.transaction(TILE_STORE, 'readwrite'), st = tx.objectStore(TILE_STORE);
+      recs.forEach(function (r) { st.put(r); });
+      tx.oncomplete = function () { res(recs.length); };
+      tx.onerror = function () { rej(tx.error); };
+    });
+  });
+}
+
+function gebiedVooraf(lijnen, radiusM, servers) {
+  var alle = gebiedTegels(lijnen, radiusM);
+  if (!alle.length) return Promise.resolve({ tegels: 0, nieuw: 0, kb: 0 });
+  if (alle.length > GEBIED_MAX_TEGELS) return Promise.resolve({ tegels: alle.length, fout: 'te groot' });
+  return gebiedNodig(alle).then(function (nodig) {
+    if (!nodig.length) return { tegels: alle.length, nieuw: 0, kb: 0 };
+    return gebiedHaal(gebiedQuery(nodig), servers, 0).then(function (antw) {
+      return gebiedBewaar(antw.elements, nodig).then(function () {
+        return { tegels: alle.length, nieuw: nodig.length, kb: antw.kb };
+      });
+    });
+  }).catch(function (e) {
+    return { tegels: alle.length, fout: (e && e.message) || String(e) };
+  });
+}
+
+// kort: voor een smalle regel (pocket); de hele tekst kan dan in een tooltip
+function gebiedTekst(g, kort) {
+  if (!g) return 'gebied klaarzetten…';
+  if (g.fout) {
+    if (kort) return 'gebied niet klaargezet';
+    return g.fout === 'te groot' ? 'gebied te groot om klaar te zetten (' + g.tegels + ' tegels)'
+                                 : 'gebied niet klaargezet: ' + g.fout;
+  }
+  if (!g.tegels) return 'geen gebied';
+  if (kort) return 'gebied klaar';
+  return 'gebied klaar (' + g.tegels + (g.tegels === 1 ? ' tegel' : ' tegels') +
+         (g.nieuw ? ', ' + g.kb + ' kB opgehaald)' : ', al bewaard)');
+}
+/* ── einde gedeeld blok gebied vooraf ── */
+
 /* ── Planning in pocket-parkeren (v3.14) ─────────────────── */
 // Uit de link (#parkeren&plan=…, blok planlink). Alleen ter oriëntatie: de
 // geplande straten staan in paars op de dekkingskaart, en een regel boven de
@@ -1488,6 +1676,9 @@ function laadPkPlanning() {
         }).filter(function (l) { return l.coords.length >= 2; })
       };
       toonPkPlanning();
+      // v3.19: meteen het hele gebied in de tegelcache (blok gebied vooraf)
+      gebiedVooraf(pkPlanning.lijnen.map(function (l) { return l.coords; }), SNAP_ROAD_FETCH_RADIUS, SNAP_OVERPASS)
+        .then(function (g) { pkPlanning.gebied = g; toonPkPlanning(); });
     })
     .catch(function (e) {
       pkPlanning = { fout: (e && e.message) || String(e) };
@@ -1501,7 +1692,8 @@ function toonPkPlanning() {
   el.textContent = pkPlanning.fout
     ? '\u26a0 Opdracht niet geladen: ' + pkPlanning.fout
     : 'Opdracht: ' + (pkPlanning.naam || 'zonder naam') + ' \u00b7 ' + pkPlanning.lijnen.length +
-      ' straten \u00b7 zie Kaart';
+      ' straten \u00b7 ' + gebiedTekst(pkPlanning.gebied, true) + ' \u00b7 zie Kaart';
+  el.title = pkPlanning.fout ? '' : gebiedTekst(pkPlanning.gebied);   // v3.19: de hele tekst
   document.getElementById('pk-map-legend-plan').style.display = pkPlanning.fout ? 'none' : '';
   if (pkMap) tekenPkMap();
 }
@@ -2883,6 +3075,10 @@ function openReconstructie() {
 // geen kompas-fusie. Graceful degradeert als Overpass niet bereikbaar is.
 
 var SNAP_ROAD_FETCH_RADIUS = 250;
+// v3.19: opnieuw ophalen op 170 m van het vorige middelpunt (was 0,6 x 250 =
+// 150 m). Zelfde marge van 80 m als de parkeer-apps (300/220): een derde
+// minder verzoeken.
+var SNAP_ROAD_VERVERS_M = 170;
 // Snap-netwerk highway-filter — HOUD GELIJK over alle tools (grep HIGHWAY_RE).
 var HIGHWAY_RE = 'residential|living_street|primary|secondary|tertiary|unclassified|service|pedestrian|footway|cycleway|path|track|bridleway|steps|corridor';
 
@@ -3044,9 +3240,11 @@ function stuurNaarReconstructie(blob, naam) {
 
 // Een way blijft snap-kandidaat zolang z'n geometrie binnen deze straal van de
 // huidige fetch-positie ligt. Afgeleid: fetch-radius + de max. drift vóór een
-// re-fetch (re-fetch triggert bij 0.6×fetch-radius = 150m), dus precies het
-// gebied vanwaar een way bij de vórige fetch nog snapbaar geweest kán zijn.
-// Voorkomt dat ways net buiten de verse 250m-cirkel hun segs verliezen.
+// re-fetch (tot v3.19 150 m), dus het gebied vanwaar een way bij de vórige
+// fetch nog snapbaar geweest kán zijn. Voorkomt dat ways net buiten de verse
+// 250m-cirkel hun segs verliezen. Sinds v3.19 is de drift 170 m (SNAP_ROAD_
+// VERVERS_M); 400 m blijft genoeg, want wat snapbaar is tot de volgende fetch
+// (drift 170 + SNAP_MAX_M 50 = 220 m) valt al binnen de verse cirkel van 250 m.
 var SNAP_SEGS_RADIUS       = Math.round(SNAP_ROAD_FETCH_RADIUS * 1.6);  // 400 m
 var SNAP_MAX_M             = 50;   // max snap-afstand voor verse fixes
 var SNAP_RESET_M           = 50;   // boven deze afstand tot huidig anker → anker breekt (gelijk aan SNAP_MAX_M: een anker dat buiten snap-bereik ligt is irrelevant)
@@ -3956,7 +4154,7 @@ function snapCheckRefresh(lat, lon) {
   }
   var cos=Math.cos(snap.cacheLat*Math.PI/180);
   var dx=(lon-snap.cacheLon)*111320*cos, dy=(lat-snap.cacheLat)*111320;
-  if (Math.sqrt(dx*dx+dy*dy) > SNAP_ROAD_FETCH_RADIUS*0.6) {
+  if (Math.sqrt(dx*dx+dy*dy) > SNAP_ROAD_VERVERS_M) {
     if (_snapRefreshTimer) clearTimeout(_snapRefreshTimer);
     _snapRefreshTimer = setTimeout(function(){ snapStartFetch(lat,lon); }, 600);
   }
