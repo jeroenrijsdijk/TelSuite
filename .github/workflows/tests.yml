@@ -1,0 +1,157 @@
+# Tests bij elke PR (sinds 19 oktober 2026, na v3.18)
+#
+# Elke merge naar main gaat live (site.yml). Deze workflow draait de
+# regressietests uit _archief/overpass_rig, zodat een kapotte wijziging
+# zichtbaar is vóór de merge, en niet pas op telonline.org.
+#
+# Vier jobs:
+#   snel     valideer.py, alle functest*.js, test_zipref.py en
+#            check_encoding.py (op een export zonder .git);
+#   lijst    zoekt de browsertests: elk bestand <naam>test.py in de rig;
+#   browser  draait elke browsertest in een eigen job, naast elkaar, in
+#            Chromium via Playwright;
+#   klaar    "alles groen": slaagt alleen als de rest slaagde. Dit is de ene
+#            controle om op te letten (of verplicht te maken in de
+#            branch-regels van main).
+#
+# Een nieuwe test hoeft hier niet bij: een functest heet functest*.js, een
+# browsertest <naam>test.py, en de workflow vindt hem vanzelf.
+#
+# valideer.py vergelijkt met de vorige stand van main (HEAD^1 van de
+# merge-commit). Houdt index.html hetzelfde versienummer, dan is het geen
+# release en slaan de release-controles over (VALIDEER_ZONDER_RELEASE=1).
+#
+# Niets komt in de repo of op de server: de bibliotheken (jszip, papaparse,
+# sql.js, leaflet, lettertypen) en Chromium staan alleen op de runner, zie
+# .github/actions/testopzet. Er gaan geen secrets of schrijfrechten mee.
+#
+# Faalt een browsertest, dan staan zijn FOUT-regels als melding bij de
+# controle (.github/scripts/meldingen.sh). Zo zie je in de PR wat er misging,
+# zonder het hele log te openen.
+#
+# ubuntu-24.04 en niet ubuntu-latest: Playwright installeert de systeem-
+# bibliotheken voor Chromium per Ubuntu-versie, en ubuntu-latest schuift op.
+#
+# Met de hand opnieuw: Actions -> Tests -> Run workflow.
+
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  snel:
+    name: valideer en functests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2          # HEAD^1: de stand van main vóór deze wijziging
+
+      - uses: ./.github/actions/testopzet
+
+      - name: valideer.py
+        run: |
+          OUD="$RUNNER_TEMP/oud"; NIEUW="$RUNNER_TEMP/nieuw"
+          mkdir -p "$OUD" "$NIEUW"
+          git archive HEAD^1 | tar -x -C "$OUD"
+          cp *.html sitemap.xml robots.txt docs/OVERDRACHT_STAND_VAN_ZAKEN.md "$NIEUW"/
+          V_NIEUW=$(grep -oP '<div class="versie">\Kv\d+\.\d+(?=</div>)' index.html)
+          V_OUD=$(grep -oP '<div class="versie">\Kv\d+\.\d+(?=</div>)' "$OUD/index.html")
+          if [ "$V_NIEUW" = "$V_OUD" ]; then
+            echo "Geen nieuw versienummer ($V_NIEUW): release-controles overgeslagen."
+            export VALIDEER_ZONDER_RELEASE=1
+          else
+            echo "Release: $V_OUD -> $V_NIEUW"
+            OD="docs/overdracht/overdracht_${V_NIEUW//./_}.md"
+            if [ -f "$OD" ]; then cp "$OD" "$NIEUW"/; fi
+          fi
+          VALIDEER_OUD="$OUD" VALIDEER_NIEUW="$NIEUW" python _archief/overpass_rig/valideer.py
+
+      - name: functests
+        if: always()
+        run: |
+          FOUT=""
+          for T in _archief/overpass_rig/functest*.js; do
+            echo "::group::$T"
+            node "$T" || FOUT="$FOUT $(basename "$T")"
+            echo "::endgroup::"
+          done
+          if [ -n "$FOUT" ]; then echo "::error::functests met fouten:$FOUT"; exit 1; fi
+          echo "Alle functests groen."
+
+      - name: test_zipref.py
+        if: always()
+        run: python _archief/overpass_rig/test_zipref.py
+
+      - name: check_encoding.py
+        if: always()
+        run: |
+          # Op een export van de bestanden in git: .git zelf is binair.
+          EXPORT="$RUNNER_TEMP/export"; mkdir -p "$EXPORT"
+          git ls-files -z | tar --null -T - -cf - | tar -x -C "$EXPORT"
+          python "$EXPORT/_archief/overpass_rig/check_encoding.py"
+
+  lijst:
+    name: browsertests zoeken
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tests: ${{ steps.zoek.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: zoek
+        run: |
+          cd _archief/overpass_rig
+          TESTS=$(ls [a-z]*test.py | sed 's/\.py$//' | jq -R . | jq -sc .)
+          echo "$TESTS"
+          echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
+
+  browser:
+    name: ${{ matrix.test }}
+    needs: lijst
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJSON(needs.lijst.outputs.tests) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/testopzet
+        with:
+          chromium: 'true'
+      - name: ${{ matrix.test }}.py
+        run: |
+          set -o pipefail
+          python _archief/overpass_rig/${{ matrix.test }}.py 2>&1 | tee "$RUNNER_TEMP/uitvoer.txt"
+      - name: Fouten als melding
+        if: failure()
+        run: bash .github/scripts/meldingen.sh "${{ matrix.test }}" "$RUNNER_TEMP/uitvoer.txt"
+
+  klaar:
+    name: alles groen
+    if: always()
+    needs: [snel, browser]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Uitslag
+        run: |
+          echo "valideer en functests: ${{ needs.snel.result }}"
+          echo "browsertests:          ${{ needs.browser.result }}"
+          [ "${{ needs.snel.result }}" = success ] && [ "${{ needs.browser.result }}" = success ]

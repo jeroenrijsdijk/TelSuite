@@ -56,13 +56,17 @@ Deze CLAUDE.md is een samenvatting. Bij twijfel gelden de documenten in `docs/`.
    ze vanuit de repo-root, bijvoorbeeld `node _archief/overpass_rig/functest.js`.
    - Tests die jszip of papaparse nodig hebben: installeer die **buiten** de
      repo en draai met `NODE_PATH`. Nooit `node_modules` committen.
-   - `check_encoding.py` loopt ook door `.git/`. Draai hem op een export:
-     `git archive HEAD | tar -x -C <tijdelijke map>`.
-   - De Playwright-tests (`laadtest`, `hersteltest`, `statictest`,
-     `opruimtest`) hebben Chromium nodig. Sla ze over als dat er niet is, en
-     zeg dat.
+   - `check_encoding.py` loopt ook door `.git/`. Draai hem op een kopie van
+     de bestanden in git, en dan de kopie van het script zelf:
+     `git ls-files -z | tar --null -T - -cf - | tar -x -C <map>`, daarna
+     `python3 <map>/_archief/overpass_rig/check_encoding.py`.
+   - De browsertests (`<naam>test.py`, behalve `test_zipref.py`) hebben
+     Chromium nodig. Sla ze over als dat er niet is, en zeg dat.
    - `valideer.py` vergelijkt twee releasemappen; pas `OUD_DIR`, `NIEUW_DIR`
      en de verwachte sets aan.
+7. Op GitHub draait `.github/workflows/tests.yml` dit alles bij elke PR. Wacht
+   tot **alles groen** groen is voor je de PR klaar meldt; is hij rood, kijk
+   dan welke job faalde (`gh api repos/<repo>/commits/<sha>/check-runs`).
 
 ## Werkwijze
 

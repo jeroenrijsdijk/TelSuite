@@ -1,0 +1,38 @@
+# Opzet voor de tests (tests.yml): Node, Python en de bibliotheken die de
+# tests nodig hebben. Alles komt in $RUNNER_TEMP, buiten de repo; er komt
+# niets in node_modules van de suite (CLAUDE.md: nooit node_modules committen).
+#
+# De versies zijn die van de CDN-links in de HTML (docs/ONTWIKKELEN.md). Gaat
+# een app over op een nieuwe versie, dan hier mee.
+name: Testopzet
+description: Node, Python en de testbibliotheken, buiten de repo
+inputs:
+  chromium:
+    description: "'true': ook Playwright met Chromium, voor de browsertests"
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version: '22'
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+    - name: Bibliotheken (buiten de repo)
+      shell: bash
+      run: |
+        NM="$RUNNER_TEMP/testlib"
+        mkdir -p "$NM"
+        npm install --prefix "$NM" --no-save --no-package-lock --no-audit --no-fund --silent \
+          leaflet@1.9.4 leaflet-draw@1.0.4 jszip@3.10.1 papaparse@5.4.1 sql.js@1.14.2 \
+          @fontsource/oswald@5.3.0 @fontsource/share-tech-mono@5.3.0
+        # functests: require() via NODE_PATH; browsertests: CDN-omleiding via TEL_NODE_MODULES
+        echo "NODE_PATH=$NM/node_modules" >> "$GITHUB_ENV"
+        echo "TEL_NODE_MODULES=$NM/node_modules" >> "$GITHUB_ENV"
+    - name: Playwright met Chromium
+      if: inputs.chromium == 'true'
+      shell: bash
+      run: |
+        python -m pip install --quiet --disable-pip-version-check playwright==1.56.0
+        python -m playwright install --with-deps chromium
