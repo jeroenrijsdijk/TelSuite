@@ -601,6 +601,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <h3>GPS &amp; OSM wegsnapping</h3>
 <p>De gekleurde stip in de statusbalk toont de GPS-status: grijs = inactief, oranje knipperend = fix onvoldoende (&gt;25m), groen = actief.</p>
 <p>Wegvakken worden opgehaald via Overpass API (straal 300m). Markers komen <strong>4 meter loodrecht op de dichtstbijzijnde wegas</strong>. Een indicator onder de straatnaam toont de snapstatus.</p>
+<p>Ben je 220 m van het vorige ophaalpunt, dan haalt de app de wegen opnieuw op (sinds v3.19; daarvoor op 150 m, en dat kostte de helft meer verzoeken). Eerst kijkt hij in de wegencache van de telefoon. Na een planning-link staat het hele geplande gebied daar al in, en gaat er onderweg geen verzoek naar Overpass: zie <a href="#planning-link">Planning als link</a>, <em>Gebied klaarzetten</em>.</p>
 <p>Bij onbereikbaarheid van Openstreetmap/Overpass worden markers op de GPS-positie geplaatst.</p>
 </section>
 <hr>
@@ -973,11 +974,28 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <li>Klik <strong>Deel als link</strong>. Een venster toont de app, het aantal wegen en de grootte van de link.</li>
 <li><strong>Kopieer link</strong> en plak hem in een mail of bericht. Waar de browser het kan, opent <strong>Delen…</strong> het deelmenu van het toestel. <strong>Openen</strong> laat zien wat de teller krijgt.</li>
 </ol>
-<p><strong>Niet via de server.</strong> De planning staat achter het <code>#</code> in de link, en dat deel stuurt een browser niet naar de server. Telplanning slaat ook niets op de server op. De planning gaat dus alleen langs de mail of de app waarmee je hem verstuurt. Bewaar de mail als je de opdracht later nog eens wilt geven: de link is de planning.</p>
+<p><strong>Niet via de server.</strong> De planning staat achter het <code>#</code> in de link, en dat deel stuurt een browser niet naar de server. Telplanning slaat ook niets op de server op. De planning gaat dus alleen langs de mail of de app waarmee je hem verstuurt. Bewaar de mail als je de opdracht later nog eens wilt geven: de link is de planning. Aanpassen kan ook: zie <em>Planning aanpassen</em> hieronder.</p>
 <p><em>Tot v3.15</em> sloeg <strong>Maak Telling</strong> de planning op de server op, en startte je hem via <strong>Opdrachten</strong>. Beide zijn weg.</p>
 <p><strong>Open de link in Safari of Chrome.</strong> Tik je een link aan in de Gmail-app, WhatsApp of een andere app, dan opent die vaak een ingebouwde browser. Die heeft zijn eigen opslag: sluit je hem halverwege, dan vindt Safari de onderbroken telling niet. Kies in die browser <em>Open in Safari</em> (of Chrome) voordat je begint. Apple Mail opent links al in Safari. Op Android kan een ingebouwde browser bovendien vaak geen ZIP opslaan; kies daar ⋮ en <em>Openen in browser</em>.</p>
 <p><strong>Lengte.</strong> Een wijk van een paar tientallen straten geeft een link van een paar kB. Boven 6 kB waarschuwt het venster: sommige mailprogramma's breken zo'n link af. Maak het gebied dan kleiner, of verdeel het over twee opdrachten. Een afgebroken of beschadigde link geeft in de telapp een melding; de app telt gewoon, zonder planning.</p>
 <p><strong>Pocket-parkeren.</strong> Met teltype <em>Pocket-parkeren</em> opent de link pocket meteen op het parkeerscherm. Boven de vier telvakken staat dan welke opdracht er geladen is, en de knop <strong>Kaart</strong> toont de geplande straten in paars, onder je route en je tikken. Van de planning komt niets in de ZIP.</p>
+<h4>Gebied klaarzetten</h4>
+<p>Opent de teller de link, dan haalt de telapp meteen de wegen van het hele geplande gebied op en bewaart ze in de wegencache van de telefoon (sinds v3.19). De regel met de opdracht zegt hoe het ging, bijvoorbeeld <em>gebied klaar (6 tegels, 830 kB opgehaald)</em>. Pocket zet het kort in de regel boven de telvakken.</p>
+<ul>
+<li><strong>Open de link thuis, op wifi.</strong> In het veld vindt de app de wegen dan in de cache, en gaat er geen verzoek naar Overpass zolang je in het gebied blijft. Loop je erbuiten, dan haalt hij de wegen daar onderweg op, zoals altijd.</li>
+<li><strong>Een tweede keer openen kost niets</strong>: <em>al bewaard</em>. De wegen blijven 14 dagen bruikbaar. Is een stuk ouder dan 7 dagen, dan haalt de app het bij het openen opnieuw, zodat het de dag van de telling zeker meegaat.</li>
+<li><strong>Lukt het niet</strong> (<em>gebied niet klaargezet</em>, bijvoorbeeld omdat Overpass overbelast is), dan werkt de app in het veld zoals vroeger. Open de link later nog eens om het opnieuw te proberen.</li>
+<li><strong>Een heel groot gebied</strong> (meer dan 30 tegels, zo'n 23 km²) haalt de app niet vooraf op: één zoekvraag van die omvang breekt Overpass vaak af.</li>
+</ul>
+<p>Het gaat om <em>tegels</em> van 0,01° bij 0,01° (ongeveer 1,1 bij 0,7 km). De app vraagt alle tegels die hij in het veld nodig kan hebben langs de geplande straten. Overpass ziet daarbij het geplande gebied, niet je positie.</p>
+<h4>Planning aanpassen</h4>
+<p>Een verstuurde planning kun je terughalen in telplanning (sinds v3.19). Plak de link onder <strong>Of: planning uit een link</strong> en klik <strong>Openen</strong>, of open <code>telplanning.html#plan=…</code>. Een link naar parkeertelling, fietsparkeren of pocket werkt alle drie.</p>
+<ul>
+<li>Naam, datum, tijdstip, teller en teltype komen terug in de velden, en de geplande straten zijn gekozen.</li>
+<li>De straten eromheen haalt telplanning erbij, grijs en niet gekozen: klik er een aan om hem toe te voegen, net als na het tekenen. Een straat uit de planning klik je weg. Verder weg uitbreiden kan met <strong>Voeg contour toe</strong>.</li>
+<li>Daarna <strong>Deel als link</strong>: een nieuwe link. De oude blijft gewoon werken.</li>
+</ul>
+<p>De getekende contour komt niet terug: die zit niet in de link. De straten zijn de planning.</p>
 </section>
 <hr>
 <section id="planning-dekking">

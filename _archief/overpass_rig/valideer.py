@@ -19,10 +19,11 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.18'
-# v3.18: ZIP opslaan op Android als download (gedeeld blok bewaarZip), handleiding.
-VERWACHT_GEWIJZIGD = {'index.html', 'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
-                      'traffic_counter_help.html'}
+RELEASE = 'v3.19'
+# v3.19: planning uit een link in telplanning, gebied vooraf ophalen, verversafstand 220 m.
+VERWACHT_GEWIJZIGD = {'index.html', 'telplanning.html', 'parkeertelling.html', 'fietsparkeren.html',
+                      'capaciteitstelling.html', 'pocket_count.html', 'traffic_counter_help.html',
+                      'privacy.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -212,6 +213,9 @@ groepen = [
     # v3.14: planning als link, inpakken en uitpakken
     ('planlink', ['telplanning.html', 'parkeertelling.html', 'fietsparkeren.html', 'pocket_count.html'],
      '/* ── Planning als link (v3.14) ──', '/* ── einde gedeeld blok planlink ── */'),
+    # v3.19: het geplande gebied vooraf in de tegelcache, in de apps die een planning-link openen
+    ('gebied vooraf', ['parkeertelling.html', 'fietsparkeren.html', 'pocket_count.html'],
+     '/* ── Gebied vooraf ophalen (v3.19)', '/* ── einde gedeeld blok gebied vooraf ── */'),
     # v3.3: de kale stijl van de documentatiepagina's
     ('kale stijl', KAAL,
      '/* ── kale stijl (v3.3)', '/* ── einde kale stijl ── */'),
@@ -258,6 +262,10 @@ constanten = [
                       ('capaciteitstelling.html', 'SIDE_OFFSET_M'),
                       ('telreconstructie.html', 'OFFSET_M'),
                       ('telrapport.html', 'OFFSET_M')]),
+    # v3.19: verversafstand van het wegennet (pocket heeft een eigen: SNAP_ROAD_VERVERS_M)
+    ('verversafstand', [('parkeertelling.html', 'ROAD_CACHE_DIST'),
+                        ('fietsparkeren.html', 'ROAD_CACHE_DIST'),
+                        ('capaciteitstelling.html', 'ROAD_CACHE_DIST')]),
 ]
 for naam, plekken in constanten:
     waarden = {}

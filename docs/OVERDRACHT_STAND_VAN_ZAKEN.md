@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.18.** De ZIP-knop van de parkeer-apps werkte op Android niet: het gedeelde blok `bewaarZip` probeerde ook daar het deelvenster, en Chrome op Android deelt geen ZIP. Nu alleen iOS via het deelvenster, Android en desktop als download, zoals pocket; in de ingebouwde browser van een app telt een download niet als opgeslagen (`overdracht_v3_18.md`). Na v3.18, zonder versienummer: **tests op GitHub** bij elke PR (`.github/workflows/tests.yml`, controle *alles groen*). v3.17 ruimde vijf backlogpunten op; v3.16 zette de capaciteitscontouren in de parkeertelling standaard uit.
+**Laatste release: v3.19.** Drie punten uit *Slim lopen en planning*: een verstuurde planning terughalen in telplanning (*Of: planning uit een link*, met de omgeving grijs erbij); het geplande gebied vooraf in de tegelcache zodra de link op de telefoon opent (nieuw gedeeld blok `gebied vooraf`, één verzoek, in het veld nul); en verversen op 220 m in plaats van 150 m (pocket 170 m). Vraagt een veldtest, zie §4 (`overdracht_v3_19.md`). v3.18 maakte het opslaan op Android een download; daarna, zonder versienummer, tests op GitHub bij elke PR (`.github/workflows/tests.yml`, controle *alles groen*).
 
 ---
 
@@ -70,7 +70,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 **Kaartafbeelding** (`_kaart.png`) zit **alleen** in parkeertelling/fietsparkeren/capaciteitstelling, niet in pocket/static.
 
-**Gedeelde tegelcache**: veld-apps schrijven opgehaald netwerk in hetzelfde tegelformaat als de reconstructor (IndexedDB `telsuite_osm`). Een tegel gaat pas de cache in als hij **volledig** gedekt is (raster 8×8) — anders zou de reconstructor een half gevulde tegel als compleet lezen en stil wegen missen. Sinds v2.49 **lezen** de veld-apps de cache ook: alles-of-niets per fetch-cirkel, TTL 14 dagen (reconstructor houdt 60), schemaversie 2 (tegels dragen ook de straatnaam; oudere tegels tellen als misser en genezen zichzelf).
+**Gedeelde tegelcache**: veld-apps schrijven opgehaald netwerk in hetzelfde tegelformaat als de reconstructor (IndexedDB `telsuite_osm`). Een tegel gaat pas de cache in als hij **volledig** gedekt is (raster 8×8) — anders zou de reconstructor een half gevulde tegel als compleet lezen en stil wegen missen. Sinds v2.49 **lezen** de veld-apps de cache ook: alles-of-niets per fetch-cirkel, TTL 14 dagen (reconstructor houdt 60), schemaversie 2 (tegels dragen ook de straatnaam; oudere tegels tellen als misser en genezen zichzelf). Sinds v3.19 **vult een planning-link de cache vooraf** (blok `gebied vooraf` in parkeertelling, fietsparkeren en pocket): alle tegels die een fetch-cirkel langs de geplande straten kan raken, in één bbox-verzoek, hele tegels dus meteen compleet; tegels jonger dan 7 dagen worden overgeslagen.
 
 **Carto-sleutel** staat in drie bestanden: `telrapport.html`, `telplanning.html` en `telreconstructie.html`. Eén sleutel, drie plekken om aan te passen als hij vervalt — plus `gpx_snap.html` in de aparte tak.
 
@@ -126,6 +126,10 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ## 4. Nog te doen door Jay (buiten de code)
 
+0c. **Veldtest v3.19** (pocket-parkeren, want alleen pocket schrijft in `_snap_trace.csv` waar het netwerk vandaan kwam):
+   - met een planning: open de link thuis, de regel boven de telvakken zegt *gebied klaar*; na het lopen staat in `_snap_trace.csv` na het begin alleen `tegelcache`, geen `fetch`;
+   - zonder planning, in een stuk dat je nog niet eerder liep: een derde minder `fetch`-regels per kilometer dan vóór v3.19;
+   - let op het snappen: meer verkeerde straten of niet-gesnapte tikken dan vroeger? Dan terug naar 150 m (één getal per app).
 0b. **De telling van de S25 alsnog opslaan** (na de merge van v3.18). Hij staat nog in de noodkopie van Chrome op de telefoon. Open parkeertelling in dezelfde Chrome, tik **niet** op Start (dat vraagt of de herstelde telling weg mag), en tik op ⬇ Download ZIP: de ZIP staat dan in Downloads, en de noodkopie verdwijnt.
 0a. ~~**Planningmap op de server opruimen**~~ — gedaan (Jay, 18 okt 2026: "Alles opgeruimd"). Na de merge van v3.15: De repo heeft geen `planningen/` meer, maar de opgeslagen planningen (`planning_*.json`, met tellernamen) zijn nooit via git gekomen en blijven dus op de server staan. In Plesk → Bestanden → `httpdocs/planningen` de hele map weg. Controle: `https://telonline.org/planningen/planning_list.php` geeft daarna 404. Stond er nog een *Password-Protected Directory* op `/planningen`, die mag ook weg. De privacyverklaring zegt sinds v3.15 dat er geen planningen meer op de server staan.
 1. **Screenshots voor `over.html`** — nog niet geleverd. Drie bestanden, exact deze namen, naast `over.html`:
@@ -203,8 +207,8 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - Synchronisatiebeleid voor de rekenkern-kopie in de tak: meelopen met de suite, bewust bevriezen, of een controle in de tak die de afwijking alleen meldt.
 
 **Meetkunde (vraagt veldtest)**
-- Fetch-radius en verversafstand losser zetten. Nu radius 300 m en verversen op 150 m, dus 69% van elke fetch is al bekend gebied. Radius 300 / verversen op 220 m scheelt een derde van de verzoeken; radius 500 / verversen op 350 m halveert ze tegen 19% meer bytes. Voor Overpass tellen verzoeken zwaarder dan bytes.
-- Gebied vooraf ophalen vanuit `telplanning.html`, zodat de cache gevuld is vóór je de deur uitgaat en het veldwerk met nul verzoeken telt. Sinds v3.9 ziet telplanning het ophalen goed af (voortgang, tijdslimiet, `ovpKeur`); de opgehaalde wegen kunnen dan ook in de tegelcache, mits een tegel helemaal gedekt is (raster 8×8, zie *Gedeelde tegelcache*).
+- ~~Fetch-radius en verversafstand losser zetten~~ — gedaan in v3.19: radius 300 / verversen op 220 m (Jay's keuze; pocket 250/170). Veldtest staat in §4. Als die goed uitvalt, kan 500/350 later nog: dat halveert de verzoeken tegen 19% meer bytes, maar maakt elke cirkel bijna drie keer zo groot.
+- ~~Gebied vooraf ophalen~~ — gedaan in v3.19, niet vanuit telplanning maar in de veld-app zodra de link opent: de tegelcache staat in de browser van het toestel, en de planning gaat sinds v3.14 als link naar de telefoon.
 
 **Uitrollen als het bevalt**
 - Audio-feedback (nu alleen pocket parkeren) naar andere tel-modi.
@@ -214,7 +218,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - Oude auto- en fietsreconstructies (vóór v2.67) opnieuw draaien of laten staan? Herkenbaar aan het ontbreken van `highway_voorkeur` in de log. Het verschil zit alleen waar een fietspad of voetpad binnen ~17 m van de rijbaan ligt.
 
 **Groter / vraagt ontwerp**
-- ~~**Planningen zonder server**~~ — gedaan: v3.14 (de link) en v3.15 (server, *Maak Telling* en *Opdrachten* weg). Wat nog kan: **een link terug openen in telplanning** om de planning aan te passen of opnieuw te gebruiken (telplanning leest dan `#plan=` net als de apps; het blok `planlink` kan dat al). Nu teken je opnieuw.
+- ~~**Planningen zonder server**~~ — gedaan: v3.14 (de link) en v3.15 (server, *Maak Telling* en *Opdrachten* weg). Ook gedaan (v3.19): **een link terug openen in telplanning** (*Of: planning uit een link*, of `telplanning.html#plan=…`), met de omgeving grijs erbij.
 - **Autorit-reconstructie — geparkeerd** (v2.67: Jay telt zelden vanuit de auto). De highway-voorkeur, het grootste obstakel, is sinds v2.67 opgelost. Wat nog ontbreekt: een tijdspoort plus verdichten, een rit-profiel met herkenning, en bij lange ritten een corridor-fetch en een ruimtelijke index. Analyse en volgorde in `overdracht_v2_66.md` §4.
 - Zijde-offset live in pocket-parkeren? De ingrediënten zijn er (de gesnapte positie en de wegrichting kent pocket al), zo'n vijftien regels. Twee bezwaren: het voegt `lat_marker`/`lon_marker`/`zijde` toe aan het rauwe pocket-schema en vraagt dus KNIME-afstemming, én "links" is bij pocket relatief aan de looprichting, die de app op het moment van tikken minder zeker kent dan de reconstructor achteraf uit de hele route — precies de reden dat de reconstructor bestaat. Winst is vooral cosmetisch: ongereconstrueerde pocket-parkeertellingen zien er in telrapport dan net zo uit als parkeertellingen.
 - "Save as .png" in telrapport: het kaartbeeld exporteren. De knop is triviaal, het plaatje niet. Tegels zijn niet CORS-schoon (`L.tileLayer` zet geen `crossOrigin`), vectoren zitten in vijf SVG-panes, labels zijn acht `divIcon`-varianten. Drie routes: handgetekend canvas zonder ondergrond (patroon van de veld-apps), eigen tegel-compositor (~150 regels, geen afhankelijkheid), of `html2canvas` van een CDN. Voorstel: tegel-compositor met automatische terugval naar zonder-ondergrond bij een SecurityError. Eerst de CORS-test draaien op OSM/CARTO/PDOK; de bronvermelding moet sowieso in de PNG gebakken worden.
@@ -234,7 +238,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.18 in één oogopslag
+## 6. Releases v2.32 → v3.19 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -305,6 +309,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.17 | **Backlog opgeruimd**: Open Graph en TechArticle op `zip_format_reference.html`; de "terugvalcode" in telrapport en telplanning bleek niet dood (een pocket-ZIP na Doortellen kan zonder `_netwerk.csv` zijn; de Overpass-terugval vangt dat op) en kreeg eerlijk commentaar; fout commentaar over `_terrein.csv` in capaciteitstelling; `zoekTerreinen` met geheugen (geen verzoek binnen 150 m van een eerdere zoekplek, terreinen blijven staan, `ovpKeur`, niet doorvragen bij een rate-limit); bbox-filter kent verzamelingen (bbox van alle tellingen samen, laadt als geheel); nieuwe `functest_bbox.js` (11) en `onderhoudtest.py` (17) |
 | v3.18 | **ZIP opslaan op Android** (Jay, veldtelling op de S25: "Zip niet opgeslagen", en ⬇ Download ZIP reageerde niet): het gedeelde blok `bewaarZip` gebruikt het deelvenster alleen nog op iOS, zoals `saveBlob` en pocket; Android en desktop krijgen een download. Chrome op Android deelt geen ZIP en weigerde, dus er kwam nooit een download. In een Android-WebView telt een download niet als opgeslagen: de noodkopie blijft. Handleiding bij *↓ Download ZIP* en *Planning als link*; nieuwe `opslaantest.py` (48) |
 | — | Zonder versienummer (Jay: "Testen op github"): **tests op GitHub** bij elke PR en na elke merge (`.github/workflows/tests.yml`, opzet in `.github/actions/testopzet`): `valideer.py` tegen de vorige stand van `main`, de functests, `test_zipref`, `check_encoding` en elke browsertest in een eigen job; controle *alles groen*. `valideer.py` kreeg `VALIDEER_OUD`, `VALIDEER_NIEUW` en `VALIDEER_ZONDER_RELEASE`; `logicatest` A5 hing aan de tijdzone Amsterdam en rekent nu in die van de browser |
+| v3.19 | **Slim lopen en planning** (Jay: 1A met omgeving, 2 automatisch, 3 radius 300/220): telplanning haalt een verstuurde planning terug uit de link (*Of: planning uit een link* of `#plan=`; velden en straten terug, de omgeving grijs erbij, de contour niet); een planning-link vult in de veld-app meteen de tegelcache voor het hele gebied (gedeeld blok `gebied vooraf`, één bbox-verzoek, `ovpKeur`, max. 30 tegels, regel *gebied klaar*); verversen op 220 m (pocket 170 m), bewaakt als gedeelde constante; privacyverklaring en handleiding; nieuwe `functest_gebied.js` (22) en `gebiedtest.py` (41) |
 
 ---
 
