@@ -9,11 +9,6 @@ desktop. The interfaces are mostly in Dutch: the start page and the pocket
 tool switch to English, and the fixed-point tool is in English. The technical
 reference is in English.
 
-## Do you use it? 
-
-Please share some results with me if you are allowed to share it, so we can improve the package.
-Mail [verkeer@telonline.org](mailto:verkeer@telonline.org), or open an [issue](https://github.com/jeroenrijsdijk/TelSuite/issues).
-
 ## How it works
 
 ```
