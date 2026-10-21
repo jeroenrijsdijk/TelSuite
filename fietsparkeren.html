@@ -416,13 +416,42 @@ function _tileDb() {
 // tegel (~1,1km); al lopend groeit de dekking en komt de tegel alsnog compleet.
 // We rasteren elke tegel in 8x8 cellen en markeren welke cellen binnen een
 // fetch-cirkel liggen; bij 64/64 is de tegel compleet en gaat hij de cache in.
+// v3.20, drie reparaties (gedeeld blok, bewaakt door valideer.py):
+// - Een cel telt pas als hij HELEMAAL binnen één cirkel ligt (alle vier de
+//   hoeken). Tot v3.20 telde het midden van de cel. Aan de rand van het gelopen
+//   gebied kon een tegel dan als compleet de cache in, terwijl een weg in de
+//   hoek van een cel buiten elke cirkel lag en dus ontbrak.
+// - Een weg hoort bij elke tegel die een van zijn segmenten kan raken
+//   (tegelsVanWeg), niet alleen bij de tegels waarin een punt van de weg ligt.
+// - Schema 3: de wegen dragen hun knooppunten (nodes). Pocket en de
+//   reconstructor bouwen daaruit welke straten op elkaar aansluiten. Alle
+//   veld-apps halen daarom op met 'out body geom'. Een weg zonder knooppunten
+//   maakt een tegel onbruikbaar: zo'n tegel schrijven we niet.
+// Na het wegschrijven houdt een tegel geen ways meer bij; een volgende fetch
+// slaat hem over (tot v3.20 brak de toewijzing daar stil af).
 var _tileCov = {};      // tegelsleutel -> { cells:Set, ways:{id:way} }
 var _TILE_N = 8;
+function tegelsVanWeg(geom) {
+  var s = {};
+  for (var i = 0; i < geom.length; i++) {
+    var a = geom[i], b = geom[i + 1] || a;
+    var ty0 = Math.floor(Math.min(a.lat, b.lat) / TILE_DEG_SHARED), ty1 = Math.floor(Math.max(a.lat, b.lat) / TILE_DEG_SHARED);
+    var tx0 = Math.floor(Math.min(a.lon, b.lon) / TILE_DEG_SHARED), tx1 = Math.floor(Math.max(a.lon, b.lon) / TILE_DEG_SHARED);
+    for (var ty = ty0; ty <= ty1; ty++) {
+      for (var tx = tx0; tx <= tx1; tx++) s['t_' + ty + '_' + tx] = 1;
+    }
+  }
+  return Object.keys(s);
+}
 function cacheWaysInTiles(elements, lat, lon, radiusM) {
   try {
     if (!elements || !elements.length) return;
     var mPerLat = 111320, mPerLon = 111320 * Math.cos(lat * Math.PI / 180) || 1;
-    var dLat = radiusM / mPerLat, dLon = radiusM / mPerLon;
+    var dLat = radiusM / mPerLat, dLon = radiusM / mPerLon, cel = TILE_DEG_SHARED / _TILE_N;
+    function binnen(pLat, pLon) {
+      var dy = (pLat - lat) * mPerLat, dx = (pLon - lon) * mPerLon;
+      return dy * dy + dx * dx <= radiusM * radiusM;
+    }
     // 1) dekking bijwerken voor elke tegel die de cirkel raakt
     var ty0 = Math.floor((lat - dLat) / TILE_DEG_SHARED), ty1 = Math.floor((lat + dLat) / TILE_DEG_SHARED);
     var tx0 = Math.floor((lon - dLon) / TILE_DEG_SHARED), tx1 = Math.floor((lon + dLon) / TILE_DEG_SHARED);
@@ -431,14 +460,15 @@ function cacheWaysInTiles(elements, lat, lon, radiusM) {
       for (var tx = tx0; tx <= tx1; tx++) {
         var key = 't_' + ty + '_' + tx;
         var rec = _tileCov[key] || (_tileCov[key] = { cells: {}, n: 0, ways: {} });
+        if (rec.opgeslagen) continue;
         for (var i = 0; i < _TILE_N; i++) {
           for (var j = 0; j < _TILE_N; j++) {
             var ci = i * _TILE_N + j;
             if (rec.cells[ci]) continue;
-            var cLat = (ty + (i + 0.5) / _TILE_N) * TILE_DEG_SHARED;
-            var cLon = (tx + (j + 0.5) / _TILE_N) * TILE_DEG_SHARED;
-            var dy = (cLat - lat) * mPerLat, dx = (cLon - lon) * mPerLon;
-            if (dy * dy + dx * dx <= radiusM * radiusM) { rec.cells[ci] = 1; rec.n++; }
+            var la = ty * TILE_DEG_SHARED + i * cel, lo = tx * TILE_DEG_SHARED + j * cel;
+            if (binnen(la, lo) && binnen(la + cel, lo) && binnen(la, lo + cel) && binnen(la + cel, lo + cel)) {
+              rec.cells[ci] = 1; rec.n++;
+            }
           }
         }
         raak.push(key);
@@ -452,13 +482,18 @@ function cacheWaysInTiles(elements, lat, lon, radiusM) {
                          name:    (el.tags && el.tags.name)    || '' } };
       });
     norm.forEach(function (w) {
-      w.geometry.forEach(function (p) {
-        var k = 't_' + Math.floor(p.lat / TILE_DEG_SHARED) + '_' + Math.floor(p.lon / TILE_DEG_SHARED);
-        if (_tileCov[k]) _tileCov[k].ways[w.id] = w;
+      tegelsVanWeg(w.geometry).forEach(function (k) {
+        var t = _tileCov[k];
+        if (!t || t.opgeslagen) return;
+        t.ways[w.id] = w;
+        if (w.nodes.length < 2) t.zonderKnopen = 1;
       });
     });
     // 3) volledig gedekte tegels wegschrijven (en daarna niet meer bijhouden)
-    var klaar = raak.filter(function (k) { return _tileCov[k] && _tileCov[k].n >= _TILE_N * _TILE_N; });
+    var klaar = raak.filter(function (k) {
+      var t = _tileCov[k];
+      return t && !t.opgeslagen && !t.zonderKnopen && t.n >= _TILE_N * _TILE_N;
+    });
     if (!klaar.length) return;
     var now = Date.now();
     var recs = klaar.map(function (k) {
@@ -491,9 +526,13 @@ function cacheWaysInTiles(elements, lat, lon, radiusM) {
 
    Schemaversie: tegels van vóór v2.49 dragen geen straatnaam. Die tellen als
    misser, worden opnieuw opgehaald en meteen mét naam teruggeschreven — dus
-   geen migratie, de cache geneest zichzelf.                                   */
+   geen migratie, de cache geneest zichzelf.
+   v3.20: schema 3. Een tegel van schema 3 draagt bij elke weg de knooppunten
+   (nodes), waaruit pocket en de reconstructor de aansluitingen bouwen. Het
+   gebied vooraf (v3.19) en de parkeer-apps schreven tegels zonder; die tellen
+   nu als misser en genezen op dezelfde manier.                               */
 var TEGEL_TTL_MS  = 14 * 24 * 3600 * 1000;
-var TEGEL_SCHEMA  = 2;
+var TEGEL_SCHEMA  = 3;
 function leesTegels(lat, lon, radiusM) {
   return new Promise(function (res) {
     try {
@@ -820,7 +859,12 @@ function planlinkUrl(basis, teltype, waarde) {
    - De rest komt in één verzoek, met de zoekvraag van het veld, per rij
      aaneengesloten tegels één bbox. Elke gevraagde tegel is dan helemaal
      gedekt en mag de cache in (de regel van cacheWaysInTiles); een weg hoort,
-     net als daar, bij elke tegel waarin een punt van de weg ligt.
+     net als daar, bij elke tegel die een van zijn segmenten raakt
+     (tegelsVanWeg, v3.20).
+   - v3.20: met 'out body geom', dus met de knooppunten van elke weg (tegel-
+     schema 3). Tot v3.20 stond hier 'out tags geom': de tegels misten de
+     knooppunten, en pocket en de reconstructor zagen in het hele geplande
+     gebied geen aansluitingen tussen straten.
    - Het antwoord gaat door ovpKeur. Een rate-limit: niet ook de tweede server
      vragen. Lukt het nergens, of is het gebied groter dan GEBIED_MAX_TEGELS,
      dan gebeurt er niets: in het veld werkt alles zoals vroeger.
@@ -882,7 +926,7 @@ function gebiedQuery(tegels) {
              + 'way["tunnel"="building_passage"]' + bb + ';');
     i = j + 1;
   }
-  return '[out:json][timeout:25];(' + delen.join('') + ');out tags geom;';
+  return '[out:json][timeout:25];(' + delen.join('') + ');out body geom;';
 }
 
 // Welke tegels moeten (opnieuw) worden opgehaald?
@@ -933,19 +977,21 @@ function gebiedHaal(query, servers, idx) {
 
 // Elke gevraagde tegel is volledig gedekt: wegschrijven, ook als hij leeg is
 function gebiedBewaar(elements, tegels) {
-  var per = {};
+  var per = {}, zonder = {};
   tegels.forEach(function (t) { per[t.key] = {}; });
   elements.forEach(function (el) {
     if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) return;
     var w = { type: 'way', id: el.id, nodes: el.nodes || [], geometry: el.geometry,
               tags: { highway: (el.tags && el.tags.highway) || '',
                       name:    (el.tags && el.tags.name)    || '' } };
-    el.geometry.forEach(function (p) {
-      var k = 't_' + Math.floor(p.lat / TILE_DEG_SHARED) + '_' + Math.floor(p.lon / TILE_DEG_SHARED);
-      if (per[k]) per[k][w.id] = w;
+    tegelsVanWeg(w.geometry).forEach(function (k) {
+      if (!per[k]) return;
+      per[k][w.id] = w;
+      if (w.nodes.length < 2) zonder[k] = 1;
     });
   });
   var nu = Date.now();
+  tegels = tegels.filter(function (t) { return !zonder[t.key]; });   // zonder knooppunten: niet bewaren
   var recs = tegels.map(function (t) {
     var ws = []; for (var id in per[t.key]) ws.push(per[t.key][id]);
     return { key: t.key, ts: nu, v: TEGEL_SCHEMA, ways: ws };
@@ -1716,7 +1762,7 @@ function fetchRoads(lat, lon, endpointIdx) {
   var query = '[out:json][timeout:8];('
             + 'way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
             + 'way["tunnel"="building_passage"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
-            + ');out tags geom;';
+            + ');out body geom;';   // v3.20: met knooppunten, voor de tegelcache (schema 3)
   var url = OVERPASS_ENDPOINTS[endpointIdx] + '?data=' + encodeURIComponent(query);
 
   var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -1773,8 +1819,12 @@ function pasNetwerkToe(elements, lat, lon) {
   // Cumulatief bijhouden: nieuwe ways toevoegen, bekende overslaan (EERST)
   var knownIds = {};
   snap.networkElements.forEach(function(el){ knownIds[el.id] = true; });
+  // v3.20: de knooppunten (nodes) zijn er voor de tegelcache; de app zelf heeft
+  // ze niet nodig. Zonder blijven noodkopie en _netwerk.csv zo groot als vroeger.
   elements.forEach(function(el){
-    if (!knownIds[el.id]) snap.networkElements.push(el);
+    if (knownIds[el.id]) return;
+    var kaal = {}; for (var k in el) if (k !== 'nodes') kaal[k] = el[k];
+    snap.networkElements.push(kaal);
   });
   // v2.76: alleen tijdens een lopende sessie. Een Overpass-antwoord dat na Stop
   // binnenkwam schreef het wegennet opnieuw weg nadat de export het had gewist.

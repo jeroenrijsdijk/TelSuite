@@ -15,7 +15,8 @@ const blokVers = knip('var OSM_MAX_LAG_DAGEN = 7;', '\nvar SNAP_OVERPASS', false
 const blokOvp = knip('/* ---- Overpass-antwoord classificeren (v2.49)',
   'function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000); }', true);
 const blokTegelDb = knip('var TILE_DEG_SHARED = 0.01', 'var _tileCov = {};', false);
-const blokCache = knip('function cacheWaysInTiles(elements, lat, lon, radiusM) {',
+// v3.20: vanaf _tileCov, zodat ook tegelsVanWeg meekomt
+const blokCache = knip('var _tileCov = {};',
   '  } catch (e) { /* cache is best-effort: nooit het tellen verstoren */ }\n}', true);
 const blokLees = knip('/* ---- Tegel-cache LEZEN (v2.49)', '  });\n}', true);
 const blokFetch = knip('// v2.49: een verse aanvraag begint hier',
@@ -59,7 +60,7 @@ function maakCtx(overpass) {
     fetch(url) { log.fetches.push(url); return overpass(url, log.fetches.length); }
   };
   vm.createContext(ctx);
-  vm.runInContext([blokVers, blokOvp, blokTegelDb, 'var _tileCov={};var _TILE_N=8;',
+  vm.runInContext([blokVers, blokOvp, blokTegelDb, 
     blokCache, blokLees,
     "var SNAP_OVERPASS=['https://a/api/interpreter','https://b/api/interpreter'];",
     // traceFetchEvent is een dunne logger in de echte app; hier een stub met
@@ -102,7 +103,7 @@ const wacht = ms => new Promise(r => setTimeout(r, ms));
           out.push('t_'+ty+'_'+tx);
       return out;})()`, c);
     keys.forEach(k => {
-      c._tabel[k] = { key: k, ts: Date.now(), v: 2, ways: [{ id: 77, type: 'way', nodes: [3, 4], geometry: [{ lat: 51.855, lon: 4.335 }, { lat: 51.856, lon: 4.336 }], tags: { highway: 'residential', name: 'Cachestraat' } }] };
+      c._tabel[k] = { key: k, ts: Date.now(), v: 3, ways: [{ id: 77, type: 'way', nodes: [3, 4], geometry: [{ lat: 51.855, lon: 4.335 }, { lat: 51.856, lon: 4.336 }], tags: { highway: 'residential', name: 'Cachestraat' } }] };
     });
     vm.runInContext('snapStartFetch(51.855,4.335)', c);
     await wacht(300);
