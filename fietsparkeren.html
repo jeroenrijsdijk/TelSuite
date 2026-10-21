@@ -233,8 +233,7 @@
     <span class="wl-badge" id="wlBadge" style="display:none">&#128274; aan</span>
   </div>
 
-  <div id="restoreBanner" style="display:none;background:#fef9e7;border:1px solid #d68910;padding:8px 12px;margin-bottom:8px;font-size:12px;font-weight:500;color:#7d5a00;font-family:var(--font);"></div>
-  <button id="btnHervat" class="btn-ctrl start" onclick="hervatSessie()" style="display:none;width:100%;margin-bottom:8px;">&#9654; Doortellen</button>
+  <div id="herstel-melding" style="display:none;margin-bottom:8px;"></div>
 
   <div id="tellerPanel" style="margin-bottom:6px;">
     <div style="background:var(--surface);border:1px solid var(--border);padding:7px 12px;display:flex;align-items:center;gap:10px;">
@@ -1211,11 +1210,9 @@ function offsetPoint(lat,lon,bearing,meters) {
 
 /* ── Session ──────────────────────────────────────────── */
 function startSession() {
-  // v2.72: een nieuwe sessie wist de herstelde telling. Niet ongevraagd.
-  if (herstelOpen() && !confirm('Nieuwe sessie starten? De herstelde telling wordt dan gewist. '
-      + 'Download hem eerst als je hem nog nodig hebt.')) return;
-  if (herstelOpen()) kopieAfsluiten();   // v3.8: de herstelde telling is weggegooid
-  document.getElementById('btnHervat').style.display='none';
+  // v2.72: een nieuwe sessie wist de herstelde telling. Niet ongevraagd; de
+  // vraag staat sinds v3.22 in de gedeelde herstelmelding.
+  if (!herstelNieuw()) return;
   if (!navigator.geolocation) { setStatus('GPS niet beschikbaar.'); return; }
   sessionActive=true;
   entries=[]; totalNr=0;
@@ -1241,7 +1238,6 @@ function startSession() {
   try { setCompassBadge(); } catch(e) {}
   clearSession();
   kopieNieuw();                        // v3.8: dit venster is eigenaar
-  document.getElementById('restoreBanner').style.display='none';
   try {
     var savedTeller = localStorage.getItem('parkeer_teller');
     if (savedTeller) document.getElementById('inputTeller').value = savedTeller;
@@ -2115,10 +2111,6 @@ function undoLast() {
    starttijd, wegennet); dit start alleen het tellen weer, zonder iets te
    wissen. Sessie-id en starttijd blijven, dus alles komt in één ZIP. De
    onderbreking is zichtbaar als gat in het GPS-spoor. */
-function herstelOpen() {
-  var b = document.getElementById('restoreBanner');
-  return !!(b && b.style.display !== 'none');
-}
 function hervatSessie() {
   if (sessionActive || !herstelOpen()) return;
   if (kopieClaim()) return;   // v3.8: niet als de telling intussen elders verder ging
@@ -2142,8 +2134,7 @@ function hervatSessie() {
   compassHeading=null;
   compassActive = false; lastCompassValue = null; lastCompassChangeTime = null; compassFrozen = false;
   try { setCompassBadge(); } catch(e) {}
-  document.getElementById('restoreBanner').style.display='none';
-  document.getElementById('btnHervat').style.display='none';
+  herstelVerberg();           // v3.22: gedeelde herstelmelding
   setButtonsEnabled(false);   // telknoppen gaan aan bij de eerste GPS-fix, net als bij Start
   document.getElementById('btnStart').disabled=true;
   document.getElementById('btnStop').disabled=false;
@@ -2328,6 +2319,116 @@ window.addEventListener('pageshow', kopieControle);
 document.addEventListener('visibilitychange', function () { if (!document.hidden) kopieControle(); });
 /* ── einde gedeeld blok noodkopie ── */
 
+/* ── Herstelmelding (v3.22) ──────────────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren,
+   capaciteitstelling, pocket_count en traffic_counter (bewaakt door valideer.py).
+   Een telling die bij het openen nog in de noodopslag staat, komt terug met
+   deze melding. Tot v3.22 had elke soort app een eigen versie: de parkeer-apps
+   een gele balk met een losse Doortellen-knop en zonder Weggooien, pocket een
+   blok met drie knoppen, Static een Engelse balk. Nu overal dezelfde tekst en
+   dezelfde drie knoppen:
+   - Doortellen: verder met dezelfde telling (niet bij een afgeronde);
+   - Download ZIP: opslaan. Is de ZIP aantoonbaar opgeslagen, dan is de telling
+     afgehandeld en verdwijnt de melding (bewaarZip; pocket via zijn
+     voorbeeldscherm);
+   - Weggooien: na een vraag, die hier staat.
+   Een nieuwe telling terwijl de melding staat, vraagt eerst (herstelNieuw).
+   De app levert een lege <div id="herstel-melding" style="display:none"> op
+   de plek van de melding, en HERSTEL_ACTIES: de namen van haar functies voor
+   doortellen, downloaden en weggooien. Die vragen zelf niets. */
+var herstelAantal = 0;   // tikken in de herstelde telling, voor de vragen
+
+function herstelEn() { return (document.documentElement.lang || '').slice(0, 2) === 'en'; }
+
+function herstelTikken(n) {
+  return n + ' ' + (herstelEn() ? (n === 1 ? 'tap' : 'taps') : (n === 1 ? 'tik' : 'tikken'));
+}
+
+// Tijd in de melding: vandaag alleen uu:mm, anders met dag en datum, zoals de
+// lijst op de voorpagina. Neemt een Date of lokale tekst (jjjj-mm-dd uu:mm:ss,
+// met een spatie of een T).
+function herstelTijd(t) {
+  var d = (t instanceof Date) ? t : null, m;
+  if (!d && t && (m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(t)))) {
+    d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  }
+  if (!d || isNaN(d)) return '?';
+  var p = function (x) { return (x < 10 ? '0' : '') + x; };
+  var uur = p(d.getHours()) + ':' + p(d.getMinutes());
+  if (d.toDateString() === new Date().toDateString()) return uur;
+  var dagen = herstelEn() ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+  return dagen[d.getDay()] + ' ' + p(d.getDate()) + '-' + p(d.getMonth() + 1) + ' ' + uur;
+}
+
+// info: { n, start, laatst, afgerond, wat }. start en laatst: Date of lokale
+// tekst. afgerond: gestopt maar nog niet opgeslagen (dan geen Doortellen).
+// wat: optioneel, bijvoorbeeld de modus van pocket.
+function herstelToon(info) {
+  var el = document.getElementById('herstel-melding');
+  if (!el) return;
+  var en = herstelEn();
+  herstelAantal = info.n || 0;
+  var tekst = '\u26A0\uFE0F ' + (info.afgerond
+      ? (en ? 'Finished count, not saved yet' : 'Afgeronde telling, nog niet opgeslagen')
+      : (en ? 'Interrupted count restored' : 'Onderbroken telling hersteld'))
+    + (info.wat ? ' (' + info.wat + ')' : '') + ': ' + herstelTikken(herstelAantal)
+    + (en ? ', started ' : ', gestart ') + herstelTijd(info.start)
+    + (info.afgerond ? (en ? ', ended ' : ', gestopt ') : (en ? ', last saved ' : ', laatst bewaard '))
+    + herstelTijd(info.laatst) + '.';
+  var knop = function (actie, kleur, label) {
+    return '<button type="button" onclick="' + actie + '()" style="flex:1;padding:11px 6px;background:' + kleur + ';'
+      + 'border:none;border-radius:5px;color:#fff;font-family:inherit;font-size:0.8rem;font-weight:700;'
+      + 'letter-spacing:1px;text-transform:uppercase;cursor:pointer;touch-action:manipulation;">' + label + '</button>';
+  };
+  el.innerHTML = '<div style="background:#5a3a1a;border:1px solid #b07d2b;border-radius:6px;padding:12px 14px;'
+    + 'box-sizing:border-box;color:#fff;font-family:inherit;text-align:left;">'
+    + '<p style="margin:0 0 10px;font-size:0.85rem;font-weight:600;line-height:1.35;"></p>'
+    + (info.afgerond ? '' : '<div style="display:flex;margin-bottom:8px;">'
+       + knop(HERSTEL_ACTIES.door, '#0a8a30', '\u25B6 ' + (en ? 'Continue' : 'Doortellen')) + '</div>')
+    + '<div style="display:flex;gap:8px;">'
+    + knop(HERSTEL_ACTIES.download, '#3a7d44', '\u2193 Download ZIP')
+    + knop('herstelWeg', '#444', '\u2715 ' + (en ? 'Discard' : 'Weggooien'))
+    + '</div></div>';
+  el.querySelector('p').textContent = tekst;
+  el.style.display = '';
+}
+
+function herstelOpen() {
+  var el = document.getElementById('herstel-melding');
+  return !!(el && el.style.display !== 'none');
+}
+
+function herstelVerberg() {
+  var el = document.getElementById('herstel-melding');
+  if (!el) return;
+  el.style.display = 'none';
+  el.innerHTML = '';
+}
+
+// Weggooien: eerst vragen, dan de functie van de app. Die sluit de kopie af
+// (v3.8: op de lijst, nooit meer hersteld) en zet het scherm terug.
+function herstelWeg() {
+  var n = herstelTikken(herstelAantal);
+  if (!confirm(herstelEn() ? 'Discard the restored count (' + n + ')? This cannot be undone.'
+                           : 'Herstelde telling (' + n + ') weggooien? Dit kan niet ongedaan worden gemaakt.')) return;
+  herstelVerberg();
+  window[HERSTEL_ACTIES.weg]();
+}
+
+// Een nieuwe telling terwijl de melding staat: de herstelde zou stil
+// verdwijnen. Eerst vragen; bij ja is hij weggegooid. false = niet beginnen.
+function herstelNieuw() {
+  if (!herstelOpen()) return true;
+  var n = herstelTikken(herstelAantal);
+  if (!confirm(herstelEn()
+      ? 'Start a new count? The restored count (' + n + ') will be discarded. Otherwise choose Continue or Download ZIP.'
+      : 'Nieuwe telling starten? De herstelde telling (' + n + ') wordt dan weggegooid. Kies anders Doortellen of Download ZIP.')) return false;
+  kopieAfsluiten();
+  herstelVerberg();
+  return true;
+}
+/* ── einde gedeeld blok herstelmelding ── */
+
 /* ── Noodkopie: haken parkeer-apps (v3.8) ── */
 var KOPIE_SLEUTEL = LS_KEY;
 function kopieTelling() { return sessionId || ''; }
@@ -2340,6 +2441,39 @@ function kopieStilleggen() {
   csvDownloaded = true; kaartDownloaded = true;   // niets meer te bewaren: geen vraag bij herladen
 }
 /* ── einde haken noodkopie ── */
+
+/* ── Herstelmelding: haken parkeer-apps (v3.22) ── */
+// Gedeeld door parkeertelling, fietsparkeren en capaciteitstelling (bewaakt
+// door valideer.py). Functies voor de knoppen van de herstelmelding, en de
+// haak van bewaarZip.
+var HERSTEL_ACTIES = { door: 'hervatSessie', download: 'exportZip', weg: 'herstelWeggooien' };
+// Weggooien (na de vraag in de melding): de kopie afsluiten en het scherm
+// terugzetten zoals voor het herstel. Start begint daarna een nieuwe telling.
+// Tot v3.22 kon dat alleen door een nieuwe sessie te starten.
+function herstelWeggooien() {
+  kopieAfsluiten();   // v3.8: weggegooid, en op de lijst
+  entries = []; totalNr = 0; trackPoints = []; gpsLog = []; sessionId = null;
+  if (typeof terreinEntries !== 'undefined') terreinEntries = [];
+  snap.networkElements = [];
+  Object.keys(counts).forEach(function (k) {
+    counts[k] = { L: 0, R: 0 };
+    var el = document.getElementById('cnt' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (el) el.textContent = '0';
+  });
+  csvDownloaded = true; kaartDownloaded = true;   // niets meer te bewaren: geen vraag bij sluiten
+  routeLine.setLatLngs([]);
+  markerLayer.clearLayers();
+  updateLog();
+  ['btnDlCsv', 'btnDlKaart', 'btnDlGpx', 'btnDlZip', 'btnUndo'].forEach(function (id) {
+    var b = document.getElementById(id);
+    if (b) b.disabled = true;
+  });
+  setStatus('Herstelde telling weggegooid. Druk op Start om te beginnen.');
+}
+// bewaarZip: de ZIP is aantoonbaar opgeslagen. Alles is bewaard; de telling
+// is daarmee af (true), want een ZIP kan pas na Stop.
+function zipBewaard() { csvDownloaded = true; kaartDownloaded = true; return true; }
+/* ── einde haken herstelmelding ── */
 
 function saveSession() {
   if (!kopieMagSchrijven()) return;   // v3.8: alleen het venster dat eigenaar is
@@ -2393,12 +2527,8 @@ function restoreSession() {
       if (nw) snap.networkElements = JSON.parse(nw);
     } catch(e) {}
 
-    // Toon herstelmelding
-    var banner = document.getElementById('restoreBanner');
-    banner.style.display = '';
-    document.getElementById('btnHervat').style.display = '';
-    banner.textContent = '\u26a0\ufe0f ' + entries.length + ' vermeldingen hersteld van ' +
-      data.savedAt + ' \u2014 tel door, download hieronder of begin een nieuwe sessie.';
+    // Toon herstelmelding (v3.22: gedeeld blok, overal dezelfde)
+    herstelToon({ n: entries.length, start: sessionStartTime, laatst: data.savedAt });
 
     // Herstel tellers
     ['Fiets','Brommer','Breed','Wrak'].forEach(function(t){
@@ -2715,9 +2845,10 @@ function exportZip() {
 }
 
 /* ── ZIP bewaren (v2.77) ──────────────────────────────────────────────────
-   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren en
-   capaciteitstelling (bewaakt door valideer.py). Zelfde regel als pocket en
-   Static: de noodkopie gaat pas weg als de ZIP aantoonbaar is opgeslagen.
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren,
+   capaciteitstelling en (sinds v3.22) traffic_counter (bewaakt door
+   valideer.py). Zelfde regel als pocket: de noodkopie gaat pas weg als de ZIP
+   aantoonbaar is opgeslagen.
    - iOS: deelvenster voltooid -> bevestigd;
    - Android en desktop: download aan de browser overgedragen -> bevestigd;
    - deelvenster geannuleerd of mislukt (op de iPhone kan het tikgebaar na het
@@ -2730,18 +2861,17 @@ function exportZip() {
    werd de kopie daarna altijd gewist, ook als die download niets opleverde.
    Tot v3.18 probeerde ook Android eerst het deelvenster. Chrome op Android
    deelt geen ZIP en weigerde meteen; de app meldde "niet opgeslagen", en elke
-   tik op de ZIP-knop deed hetzelfde, zonder ooit te downloaden. */
-function zipSleutel() {
-  // Zelfde sessie en zelfde inhoud -> dezelfde ZIP mag opnieuw aangeboden worden.
-  return [sessionId, entries.length, gpsLog.length,
-          (typeof terreinEntries !== 'undefined' && terreinEntries) ? terreinEntries.length : 0].join('|');
-}
+   tik op de ZIP-knop deed hetzelfde, zonder ooit te downloaden.
+   De app levert setStatus(tekst), downloadBlob(blob, naam) en zipBewaard():
+   true als de telling met deze ZIP af is (kopie weg, melding weg), false bij
+   een tussentijdse ZIP (Static, terwijl hij telt). */
 function bewaarZip(zipBlob, zipName) {
   var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
   function bevestigd() {
-    csvDownloaded = true;
-    kaartDownloaded = true;
-    kopieAfsluiten();   // v3.8: kopie weg, telling op de lijst
+    if (zipBewaard()) {
+      kopieAfsluiten();   // v3.8: kopie weg, telling op de lijst
+      herstelVerberg();   // v3.22: een herstelde telling is daarmee afgehandeld
+    }
     setStatus('ZIP opgeslagen · ' + zipName);
   }
   var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
@@ -2761,6 +2891,12 @@ function bewaarZip(zipBlob, zipName) {
   return Promise.resolve();
 }
 /* ── einde gedeeld blok ZIP bewaren ── */
+
+function zipSleutel() {
+  // Zelfde sessie en zelfde inhoud -> dezelfde ZIP mag opnieuw aangeboden worden.
+  return [sessionId, entries.length, gpsLog.length,
+          (typeof terreinEntries !== 'undefined' && terreinEntries) ? terreinEntries.length : 0].join('|');
+}
 
 function downloadBlob(blob, name) {
   var url = URL.createObjectURL(blob);
