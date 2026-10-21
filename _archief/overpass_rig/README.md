@@ -46,6 +46,7 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_gebied.js      # v3.19: gebied vooraf ophalen: tegelset, zoekvraag, regel, 22 tests
     python3 _archief/overpass_rig/gebiedtest.py        # v3.19: gebied vooraf in de cache, lopen zonder verzoek, verversafstand, planning uit een link in telplanning; v3.20: tegelschema 3 (deel F), 51 tests
     node _archief/overpass_rig/functest_tegelcache.js  # v3.20: tegels schrijven: hele cellen, per segment, knooppunten, 13 tests
+    python3 _archief/overpass_rig/stukkentest.py       # v3.21: telrapport per stuk voor fiets en auto: origineel, _recon, auto, correctietool, 21 tests
     python3 _archief/overpass_rig/gpkgtest.py          # GeoPackage uit telrapport: van veld-app tot QGIS, met het QGIS-project, 80 tests
                                                        # (ook sql.js@1.14.2 in node_modules; het QGIS-deel draait als
                                                        #  PyQGIS er is, via gpkg_qgis.py, anders overgeslagen)
