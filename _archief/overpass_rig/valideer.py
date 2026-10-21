@@ -19,11 +19,10 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.19'
-# v3.19: planning uit een link in telplanning, gebied vooraf ophalen, verversafstand 220 m.
-VERWACHT_GEWIJZIGD = {'index.html', 'telplanning.html', 'parkeertelling.html', 'fietsparkeren.html',
-                      'capaciteitstelling.html', 'pocket_count.html', 'traffic_counter_help.html',
-                      'privacy.html'}
+RELEASE = 'v3.20'
+# v3.20: tegelcache met knooppunten (schema 3), hele cellen, per segment, alleen de cirkel.
+VERWACHT_GEWIJZIGD = {'index.html', 'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                      'pocket_count.html', 'telreconstructie.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -199,7 +198,7 @@ groepen = [
      '/* ── ZIP bewaren (v2.77) ──', '/* ── einde gedeeld blok ZIP bewaren ── */'),
     ('cacheWaysInTiles', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
                           'pocket_count.html'],
-     'function cacheWaysInTiles(elements, lat, lon, radiusM) {',
+     '// Bewaar ways per tegel',   # v3.20: vanaf het commentaar, met _tileCov en tegelsVanWeg
      '  } catch (e) { /* cache is best-effort: nooit het tellen verstoren */ }\n}'),
     # v3.4: GPX-tijd in echte UTC, gedeeld door de drie parkeer-apps
     ('GPX-tijd', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],

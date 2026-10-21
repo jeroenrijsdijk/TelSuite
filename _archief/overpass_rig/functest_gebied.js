@@ -110,7 +110,7 @@ eis('rij 5185, kolom 430–432 is één bbox op de tegelgrenzen', bboxen[0] === 
 eis('een gat in de rij geeft twee bboxen', bboxen.indexOf('(51.86,4.30,51.87,4.31)') >= 0 &&
     bboxen.indexOf('(51.86,4.32,51.87,4.33)') >= 0, bboxen);
 eis('zelfde filters als in het veld', q.indexOf('way["highway"~"residential|footway"]["area"!="yes"](51.85,4.30,51.86,4.33);') >= 0 &&
-    q.indexOf('way["tunnel"="building_passage"](51.85,4.30,51.86,4.33);') >= 0 && /out tags geom;$/.test(q), q);
+    q.indexOf('way["tunnel"="building_passage"](51.85,4.30,51.86,4.33);') >= 0 && /out body geom;$/.test(q), q);
 eis('geen around: niets hangt aan je positie', q.indexOf('around') < 0);
 const qw = G.gebiedQuery([{ ty: 5150, tx: -13 }]);
 eis('negatieve lengtegraad: (51.50,-0.13,51.51,-0.12)', qw.indexOf('(51.50,-0.13,51.51,-0.12)') >= 0, qw);

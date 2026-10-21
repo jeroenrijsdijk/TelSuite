@@ -20,6 +20,15 @@
   D. Verversafstand (v3.19: 220 m in de parkeer-apps, 170 m in pocket): op
      200 m van het vorige middelpunt geen nieuw verzoek, op 240 m wel; pocket
      op 150 m niet, op 190 m wel.
+  F. Tegelschema 3 (v3.20): de tegels dragen de knooppunten van elke weg.
+     - het gebied vooraf haalt op met 'out body geom'; een tegel van schema 2
+       (zonder knooppunten, zoals v3.19 ze schreef) telt als ontbrekend en
+       wordt opnieuw opgehaald;
+     - pocket bouwt uit die tegels de aansluitingen tussen straten;
+     - de reconstructor haalt een tegel van schema 2 opnieuw op en heeft dan
+       buren;
+     - parkeertelling haalt in het veld ook met knooppunten op, maar bewaart ze
+       niet in zijn eigen netwerk (noodkopie en _netwerk.csv blijven even groot).
   E. Telplanning: planning uit een link.
      - telplanning.html#plan=…: naam, datum, tijd, teller en teltype terug, de
        geplande straten gekozen, de omgeving erbij (één verzoek) en niet gekozen;
@@ -49,7 +58,7 @@ M = 1 / 111320
 
 # Nep-Overpass die bbox-vragen echt beantwoordt (wegen met een punt in een bbox)
 REQ = []                             # (soort, server, zoekvraag)
-SCEN = {'1': 'ok', '2': 'ok'}
+SCEN = {'1': 'ok', '2': 'ok', 'around': 'ok'}
 def route_gebied(r, *_):
     u = r.request.url
     if 'overpass' not in u:
@@ -61,7 +70,7 @@ def route_gebied(r, *_):
     server = '1' if 'overpass-api.de' in u else '2'
     soort = 'poly' if 'poly:' in q else ('around' if 'around' in q else 'bbox')
     REQ.append((soort, server, q))
-    sc = SCEN[server]
+    sc = SCEN[server] if not (soort == 'around' and SCEN['around'] != 'ok') else SCEN['around']
     if sc == '429':
         return r.fulfill(status=429, body='rate limited', content_type='text/plain')
     if sc == '500':
@@ -69,12 +78,14 @@ def route_gebied(r, *_):
     if sc == 'remark':
         return r.fulfill(body=json.dumps({'version': 0.6, 'elements': [], 'remark': 'runtime error: Query timed out'}),
                          content_type='application/json')
+    els = RASTER
     if soort == 'bbox':
         bb = [tuple(map(float, m)) for m in re.findall(r'\((-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)\)', q)]
         els = [e for e in RASTER if any(s <= pt['lat'] <= n and w <= pt['lon'] <= o
                                         for pt in e['geometry'] for (s, w, n, o) in bb)]
-        return r.fulfill(body=json.dumps({'version': 0.6, 'elements': els}), content_type='application/json')
-    return r.fulfill(body=OSM, content_type='application/json')
+    if 'out tags geom' in q:     # zoals Overpass: 'out tags' geeft geen knooppunten
+        els = [{k: v for k, v in e.items() if k != 'nodes'} for e in els]
+    return r.fulfill(body=json.dumps({'version': 0.6, 'elements': els}), content_type='application/json')
 
 def soorten(*s):
     return [x for x in REQ if x[0] in s]
@@ -104,7 +115,14 @@ PLANNING = {'sessie_naam': 'Wijk Noord', 'datum': '2026-10-24', 'tijdstip': '09:
 STATUS = "document.getElementById('statusText').textContent"
 TEGELS = """() => _tileDb().then(db => new Promise(res => {
   var q = db.transaction('tiles', 'readonly').objectStore('tiles').getAll();
-  q.onsuccess = () => res(q.result.map(t => ({key: t.key, ts: t.ts, v: t.v, ids: (t.ways || []).map(w => String(w.id))})));
+  q.onsuccess = () => res(q.result.map(t => ({key: t.key, ts: t.ts, v: t.v, ids: (t.ways || []).map(w => String(w.id)),
+                                               knopen: (t.ways || []).every(w => w.nodes && w.nodes.length >= 2)})));
+}))"""
+# v3.20: tegels zoals v3.19 ze schreef: schema 2, wegen zonder knooppunten
+ZAAI_OUD = """(keys) => _tileDb().then(db => new Promise(res => {
+  var tx = db.transaction('tiles', 'readwrite'), st = tx.objectStore('tiles');
+  keys.forEach(k => st.put({key: k, ts: Date.now(), v: 2, ways: []}));
+  tx.oncomplete = () => res(keys.length);
 }))"""
 
 with sync_playwright() as p:
@@ -132,7 +150,8 @@ with sync_playwright() as p:
     teg = pg.evaluate(TEGELS)
     eis('precies die tegels in de cache (%d)' % len(verwacht), sorted(t['key'] for t in teg) == sorted(verwacht), (sorted(t['key'] for t in teg), sorted(verwacht)))
     nu = pg.evaluate('Date.now()')
-    eis('vers en schema 2', all(t['v'] == 2 and nu - t['ts'] < 60000 for t in teg), teg[:2])
+    eis('vers en schema 3, met knooppunten (v3.20)', all(t['v'] == 3 and t['knopen'] and nu - t['ts'] < 60000 for t in teg), teg[:2])
+    eis('de zoekvraag vraagt de knooppunten (out body geom)', REQ[0][2].endswith('out body geom;'), REQ[0][2][-40:])
     hier = [t for t in teg if t['key'] == 't_5185_430']
     eis('Noordstraat 3 staat in de tegel waar hij ligt', hier and '1003' in hier[0]['ids'], hier)
     eis('een verzoek per server is niet nodig: alleen server 1', all(x[1] == '1' for x in REQ))
@@ -235,6 +254,59 @@ with sync_playwright() as p:
         eis('%s: op %d m geen nieuw verzoek, op %d m wel' % (naam, kort, lang), n0 == 1 and n1 == 1 and n2 == 2, (n0, n1, n2))
         eis('%s: geen JS-fouten' % naam, not fouten, fouten)
         ctx.close()
+
+    print('\n== F. tegelschema 3 (v3.20) ==')
+    REQ.clear()
+    ctx = context(b)
+    pg, fouten = pagina(ctx, BASIS + 'parkeertelling.html')
+    pg.evaluate(ZAAI_OUD, verwacht)                      # de tegels van v3.19, zonder knooppunten
+    pg.close()                                           # een hash-wissel laadt de pagina niet opnieuw
+    pg, fouten = pagina(ctx, BASIS + 'parkeertelling.html#plan=' + WAARDE)
+    pg.wait_for_function("document.getElementById('statusText').textContent.indexOf('gebied klaar') >= 0", timeout=15000)
+    teg = pg.evaluate(TEGELS)
+    eis('tegels van schema 2 (zoals v3.19 ze schreef): opnieuw opgehaald, nu schema 3 met knooppunten',
+        len(soorten('bbox')) == 1 and 'kB opgehaald' in pg.evaluate(STATUS) and all(t['v'] == 3 and t['knopen'] for t in teg),
+        ([x[:2] for x in REQ], pg.evaluate(STATUS)))
+    pg.evaluate('startSession()'); pg.wait_for_timeout(800)
+    ctx.set_geolocation({'latitude': LAT + 400 * M, 'longitude': LON + 0.03, 'accuracy': 5}); pg.wait_for_timeout(1500)
+    rond = soorten('around')
+    eis('in het veld buiten het gebied: ook met knooppunten (out body geom)', rond and rond[-1][2].endswith('out body geom;'),
+        [x[2][-30:] for x in rond])
+    pg.wait_for_timeout(500)
+    kaal = pg.evaluate("snap.networkElements.every(e => !('nodes' in e)) && snap.networkElements.length > 0")
+    opslag = pg.evaluate("localStorage.getItem(LS_KEY + '_netwerk') || ''")
+    eis('maar het eigen netwerk en de noodkopie zonder knooppunten (zo groot als vroeger)',
+        kaal and opslag and '"nodes"' not in opslag, (kaal, len(opslag)))
+    eis('geen JS-fouten', not fouten, fouten)
+    ctx.close()
+    REQ.clear(); SCEN['around'] = '500'                  # het netwerk kan alleen uit de tegels komen
+    ctx = context(b)
+    pg, fouten = pagina(ctx, BASIS + 'pocket_count.html#parkeren&plan=' + WAARDE)
+    pg.wait_for_function("document.getElementById('pk-plan').textContent.indexOf('gebied klaar') >= 0", timeout=15000)
+    for i in range(5):
+        ctx.set_geolocation({'latitude': LAT + i * 60 * M, 'longitude': LON, 'accuracy': 5})
+        pg.wait_for_timeout(500)
+    pg.wait_for_timeout(800)
+    adj = pg.evaluate("({n: Object.keys(snap.adjacency).length, el: Object.keys(snap.elements).length})")
+    SCEN['around'] = 'ok'
+    eis('pocket: de wegen uit de tegels komen met knooppunten in de aansluitingen (v3.19: geen)',
+        adj['el'] > 0 and adj['n'] == adj['el'], adj)
+    eis('geen JS-fouten', not fouten, fouten)
+    ctx.close()
+    REQ.clear()
+    ctx = context(b, breed=True)
+    pg, fouten = pagina(ctx, BASIS + 'telreconstructie.html')
+    BB = {'la0': LAT - 0.002, 'la1': LAT + 0.002, 'lo0': LON - 0.002, 'lo1': LON + 0.002}
+    sleutels = pg.evaluate("(b) => coveringTiles(b).map(t => t.key)", BB)
+    pg.evaluate("(keys) => OSMCACHE.put(keys.map(k => ({key: k, ts: Date.now(), v: 2, ways: []})))", sleutels)
+    res = pg.evaluate("(b) => cacheGefetchteRoute(b).then(r => ({n: r.ways.length, vers: r.vers, tegels: r.tegels, "
+                      "buren: Object.keys(MATCHER.buildAdjacency(r.ways)).length}))", BB)
+    eis('reconstructor: tegels van schema 2 opnieuw opgehaald, met buren', res['vers'] == res['tegels'] == len(sleutels) and
+        res['n'] > 0 and res['buren'] > 0 and len(REQ) == 1, (res, [x[:2] for x in REQ]))
+    res = pg.evaluate("(b) => cacheGefetchteRoute(b).then(r => ({vers: r.vers}))", BB)
+    eis('reconstructor: daarna uit de cache (schema 3), geen verzoek', res['vers'] == 0 and len(REQ) == 1, (res, len(REQ)))
+    eis('geen JS-fouten', not fouten, fouten)
+    ctx.close()
 
     print('\n== E. telplanning: planning uit een link ==')
     VELDEN = """() => ({naam: document.getElementById('meta-naam').value, datum: document.getElementById('meta-datum').value,

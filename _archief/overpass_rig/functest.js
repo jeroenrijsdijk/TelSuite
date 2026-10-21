@@ -16,7 +16,8 @@ function knip(start, eind, incl) {
 const blokOvp = knip('/* ---- Overpass-antwoord classificeren (v2.49)',
   'function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1)), 8000); }', true);
 const blokTegelDb = knip('var TILE_DEG_SHARED = 0.01', 'var _tileCov = {};', false);
-const blokCache = knip('function cacheWaysInTiles(elements, lat, lon, radiusM) {',
+// v3.20: vanaf _tileCov, zodat ook tegelsVanWeg meekomt
+const blokCache = knip('var _tileCov = {};',
   '  } catch (e) { /* cache is best-effort: nooit het tellen verstoren */ }\n}', true);
 const blokLees = knip('/* ---- Tegel-cache LEZEN (v2.49)', '  });\n}', true);
 const blokFetch = knip('/* Fetch road geometries from Overpass, try endpoints in order + retry */',
@@ -85,8 +86,7 @@ function maakCtx(overpass) {
   };
   ctx.window = ctx;
   vm.createContext(ctx);
-  vm.runInContext([blokVers, blokOvp, blokTegelDb, 'var _tileCov = {}; var _TILE_N = 8;',
-    blokCache, blokLees,
+  vm.runInContext([blokVers, blokOvp, blokTegelDb, blokCache, blokLees,
     "var OVERPASS_ENDPOINTS = ['https://a/api/interpreter','https://b/api/interpreter'];",
     blokFetch, blokPas].join('\n'), ctx);
   return ctx;
@@ -137,7 +137,9 @@ const wacht = ms => new Promise(r => setTimeout(r, ms));
   {
     const c = maakCtx(antwoordOk);
     const nuMs = Date.now();
-    const w = id => ({ id, type: 'way', nodes: [], geometry: [{ lat: 51.85, lon: 4.33 }], tags: { highway: 'residential', name: 'X' } });
+    const w = id => ({ id, type: 'way', nodes: [1, 2], geometry: [{ lat: 51.855, lon: 4.335 }, { lat: 51.8552, lon: 4.3352 }], tags: { highway: 'residential', name: 'X' } });
+    // v3.20: een weg in dezelfde tegel, maar ~600 m van het middelpunt: buiten de cirkel van 300 m
+    const ver = id => ({ id, type: 'way', nodes: [3, 4], geometry: [{ lat: 51.8505, lon: 4.3305 }, { lat: 51.8506, lon: 4.3306 }], tags: { highway: 'residential', name: 'Ver' } });
     // cirkel r=300 rond 51.855/4.335 raakt de tegels t_5185_433 .. t_5185_433(+1)
     const keys = vm.runInContext(`(function(){var lat=51.855,lon=4.335,r=300;
       var mLat=111320,mLon=111320*Math.cos(lat*Math.PI/180);
@@ -147,28 +149,43 @@ const wacht = ms => new Promise(r => setTimeout(r, ms));
           out.push('t_'+ty+'_'+tx);
       return out;})()`, c);
     // alle tegels vers + schema 2, met een way die in twee tegels staat
-    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 2, ways: [w(1), w(2)] }; });
+    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 3, ways: [w(1), w(2)] }; });
     let r = await vm.runInContext('leesTegels(51.855,4.335,300)', c);
     eis('volledige dekking -> lijst', Array.isArray(r), r);
     eis('ways ontdubbeld over tegels', r && r.length === 2, r && r.length);
+
+    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 3, ways: [w(1), ver(7)] }; });
+    r = await vm.runInContext('leesTegels(51.855,4.335,300)', c);
+    eis('v3.20: alleen de wegen binnen de cirkel (een weg op 600 m in dezelfde tegel valt weg)',
+      r && r.length === 1 && r[0].id === 1, r && r.map(x => x.id));
+    // een lang segment dat de cirkel doorsnijdt, met beide punten erbuiten, telt wel
+    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 3, ways: [{ id: 8, type: 'way', nodes: [5, 6],
+      geometry: [{ lat: 51.855, lon: 4.325 }, { lat: 51.855, lon: 4.345 }], tags: {} }] }; });
+    r = await vm.runInContext('leesTegels(51.855,4.335,300)', c);
+    eis('v3.20: een segment door de cirkel, met beide punten erbuiten, telt mee', r && r.length === 1, r && r.map(x => x.id));
 
     delete c._tabel[keys[0]];
     r = await vm.runInContext('leesTegels(51.855,4.335,300)', c);
     eis('één tegel ontbreekt -> null (geen deelresultaat)', r === null, r);
 
-    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 2, ways: [w(1)] }; });
+    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 3, ways: [w(1)] }; });
     c._tabel[keys[0]].ts = nuMs - 20 * 24 * 3600 * 1000;
     r = await vm.runInContext('leesTegels(51.855,4.335,300)', c);
     eis('tegel ouder dan 14 dagen -> null', r === null, r);
 
-    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 2, ways: [w(1)] }; });
+    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 3, ways: [w(1)] }; });
     delete c._tabel[keys[0]].v;              // tegel van vóór v2.49
     r = await vm.runInContext('leesTegels(51.855,4.335,300)', c);
     eis('tegel zonder schemaversie -> null (geneest zichzelf)', r === null, r);
 
-    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 2, ways: [] }; });
+    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 3, ways: [] }; });
     r = await vm.runInContext('leesTegels(51.855,4.335,300)', c);
     eis('gedekt maar wegenloos -> lege lijst (geen null)', Array.isArray(r) && r.length === 0, r);
+
+    keys.forEach(k => { c._tabel[k] = { key: k, ts: nuMs, v: 3, ways: [w(1)] }; });
+    c._tabel[keys[0]].v = 2;                 // v3.20: schema 2 kan wegen zonder knooppunten hebben
+    r = await vm.runInContext('leesTegels(51.855,4.335,300)', c);
+    eis('tegel van schema 2 -> null (v3.20: geneest zichzelf)', r === null, r);
   }
 
   console.log('\n== tegelrecord draagt naam + schema ==');
@@ -182,7 +199,7 @@ const wacht = ms => new Promise(r => setTimeout(r, ms));
     const recs = Object.values(c._tabel);
     const metNaam = recs.filter(r => (r.ways || []).some(w => w.tags && w.tags.name === 'Kade'));
     eis('weggeschreven tegel bevat straatnaam', metNaam.length > 0, recs.map(r => r.key));
-    eis('weggeschreven tegel draagt v=2', recs.every(r => r.v === 2), recs.map(r => r.v));
+    eis('weggeschreven tegel draagt v=3 (v3.20: met knooppunten)', recs.every(r => r.v === 3), recs.map(r => r.v));
   }
 
   console.log('\n== fetchRoads: gebied zonder wegen (de storm van vóór v2.49) ==');
@@ -240,7 +257,7 @@ const wacht = ms => new Promise(r => setTimeout(r, ms));
           out.push('t_'+ty+'_'+tx);
       return out;})()`, c);
     keys.forEach(k => {
-      c._tabel[k] = { key: k, ts: nuMs, v: 2, ways: [{ id: 5, type: 'way', nodes: [], geometry: [{ lat: 51.855, lon: 4.335 }], tags: { highway: 'residential', name: 'Cachestraat' } }] };
+      c._tabel[k] = { key: k, ts: nuMs, v: 3, ways: [{ id: 5, type: 'way', nodes: [], geometry: [{ lat: 51.855, lon: 4.335 }], tags: { highway: 'residential', name: 'Cachestraat' } }] };
     });
     vm.runInContext('startRoadFetch(51.855,4.335)', c);
     await wacht(300);
