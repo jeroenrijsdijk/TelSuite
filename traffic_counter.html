@@ -1,463 +1,255 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Verkeer tellen vanaf een vast punt | telonline.org</title>
 <meta name="description" content="Tel verkeer vanaf een vast punt: auto's, fietsers en voetgangers, per richting. Na afloop één ZIP met CSV's. Gratis, in je browser, zonder account.">
 <link rel="canonical" href="https://telonline.org/traffic_counter.html">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap');
+  /* v3.22: huisstijl van de parkeer-apps (kop, statusbalk, panelen, knoppen).
+     De telkaarten zijn van Static zelf: twee richtingen per voertuigtype. */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:        #f0f0ec;
-    --panel:     #ffffff;
-    --border:    #b0b0a8;
-    --text:      #111111;
-    --dim:       #555555;
-    --subdim:    #888880;
-
-    --car-col:   #c8000a;
-    --truck-col: #b35c00;
-    --moto-col:  #5500cc;
-    --bike-col:  #007a7a;
-    --ped-col:   #1a7a00;
-
-    --green:     #0a8a30;
-    --red:       #c8000a;
-    --orange:    #b35c00;
+    --bg: #f0f0ec;
+    --surface: #ffffff;
+    --border: #b0b0a8;
+    --text: #1a1918;
+    --muted: #7a776f;
+    --c-goed: #27ae60;
+    --c-goed-bg: #eaf7ef;
+    --c-fout: #c0392b;
+    --c-fout-bg: #fdecea;
+    --c-klaar: #b35c00;
+    --font: 'Oswald', sans-serif;
+    --mono: 'Share Tech Mono', monospace;
   }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; -webkit-tap-highlight-color: transparent; }
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Oswald', sans-serif;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 14px;
-    gap: 10px;
-  }
+  header { background: var(--text); color: #fff; padding: 12px 16px 10px; display: flex; align-items: baseline; gap: 10px; }
+  header h1 { font-size: 20px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+  header span { font-size: 12px; font-weight: 300; color: #aaa8a2; }
+  header .hulp { margin-left: auto; color: #aaa8a2; text-decoration: none; font-size: 13px; font-weight: 600; border: 1px solid #55534e; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; align-self: center; }
+  header .hulp:hover { color: #fff; border-color: #fff; }
 
-  header {
-    width: 100%;
-    max-width: 520px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0 8px;
-    border-bottom: 3px solid var(--text);
-  }
+  .main { padding: 10px; max-width: 540px; margin: 0 auto; }
 
-  header h1 { font-size: 1.25rem; letter-spacing: 3px; text-transform: uppercase; font-weight: 700; color: var(--text); }
+  /* STATUS */
+  .status-bar { background: var(--surface); border: 1px solid var(--border); padding: 8px 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .gps-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: background 0.3s; }
+  .gps-dot.active { background: var(--c-goed); box-shadow: 0 0 0 3px var(--c-goed-bg); }
+  .gps-dot.searching { background: #e67e22; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .status-text { font-size: 12px; color: var(--muted); flex: 1; }
+  .wl-badge { font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; background: var(--text); color: #fff; padding: 2px 6px; white-space: nowrap; }
 
-  #session-time {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--dim);
-    transition: color 0.3s;
-  }
-  #session-time.running { color: var(--green); }
-  #session-time.ended   { color: var(--orange); }
+  /* SESSIE: tijden, plek en de klok */
+  .sessie-panel { background: var(--surface); border: 1px solid var(--border); padding: 8px 12px; margin-bottom: 8px; }
+  .sessie-boven { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .rij { display: flex; gap: 8px; align-items: baseline; font-size: 12px; line-height: 1.5; }
+  .rij .k { font-size: 9px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); width: 42px; flex-shrink: 0; }
+  .rij .v { font-family: var(--mono); color: var(--text); }
+  .rij .v.leeg { color: var(--border); }
+  .rij.plek { margin-top: 2px; }
+  .rij.plek .v { font-family: var(--font); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .klok { font-family: var(--mono); font-size: 30px; font-weight: 700; color: var(--muted); line-height: 1; }
+  .klok.loopt { color: var(--c-goed); }
+  .klok.klaar { color: var(--c-klaar); }
 
-  /* ── Session bar ── */
-  .session-bar {
-    width: 100%;
-    max-width: 520px;
-    display: flex;
-    gap: 8px;
-    align-items: stretch;
-  }
+  /* CONTROLS */
+  .controls { display: flex; gap: 6px; margin-bottom: 8px; }
+  .btn-ctrl { flex: 1; font-family: var(--font); font-size: 12px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; padding: 9px 0; border: 1px solid var(--border); cursor: pointer; background: var(--surface); color: var(--text); transition: background 0.1s; touch-action: manipulation; }
+  .btn-ctrl:disabled { opacity: 0.35; cursor: default; }
+  .btn-ctrl.start { border-color: var(--c-goed); color: var(--c-goed); }
+  .btn-ctrl.start:hover { background: var(--c-goed-bg); }
+  .btn-ctrl.stop  { border-color: var(--c-fout); color: var(--c-fout); }
+  .btn-ctrl.stop:hover  { background: var(--c-fout-bg); }
 
-  .session-info {
-    flex: 1;
-    background: var(--panel);
-    border: 2px solid var(--border);
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 6px 12px;
-    gap: 3px;
-  }
+  /* VELDEN: notities en richtingen */
+  .veld { background: var(--surface); border: 1px solid var(--border); padding: 7px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+  .veld-k { font-size: 9px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); flex-shrink: 0; white-space: nowrap; }
+  .veld input { font-family: var(--font); font-size: 14px; font-weight: 500; border: none; background: transparent; flex: 1; min-width: 0; outline: none; color: var(--text); }
+  .veld input::placeholder { color: var(--border); font-weight: 400; }
+  .richtingen { display: flex; gap: 6px; margin-bottom: 8px; }
+  .richtingen .veld { flex: 1; margin-bottom: 0; padding: 7px 8px; gap: 6px; min-width: 0; }
+  .richtingen .veld input { text-align: center; }
+  .btn-kompas { font-family: var(--font); font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; border: 1px solid var(--border); background: var(--surface); color: var(--muted); padding: 0 8px; cursor: pointer; touch-action: manipulation; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn-kompas.active { color: var(--c-goed); border-color: var(--c-goed); background: var(--c-goed-bg); }
 
-  .session-info .row { display: flex; justify-content: space-between; font-size: 0.68rem; letter-spacing: 1px; }
-  .session-info .row .k { color: var(--dim); text-transform: uppercase; font-weight: 500; }
-  .session-info .row .v { font-family: 'Share Tech Mono', monospace; color: var(--text); font-weight: 700; }
-  .session-info .row .v.empty { color: var(--subdim); font-weight: 400; }
+  /* TOTAAL */
+  .total-bar { background: var(--text); padding: 7px 14px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .total-bar .label { font-size: 10px; letter-spacing: 2px; color: #aaa8a2; text-transform: uppercase; font-weight: 500; }
+  .total-bar .value { font-family: var(--mono); font-size: 28px; font-weight: 700; color: #fff; line-height: 1; }
 
-  .btn-session {
-    width: 76px;
-    border: none;
-    border-radius: 6px;
-    font-family: 'Oswald', sans-serif;
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: filter 0.1s, transform 0.1s;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .btn-session:active { transform: scale(0.95); }
-  .btn-session:disabled { opacity: 0.25; cursor: default; }
-  .btn-start { background: var(--green); color: #fff; border: 2px solid #065e20; }
-  .btn-start:hover:not(:disabled) { filter: brightness(1.1); }
-  .btn-end   { background: var(--red);   color: #fff; border: 2px solid #8a0007; }
-  .btn-end:hover:not(:disabled)   { filter: brightness(1.1); }
-
-  /* ── Status badge ── */
-  .status-badge {
-    width: 100%;
-    max-width: 520px;
-    border-radius: 6px;
-    padding: 8px 14px;
-    font-size: 0.72rem;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-align: center;
-    font-weight: 700;
-  }
-  .status-badge.idle    { background: #e0e0d8; color: var(--dim);    border: 2px solid var(--border); }
-  .status-badge.running { background: #d4f0da; color: var(--green);  border: 2px solid #7dcc90; }
-  .status-badge.ended   { background: #fde8cc; color: var(--orange); border: 2px solid #e8b070; }
-
-  /* ── Restore bar (v2.72): interrupted session found on load ── */
-  .herstel-balk {
-    width: 100%; max-width: 520px;
-    background: #5a3a1a; border: 2px solid #b07d2b; border-radius: 6px;
-    padding: 12px 14px; color: #fff;
-  }
-  .herstel-balk p { font-size: 0.85rem; font-weight: 600; line-height: 1.35; margin-bottom: 10px; }
-  .herstel-knoppen { display: flex; gap: 8px; }
-  .herstel-knoppen button {
-    flex: 1; padding: 10px 6px; border: none; border-radius: 5px; cursor: pointer;
-    font-family: inherit; font-size: 0.78rem; font-weight: 700; letter-spacing: 1px;
-    text-transform: uppercase; color: #fff; background: #444;
-  }
-  .herstel-knoppen button.door { background: var(--green); }
-  .herstel-knoppen button.dl   { background: #3a7d44; }
-
-  /* ── Direction labels ── */
-  .dir-config { width: 100%; max-width: 520px; display: flex; gap: 8px; align-items: center; }
-  .dir-config label { font-size: 0.65rem; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; white-space: nowrap; font-weight: 700; }
-
-  .btn-compass {
-    padding: 7px 10px;
-    border: 2px solid var(--border);
-    border-radius: 4px;
-    background: var(--panel);
-    color: var(--dim);
-    font-family: 'Oswald', sans-serif;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: color 0.15s, border-color 0.15s;
-  }
-  .btn-compass:hover { color: var(--text); border-color: var(--text); }
-  .btn-compass.active { color: var(--green); border-color: var(--green); background: #d4f0da; }
-
-  /* ── Toast notification ── */
-  #toast {
-    position: fixed;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%) scale(0.9);
-    background: var(--text);
-    color: #fff;
-    border-radius: 10px;
-    padding: 20px 24px;
-    min-width: 280px;
-    max-width: 360px;
-    text-align: center;
-    z-index: 9999;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s, transform 0.2s;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-  }
-  #toast.show {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  #toast .toast-label {
-    font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase;
-    color: #aaa; margin-bottom: 12px;
-  }
-  #toast .toast-row {
-    display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px;
-  }
-  #toast .toast-row:last-child { margin-bottom: 0; }
-  #toast .toast-dir {
-    font-size: 0.62rem; font-weight: 700; letter-spacing: 2px;
-    text-transform: uppercase; color: #aaa; min-width: 36px; text-align: right;
-  }
-  #toast .toast-val {
-    font-size: 0.95rem; font-weight: 700; letter-spacing: 1px;
-    color: #fff; text-align: left; line-height: 1.25;
-  }
-
-  .dir-input {
-    flex: 1;
-    background: var(--panel);
-    border: 2px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-    font-family: 'Oswald', sans-serif;
-    font-size: 0.9rem;
-    font-weight: 700;
-    padding: 7px 10px;
-    text-align: center;
-    letter-spacing: 1px;
-    min-width: 0;
-  }
-  .dir-input:focus { outline: none; border-color: var(--text); }
-
-  /* ── Total bar ── */
-  .total-bar {
-    width: 100%;
-    max-width: 520px;
-    background: var(--text);
-    border-radius: 6px;
-    padding: 9px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .total-bar .label { font-size: 0.72rem; letter-spacing: 2px; color: #aaaaaa; text-transform: uppercase; font-weight: 500; }
-  .total-bar .value { font-family: 'Share Tech Mono', monospace; font-size: 2rem; font-weight: 700; color: #ffffff; }
-
-  /* ── Counter cards — compact horizontal layout ── */
-  .counters { width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 7px; }
-
-  .counter-card {
-    background: var(--panel);
-    border: 2px solid var(--border);
-    border-radius: 8px;
-    display: flex;
-    align-items: stretch;
-    overflow: hidden;
-    height: 72px;
-    transition: opacity 0.2s;
-  }
+  /* TELKAARTEN: [+1 A] [aantal A] [-] [type] [-] [aantal B] [+1 B] */
+  .counters { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .counter-card { background: var(--surface); border: 1px solid var(--border); display: flex; align-items: stretch; overflow: hidden; height: 72px; transition: opacity 0.2s; }
   .counter-card.locked { opacity: 0.35; pointer-events: none; }
-
-  .car   { --accent: var(--car-col); }
-  .truck { --accent: var(--truck-col); }
-  .moto  { --accent: var(--moto-col); }
-  .bike  { --accent: var(--bike-col); }
-  .ped   { --accent: var(--ped-col); }
-
-  /* +1 button: symbol on top, +1 below */
   .btn-dir {
     width: 58px; min-width: 58px; height: 100%;
-    border: none; background: var(--accent); color: #fff;
-    font-family: 'Oswald', sans-serif; font-weight: 700;
-    cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+    border: none; background: var(--accent); color: var(--inkt);
+    font-family: var(--font); font-weight: 700;
+    cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation;
     transition: filter 0.1s, transform 0.1s;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.25);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 0; padding: 0; flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;
   }
-  .btn-dir .dir-sym  { font-size: 0.65rem; font-family: 'Share Tech Mono', monospace; letter-spacing: -1px; opacity: 0.85; line-height: 1.3; }
+  .btn-dir .dir-sym  { font-size: 0.65rem; font-family: var(--mono); opacity: 0.85; line-height: 1.3; }
   .btn-dir .dir-plus { font-size: 1.15rem; line-height: 1; }
   .btn-dir:active { transform: scale(0.92); filter: brightness(0.85); }
-
-  /* -1 button */
   .btn-min {
     width: 26px; min-width: 26px; height: 100%;
     border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-    background: #eaeae6; color: var(--dim);
-    font-size: 1rem; font-weight: 700;
-    cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
-    transition: background 0.1s, color 0.1s; flex-shrink: 0;
+    background: #eaeae6; color: var(--muted); font-family: var(--font); font-size: 1rem; font-weight: 700;
+    cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; flex-shrink: 0;
   }
-  .btn-min:active { color: var(--red); background: #fde0e0; }
-
-  /* Count area */
-  .side-count {
-    flex: 1; display: flex; align-items: center; justify-content: center;
-    padding: 0 4px; min-width: 0;
-  }
-
-  .dir-count {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 2rem; font-weight: 700; line-height: 1;
-    color: var(--accent); transition: transform 0.1s ease;
-  }
+  .btn-min:active { color: var(--c-fout); background: var(--c-fout-bg); }
+  .side-count { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 4px; min-width: 0; }
+  .dir-count { font-family: var(--mono); font-size: 2rem; font-weight: 700; line-height: 1; color: var(--text); transition: transform 0.1s ease; }
   .dir-count.bump { transform: scale(1.3); }
-
-  /* Centre — vehicle label */
   .card-center {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 0 4px; background: #f7f7f3;
-    border-top: 4px solid var(--accent);
-    border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-    min-width: 44px; max-width: 50px; flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    padding: 0 4px; background: #f7f7f3; border-top: 4px solid var(--accent);
+    flex: 0 0 60px; overflow: hidden;   /* vaste breedte: alle rijen gelijk, ook met VOETGANGER */
   }
-  .card-center .lbl {
-    font-size: 1.6rem;
-    line-height: 1;
-    text-align: center;
+  .card-center .lbl { font-size: 1.5rem; line-height: 1; }
+  .card-center .naam { font-size: 8px; font-weight: 600; letter-spacing: 0.2px; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+
+  /* KNOPPEN ONDERAAN */
+  .btn-undo { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: var(--font); font-size: 11px; font-weight: 400; letter-spacing: 0.5px; text-transform: uppercase; padding: 7px; cursor: pointer; margin-bottom: 8px; touch-action: manipulation; }
+  .btn-undo:disabled { opacity: 0.35; cursor: default; }
+  .btn-dl { width: 100%; font-family: var(--font); font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 9px 0; border: 1px solid var(--text); cursor: pointer; background: var(--surface); color: var(--text); margin-bottom: 6px; touch-action: manipulation; }
+  .btn-dl:disabled { opacity: 0.35; cursor: default; border-color: var(--border); color: var(--muted); }
+  .btn-dl:hover:not(:disabled) { background: var(--bg); }
+  .btn-wis { width: 100%; font-family: var(--font); font-size: 11px; font-weight: 400; letter-spacing: 1px; text-transform: uppercase; padding: 7px 0; border: 1px solid var(--border); cursor: pointer; background: var(--surface); color: var(--muted); margin-bottom: 8px; touch-action: manipulation; }
+  .btn-wis:hover { color: var(--c-fout); border-color: var(--c-fout); background: var(--c-fout-bg); }
+
+  /* TELLOG */
+  .log-panel { background: var(--surface); border: 1px solid var(--border); margin-bottom: 8px; }
+  .log-header { padding: 6px 12px 5px; border-bottom: 1px solid var(--border); font-size: 9px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
+  .log-count { color: var(--text); font-weight: 600; }
+  .log-list { max-height: 200px; overflow-y: auto; }
+  .log-item { display: grid; grid-template-columns: 9px 1fr auto auto; gap: 8px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--bg); font-size: 11px; }
+  .log-item:last-child { border-bottom: none; }
+  .log-item.weg { opacity: 0.35; text-decoration: line-through; }
+  .log-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .log-richting { color: var(--muted); }
+  .log-time { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .log-empty { padding: 10px 12px; font-size: 11px; color: var(--muted); }
+
+  /* RICHTINGEN-MELDING na het kompas */
+  #toast {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+    background: var(--text); color: #fff; padding: 20px 24px; min-width: 280px; max-width: 360px;
+    text-align: center; z-index: 9999; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
   }
-
-  /* ── Footer ── */
-  footer { width: 100%; max-width: 520px; display: flex; gap: 10px; }
-
-  .btn-action {
-    flex: 1;
-    padding: 13px;
-    border: 2px solid var(--border);
-    border-radius: 6px;
-    background: var(--panel);
-    color: var(--dim);
-    font-family: 'Oswald', sans-serif;
-    font-size: 0.75rem;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    cursor: pointer;
-    font-weight: 700;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
-  }
-  .btn-action:hover { color: var(--text); border-color: var(--text); }
-  .btn-action.danger:hover { color: var(--red); border-color: var(--red); background: #fff0f0; }
-
-  /* ── Notes field ── */
-  .notes-row {
-    width: 100%;
-    max-width: 520px;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-  .notes-row label { font-size: 0.65rem; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; white-space: nowrap; font-weight: 700; }
-  .notes-input {
-    flex: 1;
-    background: var(--panel);
-    border: 2px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-    font-family: 'Oswald', sans-serif;
-    font-size: 0.85rem;
-    font-weight: 500;
-    padding: 7px 10px;
-    letter-spacing: 0.5px;
-    min-width: 0;
-  }
-  .notes-input:focus { outline: none; border-color: var(--text); }
-  .notes-input::placeholder { color: var(--subdim); font-weight: 400; }
-
-  /* ── Undo last button ── */
-  .btn-action.undo { border-color: var(--border); }
-  .btn-action.undo:hover { color: var(--orange); border-color: var(--orange); background: #fff8ee; }
-  .btn-action.undo:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
-
-  /* ── Log ── */
-  #log {
-    width: 100%;
-    max-width: 520px;
-    background: var(--panel);
-    border: 2px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--dim);
-    max-height: 110px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  #log .entry { display: flex; justify-content: space-between; }
-  #log .entry span:last-child { color: var(--subdim); }
-
+  #toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #toast .toast-label { font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #aaa8a2; margin-bottom: 12px; }
+  #toast .toast-row { display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; }
+  #toast .toast-row:last-child { margin-bottom: 0; }
+  #toast .toast-dir { font-size: 0.62rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #aaa8a2; min-width: 36px; text-align: right; }
+  #toast .toast-val { font-size: 0.95rem; font-weight: 700; letter-spacing: 1px; color: #fff; text-align: left; line-height: 1.25; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Traffic Counter <a href="traffic_counter_help.html" target="_blank" style="font-size:0.85rem;font-weight:700;color:var(--dim);text-decoration:none;border:2px solid var(--border);border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-left:6px;letter-spacing:0;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='#111';this.style.borderColor='#111'" onmouseout="this.style.color='';this.style.borderColor=''" title="Help">?</a></h1>
-  <div style="display:flex;gap:8px;align-items:center;">
-    <a href="index.html" style="font-size:0.68rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dim);text-decoration:none;border:2px solid var(--border);border-radius:4px;padding:4px 8px;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='#111';this.style.borderColor='#111'" onmouseout="this.style.color='';this.style.borderColor=''">&#8592; Menu</a>
-    <div id="session-time">00:00:00</div>
-  </div>
+  <a href="index.html" style="color:#aaa8a2;text-decoration:none;font-size:13px;font-weight:300;margin-right:4px;">&#8592;</a>
+  <h1>Stand Still and Count</h1>
+  <span>telonline.org</span>
+  <a class="hulp" href="traffic_counter_help.html#static" target="_blank" title="Handleiding">?</a>
 </header>
 
-<div class="session-bar">
-  <div class="session-info">
-    <div class="row"><span class="k">Start</span>    <span class="v empty" id="disp-start">--</span></div>
-    <div class="row"><span class="k">End</span>      <span class="v empty" id="disp-end">--</span></div>
-    <div class="row"><span class="k">Duration</span> <span class="v empty" id="disp-dur">--</span></div>
-    <div class="row"><span class="k">GPS</span>      <span class="v empty" id="disp-gps">--</span></div>
+<div class="main">
+
+  <div class="status-bar">
+    <div class="gps-dot" id="gpsDot"></div>
+    <div class="status-text" id="statusText">Druk op Start om te beginnen</div>
+    <span class="wl-badge" id="wlBadge" style="display:none">&#128274; aan</span>
   </div>
-  <button class="btn-session btn-start" id="btn-start" onclick="startSession()">START</button>
-  <button class="btn-session btn-end"   id="btn-end"   onclick="endSession()" disabled>END</button>
-</div>
 
-<div class="status-badge idle" id="status-badge">Press Start to begin counting</div>
+  <div id="herstel-melding" style="display:none;margin-bottom:8px;"></div>
 
-<div class="herstel-balk" id="herstel-balk" style="display:none">
-  <p id="herstel-tekst"></p>
-  <div class="herstel-knoppen">
-    <button class="door" id="herstel-door" onclick="doortellenStatic()">&#9654; Continue</button>
-    <button class="dl" onclick="exportCSV()">&#8595; Download</button>
-    <button onclick="verwijderStatic()">&#10005; Discard</button>
+  <div class="sessie-panel">
+    <div class="sessie-boven">
+      <div>
+        <div class="rij"><span class="k">Start</span><span class="v leeg" id="disp-start">--</span></div>
+        <div class="rij"><span class="k">Einde</span><span class="v leeg" id="disp-end">--</span></div>
+      </div>
+      <div class="klok" id="session-time">00:00:00</div>
+    </div>
+    <div class="rij plek"><span class="k">Plek</span><span class="v leeg" id="disp-gps">--</span></div>
   </div>
+
+  <div class="controls">
+    <button class="btn-ctrl start" id="btn-start" onclick="startSession()">&#9654; Start</button>
+    <button class="btn-ctrl stop" id="btn-end" onclick="endSession()" disabled>&#9632; Stop</button>
+  </div>
+
+  <div class="veld">
+    <span class="veld-k">Plek / notities</span>
+    <input id="notes" placeholder="bijv. N57 bij de brug, zonnig, rustig" autocomplete="off">
+  </div>
+
+  <div class="richtingen">
+    <div class="veld"><span class="veld-k">&#9664; A</span><input id="lbl-a" value="West" autocomplete="off"></div>
+    <div class="veld"><span class="veld-k">B &#9654;</span><input id="lbl-b" value="Oost" autocomplete="off"></div>
+    <button class="btn-kompas" id="btn-compass" onclick="autoDirections()" title="Richtingen invullen met het kompas">kompas</button>
+  </div>
+
+  <div class="total-bar">
+    <span class="label">Totaal geteld</span>
+    <span class="value" id="grand-total">0</span>
+  </div>
+
+  <div class="counters" id="counters"></div>
+
+  <button class="btn-undo" id="btn-undo-last" onclick="undoLast()" disabled>&#8617; ongedaan maken</button>
+  <button class="btn-dl" id="btn-zip" onclick="exportZip()" disabled>&#8595; Download ZIP</button>
+  <button class="btn-wis" onclick="resetAll()">Wissen</button>
+
+  <div class="log-panel">
+    <div class="log-header">
+      <span>Tellog</span>
+      <span class="log-count" id="log-count">0 tikken</span>
+    </div>
+    <div class="log-list" id="log"><div class="log-empty">Nog geen tikken</div></div>
+  </div>
+
 </div>
-
-<div class="notes-row">
-  <label>Location / Notes</label>
-  <input class="notes-input" id="notes" placeholder="e.g. N52 near bridge, sunny, light traffic">
-</div>
-
-<div class="dir-config">
-  <label>Dir A</label>
-  <input class="dir-input" id="lbl-a" value="West" oninput="updateDirLabels()">
-  <label>Dir B</label>
-  <input class="dir-input" id="lbl-b" value="East" oninput="updateDirLabels()">
-  <button class="btn-compass" id="btn-compass" onclick="autoDirections()" title="Fill directions from compass">Compass</button>
-</div>
-
-<div class="total-bar">
-  <span class="label">Total counted</span>
-  <span class="value" id="grand-total">0</span>
-</div>
-
-<div class="counters" id="counters"></div>
-
-<footer>
-  <button class="btn-action undo" id="btn-undo-last" onclick="undoLast()" disabled>Undo Last</button>
-  <button class="btn-action" onclick="exportCSV()">Export CSV</button>
-  <button class="btn-action danger" onclick="resetAll()">Reset</button>
-</footer>
-
-<div id="log"></div>
 
 <div id="toast">
-  <div class="toast-label">Directions set</div>
-  <div class="toast-row"><span class="toast-dir">Dir A</span><span class="toast-val" id="toast-a"></span></div>
-  <div class="toast-row"><span class="toast-dir">Dir B</span><span class="toast-val" id="toast-b"></span></div>
+  <div class="toast-label">Richtingen ingesteld</div>
+  <div class="toast-row"><span class="toast-dir">&#9664; A</span><span class="toast-val" id="toast-a"></span></div>
+  <div class="toast-row"><span class="toast-dir">B &#9654;</span><span class="toast-val" id="toast-b"></span></div>
 </div>
 
 <script>
   const SEP = ';';
 
+  // label: Engels, voor het leesbare overzicht in de ZIP (telrapport leest
+  // dat, ook van oude tellingen). naam: Nederlands, voor op het scherm (v3.22).
   const TYPES = [
-    { id: 'car',   icon: '🚗', label: 'Car' },
-    { id: 'truck', icon: '🚛', label: 'Truck' },
-    { id: 'moto',  icon: '🏍', label: 'Motorcycle' },
-    { id: 'bike',  icon: '🚲', label: 'Bicycle' },
-    { id: 'ped',   icon: '🚶', label: 'Pedestrian' },
+    { id: 'car',   icon: '🚗', label: 'Car',        naam: 'Auto' },
+    { id: 'truck', icon: '🚛', label: 'Truck',      naam: 'Vracht' },
+    { id: 'moto',  icon: '🏍', label: 'Motorcycle', naam: 'Motor' },
+    { id: 'bike',  icon: '🚲', label: 'Bicycle',    naam: 'Fiets' },
+    { id: 'ped',   icon: '🚶', label: 'Pedestrian', naam: 'Voetganger' },
   ];
+  // Kleur per voertuigtype, gelijk aan telrapport (SS_TYPE_COLOR; bewaakt door
+  // valideer.py). Tot v3.22 had Static een eigen palet: een fiets was hier
+  // blauwgroen en in telrapport paars.
+  const TYPE_KLEUR = { car:'#cc0000', truck:'#e07800', moto:'#e6b800', bike:'#7700cc', ped:'#d4007a' };
+  // Tekst op een gekleurde knop: wit, behalve op een lichte kleur (het geel
+  // van de motor), waar wit in de zon niet te lezen is.
+  function inktOp(hex) {
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 160 ? '#1a1918' : '#ffffff';
+  }
 
   const counts = {};
   TYPES.forEach(t => { counts[t.id] = { a: 0, b: 0 }; });
@@ -473,6 +265,13 @@
       + ' ' + p(date.getHours()) + ':' + p(date.getMinutes()) + ':' + p(date.getSeconds());
   }
 
+  // ── Statusbalk (v3.22, zoals de parkeer-apps) ──
+  // stand: 'active' (GPS vast), 'searching' (GPS zoekt), anders de stip grijs.
+  function setStatus(msg, stand) {
+    document.getElementById('statusText').textContent = msg;
+    if (stand !== undefined) document.getElementById('gpsDot').className = 'gps-dot' + (stand ? ' ' + stand : '');
+  }
+
   // ── GPS ──
   // Wait for the fix to settle: the first sub-threshold fix is often still tens of
   // metres off and can yield the wrong street name. So we enforce a minimum settle
@@ -483,6 +282,15 @@
   const GPS_CONVERGE_MS   = 4000;  // ...or until accuracy stops improving for this long
   const GPS_TIMEOUT_MS    = 30000; // hard cap
   let gpsWatchId = null;
+  // De fout blijft Engels in de data (het overzicht in de ZIP is Engels); op
+  // het scherm staat hij in het Nederlands.
+  const GPS_FOUT_NL = {
+    'Geolocation not supported': 'GPS niet beschikbaar in deze browser',
+    'Permission denied': 'geen toestemming voor GPS',
+    'Position unavailable': 'positie niet beschikbaar',
+    'Timeout': 'GPS reageert niet', 'GPS timed out': 'GPS reageert niet',
+    'Unknown error': 'onbekende GPS-fout'
+  };
 
   function requestGPS() {
     if (!navigator.geolocation) {
@@ -491,7 +299,7 @@
       return;
     }
     if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
-    updateGPSDisplay('Waiting for GPS fix...');
+    updateGPSDisplay('wachten op GPS…');
     const started = Date.now();
     let lastImprove = started;   // when accuracy last got better
 
@@ -520,7 +328,7 @@
           lastImprove = Date.now();
         }
         const best = gpsLocation ? gpsLocation.accuracy : Infinity;
-        updateGPSDisplay('GPS: +/-' + best + 'm, settling... (' + Math.round(elapsed / 1000) + 's)');
+        updateGPSDisplay('GPS ±' + best + ' m, stabiliseren… (' + Math.round(elapsed / 1000) + ' s)');
 
         // Lock-in criteria, in order of preference:
         if (acc <= GPS_LOCK_ACC && elapsed >= 2500) {
@@ -554,9 +362,9 @@
   }
 
   function reverseGeocode(lat, lon) {
-    updateGPSDisplay('Looking up address...');
+    updateGPSDisplay('adres opzoeken…');
     const url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=18&addressdetails=1';
-    fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'TrafficCounter/1.0' } })
+    fetch(url, { headers: { 'Accept-Language': 'nl', 'User-Agent': 'TrafficCounter/1.0' } })
       .then(r => r.json())
       .then(data => {
         const a = data.address || {};
@@ -571,21 +379,25 @@
       .catch(() => { updateGPSDisplay(); });
   }
 
+  // Plek in het sessiepaneel, en de GPS-stip in de statusbalk.
   function updateGPSDisplay(msg) {
     const el = document.getElementById('disp-gps');
+    const stip = document.getElementById('gpsDot');
     if (!el) return;
-    if (msg) { el.textContent = msg; el.classList.add('empty'); return; }
-    if (!gpsLocation) { el.textContent = '--'; el.classList.add('empty'); return; }
-    if (gpsLocation.error) { el.textContent = gpsLocation.error; el.classList.add('empty'); return; }
-    let line = gpsLocation.lat.toFixed(5) + ', ' + gpsLocation.lon.toFixed(5) + ' (+/-' + gpsLocation.accuracy + 'm)';
+    if (msg) { el.textContent = msg; el.classList.add('leeg'); stip.className = 'gps-dot searching'; return; }
+    if (!gpsLocation) { el.textContent = '--'; el.classList.add('leeg'); stip.className = 'gps-dot'; return; }
+    if (gpsLocation.error) {
+      el.textContent = GPS_FOUT_NL[gpsLocation.error] || gpsLocation.error;
+      el.classList.add('leeg'); stip.className = 'gps-dot'; return;
+    }
+    let line = gpsLocation.lat.toFixed(5) + ', ' + gpsLocation.lon.toFixed(5) + ' (±' + gpsLocation.accuracy + ' m)';
     if (gpsLocation.street || gpsLocation.city) {
       line = [gpsLocation.street, gpsLocation.city].filter(Boolean).join(', ');
-      if (!gpsLocation.reliable) line += ' (low accuracy)';
-    } else if (!gpsLocation.reliable) {
-      line += ' (low accuracy)';
     }
+    if (!gpsLocation.reliable) line += ' (onnauwkeurig)';
     el.textContent = line;
-    el.classList.remove('empty');
+    el.classList.remove('leeg');
+    stip.className = state === 'running' ? 'gps-dot active' : 'gps-dot';   // groen alleen tijdens het tellen
   }
 
   function buildCards() {
@@ -595,21 +407,18 @@
       const card = document.createElement('div');
       card.className = `counter-card ${t.id} locked`;
       card.id = `card-${t.id}`;
+      card.style.setProperty('--accent', TYPE_KLEUR[t.id]);
+      card.style.setProperty('--inkt', inktOp(TYPE_KLEUR[t.id]));
       card.innerHTML = `
-        <button class="btn-dir" onclick="adjust('${t.id}','a',1)"><span class="dir-sym">&lt;</span><span class="dir-plus">+1</span></button>
+        <button class="btn-dir" onclick="adjust('${t.id}','a',1)"><span class="dir-sym">&#9664; A</span><span class="dir-plus">+1</span></button>
         <div class="side-count"><div class="dir-count" id="cnt-${t.id}-a">0</div></div>
         <button class="btn-min" onclick="adjust('${t.id}','a',-1)">-</button>
-        <div class="card-center"><div class="lbl">${t.icon}</div></div>
+        <div class="card-center"><div class="lbl">${t.icon}</div><div class="naam">${t.naam}</div></div>
         <button class="btn-min" onclick="adjust('${t.id}','b',-1)">-</button>
         <div class="side-count"><div class="dir-count" id="cnt-${t.id}-b">0</div></div>
-        <button class="btn-dir" onclick="adjust('${t.id}','b',1)"><span class="dir-sym">&gt;</span><span class="dir-plus">+1</span></button>`;
+        <button class="btn-dir" onclick="adjust('${t.id}','b',1)"><span class="dir-sym">B &#9654;</span><span class="dir-plus">+1</span></button>`;
       container.appendChild(card);
     });
-    updateDirLabels();
-  }
-
-  function updateDirLabels() {
-    // Direction labels are shown in the input fields above the cards only
   }
 
   function fmt(date) { return date ? date.toTimeString().slice(0,8) : '--'; }
@@ -620,21 +429,31 @@
       .map(n => String(n).padStart(2,'0')).join(':');
   }
 
+  function zetTijd(id, d) {
+    const el = document.getElementById(id);
+    el.textContent = d ? fmt(d) : '--';
+    el.classList.toggle('leeg', !d);
+  }
+
   function startSession() {
+    // v3.22: na Stop kan meteen een nieuwe telling, zoals in de parkeer-apps.
+    // Is de vorige nog niet opgeslagen, dan eerst vragen.
+    if (state === 'ended') {
+      if (!geexporteerd && history.length &&
+          !confirm('De vorige telling is nog niet opgeslagen. Toch een nieuwe beginnen?')) return;
+      wisAlles();
+    }
     if (state !== 'idle') return;
     startTime = new Date(); state = 'running';
     sessieId = maakSessieId(startTime);   // v2.73
     kopieNieuw();                         // v3.8: dit venster is eigenaar
     document.getElementById('btn-start').disabled = true;
     document.getElementById('btn-end').disabled   = false;
-    document.getElementById('disp-start').textContent = fmt(startTime);
-    document.getElementById('disp-start').classList.remove('empty');
-    document.getElementById('disp-end').textContent = '--';
-    document.getElementById('disp-end').classList.add('empty');
-    const badge = document.getElementById('status-badge');
-    badge.className = 'status-badge running';
-    badge.textContent = 'Counting in progress...';
-    document.getElementById('session-time').className = 'running';
+    document.getElementById('btn-zip').disabled   = false;
+    zetTijd('disp-start', startTime);
+    zetTijd('disp-end', null);
+    setStatus('Telling loopt…');
+    document.getElementById('session-time').className = 'klok loopt';
     TYPES.forEach(t => document.getElementById(`card-${t.id}`).classList.remove('locked'));
     requestGPS();
     startKlok();
@@ -647,10 +466,7 @@
   function startKlok() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
-      const elapsed = actieveMs(new Date());
-      document.getElementById('session-time').textContent = fmtDuration(elapsed);
-      document.getElementById('disp-dur').textContent = fmtDuration(elapsed);
-      document.getElementById('disp-dur').classList.remove('empty');
+      document.getElementById('session-time').textContent = fmtDuration(actieveMs(new Date()));
     }, 1000);
   }
 
@@ -660,18 +476,20 @@
     clearInterval(timerInterval);
     releaseWakeLock();
     bewaarStatic();
+    toonAfgerond();
+    setStatus('Telling gestopt na ' + fmtDuration(actieveMs(endTime)) + '. ZIP wordt gemaakt…', '');
+    setTimeout(() => exportZip(), 300);
+  }
+
+  // Scherm van een afgeronde telling: klok stil, knoppen op slot, Start weer
+  // beschikbaar voor de volgende.
+  function toonAfgerond() {
+    document.getElementById('btn-start').disabled = false;
     document.getElementById('btn-end').disabled = true;
-    document.getElementById('disp-end').textContent = fmt(endTime);
-    document.getElementById('disp-end').classList.remove('empty');
-    const elapsed = actieveMs(endTime);
-    document.getElementById('session-time').textContent = fmtDuration(elapsed);
-    document.getElementById('session-time').className = 'ended';
-    document.getElementById('disp-dur').textContent = fmtDuration(elapsed);
-    const badge = document.getElementById('status-badge');
-    badge.className = 'status-badge ended';
-    badge.textContent = 'Session ended - ' + fmtDuration(elapsed) + ' recorded - downloading CSV...';
+    zetTijd('disp-end', endTime);
+    document.getElementById('session-time').textContent = fmtDuration(actieveMs(endTime));
+    document.getElementById('session-time').className = 'klok klaar';
     TYPES.forEach(t => document.getElementById(`card-${t.id}`).classList.add('locked'));
-    setTimeout(() => exportCSV(), 300);
   }
 
   // ── Compass & auto directions ──
@@ -720,14 +538,14 @@
       // Dir A = opposite         = "Van [ahead]  naar [behind]"
       document.getElementById('lbl-b').value = 'Van ' + b + ' naar ' + a;
       document.getElementById('lbl-a').value = 'Van ' + a + ' naar ' + b;
-      updateDirLabels();
       btn.textContent = a + ' / ' + b;
       btn.classList.add('active');
       showDirToast('Van ' + a + ' naar ' + b, 'Van ' + b + ' naar ' + a);
+      bewaarStatic();
     }
 
     if (lat != null && lon != null) {
-      btn.textContent = 'Looking up...';
+      btn.textContent = 'opzoeken…';
       const ptAhead  = destinationPoint(lat, lon, ahead,  5);
       const ptBehind = destinationPoint(lat, lon, behind, 5);
       Promise.all([placeNameAt(ptAhead.lat, ptAhead.lon), placeNameAt(ptBehind.lat, ptBehind.lon)])
@@ -739,7 +557,7 @@
 
   function autoDirections() {
     const btn = document.getElementById('btn-compass');
-    btn.textContent = 'Reading...';
+    btn.textContent = 'lezen…';
     btn.classList.remove('active');
 
     const lat = gpsLocation && !gpsLocation.error ? gpsLocation.lat : null;
@@ -755,9 +573,9 @@
       DeviceOrientationEvent.requestPermission()
         .then(perm => {
           if (perm === 'granted') listenCompass(lat, lon);
-          else { btn.textContent = 'Compass'; alert('Compass permission denied.'); }
+          else { btn.textContent = 'kompas'; alert('Geen toestemming voor het kompas.'); }
         })
-        .catch(() => { btn.textContent = 'Compass'; });
+        .catch(() => { btn.textContent = 'kompas'; });
     } else {
       listenCompass(lat, lon);
     }
@@ -794,13 +612,21 @@
         done = true;
         window.removeEventListener('deviceorientation', onOrientation, true);
         window.removeEventListener('deviceorientationabsolute', onOrientation, true);
-        btn.textContent = 'Compass';
-        alert('No compass data received. Make sure you are on a mobile device and have granted motion permissions.');
+        btn.textContent = 'kompas';
+        alert('Geen kompasgegevens ontvangen. Dat werkt alleen op een telefoon, met toestemming voor beweging en richting.');
       }
     }, 4000);
   }
   function vibrate(ms) {
     if (navigator.vibrate) navigator.vibrate(ms);
+  }
+
+  function zetTotaal() {
+    let total = 0;
+    TYPES.forEach(t => { total += counts[t.id].a + counts[t.id].b; });
+    document.getElementById('grand-total').textContent = total;
+    document.getElementById('log-count').textContent = history.length + (history.length === 1 ? ' tik' : ' tikken');
+    return total;
   }
 
   // ── Undo last tap ──
@@ -809,15 +635,10 @@
     const last = history.pop();
     counts[last.type][last.dir] = Math.max(0, counts[last.type][last.dir] - 1);
     document.getElementById('cnt-' + last.type + '-' + last.dir).textContent = counts[last.type][last.dir];
-    let total = 0;
-    TYPES.forEach(t => { total += counts[t.id].a + counts[t.id].b; });
-    document.getElementById('grand-total').textContent = total;
+    zetTotaal();
     // Mark last log entry as undone
-    const log = document.getElementById('log');
-    if (log.firstChild) {
-      log.firstChild.style.opacity = '0.35';
-      log.firstChild.style.textDecoration = 'line-through';
-    }
+    const eerste = document.querySelector('#log .log-item:not(.weg)');
+    if (eerste) eerste.classList.add('weg');
     document.getElementById('btn-undo-last').disabled = history.length === 0;
     vibrate(30);
     bewaarStatic();
@@ -830,17 +651,12 @@
     el.textContent = counts[type][dir];
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
     setTimeout(() => el.classList.remove('bump'), 150);
-    let total = 0;
-    TYPES.forEach(t => { total += counts[t.id].a + counts[t.id].b; });
-    document.getElementById('grand-total').textContent = total;
     if (delta > 0) {
       vibrate(25);
       const ts = new Date().toTimeString().slice(0,8);
-      const lbl  = TYPES.find(t => t.id === type).label;
-      const dVal = dir === 'a' ? document.getElementById('lbl-a').value : document.getElementById('lbl-b').value;
       history.push({ type, dir, ts, t: lokaalIso(new Date()) });   // v2.73: t = datum + tijd
       document.getElementById('btn-undo-last').disabled = false;
-      addLog('+1 ' + lbl + ' - ' + dVal, ts);
+      addLog(type, dir, ts);
     } else {
       // Remove the most recent matching entry so it won't appear in CSV log
       const idx = history.map((h, i) => (h.type === type && h.dir === dir) ? i : -1)
@@ -848,30 +664,45 @@
       if (idx !== undefined) history.splice(idx, 1);
       document.getElementById('btn-undo-last').disabled = history.length === 0;
     }
+    zetTotaal();
     bewaarStatic();
   }
 
-  function addLog(msg, ts) {
+  // Een regel in de tellog: kleur, type, richting, tijd. Nieuwste bovenaan.
+  function addLog(type, dir, ts) {
     const log = document.getElementById('log');
-    const div = document.createElement('div');
-    div.className = 'entry';
-    div.innerHTML = '<span>' + msg + '</span><span>' + ts + '</span>';
-    log.prepend(div);
-    if (log.children.length > 60) log.removeChild(log.lastChild);
+    const leeg = log.querySelector('.log-empty');
+    if (leeg) leeg.remove();
+    const t = TYPES.find(x => x.id === type);
+    const item = document.createElement('div');
+    item.className = 'log-item';
+    const delen = [['log-dot', ''], ['log-wat', t.naam],
+                   ['log-richting', (dir === 'a' ? '\u25C0 ' : '') + document.getElementById('lbl-' + dir).value + (dir === 'b' ? ' \u25B6' : '')],
+                   ['log-time', ts]];
+    delen.forEach(([cls, tekst]) => {
+      const s = document.createElement('span');
+      s.className = cls; s.textContent = tekst;
+      if (cls === 'log-dot') s.style.background = TYPE_KLEUR[type];
+      item.appendChild(s);
+    });
+    log.prepend(item);
+    while (log.children.length > 60) log.removeChild(log.lastChild);
   }
 
   function resetAll() {
-    if (!confirm('Reset everything and start over?')) return;
+    if (state === 'idle' && !herstelOpen()) return;
+    const open = history.length && !geexporteerd;
+    if (!confirm(open ? 'Deze telling is nog niet opgeslagen. Toch alles wissen?' : 'Alles wissen en opnieuw beginnen?')) return;
     wisAlles();
   }
 
-  // Zonder bevestiging; resetAll() en verwijderStatic() vragen het zelf.
+  // Zonder bevestiging; resetAll(), startSession() en de herstelmelding vragen het zelf.
   function wisAlles() {
     clearInterval(timerInterval);
     releaseWakeLock();
     kopieAfsluiten(); geexporteerd = false;   // v3.8: weggegooid, en op de lijst
     onderbrekingen = []; laatstActief = null;
-    document.getElementById('herstel-balk').style.display = 'none';
+    herstelVerberg();                         // v3.22: gedeelde herstelmelding
     state = 'idle'; startTime = null; endTime = null; history = []; gpsLocation = null; sessieId = null;
     lastZipBlob = null; lastZipName = ''; lastZipCount = -1;   // vangnet vrijgeven — nieuwe telling
     if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
@@ -881,73 +712,105 @@
       document.getElementById(`cnt-${t.id}-b`).textContent = '0';
       document.getElementById(`card-${t.id}`).classList.add('locked');
     });
-    document.getElementById('grand-total').textContent = '0';
-    document.getElementById('log').innerHTML = '';
+    document.getElementById('log').innerHTML = '<div class="log-empty">Nog geen tikken</div>';
+    zetTotaal();
     document.getElementById('session-time').textContent = '00:00:00';
-    document.getElementById('session-time').className = '';
-    ['disp-start','disp-end','disp-dur','disp-gps'].forEach(id => {
-      document.getElementById(id).textContent = '--';
-      document.getElementById(id).classList.add('empty');
-    });
+    document.getElementById('session-time').className = 'klok';
+    zetTijd('disp-start', null); zetTijd('disp-end', null);
+    updateGPSDisplay();
     document.getElementById('btn-start').disabled = false;
     document.getElementById('btn-end').disabled   = true;
+    document.getElementById('btn-zip').disabled   = true;
     document.getElementById('btn-undo-last').disabled = true;
-    const badge = document.getElementById('status-badge');
-    badge.className = 'status-badge idle';
-    badge.textContent = 'Press Start to begin counting';
+    setStatus('Druk op Start om te beginnen', '');
   }
 
-  // --- Downloaden (overgenomen uit pocket_count.html, v2.18) ---------------
-  // LET OP: navigator.share vereist net als <a>.click() een verse user-gesture.
-  // Wordt saveBlob aangeroepen ná een async (zoals zip.generateAsync), dan kan dat
-  // gebaar verlopen zijn en faalt de poging stil — daarvoor is de expliciete
-  // exportknop het vangnet (elke knoptik is vers en biedt lastZipBlob opnieuw aan).
-  function saveBlob(blob, filename, mime) {
-    mime = mime || 'application/octet-stream';
-    // Alleen iOS via het deelblad (daar slaat een download-link slecht op).
-    // Android kent navigator.share OOK, maar wil juist een echte download — en
-    // share eist een levende user-gesture die na het comprimeren verlopen kan zijn.
-    var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
-             || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    if (isIOS) {
-      try {
-        if (navigator.canShare) {
-          var file = new File([blob], filename, { type: mime });
-          if (navigator.canShare({ files: [file] })) {
-            // v2.76: de uitkomst telt. Opgeslagen/gedeeld -> true; geannuleerd of
-            // gebaar verlopen -> false (vangnet is de exportknop).
-            return navigator.share({ files: [file] }).then(
-              function(){ return true; }, function(){ return false; });
-          }
-        }
-      } catch (e) { /* val door naar de download-link */ }
-    }
-    // desktop/Android: klassieke download-link. Het anker MOET in de DOM hangen,
-    // anders negeert Android de programmatische click().
-    var url = URL.createObjectURL(blob);
-    var a   = document.createElement('a');
-    a.href  = url;
-    a.download = filename;
-    a.style.display = 'none';
+  function downloadBlob(blob, name) {
+    // Het anker MOET in de DOM hangen, anders negeert Android de click().
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
     setTimeout(function(){ try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
-    return Promise.resolve(true);   // v2.76: aan de browser overgedragen
   }
 
-  // Bewaart de laatst gegenereerde ZIP zodat een tweede tik op Export 'm opnieuw
-  // kan aanbieden zonder hercompressie — het vangnet als het iOS-deelblad
-  // weggeveegd is. Leeft tot de volgende export 'm overschrijft.
+/* ── ZIP bewaren (v2.77) ──────────────────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren,
+   capaciteitstelling en (sinds v3.22) traffic_counter (bewaakt door
+   valideer.py). Zelfde regel als pocket: de noodkopie gaat pas weg als de ZIP
+   aantoonbaar is opgeslagen.
+   - iOS: deelvenster voltooid -> bevestigd;
+   - Android en desktop: download aan de browser overgedragen -> bevestigd;
+   - deelvenster geannuleerd of mislukt (op de iPhone kan het tikgebaar na het
+     inpakken verlopen zijn) -> de kopie blijft, geen ongevraagde download, en
+     de ZIP-knop biedt dezelfde ZIP opnieuw aan, binnen de nieuwe tik;
+   - ingebouwde browser van een app (Android-WebView, "; wv)" in de
+     user-agent): de download gaat wel, maar telt niet als opgeslagen. Zo'n
+     browser bewaart hem meestal niet, dus de kopie blijft.
+   Tot v2.77 viel een geannuleerd deelvenster terug op een download-link en
+   werd de kopie daarna altijd gewist, ook als die download niets opleverde.
+   Tot v3.18 probeerde ook Android eerst het deelvenster. Chrome op Android
+   deelt geen ZIP en weigerde meteen; de app meldde "niet opgeslagen", en elke
+   tik op de ZIP-knop deed hetzelfde, zonder ooit te downloaden.
+   De app levert setStatus(tekst), downloadBlob(blob, naam) en zipBewaard():
+   true als de telling met deze ZIP af is (kopie weg, melding weg), false bij
+   een tussentijdse ZIP (Static, terwijl hij telt). */
+function bewaarZip(zipBlob, zipName) {
+  var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
+  function bevestigd() {
+    if (zipBewaard()) {
+      kopieAfsluiten();   // v3.8: kopie weg, telling op de lijst
+      herstelVerberg();   // v3.22: een herstelde telling is daarmee afgehandeld
+    }
+    setStatus('ZIP opgeslagen · ' + zipName);
+  }
+  var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+           || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS && navigator.canShare && navigator.canShare({files:[zipFile]})) {
+    return navigator.share({files:[zipFile], title:zipName}).then(bevestigd, function () {
+      setStatus('ZIP niet opgeslagen — tik op ⬇ Download ZIP om het opnieuw te proberen. De telling blijft bewaard.');
+    });
+  }
+  downloadBlob(zipBlob, zipName);
+  if (/; wv\)/.test(navigator.userAgent)) {
+    setStatus('ZIP aangeboden, maar de ingebouwde browser van deze app slaat hem meestal niet op. '
+      + 'De telling blijft bewaard. Open de link in Chrome of Samsung Internet.');
+    return Promise.resolve();
+  }
+  bevestigd();
+  return Promise.resolve();
+}
+/* ── einde gedeeld blok ZIP bewaren ── */
+
+  // bewaarZip: de ZIP is aantoonbaar opgeslagen. Tijdens het tellen is dat een
+  // tussenstand: de telling loopt door en de kopie blijft (false). Na Stop, of
+  // vanuit de herstelmelding, is de telling daarmee af (true). Een onderbroken
+  // telling die zo wordt opgeslagen, eindigt op het laatst bekende moment.
+  function zipBewaard() {
+    if (state === 'running') return false;
+    if (state === 'restored') {
+      endTime = laatstActief; state = 'ended';
+      toonAfgerond();
+    }
+    geexporteerd = true;
+    return true;
+  }
+
+  // Bewaart de laatst gegenereerde ZIP zodat een tweede tik op Download ZIP
+  // hem opnieuw kan aanbieden zonder hercompressie: het vangnet als het
+  // iOS-deelblad weggeveegd is. Leeft tot de volgende export hem overschrijft.
   var lastZipBlob = null;
   var lastZipName = '';
   var lastZipCount = -1;   // history.length op het moment van genereren
 
-  function exportCSV() {
-    // Vangnet: is er al een ZIP van déze telstand, bied 'm dan opnieuw aan (verse
+  function exportZip() {
+    if (!startTime) return;
+    // Vangnet: is er al een ZIP van déze telstand, bied hem dan opnieuw aan (verse
     // gesture) zonder hercompressie. Is er intussen door- of teruggeteld, dan is
-    // de bewaarde ZIP verlopen en bouwen we hem opnieuw. Reset() wist alles.
+    // de bewaarde ZIP verlopen en bouwen we hem opnieuw. Wissen gooit alles weg.
     if (lastZipBlob && lastZipCount === history.length) {
-      saveBlob(lastZipBlob, lastZipName, 'application/zip').then(ok => { if (ok) exportBevestigd(); });
+      bewaarZip(lastZipBlob, lastZipName);
       return;
     }
     const D = SEP;
@@ -962,6 +825,7 @@
     const exportTs = fmtLocalDateTime(new Date());
     const row = (...cells) => cells.join(D) + '\n';
 
+    // Het leesbare overzicht blijft Engels en ongewijzigd: telrapport leest het.
     let csv = 'sep=' + D + '\n';
     csv += row('Traffic Count Export');
     csv += row('Exported at', exportTs);
@@ -1013,8 +877,6 @@
         csv += row(h.ts, TYPES.find(t => t.id === h.type).label, h.dir === 'a' ? dirA : dirB);
       });
     }
-    // ZIP met de CSV erin — zelfde deel-/downloadpad als pocket, zodat het ook
-    // op iOS Safari werkt (data:-download-link werkte daar niet).
     // v2.73: de ZIP heeft de vorm van de rest van de suite. <sid>_sessie.csv en
     // <sid>_telregels.csv (met datum per tik) voor KNIME en de keten;
     // <sid>_onderbrekingen.csv alleen als er onderbroken is; en het leesbare
@@ -1056,7 +918,7 @@
          lastZipBlob = blob;
          lastZipName = base + '.zip';
          lastZipCount = history.length;
-         saveBlob(lastZipBlob, lastZipName, 'application/zip').then(ok => { if (ok) exportBevestigd(); });
+         bewaarZip(lastZipBlob, lastZipName);
        });
   }
 
@@ -1070,7 +932,7 @@
   document.addEventListener('keydown', ev => {
     if (ev.target.tagName === 'INPUT') return;
     if (ev.key === ' ' || ev.key === 'Enter') {
-      if (state === 'idle') startSession(); else if (state === 'running') endSession(); return;
+      if (state === 'idle' || state === 'ended') startSession(); else if (state === 'running') endSession(); return;
     }
     if (ev.key.toLowerCase() === 'z') { undoLast(); return; }
     const m = keyMap[ev.key.toLowerCase()];
@@ -1091,8 +953,8 @@
   // ── Noodopslag en doortellen (v2.72) ─────────────────────────────────────
   // Zelfde vangnet als de parkeer-apps en pocket: de hele telling staat na elke
   // tik in localStorage, en elke 10 s een hartslag (laatstActief). Na een crash,
-  // herladen of weggeveegde tab komt de telling terug met een herstelbalk:
-  // doortellen, downloaden of weggooien.
+  // herladen of weggeveegde tab komt de telling terug met de herstelmelding
+  // (sinds v3.22 het gedeelde blok): doortellen, downloaden of weggooien.
   //
   // Doortellen na een onderbreking: de tijd tussen laatstActief en het moment
   // van doortellen is niet geteld. Die gaat als onderbreking in de export en telt
@@ -1103,7 +965,7 @@
   let onderbrekingen = [];     // [{van, tot}] als ISO-tekst
   let sessieId = null;         // v2.73: <jjjjmmdd>_<uummss>_<xxx>_sta, vast vanaf Start
   let laatstActief = null;     // Date: laatste moment dat de telling zeker liep
-  let geexporteerd = false;    // na End: is de ZIP gemaakt?
+  let geexporteerd = false;    // na Stop: is de ZIP aantoonbaar opgeslagen?
   let wakeLock = null;
 
   function actieveMs(tot) {
@@ -1114,15 +976,6 @@
       if (eind > van) ms -= (eind - van);
     });
     return Math.max(0, ms);
-  }
-
-  // v2.76: afgeronde telling, ZIP bevestigd weggeschreven -> noodkopie meteen weg.
-  // Tot v2.76 bleef hij staan tot je Static weer opende. Een tussentijdse export
-  // (telling loopt nog) laat de kopie staan.
-  function exportBevestigd() {
-    if (state !== 'ended') return;
-    geexporteerd = true;
-    kopieAfsluiten();   // v3.8: kopie weg, telling op de lijst
   }
 
   function bewaarStatic() {
@@ -1195,46 +1048,30 @@
     document.getElementById('notes').value = d.notes || '';
     if (d.dirA) document.getElementById('lbl-a').value = d.dirA;
     if (d.dirB) document.getElementById('lbl-b').value = d.dirB;
-    let total = 0;
     TYPES.forEach(t => {
       counts[t.id] = (d.counts && d.counts[t.id]) || { a: 0, b: 0 };
       document.getElementById(`cnt-${t.id}-a`).textContent = counts[t.id].a;
       document.getElementById(`cnt-${t.id}-b`).textContent = counts[t.id].b;
-      total += counts[t.id].a + counts[t.id].b;
     });
-    document.getElementById('grand-total').textContent = total;
-    history.slice(-60).forEach(h => {
-      const lbl = TYPES.find(t => t.id === h.type).label;
-      addLog('+1 ' + lbl + ' - ' + document.getElementById(h.dir === 'a' ? 'lbl-a' : 'lbl-b').value, h.ts);
-    });
+    const total = zetTotaal();
+    history.slice(-60).forEach(h => addLog(h.type, h.dir, h.ts));
     document.getElementById('btn-undo-last').disabled = true;
 
     const afgerond = d.state === 'ended';
     state = afgerond ? 'ended' : 'restored';
     const tot = afgerond ? endTime : laatstActief;
-    document.getElementById('disp-start').textContent = fmt(startTime);
-    document.getElementById('disp-start').classList.remove('empty');
-    if (afgerond) {
-      document.getElementById('disp-end').textContent = fmt(endTime);
-      document.getElementById('disp-end').classList.remove('empty');
-    }
-    document.getElementById('disp-dur').textContent = fmtDuration(actieveMs(tot));
-    document.getElementById('disp-dur').classList.remove('empty');
+    zetTijd('disp-start', startTime);
+    if (afgerond) zetTijd('disp-end', endTime);
     document.getElementById('session-time').textContent = fmtDuration(actieveMs(tot));
-    document.getElementById('session-time').className = 'ended';
+    document.getElementById('session-time').className = 'klok klaar';
     updateGPSDisplay();
     document.getElementById('btn-start').disabled = true;
     document.getElementById('btn-end').disabled = true;
-    const badge = document.getElementById('status-badge');
-    badge.className = 'status-badge ended';
-    badge.textContent = afgerond ? 'Session ended - not downloaded yet' : 'Session interrupted';
+    document.getElementById('btn-zip').disabled = false;
+    setStatus(afgerond ? 'Telling gestopt, nog niet opgeslagen' : 'Telling onderbroken', '');   // GPS loopt niet
 
-    document.getElementById('herstel-tekst').textContent = '\u26A0\uFE0F ' +
-      (afgerond ? 'Finished session, not downloaded: ' : 'Interrupted session restored: ') +
-      total + ' counted, started ' + fmt(startTime) + ', ' +
-      (afgerond ? 'ended ' + fmt(endTime) : 'last active ' + fmt(laatstActief)) + '.';
-    document.getElementById('herstel-door').style.display = afgerond ? 'none' : '';
-    document.getElementById('herstel-balk').style.display = '';
+    // v3.22: de gedeelde herstelmelding, zoals in de andere veld-apps
+    herstelToon({ n: total, start: startTime, laatst: tot, afgerond: afgerond });
   }
 
   function doortellenStatic() {
@@ -1245,38 +1082,43 @@
       onderbrekingen.push({ van: laatstActief.toISOString(), tot: nu.toISOString() });
     }
     state = 'running'; endTime = null;
-    document.getElementById('herstel-balk').style.display = 'none';
+    herstelVerberg();
     document.getElementById('btn-start').disabled = true;
     document.getElementById('btn-end').disabled = false;
     document.getElementById('btn-undo-last').disabled = history.length === 0;
-    document.getElementById('session-time').className = 'running';
-    const badge = document.getElementById('status-badge');
-    badge.className = 'status-badge running';
-    badge.textContent = 'Counting in progress...';
+    document.getElementById('session-time').className = 'klok loopt';
+    setStatus('Telling loopt…');
     TYPES.forEach(t => document.getElementById(`card-${t.id}`).classList.remove('locked'));
     // GPS opnieuw laten settelen als de fix bij de onderbreking nog niet was
     // vastgezet (geen straat, niet betrouwbaar). requestGPS() houdt de beste fix.
     if (!gpsLocation || gpsLocation.error || !(gpsLocation.reliable || gpsLocation.street || gpsLocation.city)) requestGPS();
+    else updateGPSDisplay();
     startKlok();
     acquireWakeLock();
     bewaarStatic();
   }
 
+  // Weggooien vanuit de herstelmelding; de vraag staat sinds v3.22 in de melding.
   function verwijderStatic() {
-    if (!confirm('Discard the restored session? This cannot be undone.')) return;
     wisAlles();
   }
 
+  // Knoppen van de herstelmelding (v3.22)
+  var HERSTEL_ACTIES = { door: 'doortellenStatic', download: 'exportZip', weg: 'verwijderStatic' };
+
   // Scherm aan houden tijdens het tellen (v2.72; de andere veld-apps deden dit al).
+  // v3.22: met de badge in de statusbalk, zoals de parkeer-apps.
   async function acquireWakeLock() {
     if (!('wakeLock' in navigator) || wakeLock) return;
     try {
       wakeLock = await navigator.wakeLock.request('screen');
-      wakeLock.addEventListener('release', () => { wakeLock = null; });
+      document.getElementById('wlBadge').style.display = '';
+      wakeLock.addEventListener('release', () => { wakeLock = null; document.getElementById('wlBadge').style.display = 'none'; });
     } catch (e) {}
   }
   function releaseWakeLock() {
     if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+    document.getElementById('wlBadge').style.display = 'none';
   }
 
   // Hartslag: bewaart laatstActief, zodat een onderbreking tot op 10 s klopt,
@@ -1458,6 +1300,116 @@ window.addEventListener('storage', function (e) {
 window.addEventListener('pageshow', kopieControle);
 document.addEventListener('visibilitychange', function () { if (!document.hidden) kopieControle(); });
 /* ── einde gedeeld blok noodkopie ── */
+
+/* ── Herstelmelding (v3.22) ──────────────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren,
+   capaciteitstelling, pocket_count en traffic_counter (bewaakt door valideer.py).
+   Een telling die bij het openen nog in de noodopslag staat, komt terug met
+   deze melding. Tot v3.22 had elke soort app een eigen versie: de parkeer-apps
+   een gele balk met een losse Doortellen-knop en zonder Weggooien, pocket een
+   blok met drie knoppen, Static een Engelse balk. Nu overal dezelfde tekst en
+   dezelfde drie knoppen:
+   - Doortellen: verder met dezelfde telling (niet bij een afgeronde);
+   - Download ZIP: opslaan. Is de ZIP aantoonbaar opgeslagen, dan is de telling
+     afgehandeld en verdwijnt de melding (bewaarZip; pocket via zijn
+     voorbeeldscherm);
+   - Weggooien: na een vraag, die hier staat.
+   Een nieuwe telling terwijl de melding staat, vraagt eerst (herstelNieuw).
+   De app levert een lege <div id="herstel-melding" style="display:none"> op
+   de plek van de melding, en HERSTEL_ACTIES: de namen van haar functies voor
+   doortellen, downloaden en weggooien. Die vragen zelf niets. */
+var herstelAantal = 0;   // tikken in de herstelde telling, voor de vragen
+
+function herstelEn() { return (document.documentElement.lang || '').slice(0, 2) === 'en'; }
+
+function herstelTikken(n) {
+  return n + ' ' + (herstelEn() ? (n === 1 ? 'tap' : 'taps') : (n === 1 ? 'tik' : 'tikken'));
+}
+
+// Tijd in de melding: vandaag alleen uu:mm, anders met dag en datum, zoals de
+// lijst op de voorpagina. Neemt een Date of lokale tekst (jjjj-mm-dd uu:mm:ss,
+// met een spatie of een T).
+function herstelTijd(t) {
+  var d = (t instanceof Date) ? t : null, m;
+  if (!d && t && (m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(t)))) {
+    d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  }
+  if (!d || isNaN(d)) return '?';
+  var p = function (x) { return (x < 10 ? '0' : '') + x; };
+  var uur = p(d.getHours()) + ':' + p(d.getMinutes());
+  if (d.toDateString() === new Date().toDateString()) return uur;
+  var dagen = herstelEn() ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+  return dagen[d.getDay()] + ' ' + p(d.getDate()) + '-' + p(d.getMonth() + 1) + ' ' + uur;
+}
+
+// info: { n, start, laatst, afgerond, wat }. start en laatst: Date of lokale
+// tekst. afgerond: gestopt maar nog niet opgeslagen (dan geen Doortellen).
+// wat: optioneel, bijvoorbeeld de modus van pocket.
+function herstelToon(info) {
+  var el = document.getElementById('herstel-melding');
+  if (!el) return;
+  var en = herstelEn();
+  herstelAantal = info.n || 0;
+  var tekst = '\u26A0\uFE0F ' + (info.afgerond
+      ? (en ? 'Finished count, not saved yet' : 'Afgeronde telling, nog niet opgeslagen')
+      : (en ? 'Interrupted count restored' : 'Onderbroken telling hersteld'))
+    + (info.wat ? ' (' + info.wat + ')' : '') + ': ' + herstelTikken(herstelAantal)
+    + (en ? ', started ' : ', gestart ') + herstelTijd(info.start)
+    + (info.afgerond ? (en ? ', ended ' : ', gestopt ') : (en ? ', last saved ' : ', laatst bewaard '))
+    + herstelTijd(info.laatst) + '.';
+  var knop = function (actie, kleur, label) {
+    return '<button type="button" onclick="' + actie + '()" style="flex:1;padding:11px 6px;background:' + kleur + ';'
+      + 'border:none;border-radius:5px;color:#fff;font-family:inherit;font-size:0.8rem;font-weight:700;'
+      + 'letter-spacing:1px;text-transform:uppercase;cursor:pointer;touch-action:manipulation;">' + label + '</button>';
+  };
+  el.innerHTML = '<div style="background:#5a3a1a;border:1px solid #b07d2b;border-radius:6px;padding:12px 14px;'
+    + 'box-sizing:border-box;color:#fff;font-family:inherit;text-align:left;">'
+    + '<p style="margin:0 0 10px;font-size:0.85rem;font-weight:600;line-height:1.35;"></p>'
+    + (info.afgerond ? '' : '<div style="display:flex;margin-bottom:8px;">'
+       + knop(HERSTEL_ACTIES.door, '#0a8a30', '\u25B6 ' + (en ? 'Continue' : 'Doortellen')) + '</div>')
+    + '<div style="display:flex;gap:8px;">'
+    + knop(HERSTEL_ACTIES.download, '#3a7d44', '\u2193 Download ZIP')
+    + knop('herstelWeg', '#444', '\u2715 ' + (en ? 'Discard' : 'Weggooien'))
+    + '</div></div>';
+  el.querySelector('p').textContent = tekst;
+  el.style.display = '';
+}
+
+function herstelOpen() {
+  var el = document.getElementById('herstel-melding');
+  return !!(el && el.style.display !== 'none');
+}
+
+function herstelVerberg() {
+  var el = document.getElementById('herstel-melding');
+  if (!el) return;
+  el.style.display = 'none';
+  el.innerHTML = '';
+}
+
+// Weggooien: eerst vragen, dan de functie van de app. Die sluit de kopie af
+// (v3.8: op de lijst, nooit meer hersteld) en zet het scherm terug.
+function herstelWeg() {
+  var n = herstelTikken(herstelAantal);
+  if (!confirm(herstelEn() ? 'Discard the restored count (' + n + ')? This cannot be undone.'
+                           : 'Herstelde telling (' + n + ') weggooien? Dit kan niet ongedaan worden gemaakt.')) return;
+  herstelVerberg();
+  window[HERSTEL_ACTIES.weg]();
+}
+
+// Een nieuwe telling terwijl de melding staat: de herstelde zou stil
+// verdwijnen. Eerst vragen; bij ja is hij weggegooid. false = niet beginnen.
+function herstelNieuw() {
+  if (!herstelOpen()) return true;
+  var n = herstelTikken(herstelAantal);
+  if (!confirm(herstelEn()
+      ? 'Start a new count? The restored count (' + n + ') will be discarded. Otherwise choose Continue or Download ZIP.'
+      : 'Nieuwe telling starten? De herstelde telling (' + n + ') wordt dan weggegooid. Kies anders Doortellen of Download ZIP.')) return false;
+  kopieAfsluiten();
+  herstelVerberg();
+  return true;
+}
+/* ── einde gedeeld blok herstelmelding ── */
 
   buildCards();
   herstelStatic();
