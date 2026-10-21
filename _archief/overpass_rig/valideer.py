@@ -19,12 +19,10 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.22'
-# v3.22: Static in het Nederlands en in de huisstijl; één herstelmelding in de
-# vijf veld-apps; bewaarZip ook in Static.
+RELEASE = 'v3.23'
+# v3.23: Static middelt de GPS (hooguit 3 minuten, niveaus 8 en 15 m).
 VERWACHT_GEWIJZIGD = {'index.html', 'traffic_counter.html', 'traffic_counter_help.html',
-                      'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
-                      'pocket_count.html', 'zip_format_reference.html'}
+                      'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description

@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.22.** Static hoort weer bij de familie (Jay: "in harmonie brengen met de rest van de app"; "Taal: nederlands"): Nederlands, de huisstijl van de parkeer-apps, het kleurenpalet van telrapport en opslaan via `bewaarZip`. En **één herstelmelding** voor de vijf veld-apps (gedeeld blok `herstelmelding`): dezelfde tekst en de knoppen Doortellen, Download ZIP en Weggooien; de parkeer-apps kunnen nu ook weggooien (`overdracht_v3_22.md`). Het ZIP-schema verandert niet. Open: laag 2, Static op de weg (§5). v3.21: telrapport per stuk voor fiets en auto. Tests op GitHub bij elke PR sinds na v3.18.
+**Laatste release: v3.23.** Static middelt de GPS (Jay: "grenzen van 8m en 15m. 3 minuten luisteren is prima"): tellen kan meteen, en de app luistert hooguit 3 minuten en neemt een gewogen gemiddelde over de laatste 2 minuten, zonder uitschieters, met een eerlijke afwijking (één onafhankelijke meting per 30 s, nooit beter dan 3 m). Niveaus: nauwkeurig tot 8 m, redelijk tot 15 m, daarboven grof; "GPS reliable" in het overzicht nu bij 15 m (was "< 25m") (`overdracht_v3_23.md`). Het ZIP-schema verandert niet. v3.22: Static Nederlands en in de huisstijl, één herstelmelding voor de vijf veld-apps. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
 
 ---
 
@@ -230,14 +230,14 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - Google Fonts zelf hosten: haalt Google uit de lijst met derden in de privacyverklaring (v2.75). Optioneel.
 - ~~Static is Engelstalig~~ — gedaan in v3.22: Nederlands, in de huisstijl van de parkeer-apps. Het leesbare `_overzicht.csv` blijft Engels (telrapport leest het).
 - **Static op de weg** (laag 2 van het voorstel bij v3.22, nog niet besloten). Na de GPS-fix het punt op de weg snappen (met de knip in stukken van v3.21); de richtingen uit het netwerk (de weg volgen tot de eerste kruising met een straat met een naam: "richting Gorsstraat"); welke knop welke richting is uit je positie ten opzichte van de as, met het kompas alleen als je te dicht op de as staat; bevestigen op een minikaartje met ⇄. In de export kolommen achteraan (`osm_way_id`, `segment_index`, A met of tegen de OSM-richting). Static draait niet in KNIME, dus het raakt alleen `zip_format_reference.html` en telrapport. Zie `overdracht_v3_22.md` §4.
-- Static: het overzicht schrijft bij `GPS reliable` "Yes (< 25m)", de app rekent vanaf 20 m (`GPS_ACCEPT_ACC`). Tekst in de export; laten of gelijktrekken?
+- ~~Static: `GPS reliable` "Yes (< 25m)" tegen 20 m in de app~~ — opgelost in v3.23: de app middelt, en de grens is 15 m in app en overzicht.
 - Plakkerigheid-kernel als winkelstraat-gegate punt-laag naar telrapport porten (proeftuin bestaat).
 - %bezet per dag×uur-cel — vraagt tik-met-tijd-én-categorie; schema/KNIME-afstemming nodig.
 - QGIS-loader: optionele join op `_straten.csv`/`_bezocht.csv` (bezetting per weglijn).
 
 ---
 
-## 6. Releases v2.32 → v3.22 in één oogopslag
+## 6. Releases v2.32 → v3.23 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -312,6 +312,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.20 | **Tegelcache hersteld** (Jay, met een fietstelling en de reconstructie ervan): het gebied vooraf haalde op zonder knooppunten (`out tags geom`), dus geen aansluitingen voor pocket en de reconstructor; nu overal `out body geom`, tegelschema 3, oudere tegels tellen als misser (ook in de reconstructor). `leesTegels` geeft alleen de wegen binnen de cirkel (was: hele tegels, 1926 ways). `cacheWaysInTiles`: hele cellen, toewijzing per segment (`tegelsVanWeg`, ook in `gebiedBewaar` en de reconstructor), geen stil afbreken na wegschrijven. Parkeer-apps bewaren de knooppunten niet. Gevonden, niet in deze release: telrapport toont van een gereconstrueerde fiets-/autotelling alleen het eerste stuk per weg (v3.21). Nieuwe `functest_tegelcache.js` (13), `gebiedtest.py` deel F (51) |
 | v3.21 | **Telrapport per stuk** voor fiets en auto (Jay koos B2: "Met vaste lengtes breng je er wat meer systeem in"): `splitWayIntoSegments` ook in telrapport (groep van drie), originelen geknipt en tikken ingedeeld naar hun plek langs de weg, `_recon` met zijn eigen stukken, aantallen per stuk uit de telregels, gelopen stukken zonder tikken gestreept, correctietool rekent stuk en kleur opnieuw uit en wisselt van zijde langs de hele weg. Jays telling: `_recon` 9/9 tikken in een cluster (was 5/9). Nieuwe `stukkentest.py` (21) |
 | v3.22 | **Static in de familie en één herstelmelding** (Jay: "Taal: nederlands", "Maak Herstelmelding: één gedeeld blok voor alle vijf veld-apps"): Static Nederlands, huisstijl van de parkeer-apps (kop, statusbalk, Start/Stop, tellog), palet van telrapport (constante `typekleuren`), opslaan via `bewaarZip` (nu vier bestanden, haak `zipBewaard`), Start meteen na Stop; gedeeld blok `herstelmelding` in de vijf veld-apps (tekst, Doortellen, Download ZIP, Weggooien; vraag in het blok), `herstel-haken` met Weggooien voor de parkeer-apps. Overzicht in de ZIP blijft Engels. Handleiding: hoofdstuk Static in het Nederlands. Nieuwe `herstelmeldingtest.py` (103) |
+| v3.23 | **Static middelt de GPS** (Jay: "De wachttijd mag niet te lang oplopen"; "grenzen van 8m en 15m. 3 minuten luisteren is prima"): tellen meteen, hooguit 3 minuten luisteren (eerder klaar bij ±4 m), gewogen gemiddelde over 2 minuten, uitschieters naar opgegeven afwijking én echte spreiding, eerlijke afwijking (30 s samenhang, ondergrens 3 m); niveaus nauwkeurig/redelijk/grof in een eigen regel; adres zodra redelijk, opnieuw na 15 m, 30 s pauze na een mislukt verzoek; straat als *Voorstraat 12*. Nieuwe `gpsmiddeltest.py` (39) |
 
 ---
 

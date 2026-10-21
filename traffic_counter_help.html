@@ -370,7 +370,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <!-- Static (v3.22: Nederlands, zelfde opbouw als de parkeertellingen) -->
 <section id="static">
 <h3>Wat doet Static?</h3>
-<p>Je staat op één plek langs de weg en telt wat er langskomt, per voertuigtype en per richting. Bij Start bepaalt de app één keer je positie en zoekt hij de straatnaam op. Na afloop krijg je één ZIP met de aantallen, de aantallen per uur en elke tik met datum en tijd.</p>
+<p>Je staat op één plek langs de weg en telt wat er langskomt, per voertuigtype en per richting. Na Start bepaalt de app je positie, door de GPS-metingen van de eerste minuten te middelen, en zoekt hij de straatnaam op. Na afloop krijg je één ZIP met de aantallen, de aantallen per uur en elke tik met datum en tijd.</p>
 <p>Sinds v3.22 is Static Nederlands en heeft hij dezelfde opbouw als de parkeertellingen: bovenin de statusbalk met de GPS-stip, dan <strong>▶ Start</strong> en <strong>■ Stop</strong>, en onderaan de tellog.</p>
 </section>
 <hr>
@@ -402,15 +402,24 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <hr>
 <section id="sta-gps">
 <h3>GPS en plek</h3>
-<p>Na Start wacht de app tot je positie niet meer beter wordt: minstens 8 seconden, hooguit 30. Een positie van 20 meter of beter telt als nauwkeurig. Daarna zoekt de app bij OpenStreetMap Nominatim de straat en de plaats op. Onder <em>Plek</em> in het sessiepaneel zie je hoe ver hij is:</p>
+<p>Je hoeft niet op de GPS te wachten: je telt vanaf Start, en de plek wordt ondertussen bepaald. Sinds v3.23 luistert de app daarvoor hooguit 3 minuten naar de GPS en middelt hij de metingen. Je staat stil, dus het gemiddelde van veel metingen ligt dichter bij je plek dan één losse meting. Is de plek eerder goed genoeg (±4 m), dan stopt hij eerder.</p>
+<p>Onder <em>Plek</em> in het sessiepaneel staat het adres, onder <em>GPS</em> hoe nauwkeurig de plek is:</p>
 <table>
+<tr><td>±6 m · nauwkeurig</td><td>tot 8 m</td></tr>
+<tr><td>±12 m · redelijk</td><td>tot 15 m</td></tr>
+<tr><td>±31 m · grof</td><td>meer dan 15 m: de beste schatting die er is</td></tr>
+<tr><td>… · wordt beter, nog 1:40</td><td>de app luistert nog</td></tr>
 <tr><td>wachten op GPS…</td><td>nog geen positie</td></tr>
-<tr><td>GPS ±12 m, stabiliseren… (5 s)</td><td>positie gevonden, wordt nog beter</td></tr>
-<tr><td>Kerkstraat 12, Spijkenisse</td><td>nauwkeurig, adres gevonden</td></tr>
-<tr><td>51.84512, 4.32901 (±18 m)</td><td>nauwkeurig, geen adres (geen internet)</td></tr>
-<tr><td>… (onnauwkeurig)</td><td>de beste positie na 30 seconden, slechter dan 20 m</td></tr>
 </table>
-<p>Positie, nauwkeurigheid, straat en plaats gaan mee in de export. Het veld <strong>Plek / notities</strong> is vrije tekst: de naam van het telpunt, het weer, werk aan de weg.</p>
+<h4>Hoe het middelen werkt</h4>
+<ul>
+<li>Een meting die de GPS zelf nauwkeuriger noemt, telt zwaarder mee.</li>
+<li>Alleen de laatste 2 minuten tellen. Loop je na Start nog naar je plek, dan schuift de plek vanzelf mee.</li>
+<li>Uitschieters tellen niet mee: een meting ver van het midden, gemeten aan wat de GPS opgeeft én aan hoe ver de metingen echt uiteen liggen.</li>
+<li>De nauwkeurigheid is eerlijk gerekend. GPS-fouten hangen ongeveer een halve minuut samen, dus elke seconde een meting maakt het niet zestig keer beter. En nooit beter dan 3 m: een vaste fout, zoals weerkaatsing tussen hoge gebouwen, middel je niet weg.</li>
+</ul>
+<p>Het adres zoekt de app bij OpenStreetMap Nominatim op zodra de plek redelijk is (of na 30 seconden hoe dan ook), en opnieuw als de plek meer dan 15 m verschuift. Stop je binnen de 3 minuten, dan gaat de plek van dat moment mee.</p>
+<p>Positie, nauwkeurigheid, straat en plaats gaan mee in de export. In het overzicht staat bij <em>GPS reliable</em> Yes als de plek 15 m of beter is. Het veld <strong>Plek / notities</strong> is vrije tekst: de naam van het telpunt, het weer, werk aan de weg.</p>
 </section>
 <hr>
 <section id="sta-export">
@@ -451,7 +460,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <h3>Veldtips</h3>
 <ul>
 <li><strong>Vooraf.</strong> Vul bij <em>Plek / notities</em> de naam van het telpunt in, en zet de richtingen: met de hand of met het kompas.</li>
-<li><strong>GPS.</strong> Druk op Start op de plek waar je telt en kijk of er na een paar seconden een adres onder <em>Plek</em> staat. De positie wordt maar één keer bepaald.</li>
+<li><strong>GPS.</strong> Druk op Start op de plek waar je telt en blijf daar staan: de app middelt de GPS de eerste 3 minuten. Staat er daarna <em>grof</em>, dan is de GPS hier slecht; beschrijf het telpunt dan bij <em>Plek / notities</em>.</li>
 <li><strong>Fel zonlicht.</strong> Elk type heeft een eigen effen kleur, zodat je op kleur kunt tikken.</li>
 </ul>
 </section>
