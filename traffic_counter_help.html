@@ -850,12 +850,21 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <section id="rapport-kaart">
 <h3>Kaartvisualisatie per type</h3>
 <table>
-<tr><td>auto</td><td>Warmtekaart groen→rood op bezettingsgraad % per wegvak</td></tr>
-<tr><td>fiets</td><td>Warmtekaart groen→rood op √(totaal) per wegvak</td></tr>
+<tr><td>auto</td><td>Warmtekaart groen→rood op bezettingsgraad % per stuk van ~40–60 m (sinds v3.21)</td></tr>
+<tr><td>fiets</td><td>Warmtekaart groen→rood op √(totaal) per stuk van ~40–60 m (sinds v3.21)</td></tr>
 <tr><td>capaciteit</td><td>Paarse polygonen met nummerbadge — klik voor uitsplitsing per soort. Hover toont hoeveel observaties er geometrisch binnen het vlak vallen</td></tr>
 <tr><td>transect</td><td>Gekleurde stippen per voertuigtype, geclustered op afstand. Als OSM-snapping beschikbaar was: wegvak-clustering met warmtekaart</td></tr>
 <tr><td>pocket</td><td>Gekleurde stippen, geclustered op afstand. <strong>GPS-spoor</strong> in sessiekleur (dashed). Bij <code>_netwerk.csv</code> + <code>_gps.csv</code>: zero-visit detectie voor bezochte wegen zonder tellingen</td></tr>
 </table>
+<h4>Per stuk (fiets en auto, sinds v3.21)</h4>
+<p>Een OSM-weg kan 20 m lang zijn of een kilometer, afhankelijk van hoe hij in OpenStreetMap is getekend. Telrapport knipt daarom elke weg in stukken van gelijke lengte, zo dicht mogelijk bij 40 m (een weg korter dan 60 m blijft heel), precies zoals pocket en de reconstructor dat doen. Zo krijgt elke straat een vaste maat, en tellen tellingen op hetzelfde stuk samen op, ook als de ene een origineel is en de andere een reconstructie.</p>
+<ul>
+<li><strong>Waar een tik komt.</strong> Een tik telt mee op het stuk waar hij langs de weg staat. Een reconstructie (<code>_recon</code>) neemt zijn eigen indeling mee.</li>
+<li><strong>Aantallen.</strong> De aantallen per stuk komen uit de telregels. Voor auto's is de bezettingsgraad (goed + fout + spec) gedeeld door alle waarnemingen op het stuk, zoals in de app. Op een kort stuk met twee of drie plekken springt die snel: 0, 50 of 100 %.</li>
+<li><strong>Gelopen, niets geteld.</strong> Een stuk dat je liep maar waar je niets telde, staat gestreept in de kleur van de telling. Bij een reconstructie volgt dat uit <code>_bezocht.csv</code>, bij een origineel uit het GPS-spoor. Dat laatste kan een stuk naast je route aanwijzen als het GPS-spoor er vlak langs liep.</li>
+<li><strong>Correctietool.</strong> Verplaats je een tik, dan rekent telrapport het stuk en de aantallen opnieuw uit. De export verandert daardoor niet: daar komt geen kolom bij.</li>
+</ul>
+<p><em>Tot v3.21</em> toonde telrapport fiets en auto per hele weg. Van een reconstructie, die al per stuk is, bleef dan alleen het eerste stuk van elke weg over: gaten in het netwerk, en tikken op de latere stukken buiten elke cluster.</p>
 <h4>Gecombineerde clustering (transect + pocket)</h4>
 <p>Meerdere sessies van hetzelfde gebied worden samen geclusterd. Een cluster met punten uit twee sessies krijgt een diagonaal tweekleurig icoon. Klik voor een uitsplitsing per sessie en per type. De gap-slider bepaalt de clusterradius in meters.</p>
 <h4>Hover op wegvak of parkeervlak</h4>
