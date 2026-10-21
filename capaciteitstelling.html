@@ -562,6 +562,25 @@ function cacheWaysInTiles(elements, lat, lon, radiusM) {
    nu als misser en genezen op dezelfde manier.                               */
 var TEGEL_TTL_MS  = 14 * 24 * 3600 * 1000;
 var TEGEL_SCHEMA  = 3;
+// v3.20: uit de tegels alleen de wegen die de cirkel raken, zoals Overpass met
+// 'around' ze ook had gegeven. Een tegel beslaat ~1,1 x 0,7 km. Zonder deze stap
+// kreeg het netwerk na een cache-treffer de inhoud van hele tegels: sinds het
+// gebied vooraf (v3.19) gold dat voor elke fetch, en een fietstelling van een
+// paar minuten had 1926 ways in _netwerk.csv. Nu weer zo groot als zonder cache.
+function wegInCirkel(geom, lat, lon, r) {
+  var mPerLat = 111320, mPerLon = 111320 * Math.cos(lat * Math.PI / 180) || 1;
+  for (var i = 0; i < geom.length; i++) {
+    var ax = (geom[i].lon - lon) * mPerLon, ay = (geom[i].lat - lat) * mPerLat;
+    if (ax * ax + ay * ay <= r * r) return true;
+    if (i + 1 >= geom.length) break;
+    var bx = (geom[i + 1].lon - lon) * mPerLon, by = (geom[i + 1].lat - lat) * mPerLat;
+    var dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    var t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+    var px = ax + t * dx, py = ay + t * dy;
+    if (px * px + py * py <= r * r) return true;
+  }
+  return false;
+}
 function leesTegels(lat, lon, radiusM) {
   return new Promise(function (res) {
     try {
@@ -590,7 +609,9 @@ function leesTegels(lat, lon, radiusM) {
                 if (!seen[w.id]) { seen[w.id] = 1; out.push(w); }
               });
             }
-            if (--pending === 0) res(mis ? null : out);
+            if (--pending === 0) {
+              res(mis ? null : out.filter(function (w) { return wegInCirkel(w.geometry || [], lat, lon, radiusM); }));
+            }
           };
           r.onerror = function () { mis = true; if (--pending === 0) res(null); };
         });
