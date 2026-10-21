@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.23.** Static middelt de GPS (Jay: "grenzen van 8m en 15m. 3 minuten luisteren is prima"): tellen kan meteen, en de app luistert hooguit 3 minuten en neemt een gewogen gemiddelde over de laatste 2 minuten, zonder uitschieters, met een eerlijke afwijking (één onafhankelijke meting per 30 s, nooit beter dan 3 m). Niveaus: nauwkeurig tot 8 m, redelijk tot 15 m, daarboven grof; "GPS reliable" in het overzicht nu bij 15 m (was "< 25m") (`overdracht_v3_23.md`). Het ZIP-schema verandert niet. v3.22: Static Nederlands en in de huisstijl, één herstelmelding voor de vijf veld-apps. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
+**Laatste release: v3.24.** Een Engelse introductie: `about.html` naast `over.html` (Jay: "Schrijf maar een engelse over.html"), dezelfde inhoud en dezelfde kale stijl, met `hreflang` en een taallink over en weer; de voorpagina linkt "Wat is dit?" per taal (`overdracht_v3_24.md`). v3.23: Static middelt de GPS (nauwkeurig tot 8 m, redelijk tot 15 m, hooguit 3 minuten luisteren). v3.22: Static Nederlands en in de huisstijl, één herstelmelding voor de vijf veld-apps. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
 
 ---
 
@@ -15,6 +15,7 @@ Suite van single-file HTML-tools voor Nederlandse verkeers- en parkeertellingen,
 |---|---|
 | `index.html` | startscherm (tweetalig NL/EN), ingedeeld naar wat je telt (v2.69) |
 | `over.html` | publieke introductiepagina (NL) |
+| `about.html` | dezelfde introductie in het Engels (sinds v3.24); `hreflang` over en weer |
 | `traffic_counter.html` | Static — telpost vanaf vast punt; noodopslag + doortellen sinds v2.72; export in suitevorm sinds v2.73 (`<sid>_sta.zip`); Nederlands en in de huisstijl van de parkeer-apps sinds v3.22 |
 | `parkeertelling.html` | autoparkeren, lopend traject |
 | `fietsparkeren.html` | fietsparkeren |
@@ -156,7 +157,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 ## 5. Backlog (niets besloten)
 
 **Klein / afgebakend**
-- Kop van de handleiding zegt nog "Traffic Counter Help" (naam van vóór de rebrand in v2.34) en spreekt de nieuwe `<title>` tegen. Zichtbare tekst, dus Jay's keuze.
+- ~~Kop van de handleiding~~ — aangepast door Jay (de bovenste kop). Boven de inhoudsopgave staat nog een tweede kop "Traffic Counter Help", met daaronder "Contents". Zichtbare tekst, dus Jay's keuze.
 - Reconstructiescript een losse kaart-PNG naast de `_recon.zip` laten schrijven (afgesproken bij v2.55, nu `_kaart.png` niet meer in de verzameling meegaat).
 - Besluiten over het losse transect-formaat (`*_trn.zip`): geen enkele app maakt het nog (pocket's transect-modus `_pkt_t` verving het), maar telrapport leest het wel. Liggen er nog `_trn`-ZIP's in het archief? Zo nee: sectie uit de referentie én de leescode in telrapport eruit.
 - Veiligheidsblok-kop in de handleiding: `<h1>` → `<h4>` voor consistentie (Jay's keuze — hij schreef die sectie zelf). Sinds de duidelijkere koppen (na v3.16) valt hij nog meer op dan de hoofdstukken.
@@ -164,7 +165,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - **Pocket: netwerk ook na Doortellen in de ZIP** (gevonden in v3.17). Pocket schrijft `_netwerk.csv` alleen als de snap-motor bij Stop een netwerk in het geheugen heeft, en de noodkopie bewaart dat netwerk niet. Na Doortellen, zonder nieuw netwerk, ontbreekt het bestand; telrapport haalt de geometrie dan via Overpass (de terugval die daarom bleef). Oplossing: het netwerk in de noodkopie bewaren (zoals de parkeer-apps met `<sleutel>_netwerk`), of na Doortellen meteen de tegelcache of Overpass vragen. Dan kan de terugval in telrapport alsnog weg.
 - **Ingebouwde browser van een app** (uit v3.18). Op Android opent een link uit sommige apps in een WebView (`; wv)` in de user-agent): geen ZIP-download, en de noodkopie staat in de opslag van die app, niet in Chrome. v3.18 laat in de parkeer-apps alleen de kopie staan. Nog open: (1) een waarschuwingsbalk bij het openen, met *Kopieer link*, in alle vijf de veld-apps (nieuw gedeeld blok, tweetalig zoals *Noodopslag vol*); (2) pocket en Static: een download in een WebView niet als opgeslagen tellen, en *Sluiten* in het voorbeeldscherm van pocket dan niet laten bevestigen. Pas oppakken als het in het veld voorkomt.
 - Ook kaal maken? `zip_format_reference.html` en `snap_methodology.html` hebben nog de oude opmaak (Jay's keuze; v3.3 deed alleen de drie pagina's voor gebruikers).
-- Engelse variant van `over.html`.
+- ~~Engelse variant van `over.html`~~ — gedaan in v3.24: `about.html`.
 - **Bewijswaarde van een telling** (uit `verantwoording.html`, v3.4), in volgorde van nut:
   1. *Vingerafdruk bij de export* (Jay: later): SHA-256 van de ZIP tonen, met een knop "mail deze code naar mezelf". Daarmee is aantoonbaar dat de ZIP sinds dat moment niet veranderd is. WebCrypto, geen server.
   2. *Ongedaan maken tellen* (`n_ongedaan`) en *versienummer* (`app_versie`) in `_sessie.csv`, als kolommen achteraan. Schemawijziging: eerst KNIME.
@@ -224,7 +225,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - **GeoPackage-opmaak:** bij veel tellingen loopt de legenda (GPS-spoor per telling) uit het A4-vak; dan twee kolommen of het spoor uit de legenda. Eventueel ook een A3-opmaak.
 - QGIS-loader (`telonline_qgis_loader.py`) op QGIS 4 testen (Qt6, opgeschoonde Python-API); eventueel dezelfde stijlsjablonen gebruiken als de GeoPackage-export, zodat de opmaak op één plek bestaat.
 - Parkeren uit pocket halen naar een eigen tool. Sinds v2.69 heeft het een eigen ingang op de voorpagina (`#parkeren`), wat het grootste deel van de wens dekt. Een echte afsplitsing loont pas als parkeren een eigen kant op gaat (bijv. de zijde-offset live), want dan moeten GPS, snap, fetch-discipline en noodopslag in twee bestanden gelijk blijven.
-- `over.html` volgt de nieuwe indeling van de voorpagina nog niet (v2.69). De handleiding is in v2.74 bijgewerkt.
+- `over.html` (en sinds v3.24 `about.html`) volgt de nieuwe indeling van de voorpagina nog niet (v2.69): drie groepen, *Verkeer tellen*, *Parkeren tellen* en *Achter je bureau*, met telplanning. De handleiding is in v2.74 bijgewerkt. Pas beide tegelijk aan.
 - Wegennet-cache (IndexedDB) ruimt oude tegels nooit op; TTL bepaalt alleen of een tegel vers genoeg is. Automatisch opruimen van tegels ouder dan bijvoorbeeld 90 dagen, in de gedeelde blokken (`leesTegels`/`OSMCACHE`). Privacy en opslagruimte.
 - `hersteltest.py` is soms wisselvallig: 1 FOUT in 1 van 4 runs bij v2.75, op ongewijzigde apps. Bij v3.9 weer gezien: `_kaart.png` van fietsparkeren week een paar regels af, terwijl de machine zwaar belast was; los twee keer groen. Vaste wachttijden (250 ms per GPS-stap, 1,2 s op een ZIP) vervangen door wachten tot een voorwaarde klopt, en de uitvoer van elke run bewaren.
 - Google Fonts zelf hosten: haalt Google uit de lijst met derden in de privacyverklaring (v2.75). Optioneel.
@@ -237,7 +238,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.23 in één oogopslag
+## 6. Releases v2.32 → v3.24 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -313,6 +314,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.21 | **Telrapport per stuk** voor fiets en auto (Jay koos B2: "Met vaste lengtes breng je er wat meer systeem in"): `splitWayIntoSegments` ook in telrapport (groep van drie), originelen geknipt en tikken ingedeeld naar hun plek langs de weg, `_recon` met zijn eigen stukken, aantallen per stuk uit de telregels, gelopen stukken zonder tikken gestreept, correctietool rekent stuk en kleur opnieuw uit en wisselt van zijde langs de hele weg. Jays telling: `_recon` 9/9 tikken in een cluster (was 5/9). Nieuwe `stukkentest.py` (21) |
 | v3.22 | **Static in de familie en één herstelmelding** (Jay: "Taal: nederlands", "Maak Herstelmelding: één gedeeld blok voor alle vijf veld-apps"): Static Nederlands, huisstijl van de parkeer-apps (kop, statusbalk, Start/Stop, tellog), palet van telrapport (constante `typekleuren`), opslaan via `bewaarZip` (nu vier bestanden, haak `zipBewaard`), Start meteen na Stop; gedeeld blok `herstelmelding` in de vijf veld-apps (tekst, Doortellen, Download ZIP, Weggooien; vraag in het blok), `herstel-haken` met Weggooien voor de parkeer-apps. Overzicht in de ZIP blijft Engels. Handleiding: hoofdstuk Static in het Nederlands. Nieuwe `herstelmeldingtest.py` (103) |
 | v3.23 | **Static middelt de GPS** (Jay: "De wachttijd mag niet te lang oplopen"; "grenzen van 8m en 15m. 3 minuten luisteren is prima"): tellen meteen, hooguit 3 minuten luisteren (eerder klaar bij ±4 m), gewogen gemiddelde over 2 minuten, uitschieters naar opgegeven afwijking én echte spreiding, eerlijke afwijking (30 s samenhang, ondergrens 3 m); niveaus nauwkeurig/redelijk/grof in een eigen regel; adres zodra redelijk, opnieuw na 15 m, 30 s pauze na een mislukt verzoek; straat als *Voorstraat 12*. Nieuwe `gpsmiddeltest.py` (39) |
+| v3.24 | **Engelse introductie** `about.html` (Jay: "Schrijf maar een engelse over.html"): vertaling van `over.html`, kale stijl, `hreflang` en een taallink over en weer, in de sitemap; de voorpagina linkt "Wat is dit?" naar `about.html` (Engels) of `over.html` (Nederlands). `robuusttest.py` deel D (89) |
 
 ---
 

@@ -19,17 +19,16 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.23'
-# v3.23: Static middelt de GPS (hooguit 3 minuten, niveaus 8 en 15 m).
-VERWACHT_GEWIJZIGD = {'index.html', 'traffic_counter.html', 'traffic_counter_help.html',
-                      'zip_format_reference.html'}
+RELEASE = 'v3.24'
+# v3.24: Engelse introductie (about.html, nieuw) naast over.html; de voorpagina linkt per taal.
+VERWACHT_GEWIJZIGD = {'index.html', 'over.html', 'about.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
 NIET_IN_SITEMAP = {'snap_methodology.html', 'snaptrace.html', 'winkelstraat_rekenrig.html'}
 
 # v3.3: documentatiepagina's in kale HTML, met hetzelfde stijlblok
-KAAL = ['traffic_counter_help.html', 'over.html', 'privacy.html', 'verantwoording.html']
+KAAL = ['traffic_counter_help.html', 'over.html', 'about.html', 'privacy.html', 'verantwoording.html']   # about.html sinds v3.24
 
 VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
         'link', 'meta', 'param', 'source', 'track', 'wbr'}

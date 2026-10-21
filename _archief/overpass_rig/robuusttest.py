@@ -149,6 +149,11 @@ with sync_playwright() as p:
     r = pg.evaluate(RIJEN)
     eis('Engels: "Not saved yet", "3 taps · Wed 14-10 10:20"',
         r['kop'] == 'Not saved yet' and r['rijen'][1][1] == 'Car parking3 taps · Wed 14-10 10:20', r)
+    # v3.24: "Wat is dit?" gaat per taal naar over.html of about.html
+    INTRO = "document.querySelector('[data-i18n=introLink]').getAttribute('href')"
+    eis('Engels: de introductie is about.html', pg.evaluate(INTRO) == 'about.html', pg.evaluate(INTRO))
+    pg.evaluate("document.querySelector('.lang-btn[data-lang=nl]').click()"); pg.wait_for_timeout(100)
+    eis('Nederlands: de introductie is over.html', pg.evaluate(INTRO) == 'over.html', pg.evaluate(INTRO))
     eis('geen JS-fouten', not fouten, fouten)
     ctx.close()
     # Echte route: pocket tellen, naar de voorpagina, opslaan, weer naar de voorpagina.
