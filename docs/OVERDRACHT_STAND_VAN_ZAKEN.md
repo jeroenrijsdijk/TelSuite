@@ -128,28 +128,30 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ## 4. Nog te doen door Jay (buiten de code)
 
-0c. **Veldtest v3.19** (pocket-parkeren, want alleen pocket schrijft in `_snap_trace.csv` waar het netwerk vandaan kwam):
-   - met een planning: open de link thuis, de regel boven de telvakken zegt *gebied klaar*; na het lopen staat in `_snap_trace.csv` na het begin alleen `tegelcache`, geen `fetch`;
-   - zonder planning, in een stuk dat je nog niet eerder liep: een derde minder `fetch`-regels per kilometer dan vóór v3.19;
-   - let op het snappen: meer verkeerde straten of niet-gesnapte tikken dan vroeger? Dan terug naar 150 m (één getal per app).
-0b. **De telling van de S25 alsnog opslaan** (na de merge van v3.18). Hij staat nog in de noodkopie van Chrome op de telefoon. Open parkeertelling in dezelfde Chrome, tik **niet** op Start (dat vraagt of de herstelde telling weg mag), en tik op ⬇ Download ZIP: de ZIP staat dan in Downloads, en de noodkopie verdwijnt.
-0a. ~~**Planningmap op de server opruimen**~~ — gedaan (Jay, 18 okt 2026: "Alles opgeruimd"). Na de merge van v3.15: De repo heeft geen `planningen/` meer, maar de opgeslagen planningen (`planning_*.json`, met tellernamen) zijn nooit via git gekomen en blijven dus op de server staan. In Plesk → Bestanden → `httpdocs/planningen` de hele map weg. Controle: `https://telonline.org/planningen/planning_list.php` geeft daarna 404. Stond er nog een *Password-Protected Directory* op `/planningen`, die mag ook weg. De privacyverklaring zegt sinds v3.15 dat er geen planningen meer op de server staan.
-1. **Screenshots voor `over.html`** — nog niet geleverd. Drie bestanden, exact deze namen, naast `over.html`:
-   `screenshot-tellen.jpg` · `screenshot-nabewerken.jpg` · `screenshot-telrapport.jpg`
-   Zolang ze ontbreken toont de pagina een nette placeholder met de verwachte bestandsnaam. (PNG kan, vergt dan een `src`-aanpassing.)
-2. **KNIME aanpassen** op het nieuwe `sessie_id`-formaat (met modus-letter).
-3. **Testen in het veld** van de recente toevoegingen: audio-feedback en dekkingskaart in pocket parkeren, en de automatische ZIP-download na Stop in de drie parkeer-apps.
-4. **Testen in het veld van v2.49**: herhaald gebied (hoort nul Overpass-verzoeken te kosten), nieuw gebied, gebied zonder OSM-wegen, slecht bereik. Let vooral op of straatnamen in `_netwerk.csv` compleet blijven — dat is de gevoeligste plek van de cache-route. Zie `overdracht_v2_49.md` §9.
-5. **Server**: `gpx_snap.html` hoort niet meer bij de suite. Blijft hij op telonline.org staan (als losse tool), of verhuist hij? Hij had al geen links vanuit de suite, dus weghalen breekt niets.
-6. **KNIME**: `snap_path` in `snap_trace.csv` begint sinds v2.49 met `bron:fetch|` / `bron:tegel|` / `bron:leeg|`, en de `event`-kolom kent twee nieuwe waarden (`tegelcache`, `fetch_leeg`). Vrije-tekstkolommen, dus formeel geen schemawijziging — maar een node die op de exacte vorm parst moet mee.
-7. **KNIME: Static heeft sinds v2.73 een ZIP in suitevorm** — `<sid>.zip` (sid eindigt op `_sta`) met `_sessie.csv` (pocket-kolommen + `lat;lon;nauwkeurigheid;straat;plaats;notities;actieve_duur_s;uurfactor`, `app_type` = `standstill`), `_telregels.csv` (`sessie_id;nr;tijdstip;type;richting;lat;lon;nauwkeurigheid`, tijdstip mét datum), `_onderbrekingen.csv` (alleen na doortellen) en het oude leesbare overzicht als `_overzicht.csv`. Jay (v3.22): Static draait niet in KNIME. Wie Static toch in KNIME inleest via het overzicht, kan dat blijven doen; de nieuwe bestanden maken Static een gewone sessie. Voor uurintensiteiten `actieve_duur_s` of `uurfactor` gebruiken, niet eind − start.
-8. ~~**Plesk koppelen aan de branch `site`**~~ — klaar (10 okt 2026): Plesk volgt `site` met een webhook; v3.5 staat zo online.
-9. ~~**Veldtest v3.9**~~ — geslaagd (Jay, 16 okt 2026):
-   - pocket: tel, wissel even van app, kom terug: blijft het scherm aan?
-   - voorpagina: tel een paar tikken, ga naar de voorpagina: staat de telling onder *Nog niet opgeslagen*? Na opslaan weg?
-   - telplanning: teken een groot gebied (een hele wijk of meer): zie je de melding met tijd en kB, en bij een te groot gebied een duidelijke foutmelding?
-   - Firefox: vraagt de browser bij Start of de site gegevens blijvend mag opslaan?
-   - de melding *Noodopslag vol* is in het veld lastig op te wekken; `robuusttest.py` dekt hem.
+Opgeruimd op 21 oktober 2026.
+
+**Afgerond.**
+- Op 21 oktober (Jay: "het gaat soepel allemaal"):
+  - de telling van de S25 is opgeslagen;
+  - de veldtest van v2.49 (tegelcache) is geslaagd;
+  - de veldtest van v3.23 (GPS middelen in Static) is geslaagd.
+- Eerder:
+  - de veldtest van v3.9 (16 oktober);
+  - de planningmap op de server is opgeruimd (18 oktober);
+  - Plesk volgt de branch `site` (10 oktober).
+- De KNIME-notitie over Static is vervallen: Static draait niet in KNIME (Jay, v3.22). Het formaat staat in `zip_format_reference.html`.
+
+**Nog open.**
+1. **Screenshots voor `over.html`.** Drie bestanden, met precies deze namen, naast `over.html`: `screenshot-tellen.jpg`, `screenshot-nabewerken.jpg` en `screenshot-telrapport.jpg`. Zolang ze ontbreken, toont de pagina een nette plaatshouder met de verwachte bestandsnaam. PNG kan ook, maar dan moet `src` mee.
+2. **KNIME.** Twee punten:
+   - het `sessie_id`-formaat met de modusletter;
+   - `snap_path` in `snap_trace.csv` begint sinds v2.49 met `bron:fetch|`, `bron:tegel|` of `bron:leeg|`, en de kolom `event` kent `tegelcache` en `fetch_leeg`. Het zijn vrije-tekstkolommen, dus formeel geen schemawijziging. Een node die op de exacte vorm parst, moet wel mee.
+3. **Server.** `gpx_snap.html` hoort niet meer bij de suite. Blijft hij als losse tool op telonline.org staan, of verhuist hij? Er linkt niets naartoe, dus weghalen breekt niets.
+4. **Veldtest v3.19** (pocket-parkeren; alleen pocket schrijft de bron van het netwerk in `_snap_trace.csv`):
+   - met een planning: open de link thuis. Boven de telvakken staat dan *gebied klaar*, en na het lopen staat in `_snap_trace.csv` na het begin alleen `tegelcache`, geen `fetch`;
+   - zonder planning, in een stuk dat je nog niet eerder liep: een derde minder `fetch`-regels per kilometer dan voor v3.19;
+   - snappen: meer verkeerde straten of niet-gesnapte tikken dan vroeger? Dan terug naar 150 m (één getal per app). Valt de test goed uit, dan kan 500/350 later nog (§5, *Meetkunde*).
+5. **Veldtest pocket-parkeren:** de audio-feedback en de dekkingskaart. Het automatisch downloaden van de ZIP na Stop is sinds v3.18 op de S25 getest.
 
 ---
 
