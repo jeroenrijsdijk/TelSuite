@@ -19,10 +19,9 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.20'
-# v3.20: tegelcache met knooppunten (schema 3), hele cellen, per segment, alleen de cirkel.
-VERWACHT_GEWIJZIGD = {'index.html', 'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
-                      'pocket_count.html', 'telreconstructie.html'}
+RELEASE = 'v3.21'
+# v3.21: telrapport toont fiets en auto per stuk (splitWayIntoSegments, ook in telrapport).
+VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -188,7 +187,7 @@ groepen = [
      'var MATCHER = (function () {', '\n})();'),
     ('OSMCACHE', ['telreconstructie.html'],
      'var OSMCACHE = (function () {', '\n})();'),
-    ('splitWayIntoSegments', ['telreconstructie.html', 'pocket_count.html'],
+    ('splitWayIntoSegments', ['telreconstructie.html', 'pocket_count.html', 'telrapport.html'],   # telrapport sinds v3.21
      'function splitWayIntoSegments(geom) {', '\n}'),
     # v2.72: doortellen na herstel, gedeeld door de drie parkeer-apps
     ('hervatSessie', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],

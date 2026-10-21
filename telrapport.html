@@ -1100,6 +1100,210 @@ function parseKey(k) {
   return { wid: k.slice(0, i), segIdx: +k.slice(i+1) || 0 };
 }
 
+/* ── Stukken voor fiets en auto (v3.21) ──────────────────────────────────────
+   Jay: "Ik wil al langer meer op segment basis werken, omdat openstreetmap
+   wegvakken ook heel willekeurig kunnen zijn. Met vaste lengtes breng je er wat
+   meer systeem in." Telrapport toont fiets- en autotellingen daarom per stuk van
+   ~40–60 m, net als pocket:
+   - Knippen doet splitWayIntoSegments, byte-identiek aan telreconstructie en
+     pocket (valideer.py, groep splitWayIntoSegments). Dezelfde weg geeft zo in
+     elke app dezelfde stukken, en tellingen op hetzelfde stuk tellen samen op.
+   - Een _recon brengt zijn stukken en de indeling van de tikken mee
+     (segment_index). Een origineel knippen we hier, en een tik gaat naar het
+     stuk waar hij langs de weg staat (stukVanTik: dezelfde rekensom als
+     segIdxFor in de reconstructor). De correctietool rekent het stuk opnieuw
+     uit; dat staat in r._seg en gaat niet mee in de export.
+   - De aantallen per stuk komen uit de telregels (telPerStuk), niet uit
+     _straten.csv, en worden na elke correctie opnieuw geteld.
+   - Gelopen stukken zonder tikken: bij een _recon uit _bezocht.csv, bij een
+     origineel uit het GPS-spoor, zoals bij pocket (gelopenStukken).
+   Tot v3.21 las telrapport een fiets- of autotelling per hele weg en hield hij
+   van een _recon alleen het eerste stuk over: gaten in het netwerk, en tikken
+   op latere stukken buiten elke cluster. */
+var SEGMENT_TARGET_M = 40;
+var SEGMENT_MIN_M = 60;
+function _normPt(p) { return (p && p.lat !== undefined) ? [p.lat, p.lon] : p; }
+function splitWayIntoSegments(geom) {
+  if (!geom || geom.length < 2) return [geom ? geom.map(_normPt) : []];
+  var pts = geom.map(_normPt);
+  var refLat = pts[0][0];
+  var cos = Math.cos(refLat * Math.PI / 180);
+  // Cumulatieve afstand per knoop
+  var cum = [0];
+  for (var i = 1; i < pts.length; i++) {
+    var dx = (pts[i][1] - pts[i-1][1]) * 111320 * cos;
+    var dy = (pts[i][0] - pts[i-1][0]) * 111320;
+    cum.push(cum[i-1] + Math.sqrt(dx*dx + dy*dy));
+  }
+  var total = cum[cum.length-1];
+  if (total < SEGMENT_MIN_M) return [pts];
+  var N = Math.max(1, Math.round(total / SEGMENT_TARGET_M));
+  if (N === 1) return [pts];
+  var segLen = total / N;
+  var result = [];
+  var curSeg = [pts[0]];
+  var nextCut = segLen;
+  var done = 0;
+  for (var j = 1; j < pts.length; j++) {
+    var dStart = cum[j-1], dEnd = cum[j], edge = dEnd - dStart;
+    // Eén edge kan meerdere cuts bevatten als segLen < edge-lengte (zeldzaam)
+    while (done < N - 1 && dEnd >= nextCut && edge > 0) {
+      var t = (nextCut - dStart) / edge;
+      var cutLat = pts[j-1][0] + t * (pts[j][0] - pts[j-1][0]);
+      var cutLon = pts[j-1][1] + t * (pts[j][1] - pts[j-1][1]);
+      curSeg.push([cutLat, cutLon]);
+      result.push(curSeg);
+      curSeg = [[cutLat, cutLon]];
+      nextCut += segLen;
+      done++;
+    }
+    curSeg.push(pts[j]);
+  }
+  result.push(curSeg);
+  return result;
+}
+const wegGeometrie = {};   // way-id → de hele weg [[lat,lon],…] (stukVanTik, correctietool)
+const wegAantal    = {};   // way-id → aantal stukken
+const nulStukken   = {};   // sid → sleutels van gelopen stukken zonder tikken
+const STUK_TYPES   = { fiets: ['fiets', 'brommer', 'breed', 'wrak'], auto: ['goed', 'fout', 'leeg', 'spec'] };
+
+function plakAan(lijnen) {          // stukken → één lijn, zonder dubbele knippunten
+  const uit = [];
+  lijnen.forEach(function (g) {
+    g.forEach(function (p) {
+      const l = uit[uit.length - 1];
+      if (!l || l[0] !== p[0] || l[1] !== p[1]) uit.push(p);
+    });
+  });
+  return uit;
+}
+function tikSeg(r) { return r._seg !== undefined ? r._seg : (+(r.segment_index || 0) || 0); }
+function heleWeg(wid) {
+  wid = String(wid || '').trim();
+  if (wegGeometrie[wid]) return wegGeometrie[wid];
+  const delen = Object.keys(wayData).filter(function (k) { return parseKey(k).wid === wid; })
+    .sort(function (a, b) { return parseKey(a).segIdx - parseKey(b).segIdx; })
+    .map(function (k) { return wayData[k].geometry || []; });
+  return delen.length ? plakAan(delen) : null;
+}
+
+// _netwerk.csv (fiets of auto) → stukken in wayData. Geeft de sleutels terug.
+function laadStukken(rijen) {
+  const keys = [], perWeg = {};
+  rijen.forEach(function (r) {
+    const wid = String(r.osm_way_id || '').trim(); if (!wid) return;
+    const g = parseWKT(r.geometrie_wkt || ''); if (g.length < 2) return;
+    const idx = String(r.segment_index || '').trim();
+    (perWeg[wid] = perWeg[wid] || { highway: r.highway || '', delen: [] })
+      .delen.push({ idx: idx === '' ? null : (+idx || 0), n: +r.segment_count || 0, g: g });
+  });
+  Object.keys(perWeg).forEach(function (wid) {
+    const w = perWeg[wid];
+    let stukken;
+    if (w.delen.every(function (d) { return d.idx !== null; })) {    // _recon: de stukken staan er al in
+      w.delen.sort(function (a, b) { return a.idx - b.idx; });
+      stukken = w.delen.map(function (d) { return { idx: d.idx, g: d.g }; });
+      if (!wegGeometrie[wid]) wegGeometrie[wid] = plakAan(w.delen.map(function (d) { return d.g; }));
+    } else {                                                          // origineel: hier knippen
+      if (!wegGeometrie[wid]) wegGeometrie[wid] = w.delen[0].g;
+      stukken = splitWayIntoSegments(w.delen[0].g).map(function (g, i) { return { idx: i, g: g }; });
+    }
+    if (!wegAantal[wid]) wegAantal[wid] = stukken.length;
+    stukken.forEach(function (st) {
+      const k = wkey(wid, st.idx), wd = wayData[k];
+      if (!wd) {
+        wayData[k] = { geometry: st.g, highway: w.highway, sessions: [], osmName: '',
+                       wayId: wid, segIdx: st.idx, segCount: stukken.length };
+      } else if (wd.geometry.length < 2 || (wd.geometry.length === 2 &&
+                 wd.geometry[0][0] === wd.geometry[1][0] && wd.geometry[0][1] === wd.geometry[1][1])) {
+        wd.geometry = st.g; wd.highway = wd.highway || w.highway; wd.segCount = stukken.length;   // pocket-plaatshouder
+      }
+      keys.push(k);
+    });
+  });
+  return keys;
+}
+
+// Het stuk waar een tik langs de weg staat
+function stukVanTik(wid, lat, lon) {
+  wid = String(wid || '').trim();
+  const g = wegGeometrie[wid], n = wegAantal[wid] || 1;
+  if (!g || g.length < 2 || n <= 1 || isNaN(lat) || isNaN(lon)) return 0;
+  const LAT_M = 111320, lm = 111320 * Math.cos(g[0][0] * Math.PI / 180);
+  const px = lon * lm, py = lat * LAT_M;
+  let cum = 0, bestCum = 0, best = Infinity;
+  for (let i = 0; i < g.length - 1; i++) {
+    const ax = g[i][1] * lm, ay = g[i][0] * LAT_M, bx = g[i + 1][1] * lm, by = g[i + 1][0] * LAT_M;
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, len = Math.sqrt(l2);
+    const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2));
+    const d = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    if (d < best) { best = d; bestCum = cum + t * len; }
+    cum += len;
+  }
+  return cum > 0 ? Math.min(n - 1, Math.floor(bestCum / (cum / n))) : 0;
+}
+
+// Gelopen stukken zonder tikken
+function gelopenStukken(sid, sm, bezCSV, gpsCSV, netKeys) {
+  const isRecon = !!(sm.reconstructie && String(sm.reconstructie).trim());
+  if (isRecon && bezCSV) {
+    return parseCSV(bezCSV).filter(function (r) { return (+r.n_tellingen || 0) === 0 && String(r.osm_way_id || '').trim(); })
+      .map(function (r) { return wkey(String(r.osm_way_id).trim(), +(r.segment_index || 0) || 0); })
+      .filter(function (k) { return wayData[k]; });
+  }
+  if (!gpsCSV || !netKeys.length) return [];
+  const geteld = new Set((telData[sid] || []).map(function (r) { return wkey(r.osm_way_id, tikSeg(r)); }));
+  return detectZeroVisited(gpsCSV, netKeys, geteld);
+}
+
+// De aantallen van een fiets- of autotelling per stuk, uit zijn telregels
+function telPerStuk(sid) {
+  const s = sessions[sid]; if (!s) return;
+  const appType = s.appType, types = STUK_TYPES[appType]; if (!types) return;
+  Object.keys(wayData).forEach(function (k) {
+    const wd = wayData[k];
+    if (wd.sessions.some(function (e) { return e.sid === sid; }))
+      wd.sessions = wd.sessions.filter(function (e) { return e.sid !== sid; });
+  });
+  const per = {};
+  (telData[sid] || []).forEach(function (r) {
+    const wid = String(r.osm_way_id || '').trim(); if (!wid) return;
+    const k = wkey(wid, tikSeg(r)); if (!wayData[k]) return;
+    let e = per[k];
+    if (!e) { e = per[k] = { sid: sid, appType: appType, naam: cleanNaam(r.straat || '') }; types.forEach(function (t) { e[t] = 0; }); }
+    const t = (r.type || '').toLowerCase();
+    if (types.indexOf(t) >= 0) e[t]++;
+  });
+  Object.keys(per).forEach(function (k) {
+    const e = per[k];
+    if (appType === 'fiets') {
+      e.totaal = e.fiets + e.brommer + e.breed + e.wrak;
+    } else {                        // zelfde formule als buildStratenCsvString in parkeertelling
+      e.bezet = e.goed + e.fout + e.spec; e.vrij = e.leeg;
+      e.totaal = e.bezet + e.vrij;
+      e.bezettingsgraad_pct = e.totaal > 0 ? Math.round(e.bezet / e.totaal * 1000) / 10 : 0;
+    }
+    wayData[k].sessions.push(e);
+    if (!wayData[k].osmName && e.naam && e.naam !== '—') wayData[k].osmName = e.naam;
+  });
+  (nulStukken[sid] || []).forEach(function (k) {
+    if (per[k] || !wayData[k]) return;
+    const e = { sid: sid, appType: appType, naam: wayData[k].osmName || '', totaal: 0, zeroVisited: true };
+    types.forEach(function (t) { e[t] = 0; });
+    if (appType === 'auto') { e.bezet = 0; e.vrij = 0; e.bezettingsgraad_pct = 0; }
+    wayData[k].sessions.push(e);
+  });
+}
+
+// Na een correctie: het stuk van de tik opnieuw, de aantallen opnieuw, opnieuw tekenen
+function naCorrectie(sid, r) {
+  if (r && STUK_TYPES[(sessions[sid] || {}).appType]) r._seg = stukVanTik(r.osm_way_id, +r.lat_marker, +r.lon_marker);
+  telPerStuk(sid);
+  recolorAll();
+  drawClusters(sid);
+  updateStats();
+}
+
 
 const dotVisible    = { fiets:true, wrak:true, brommer:true, breed:true,
                         goed:true, fout:true, leeg:true, spec:true };
@@ -2720,7 +2924,7 @@ function drawClusters(sid) {
   const groups = {};
   rows.forEach(r => {
     const wid=r.osm_way_id, zijde=r.zijde||'X';
-    const segIdx = +(r.segment_index || 0) || 0;
+    const segIdx = tikSeg(r);
     const k = wkey(wid, segIdx);
     const geometry=wayData[k]?.geometry; if (!geometry) return;
     const la=+r.lat_marker, lo=+r.lon_marker; if (isNaN(la)||isNaN(lo)) return;
@@ -3449,10 +3653,10 @@ function showPolygonSummary(verts) {
           appType: sessions[sid].appType, datum: fmtDatum(sm.datum, sm.start_tijd),
           total: 0, segs: {} };
       }
-      var segKey = (r.osm_way_id||'?') + '|' + (r.segment_index||0);
+      var segKey = (r.osm_way_id||'?') + '|' + tikSeg(r);
       if (!hit.segs[segKey]) {
         hit.segs[segKey] = { straat: r.straat || ('OSM '+(r.osm_way_id||'?')),
-          segIdx: r.segment_index||0, total: 0, byType: {} };
+          segIdx: tikSeg(r), total: 0, byType: {} };
       }
       var seg = hit.segs[segKey];
       var t = r.type || 'other';
@@ -3819,42 +4023,13 @@ async function loadZip(file, voorgeladenZip) {
   const cfg = APP_CONFIG[appType];
   sessions[sid]={ meta:sm, visible:true, appType };
 
-  // Geometrie laden — capaciteit/fiets/auto kennen geen segmenten, alles op segIdx=0
-  parseCSV(netCSV).forEach(r=>{
-    const wid = r.osm_way_id;
-    const k = wkey(wid, 0);
-    if (!wayData[k])
-      wayData[k]={ geometry:parseWKT(r.geometrie_wkt), highway:r.highway,
-                   sessions:[], osmName:'', wayId:wid, segIdx:0, segCount:1 };
-  });
-
-  // Straten → ways (alles segIdx=0)
-  parseCSV(stratenCSV).forEach(r=>{
-    const naam = cleanNaam(r.naam || r.straat);  // naam (v1.4+) of straat (compat)
-    const wids = String(r.osm_way_ids||'').split('|').map(s=>s.trim()).filter(Boolean);
-    if (!wids.length) return;
-    const factor = 1 / wids.length;
-    wids.forEach(wid=>{
-      const wd=wayData[wkey(wid, 0)]; if (!wd) return;
-      const entry = { sid, naam, appType };
-      if (appType === 'fiets') {
-        entry.fiets   = Math.round((+r.fiets  ||0)*factor);
-        entry.wrak    = Math.round((+r.wrak   ||0)*factor);
-        entry.brommer = Math.round((+r.brommer||0)*factor);
-        entry.breed   = Math.round((+r.breed  ||0)*factor);
-        entry.totaal  = Math.round((+r.totaal ||0)*factor);
-      } else {
-        entry.goed    = Math.round((+r.goed   ||0)*factor);
-        entry.fout    = Math.round((+r.fout   ||0)*factor);
-        entry.leeg    = Math.round((+r.leeg   ||0)*factor);
-        entry.spec    = Math.round((+r.spec   ||0)*factor);
-        entry.bezet   = Math.round((+r.bezet  ||0)*factor);
-        entry.vrij    = Math.round((+r.vrij   ||0)*factor);
-        entry.bezettingsgraad_pct = +(r.bezettingsgraad_pct||0);
-      }
-      wd.sessions.push(entry);
-    });
-  });
+  // Geometrie laden, per stuk (v3.21; zie 'Stukken voor fiets en auto'). Een _recon
+  // brengt de stukken mee (segment_index); een origineel knippen we hier, op
+  // dezelfde manier. Tot v3.21: één lijn per weg, en van een _recon alleen het
+  // eerste stuk.
+  const netKeys = laadStukken(parseCSV(netCSV));
+  // De aantallen per stuk komen hieronder uit de telregels (telPerStuk), niet
+  // meer uit _straten.csv: die telt per straat, niet per stuk.
 
   // Wegvak-polylijnen
   Object.entries(wayData).forEach(([k,wd])=>{
@@ -3885,6 +4060,13 @@ async function loadZip(file, voorgeladenZip) {
     allRows.forEach(function(r, i){ r._originalIdx = i; });
     allTelregels[sid] = allRows;
     telData[sid]=allRows.filter(r=>r.snapped==='1'||r.snapped===1);
+    // v3.21: het stuk van elke tik (een _recon geeft het mee), de gelopen stukken
+    // zonder tikken, en de aantallen per stuk
+    const reconStukken = allRows.some(r => String(r.segment_index || '').trim() !== '');
+    telData[sid].forEach(r => { r._seg = (reconStukken && String(r.segment_index || '').trim() !== '')
+      ? (+r.segment_index || 0) : stukVanTik(r.osm_way_id, +r.lat_marker, +r.lon_marker); });
+    nulStukken[sid] = gelopenStukken(sid, sm, bezCSV, gpsCSV, netKeys);
+    telPerStuk(sid);
     dotLayers[sid]={};
     allRows.forEach(r=>{
       const la=+r.lat_marker, lo=+r.lon_marker;
@@ -3905,6 +4087,9 @@ async function loadZip(file, voorgeladenZip) {
       dotLayers[sid][type].push(m);
       if (dotVisible[type]) m.addTo(map);
     });
+  } else {   // v3.21: ook zonder telregels de gelopen stukken
+    nulStukken[sid] = gelopenStukken(sid, sm, bezCSV, gpsCSV, netKeys);
+    telPerStuk(sid);
   }
 
   recolorAll();
@@ -3958,7 +4143,7 @@ function clusterDekking(sid) {
     Object.values(dotLayers[sid] || {}).forEach(function(arr){ geplaatst += arr.length; });
   } else {
     (telData[sid] || []).forEach(function(r){
-      var k = wkey(r.osm_way_id, +(r.segment_index || 0) || 0);
+      var k = wkey(r.osm_way_id, tikSeg(r));
       if (!(wayData[k] && wayData[k].geometry)) return;
       var la = +r.lat_marker, lo = +r.lon_marker;
       if (isNaN(la) || isNaN(lo)) return;
@@ -5111,7 +5296,7 @@ function findNearestWays(lat, lon, n, maxDistM) {
     if (!existing || d < existing.dist) {
       byWayId[wd.wayId] = {
         key: k, wayId: wd.wayId, name: wd.osmName || wd.highway || '?',
-        geometry: wd.geometry, dist: d
+        geometry: heleWeg(wd.wayId) || wd.geometry, dist: d   // v3.21: de hele weg, niet het stuk
       };
     }
   });
@@ -5286,13 +5471,13 @@ function showWayChoicePopup(marker, anchorLL, candidates) {
       const cur = candidates.splice(idx, 1)[0];
       candidates.unshift(cur);
     } else if (idx === -1 && curWid) {
-      const wd = wayData[wkey(curWid, 0)];
-      if (wd && wd.geometry && wd.geometry.length >= 2) {
+      const wd = wayData[wkey(curWid, 0)], heel = heleWeg(curWid);
+      if (wd && heel && heel.length >= 2) {
         candidates.unshift({
           wayId: curWid,
           name: wd.osmName || r.straat || '?',
-          geometry: wd.geometry,
-          dist: nearestWayDist(anchorLL.lat, anchorLL.lng, wd.geometry)
+          geometry: heel,
+          dist: nearestWayDist(anchorLL.lat, anchorLL.lng, heel)
         });
         candidates = candidates.slice(0, WAY_CHOICE_N);
       }
@@ -5398,7 +5583,7 @@ function applyCorrection(marker, chosen, snap) {
   marker.setIcon(makeEditIcon(marker._typeColor, true));
 
   // Clusters voor deze sessie hertekenen (telData wijst naar dezelfde rows)
-  drawClusters(marker._sid);
+  naCorrectie(marker._sid, r);
   updateCorrUi();
 }
 
@@ -5408,14 +5593,14 @@ function applySideSwap(marker) {
   const r = marker._row;
   const wid = r.osm_way_id;
   if (!wid) { alert('Deze rij heeft geen osm_way_id.'); return; }
-  const wd = wayData[wkey(wid, 0)];
-  if (!wd || !wd.geometry || wd.geometry.length < 2) {
+  const heel = heleWeg(wid);   // v3.21: de hele weg, niet alleen het eerste stuk
+  if (!heel || heel.length < 2) {
     alert('Huidige way (' + wid + ') niet in geladen data — kies eerst een way via slepen.');
     return;
   }
   const cur = marker.getLatLng();
   const travelBearing = travelBearingForRow(r);
-  const snap = snapAndSideOnWay(cur.lat, cur.lng, wd.geometry, travelBearing);
+  const snap = snapAndSideOnWay(cur.lat, cur.lng, heel, travelBearing);
   if (!snap) return;
 
   // Flip zijde; hdg_osm blijft hetzelfde (way-eigenschap, niet teller-eigenschap).
@@ -5433,7 +5618,7 @@ function applySideSwap(marker) {
   marker._origLatLng = L.latLng(mPos.lat, mPos.lon);
   marker.setIcon(makeEditIcon(marker._typeColor, true));
 
-  drawClusters(marker._sid);
+  naCorrectie(marker._sid, r);
   updateCorrUi();
 }
 
