@@ -148,7 +148,7 @@ with sync_playwright() as p:
         ref = zip_van(pg, 'exportZip()')
         ctx.close()
         ctx, pg, fouten2 = herlaad_met(b, app, opslag)
-        melding = pg.evaluate("(function(){var e=document.getElementById('restoreBanner');return e&&e.style.display!=='none'?e.textContent:null})()")
+        melding = pg.evaluate("(function(){var e=document.getElementById('herstel-melding');return e&&e.style.display!=='none'?e.textContent:null})()")   # v3.22: gedeelde melding
         eis('na crash: herstelmelding', bool(melding), melding)
         eis('na crash: alle 12 tikken terug', pg.evaluate('entries.length') == 12, pg.evaluate('entries.length'))
         eis('na crash: GPS-spoor terug', pg.evaluate('gpsLog.length') == gps_voor, (pg.evaluate('gpsLog.length'), gps_voor))
@@ -176,7 +176,7 @@ with sync_playwright() as p:
         ref = zip_van(pg, 'stopTelling()')
         ctx.close()
         ctx, pg, fouten2 = herlaad_met(b, 'pocket_count.html', opslag)
-        melding = pg.evaluate("document.getElementById('restore-banner').style.display !== 'none'")
+        melding = pg.evaluate("document.getElementById('herstel-melding').style.display !== 'none'")
         eis('na crash: herstelmelding', melding)
         eis('na crash: alle 12 tikken terug', pg.evaluate('telHistory.length') == 12, pg.evaluate('telHistory.length'))
         eis('na crash: GPS-spoor terug', pg.evaluate('routeLog.length') == gps_voor, (pg.evaluate('routeLog.length'), gps_voor))
@@ -219,10 +219,10 @@ with sync_playwright() as p:
         opslag = bevries(pg); ctx.close()
         ctx, pg, f2 = herlaad_met(b, app, opslag, geo=True)
         eis('Doortellen-knop zichtbaar bij de herstelmelding',
-            pg.evaluate("getComputedStyle(document.getElementById('btnHervat')).display !== 'none'"))
+            pg.evaluate("!!document.querySelector('#herstel-melding button[onclick=\"hervatSessie()\"]') && document.getElementById('herstel-melding').style.display !== 'none'"))
         pg.evaluate(hervat); pg.wait_for_timeout(800)
         eis('na Doortellen: sessie loopt, melding en knop weg',
-            pg.evaluate('sessionActive') and pg.evaluate("document.getElementById('restoreBanner').style.display === 'none'"))
+            pg.evaluate('sessionActive') and pg.evaluate("document.getElementById('herstel-melding').style.display === 'none'"))
         for i in range(6):
             ctx.set_geolocation({'latitude': LAT + (i + 8) * 0.00012, 'longitude': LON + (i + 8) * 0.00005, 'accuracy': 5})
             pg.wait_for_timeout(250); pg.evaluate(tik(i + 6)); pg.wait_for_timeout(60)
@@ -283,7 +283,7 @@ with sync_playwright() as p:
     pg.evaluate('chooseTransect()'); pg.wait_for_timeout(200)
     eis('bevestiging gevraagd', any('herstelde telling' in v for v in vragen), vragen)
     eis('na Annuleren: herstelde telling staat er nog', pg.evaluate("localStorage.getItem('pocket_sessie') !== null")
-        and pg.evaluate("document.getElementById('restore-banner').style.display !== 'none'"))
+        and pg.evaluate("document.getElementById('herstel-melding').style.display !== 'none'"))
     ctx.close()
 
     # ------------------------------------------------ Static
@@ -298,8 +298,8 @@ with sync_playwright() as p:
     opslag = bevries(pg); ctx.close()
     eis('Static: noodopslag aanwezig na de tikken', 'static_sessie' in json.loads(opslag))
     ctx, pg, f2 = herlaad_met(b, 'traffic_counter.html', opslag)
-    eis('Static: herstelbalk met Doortellen', pg.evaluate("document.getElementById('herstel-balk').style.display !== 'none'")
-        and pg.evaluate("document.getElementById('herstel-door').style.display !== 'none'"))
+    eis('Static: herstelmelding met Doortellen', pg.evaluate("document.getElementById('herstel-melding').style.display !== 'none'")
+        and pg.evaluate("!!document.querySelector('#herstel-melding button[onclick=\"doortellenStatic()\"]')"))
     eis('Static: alle 7 tikken terug', pg.evaluate("document.getElementById('grand-total').textContent") == '7')
     pg.wait_for_timeout(2500)                      # de onderbreking duurt nog even
     pg.evaluate('doortellenStatic()'); pg.wait_for_timeout(300)

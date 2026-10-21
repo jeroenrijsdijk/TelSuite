@@ -85,17 +85,16 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <h2>Contents</h2><ul><li>Methodiek<ul>
 <li><a href="#methodiek">Generieke telregels &amp; onze keuzes</a></li>
 <li><a href="#slim-lopen">Slim lopen bij parkeertellingen</a></li>
-</ul></li><li>Traffic Counter<ul>
-<li><a href="#overview">Overview</a></li>
-<li><a href="#session">Starting and ending a session</a></li>
-<li><a href="#counting">Counting vehicles</a></li>
-<li><a href="#directions">Directions &amp; compass</a></li>
-<li><a href="#gps">GPS &amp; location</a></li>
-<li><a href="#notes">Location / Notes field</a></li>
-<li><a href="#csv">Export (ZIP)</a></li>
-<li><a href="#recovery">Interruptions &amp; continuing</a></li>
-<li><a href="#keyboard">Keyboard shortcuts</a></li>
-<li><a href="#tips">Field tips</a></li>
+</ul></li><li>Static — tellen vanaf een vast punt<ul>
+<li><a href="#static">Wat doet Static?</a></li>
+<li><a href="#sta-sessie">Starten en stoppen</a></li>
+<li><a href="#sta-tellen">Tellen</a></li>
+<li><a href="#sta-richtingen">Richtingen en kompas</a></li>
+<li><a href="#sta-gps">GPS en plek</a></li>
+<li><a href="#sta-export">Export (ZIP)</a></li>
+<li><a href="#sta-herstel">Onderbreking en doortellen</a></li>
+<li><a href="#sta-toetsen">Toetsen (computer)</a></li>
+<li><a href="#sta-tips">Veldtips</a></li>
 </ul></li><li>Parkeertelling (auto &amp; fiets)<ul>
 <li><a href="#park-overzicht">Wat doen de parkeertellingen?</a></li>
 <li><a href="#park-eerstegebruik">Hints bij het eerste gebruik</a></li>
@@ -368,127 +367,93 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 </ul>
 </section>
 <hr>
-<!-- Overview -->
-<section id="overview">
-<h3>Overview</h3>
-<p>Traffic Counter is a browser-based field tool for counting traffic. All data is stored locally in the browser and exported to a semicolon-delimited CSV ready for analysis software, like Excel or KNIME.</p>
-<p>No account or internet connection required for counting — internet is only used for map tiles and address lookup.</p>
-<h4>STATIC Static MODE</h4>
-<p>Stand at a fixed location on the roadside,</p>
-<p>One GPS fix is taken at the start,</p>
-<p>Counts are totalled per vehicle type and direction, with hourly extrapolation in the CSV.</p>
+<!-- Static (v3.22: Nederlands, zelfde opbouw als de parkeertellingen) -->
+<section id="static">
+<h3>Wat doet Static?</h3>
+<p>Je staat op één plek langs de weg en telt wat er langskomt, per voertuigtype en per richting. Bij Start bepaalt de app één keer je positie en zoekt hij de straatnaam op. Na afloop krijg je één ZIP met de aantallen, de aantallen per uur en elke tik met datum en tijd.</p>
+<p>Sinds v3.22 is Static Nederlands en heeft hij dezelfde opbouw als de parkeertellingen: bovenin de statusbalk met de GPS-stip, dan <strong>▶ Start</strong> en <strong>■ Stop</strong>, en onderaan de tellog.</p>
 </section>
 <hr>
-<!-- Session -->
-<section id="session">
-<h3>Starting and ending a session</h3>
-<h4><b>START</b> button</h4>
-<p>Begins the session clock and activates the counting buttons, and starts acquiring a one-time GPS fix.</p>
-<h4><b>END</b> button</h4>
-<p>Stops the clock, locks the counting buttons, and automatically downloads the CSV file.</p>
-<p>The status bar shows the current state at all times:</p>
-<p><samp>Press Start to begin counting</samp></p>
-<p><samp>Counting in progress...</samp></p>
-<p><samp>Session ended — downloading CSV...</samp></p>
-<p>The <strong>Export CSV</strong> button in the footer lets you download the data at any point during a session without ending it.</p>
-</section>
-<hr>
-<!-- Counting -->
-<section id="counting">
-<h3>Counting vehicles</h3>
-<p>Five vehicle types are available, top to bottom: <strong>Car, Truck/Van, Motorcycle, Bicycle, Pedestrian</strong>. Each row shows two <b>+1</b> buttons — one per direction — and a small <b>-</b> button on the right side for quick per-row corrections.</p>
-<p>The phone vibrates briefly on every tap as tactile confirmation, so you can count without looking at the screen.</p>
-<h4>Undo Last button</h4>
-<p>Removes the most recent count tap regardless of vehicle type or direction. The corresponding log entry is struck through. The button is greyed out until at least one count has been made.</p>
-</section>
-<hr>
-<!-- Directions -->
-<section id="directions">
-<h3>Directions &amp; compass</h3>
-<p>The two direction labels (default: West / East) are free-text fields. Type anything that describes your situation — <em>North</em>, <em>Inbound</em>, <em>Towards Station</em>. These labels appear in the CSV columns.</p>
-<h4><b>Compass</b> button</h4>
-<p>Point your phone along the road in one direction of travel, then tap Compass. The app reads the device compass, averages 5 readings for stability, and fills in the two opposing cardinal directions automatically (e.g. SW / NE). The button turns green when directions are set. On iOS 13+ you will be asked for motion sensor permission.</p>
-</section>
-<hr>
-<!-- GPS -->
-<section id="gps">
-<h3>GPS &amp; location</h3>
-<p>When you press Start, the app watches for GPS fixes and waits until the accuracy is <strong>25 metres or better</strong> before locking in the position. It then calls the OpenStreetMap Nominatim API to look up the street name and city. The session panel shows live progress:</p>
+<section id="sta-sessie">
+<h3>Starten en stoppen</h3>
 <table>
-<tr><td>Waiting for GPS fix...</td><td>Searching, no fix yet</td></tr>
-<tr><td>GPS: +/-48m, improving...</td><td>Fix found but still refining</td></tr>
-<tr><td>Kerkstraat, Amsterdam</td><td>Reliable fix, address resolved</td></tr>
-<tr><td>52.373, 4.892 (+/-18m)</td><td>Reliable fix, no internet for address</td></tr>
-<tr><td>... (low accuracy)</td><td>Timed out after 30s, best fix used</td></tr>
+<tr><td><strong>▶ Start</strong></td><td>De klok loopt, de telknoppen gaan aan en de app zoekt je positie. Het scherm blijft aan; in de statusbalk staat dan <em>🔒 aan</em>.</td></tr>
+<tr><td><strong>■ Stop</strong></td><td>De klok stopt, de telknoppen gaan op slot en de ZIP wordt meteen gemaakt.</td></tr>
+<tr><td><strong>↓ Download ZIP</strong></td><td>De ZIP nog een keer, of tussendoor tijdens het tellen. Een tussentijdse ZIP is een tussenstand: de telling loopt door en blijft in de noodopslag staan.</td></tr>
+<tr><td><strong>Wissen</strong></td><td>Alles weg, opnieuw beginnen. Is de telling nog niet opgeslagen, dan vraagt de app het eerst.</td></tr>
 </table>
-<p>The GPS fix, accuracy, street, city, country, and a reliability flag are all written to the CSV. The fix is marked reliable if accuracy was 25m or better.</p>
+<p>Na Stop kun je meteen een nieuwe telling starten. Is de vorige nog niet als ZIP opgeslagen, dan vraagt de app eerst of die weg mag.</p>
 </section>
 <hr>
-<!-- Notes -->
-<section id="notes">
-<h3>Location / Notes field</h3>
-<p>A free-text input below the status bar, always editable. Use it to describe the measurement location, weather conditions, nearby roadworks, or your name. The content is saved as the first data row in every CSV export.</p>
+<section id="sta-tellen">
+<h3>Tellen</h3>
+<p>Vijf voertuigtypen, van boven naar onder: <strong>auto, vracht (vrachtwagen en bestelbus), motor, fiets en voetganger</strong>. Elke rij heeft links een <b>+1</b> voor richting A en rechts een <b>+1</b> voor richting B, met de aantallen ernaast. Elk type heeft een eigen kleur, dezelfde als in telrapport, zodat je op kleur kunt tikken zonder te lezen.</p>
+<p>De telefoon trilt kort bij elke tik, dus je kunt tellen zonder te kijken.</p>
+<h4>Corrigeren</h4>
+<p>Het smalle <b>-</b> naast een aantal haalt er bij dat type en die richting één af. <strong>↩ ongedaan maken</strong> haalt de laatste tik weg, van welk type ook; in de tellog wordt die regel doorgestreept.</p>
 </section>
 <hr>
-<!-- CSV -->
-<section id="csv">
+<section id="sta-richtingen">
+<h3>Richtingen en kompas</h3>
+<p>Richting A hoort bij de linker knoppen (◀ A), richting B bij de rechter (B ▶). Standaard staat er West en Oost. Typ zelf iets dat past, zoals <em>naar het centrum</em>. De namen gaan mee in de export.</p>
+<h4><b>kompas</b></h4>
+<p>Houd de telefoon langs de weg, in de rijrichting die je B wilt noemen, en tik op <em>kompas</em>. De app neemt het gemiddelde van vijf metingen en zoekt de plaatsen op die 5 km voor en achter je liggen, bijvoorbeeld <em>Van Hellevoetsluis naar Spijkenisse</em>. Vindt hij geen plaatsnamen, dan worden het windrichtingen. Op de iPhone vraagt de app eerst toestemming voor beweging en richting.</p>
+</section>
+<hr>
+<section id="sta-gps">
+<h3>GPS en plek</h3>
+<p>Na Start wacht de app tot je positie niet meer beter wordt: minstens 8 seconden, hooguit 30. Een positie van 20 meter of beter telt als nauwkeurig. Daarna zoekt de app bij OpenStreetMap Nominatim de straat en de plaats op. Onder <em>Plek</em> in het sessiepaneel zie je hoe ver hij is:</p>
+<table>
+<tr><td>wachten op GPS…</td><td>nog geen positie</td></tr>
+<tr><td>GPS ±12 m, stabiliseren… (5 s)</td><td>positie gevonden, wordt nog beter</td></tr>
+<tr><td>Kerkstraat 12, Spijkenisse</td><td>nauwkeurig, adres gevonden</td></tr>
+<tr><td>51.84512, 4.32901 (±18 m)</td><td>nauwkeurig, geen adres (geen internet)</td></tr>
+<tr><td>… (onnauwkeurig)</td><td>de beste positie na 30 seconden, slechter dan 20 m</td></tr>
+</table>
+<p>Positie, nauwkeurigheid, straat en plaats gaan mee in de export. Het veld <strong>Plek / notities</strong> is vrije tekst: de naam van het telpunt, het weer, werk aan de weg.</p>
+</section>
+<hr>
+<section id="sta-export">
 <h3>Export (ZIP)</h3>
-<p>END (or <strong>Export CSV</strong>) produces one ZIP named after the session id, which ends in <code>_sta</code> and is fixed from the moment you press Start. Since v2.73 it has the same shape as the other tools:</p>
+<p>Stop (of <strong>↓ Download ZIP</strong>) maakt één ZIP, genoemd naar de sessie-id. Die eindigt op <code>_sta</code> en staat vast vanaf Start. De ZIP heeft dezelfde vorm als die van de andere tools:</p>
 <table>
-<tr><td><code>_sessie.csv</code></td><td>One row: date, start/end, total, direction labels, the counting point (lat/lon, accuracy, street, city), notes, active duration in seconds and the per-hour factor</td></tr>
-<tr><td><code>_telregels.csv</code></td><td>One row per vehicle: date <em>and</em> time, type (car/truck/moto/bike/ped), direction <code>a</code>/<code>b</code></td></tr>
-<tr><td><code>_onderbrekingen.csv</code></td><td>Only after an interruption: one row per gap (from, to, seconds)</td></tr>
-<tr><td><code>_overzicht.csv</code></td><td>The human-readable overview described below — the same file the app exported before v2.73</td></tr>
+<tr><td><code>_sessie.csv</code></td><td>Eén regel: datum, start en eind, totaal, de namen van de richtingen, het telpunt (positie, nauwkeurigheid, straat, plaats), de notities, de actieve duur in seconden en de uurfactor.</td></tr>
+<tr><td><code>_telregels.csv</code></td><td>Eén regel per tik: datum <em>en</em> tijd, type (car/truck/moto/bike/ped) en richting <code>a</code>/<code>b</code>.</td></tr>
+<tr><td><code>_onderbrekingen.csv</code></td><td>Alleen na een onderbreking: van, tot en het aantal seconden.</td></tr>
+<tr><td><code>_overzicht.csv</code></td><td>Het leesbare overzicht voor Excel: een kop met tijden en GPS, de tabel per type en richting met de aantallen per uur, en de lijst met tikken. Dit bestand blijft Engels, zodat telrapport het van elke telling kan lezen, ook van oude.</td></tr>
 </table>
-<p>All CSV files use <strong>semicolons</strong> as column delimiters. All timestamps are in your local device timezone. Telrapport reads the ZIP directly, and also older Static ZIPs and loose CSVs.</p>
-<h3>Overview CSV structure</h3>
-<table>
-<tr><td>Header block</td><td>Export time, notes, start/end times, duration, GPS data (lat, lon, accuracy, street, city, country, reliability), extrapolation factor</td></tr>
-<tr><td>Summary table</td><td>Counts per vehicle type and direction, plus per-hour extrapolations if session was 30s or longer</td></tr>
-<tr><td>Timestamp log</td><td>Every individual tap: time, vehicle type, direction</td></tr>
-</table>
-<h4>Hourly extrapolation</h4>
-<p>Calculated as <code>count x (3600 / observed seconds)</code>. Requires a session of at least 30 seconds. The exact factor and observed duration are written to the CSV so you can verify or adjust the calculation in KNIME. <strong>Interruptions are not observed time</strong>: they are left out of the duration and the factor (see below).</p>
+<p>Alle bestanden gebruiken een puntkomma als scheidingsteken en de tijd van je telefoon. Telrapport leest de ZIP, en ook oudere Static-ZIP's en losse CSV's.</p>
+<h4>Per uur</h4>
+<p>De aantallen per uur zijn <code>aantal × 3600 / getelde seconden</code>, vanaf een telling van 30 seconden. De factor en de duur staan in de export, dus je kunt de berekening narekenen. <strong>Een onderbreking telt niet als teltijd</strong>; zie hieronder.</p>
 </section>
 <hr>
-<!-- Interruptions (v2.72) -->
-<section id="recovery">
-<h3>Interruptions &amp; continuing</h3>
-<p>The count is saved on the phone after every tap and every 10 seconds. If the browser crashes, the tab is swiped away or the page reloads, nothing is lost: on reopening, a brown bar shows the restored count with three choices.</p>
-<table>
-<tr><td><strong>▶ Continue</strong></td><td>Carry on in the same session. The time between the last sign of life and Continue is recorded as an interruption.</td></tr>
-<tr><td><strong>↓ Download</strong></td><td>Export what was counted, up to the last known moment.</td></tr>
-<tr><td><strong>✕ Discard</strong></td><td>Throw the restored count away (asks first).</td></tr>
-</table>
-<h4>Why interruptions are left out</h4>
-<p>Static turns a count into vehicles per hour. Ten minutes in which nobody counted would pull that figure down. So the on-screen clock, <em>Observed duration</em> and the <em>Extrapolation factor</em> only count active time, and the export lists each interruption. Start and end time remain the real clock times.</p>
-<h4>Screen stays on</h4>
-<p>While counting, the screen stays on (Wake Lock). The saved copy is removed as soon as the ZIP has actually been saved. If saving did not succeed (for instance a cancelled share sheet), the finished session is offered again on the next visit.</p>
+<section id="sta-herstel">
+<h3>Onderbreking en doortellen</h3>
+<p>Static bewaart de telling na elke tik en elke 10 seconden in de telefoon. Na een crash, een weggeveegde tab of herladen komt hij terug met de herstelmelding, dezelfde als in de andere tools (zie <a href="#herstel">Onderbreking, herstel &amp; doortellen</a>). Was de telling al gestopt maar nog niet opgeslagen, dan staat er <em>Afgeronde telling, nog niet opgeslagen</em> en is er geen Doortellen.</p>
+<h4>Waarom een onderbreking niet meetelt</h4>
+<p>Static rekent een telling om naar voertuigen per uur. Tien minuten waarin niemand telde, zouden dat getal omlaag trekken. De klok, de getelde duur (<em>Observed duration</em> in het overzicht) en de uurfactor tellen daarom alleen de actieve tijd, en de export noemt elke onderbreking. Start- en eindtijd blijven de echte kloktijden.</p>
 </section>
 <hr>
-<!-- Keyboard -->
-<section id="keyboard">
-<h3>Keyboard shortcuts (desktop)</h3>
+<section id="sta-toetsen">
+<h3>Toetsen (computer)</h3>
 <table>
-<tr><td>Space / Enter</td><td>Start session (when idle) or End session (when running)</td></tr>
-<tr><td>Z</td><td>Undo last tap</td></tr>
-<tr><td>Q / A</td><td>Car — direction A / direction B</td></tr>
-<tr><td>W / S</td><td>Truck — direction A / direction B</td></tr>
-<tr><td>E / D</td><td>Motorcycle — direction A / direction B</td></tr>
-<tr><td>R / F</td><td>Bicycle — direction A / direction B</td></tr>
-<tr><td>T / G</td><td>Pedestrian — direction A / direction B</td></tr>
+<tr><td>Spatie / Enter</td><td>Start, of Stop tijdens het tellen</td></tr>
+<tr><td>Z</td><td>laatste tik ongedaan maken</td></tr>
+<tr><td>Q / A</td><td>auto, richting A / B</td></tr>
+<tr><td>W / S</td><td>vracht, richting A / B</td></tr>
+<tr><td>E / D</td><td>motor, richting A / B</td></tr>
+<tr><td>R / F</td><td>fiets, richting A / B</td></tr>
+<tr><td>T / G</td><td>voetganger, richting A / B</td></tr>
 </table>
 </section>
 <hr>
-<!-- Field tips -->
-<section id="tips">
-<h3>Field tips</h3>
-<h4>Before you start</h4>
-<p>Fill in the Notes field with the location name. Set direction labels, or use the Compass button while pointing along the road. In Static mode, wait for the GPS fix to reach a good accuracy before pressing Start.</p>
-<h4>Bright sunlight</h4>
-<p>The app uses a light background with high-contrast saturated colors for outdoor readability. Each vehicle type has a solid colored +1 button, so you can tap by color recognition without reading the label.</p>
-<h4>Correcting mistakes</h4>
-<p>Use the small <b>-</b> buttons on the right of each row to subtract from a specific vehicle/direction. Use <strong>Undo Last</strong> to remove the most recent tap of any type.</p>
+<section id="sta-tips">
+<h3>Veldtips</h3>
+<ul>
+<li><strong>Vooraf.</strong> Vul bij <em>Plek / notities</em> de naam van het telpunt in, en zet de richtingen: met de hand of met het kompas.</li>
+<li><strong>GPS.</strong> Druk op Start op de plek waar je telt en kijk of er na een paar seconden een adres onder <em>Plek</em> staat. De positie wordt maar één keer bepaald.</li>
+<li><strong>Fel zonlicht.</strong> Elk type heeft een eigen effen kleur, zodat je op kleur kunt tikken.</li>
+</ul>
 </section>
 <!-- ══════════════════════════════════════════════════════
      PARKEERTELLING
@@ -610,7 +575,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <h3>Crash recovery</h3>
 <h4>Automatisch opslaan</h4>
 <p>De app slaat de sessie op in de localStorage van de telefoon. Bij een crash of per ongeluk gesloten tab gaat niets verloren.</p>
-<p>Bij heropenen verschijnt een herstelmelding als er een niet-afgesloten sessie is. Download-knoppen worden direct actief zodat de data exporteerbaar is, en met <strong>▶ Doortellen</strong> ga je verder in dezelfde sessie: zelfde sessie-id, zelfde starttijd, alles in één ZIP. Druk je toch op Start, dan vraagt de app eerst of de herstelde telling weg mag. Zie <a href="#herstel">Onderbreking, herstel &amp; doortellen</a>.</p>
+<p>Bij heropenen verschijnt de herstelmelding als er een niet-afgesloten sessie is, met <strong>▶ Doortellen</strong>, <strong>↓ Download ZIP</strong> en <strong>✕ Weggooien</strong>. Met Doortellen ga je verder in dezelfde sessie: zelfde sessie-id, zelfde starttijd, alles in één ZIP. Druk je toch op Start, dan vraagt de app eerst of de herstelde telling weg mag. Zie <a href="#herstel">Onderbreking, herstel &amp; doortellen</a>.</p>
 </section>
 <hr>
 <!-- Export -->
@@ -732,7 +697,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <h4>Terug naar het keuzescherm</h4>
 <p>Elk telscherm heeft een <strong>‹ Terug</strong>-knop. Staan er al tikken op de teller, dan vraagt de app eerst een bevestiging — terug gaan zonder eerst te downloaden kost je die tikken. Download dus eerst als je van modus wilt wisselen halverwege een sessie.</p>
 <h4>Onderbroken telling</h4>
-<p>Staat er nog een onderbroken telling in de telefoon, dan staat bovenaan het keuzescherm een herstelmelding met <strong>▶ Doortellen</strong>, <strong>Download</strong> en <strong>Verwijder</strong>. Doortellen gaat verder in dezelfde modus, met dezelfde tikken, route en starttijd. Tik je in plaats daarvan een modus aan, dan vraagt pocket eerst of de onderbroken telling weg mag.</p>
+<p>Staat er nog een onderbroken telling in de telefoon, dan staat bovenaan het keuzescherm de herstelmelding met <strong>▶ Doortellen</strong>, <strong>↓ Download ZIP</strong> en <strong>✕ Weggooien</strong>, dezelfde als in de andere tools. Doortellen gaat verder in dezelfde modus, met dezelfde tikken, route en starttijd. Tik je in plaats daarvan een modus aan, dan vraagt pocket eerst of de onderbroken telling weg mag.</p>
 <h4>Wake Lock</h4>
 <p>Het scherm blijft aan zolang een van de vier telschermen actief is. Op browsers die Wake Lock niet ondersteunen (iOS Safari vóór versie 16.4) is dit niet gegarandeerd — zet dan handmatig de schermtime-out uit.</p>
 </section>
@@ -1043,10 +1008,10 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <h3>Onderbreking, herstel &amp; doortellen</h3>
 <p>Alle vijf de teltools slaan de telling na elke tik op in de telefoon, en nog eens als het scherm uitgaat of je van app wisselt. Een crash, een weggeveegde tab of een per ongeluk herladen pagina kost dus geen tellingen.</p>
 <table>
-<tr><td><strong>Herstelmelding</strong></td><td>Verschijnt bij het heropenen van de tool als er een niet-afgesloten telling is.</td></tr>
+<tr><td><strong>Herstelmelding</strong></td><td>Verschijnt bij het heropenen van de tool als er een niet-afgesloten telling is: hoeveel tikken, wanneer begonnen en wanneer het laatst bewaard. Sinds v3.22 is hij in alle vijf de tools hetzelfde.</td></tr>
 <tr><td><strong>▶ Doortellen</strong></td><td>Verder in dezelfde telling: zelfde sessie en starttijd, alles in één ZIP. De onderbreking is zichtbaar als gat in het GPS-spoor; Static telt de onderbroken tijd niet mee in de uurintensiteit.</td></tr>
-<tr><td><strong>Download</strong></td><td>De telling tot het moment van onderbreken exporteren, zonder door te tellen.</td></tr>
-<tr><td><strong>Verwijder</strong></td><td>Weggooien, na bevestiging.</td></tr>
+<tr><td><strong>↓ Download ZIP</strong></td><td>De telling tot het moment van onderbreken exporteren, zonder door te tellen. Is de ZIP opgeslagen, dan is de telling afgehandeld en verdwijnt de melding. Pocket toont eerst zijn voorbeeldscherm.</td></tr>
+<tr><td><strong>✕ Weggooien</strong></td><td>Na een vraag. De telling komt daarna niet meer terug.</td></tr>
 <tr><td><strong>Nieuwe telling</strong></td><td>Start je een nieuwe terwijl er een herstelde klaarstaat, dan vraagt de tool eerst of die weg mag.</td></tr>
 </table>
 <p>De noodopslag verdwijnt zodra de ZIP echt is opgeslagen (sinds v2.76). Lukt opslaan niet, bijvoorbeeld omdat je het deelvenster op de iPhone annuleert, dan blijft hij staan en biedt de tool de telling de volgende keer weer aan.</p>

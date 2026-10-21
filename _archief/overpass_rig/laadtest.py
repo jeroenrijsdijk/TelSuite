@@ -79,7 +79,7 @@ MET_HERSTEL = ("if(!sessionStorage.getItem('z')){sessionStorage.setItem('z','1')
                "localStorage.setItem('pocket_sessie', %s);}" % json.dumps(HERSTEL))
 STAND = """() => ({ kies: getComputedStyle(document.getElementById('choose-screen')).display,
   park: getComputedStyle(document.getElementById('parkeer-screen')).display,
-  melding: document.getElementById('restore-banner').style.display !== 'none',
+  melding: document.getElementById('herstel-melding').style.display !== 'none',
   opslag: localStorage.getItem('pocket_sessie') !== null, modus: currentModus })"""
 
 with sync_playwright() as p:

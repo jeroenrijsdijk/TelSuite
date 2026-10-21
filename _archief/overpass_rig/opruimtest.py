@@ -52,7 +52,7 @@ VERBERG = ("Object.defineProperty(document,'hidden',{value:true,configurable:tru
            "Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});"
            "document.dispatchEvent(new Event('visibilitychange'));")
 KOPIE = "Object.keys(localStorage).filter(k=>/_sessie/.test(k))"
-MELDING = """(()=>{for (var i of ['restoreBanner','restore-banner','herstel-balk']){
+MELDING = """(()=>{for (var i of ['herstel-melding']){   // v3.22: één gedeelde melding
   var e=document.getElementById(i); if(e && e.style.display!=='none') return i;} return null})()"""
 TIK_STATIC = ("(()=>{var b=[...document.querySelectorAll('[onclick^=\"adjust(\"]')].filter(b=>!/-1\\)/.test(b.getAttribute('onclick')));"
               "b[%d %% b.length].click()})()")
@@ -142,7 +142,7 @@ with sync_playwright() as p:
     print('\n== D. iPhone: eerst geannuleerd, dan via de knop alsnog opgeslagen ==')
     for naam, app, start, tik, stop, opnieuw in [
             ('pocket', 'pocket_count.html', 'startParkeren()', lambda i: "adjustParkeer('rechts_leeg',1)", 'stopTelling()', 'savePreviewZip()'),
-            ('Static', 'traffic_counter.html', 'startSession()', lambda i: TIK_STATIC % i, 'endSession()', 'exportCSV()'),
+            ('Static', 'traffic_counter.html', 'startSession()', lambda i: TIK_STATIC % i, 'endSession()', 'exportZip()'),
             ('parkeertelling', 'parkeertelling.html', 'startSession()', lambda i: "addEntry('fout','R')", 'stopSession()', 'exportZip()'),
             ('fietsparkeren', 'fietsparkeren.html', 'startSession()', lambda i: "addEntry('wrak','L')", 'stopSession()', 'exportZip()'),
             ('capaciteit', 'capaciteitstelling.html', 'startSession()', lambda i: "addEntry('laadpaal','R')", 'stopSession()', 'exportZip()')]:

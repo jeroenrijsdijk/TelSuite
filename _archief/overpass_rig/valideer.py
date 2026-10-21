@@ -19,9 +19,12 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.21'
-# v3.21: telrapport toont fiets en auto per stuk (splitWayIntoSegments, ook in telrapport).
-VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html'}
+RELEASE = 'v3.22'
+# v3.22: Static in het Nederlands en in de huisstijl; één herstelmelding in de
+# vijf veld-apps; bewaarZip ook in Static.
+VERWACHT_GEWIJZIGD = {'index.html', 'traffic_counter.html', 'traffic_counter_help.html',
+                      'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                      'pocket_count.html', 'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -192,8 +195,9 @@ groepen = [
     # v2.72: doortellen na herstel, gedeeld door de drie parkeer-apps
     ('hervatSessie', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
      '/* ── Doortellen na herstel (v2.72) ──', '/* ── einde gedeeld blok doortellen ── */'),
-    # v2.77: ZIP bewaren met bevestiging, gedeeld door de drie parkeer-apps
-    ('bewaarZip', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
+    # v2.77: ZIP bewaren met bevestiging, gedeeld door de drie parkeer-apps; sinds v3.22 ook Static
+    ('bewaarZip', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                   'traffic_counter.html'],
      '/* ── ZIP bewaren (v2.77) ──', '/* ── einde gedeeld blok ZIP bewaren ── */'),
     ('cacheWaysInTiles', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
                           'pocket_count.html'],
@@ -208,6 +212,12 @@ groepen = [
      '/* ── Noodkopie: één venster schrijft (v3.8)', '/* ── einde gedeeld blok noodkopie ── */'),
     ('noodkopie-haken', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
      '/* ── Noodkopie: haken parkeer-apps (v3.8) ── */', '/* ── einde haken noodkopie ── */'),
+    # v3.22: één herstelmelding voor de vijf veld-apps, met de haken van de parkeer-apps
+    ('herstelmelding', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                        'pocket_count.html', 'traffic_counter.html'],
+     '/* ── Herstelmelding (v3.22)', '/* ── einde gedeeld blok herstelmelding ── */'),
+    ('herstel-haken', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
+     '/* ── Herstelmelding: haken parkeer-apps (v3.22) ── */', '/* ── einde haken herstelmelding ── */'),
     # v3.14: planning als link, inpakken en uitpakken
     ('planlink', ['telplanning.html', 'parkeertelling.html', 'fietsparkeren.html', 'pocket_count.html'],
      '/* ── Planning als link (v3.14) ──', '/* ── einde gedeeld blok planlink ── */'),
@@ -264,6 +274,9 @@ constanten = [
     ('verversafstand', [('parkeertelling.html', 'ROAD_CACHE_DIST'),
                         ('fietsparkeren.html', 'ROAD_CACHE_DIST'),
                         ('capaciteitstelling.html', 'ROAD_CACHE_DIST')]),
+    # v3.22: kleur per voertuigtype in Static gelijk aan telrapport
+    ('typekleuren', [('traffic_counter.html', 'TYPE_KLEUR'),
+                     ('telrapport.html', 'SS_TYPE_COLOR')]),
 ]
 for naam, plekken in constanten:
     waarden = {}

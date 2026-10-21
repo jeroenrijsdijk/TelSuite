@@ -588,14 +588,7 @@ if (location.hash.split('&')[0] === '#parkeren') {
            text-transform:uppercase;padding:7px 13px;border-radius:20px;
            cursor:pointer;touch-action:manipulation;">EN</button>
   <h1 id="choose-heading">Wat tel je?</h1>
-  <div id="restore-banner" style="display:none;max-width:340px;width:100%;background:#5a3a1a;border:1px solid #b07d2b;border-radius:6px;padding:12px 14px;margin-bottom:10px;font-family:var(--font);box-sizing:border-box;">
-    <p id="restore-text" style="margin:0 0 10px;font-size:0.85rem;font-weight:600;color:#fff;line-height:1.35;"></p>
-    <button onclick="hervatTelling()" style="width:100%;margin-bottom:8px;padding:12px;background:#0a8a30;border:none;border-radius:5px;font-family:var(--font);font-size:0.85rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;cursor:pointer;">&#9654; Doortellen</button>
-    <div style="display:flex;gap:8px;">
-      <button onclick="restoreDownload()" style="flex:1;padding:10px;background:#3a7d44;border:none;border-radius:5px;font-family:var(--font);font-size:0.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;cursor:pointer;">&#x2913; Download</button>
-      <button onclick="restoreDiscard()" style="flex:1;padding:10px;background:#444;border:none;border-radius:5px;font-family:var(--font);font-size:0.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.7);cursor:pointer;">&#x2715; Verwijder</button>
-    </div>
-  </div>
+  <div id="herstel-melding" style="display:none;max-width:340px;width:100%;margin-bottom:10px;"></div>
   <!-- Moduskiezer (v2.11): Simpel · Transect · Winkelstraat -->
   <div class="type-btns" id="mode-btns">
     <button class="type-btn" style="background:#3a7d44" onclick="chooseSimpel()">
@@ -1989,6 +1982,116 @@ window.addEventListener('pageshow', kopieControle);
 document.addEventListener('visibilitychange', function () { if (!document.hidden) kopieControle(); });
 /* ── einde gedeeld blok noodkopie ── */
 
+/* ── Herstelmelding (v3.22) ──────────────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren,
+   capaciteitstelling, pocket_count en traffic_counter (bewaakt door valideer.py).
+   Een telling die bij het openen nog in de noodopslag staat, komt terug met
+   deze melding. Tot v3.22 had elke soort app een eigen versie: de parkeer-apps
+   een gele balk met een losse Doortellen-knop en zonder Weggooien, pocket een
+   blok met drie knoppen, Static een Engelse balk. Nu overal dezelfde tekst en
+   dezelfde drie knoppen:
+   - Doortellen: verder met dezelfde telling (niet bij een afgeronde);
+   - Download ZIP: opslaan. Is de ZIP aantoonbaar opgeslagen, dan is de telling
+     afgehandeld en verdwijnt de melding (bewaarZip; pocket via zijn
+     voorbeeldscherm);
+   - Weggooien: na een vraag, die hier staat.
+   Een nieuwe telling terwijl de melding staat, vraagt eerst (herstelNieuw).
+   De app levert een lege <div id="herstel-melding" style="display:none"> op
+   de plek van de melding, en HERSTEL_ACTIES: de namen van haar functies voor
+   doortellen, downloaden en weggooien. Die vragen zelf niets. */
+var herstelAantal = 0;   // tikken in de herstelde telling, voor de vragen
+
+function herstelEn() { return (document.documentElement.lang || '').slice(0, 2) === 'en'; }
+
+function herstelTikken(n) {
+  return n + ' ' + (herstelEn() ? (n === 1 ? 'tap' : 'taps') : (n === 1 ? 'tik' : 'tikken'));
+}
+
+// Tijd in de melding: vandaag alleen uu:mm, anders met dag en datum, zoals de
+// lijst op de voorpagina. Neemt een Date of lokale tekst (jjjj-mm-dd uu:mm:ss,
+// met een spatie of een T).
+function herstelTijd(t) {
+  var d = (t instanceof Date) ? t : null, m;
+  if (!d && t && (m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(t)))) {
+    d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  }
+  if (!d || isNaN(d)) return '?';
+  var p = function (x) { return (x < 10 ? '0' : '') + x; };
+  var uur = p(d.getHours()) + ':' + p(d.getMinutes());
+  if (d.toDateString() === new Date().toDateString()) return uur;
+  var dagen = herstelEn() ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+  return dagen[d.getDay()] + ' ' + p(d.getDate()) + '-' + p(d.getMonth() + 1) + ' ' + uur;
+}
+
+// info: { n, start, laatst, afgerond, wat }. start en laatst: Date of lokale
+// tekst. afgerond: gestopt maar nog niet opgeslagen (dan geen Doortellen).
+// wat: optioneel, bijvoorbeeld de modus van pocket.
+function herstelToon(info) {
+  var el = document.getElementById('herstel-melding');
+  if (!el) return;
+  var en = herstelEn();
+  herstelAantal = info.n || 0;
+  var tekst = '\u26A0\uFE0F ' + (info.afgerond
+      ? (en ? 'Finished count, not saved yet' : 'Afgeronde telling, nog niet opgeslagen')
+      : (en ? 'Interrupted count restored' : 'Onderbroken telling hersteld'))
+    + (info.wat ? ' (' + info.wat + ')' : '') + ': ' + herstelTikken(herstelAantal)
+    + (en ? ', started ' : ', gestart ') + herstelTijd(info.start)
+    + (info.afgerond ? (en ? ', ended ' : ', gestopt ') : (en ? ', last saved ' : ', laatst bewaard '))
+    + herstelTijd(info.laatst) + '.';
+  var knop = function (actie, kleur, label) {
+    return '<button type="button" onclick="' + actie + '()" style="flex:1;padding:11px 6px;background:' + kleur + ';'
+      + 'border:none;border-radius:5px;color:#fff;font-family:inherit;font-size:0.8rem;font-weight:700;'
+      + 'letter-spacing:1px;text-transform:uppercase;cursor:pointer;touch-action:manipulation;">' + label + '</button>';
+  };
+  el.innerHTML = '<div style="background:#5a3a1a;border:1px solid #b07d2b;border-radius:6px;padding:12px 14px;'
+    + 'box-sizing:border-box;color:#fff;font-family:inherit;text-align:left;">'
+    + '<p style="margin:0 0 10px;font-size:0.85rem;font-weight:600;line-height:1.35;"></p>'
+    + (info.afgerond ? '' : '<div style="display:flex;margin-bottom:8px;">'
+       + knop(HERSTEL_ACTIES.door, '#0a8a30', '\u25B6 ' + (en ? 'Continue' : 'Doortellen')) + '</div>')
+    + '<div style="display:flex;gap:8px;">'
+    + knop(HERSTEL_ACTIES.download, '#3a7d44', '\u2193 Download ZIP')
+    + knop('herstelWeg', '#444', '\u2715 ' + (en ? 'Discard' : 'Weggooien'))
+    + '</div></div>';
+  el.querySelector('p').textContent = tekst;
+  el.style.display = '';
+}
+
+function herstelOpen() {
+  var el = document.getElementById('herstel-melding');
+  return !!(el && el.style.display !== 'none');
+}
+
+function herstelVerberg() {
+  var el = document.getElementById('herstel-melding');
+  if (!el) return;
+  el.style.display = 'none';
+  el.innerHTML = '';
+}
+
+// Weggooien: eerst vragen, dan de functie van de app. Die sluit de kopie af
+// (v3.8: op de lijst, nooit meer hersteld) en zet het scherm terug.
+function herstelWeg() {
+  var n = herstelTikken(herstelAantal);
+  if (!confirm(herstelEn() ? 'Discard the restored count (' + n + ')? This cannot be undone.'
+                           : 'Herstelde telling (' + n + ') weggooien? Dit kan niet ongedaan worden gemaakt.')) return;
+  herstelVerberg();
+  window[HERSTEL_ACTIES.weg]();
+}
+
+// Een nieuwe telling terwijl de melding staat: de herstelde zou stil
+// verdwijnen. Eerst vragen; bij ja is hij weggegooid. false = niet beginnen.
+function herstelNieuw() {
+  if (!herstelOpen()) return true;
+  var n = herstelTikken(herstelAantal);
+  if (!confirm(herstelEn()
+      ? 'Start a new count? The restored count (' + n + ') will be discarded. Otherwise choose Continue or Download ZIP.'
+      : 'Nieuwe telling starten? De herstelde telling (' + n + ') wordt dan weggegooid. Kies anders Doortellen of Download ZIP.')) return false;
+  kopieAfsluiten();
+  herstelVerberg();
+  return true;
+}
+/* ── einde gedeeld blok herstelmelding ── */
+
 // Haken voor het gedeelde blok noodkopie (v3.8). Het id van de telling is sinds
 // v3.10 het sessie-id, dat vanaf Start vastligt (v3.8/v3.9: de starttijd).
 var KOPIE_SLEUTEL = LS_KEY_POCKET;
@@ -2051,22 +2154,24 @@ function restoreSession() {
   startTime = data.startTime ? new Date(data.startTime) : new Date();
   pocketStam = data.sessieId ? String(data.sessieId).replace(/_pkt_[a-z]$/, '') : null;   // v3.10
 
-  document.getElementById('restore-text').textContent = '\u26A0\uFE0F ' + telCount +
-    ' tikken hersteld van ' + (data.savedAt || '?') +
-    ' (' + (data.telLabel || data.telType || currentModus) + ').';
-  document.getElementById('restore-banner').style.display = '';
+  // v3.22: de gedeelde herstelmelding, zoals in de andere veld-apps
+  herstelToon({ n: telCount, start: startTime, laatst: data.savedAt,
+                wat: data.telLabel || data.telType || currentModus });
 }
 
+// Knoppen van de herstelmelding (v3.22)
+var HERSTEL_ACTIES = { door: 'hervatTelling', download: 'restoreDownload', weg: 'restoreDiscard' };
+
 function restoreDownload() {
-  document.getElementById('restore-banner').style.display = 'none';
+  herstelVerberg();
   stopTelling();   // bouwt + biedt de ZIP aan uit de herstelde state
 }
 
+// Weggooien. De vraag staat sinds v3.22 in de gedeelde herstelmelding.
 function restoreDiscard() {
-  if (!confirm('Herstelde telling verwijderen? Dit kan niet ongedaan worden gemaakt.')) return;
   kopieAfsluiten();   // v3.8: weggegooid, en op de lijst
   telCount = 0; telHistory = []; routeLog = [];
-  document.getElementById('restore-banner').style.display = 'none';
+  herstelVerberg();
   if (pkDirect) startParkeren();   // v2.70: directe ingang, geen keuzemenu
 }
 
@@ -2076,30 +2181,19 @@ function restoreDiscard() {
 // scherm-aan), en daarna de telling terugzetten. De start*-functies wissen de
 // noodopslag; saveSession() aan het eind schrijft hem meteen terug.
 // De onderbreking blijft zichtbaar als gat in de GPS-route.
-function herstelZichtbaar() {
-  var b = document.getElementById('restore-banner');
-  return !!(b && b.style.display !== 'none');
-}
-
-// Nieuwe telling terwijl er een herstelde klaarstaat: die zou stil gewist worden.
-function magNieuwStarten() {
-  if (!herstelZichtbaar()) return true;
-  if (!confirm('Nieuwe telling starten? De herstelde telling (' + telCount + ' tikken) wordt dan gewist. '
-               + 'Kies anders Doortellen of Download.')) return false;
-  kopieAfsluiten();   // v3.8: de herstelde telling is weggegooid
-  document.getElementById('restore-banner').style.display = 'none';
-  return true;
-}
+// Nieuwe telling terwijl er een herstelde klaarstaat: die zou stil gewist
+// worden. Sinds v3.22 vraagt de gedeelde herstelmelding het.
+function magNieuwStarten() { return herstelNieuw(); }
 
 function hervatTelling() {
-  if (!herstelZichtbaar() || !telHistory.length) return;
+  if (!herstelOpen() || !telHistory.length) return;
   if (kopieClaim()) return;   // v3.8: niet als de telling intussen elders verder ging
   var bewaard = {
     modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
     telCount: telCount, telHistory: telHistory, routeLog: routeLog, startTime: startTime, stam: pocketStam,
     tcCounts: tcCounts, tcRichtingA: tcRichtingA, tcRichtingB: tcRichtingB
   };
-  document.getElementById('restore-banner').style.display = 'none';
+  herstelVerberg();
 
   if (bewaard.modus === 'transect') startTransect();
   else if (bewaard.modus === 'winkelstraat') startWinkelstraat();
@@ -4266,8 +4360,7 @@ function directeModus(hash, herstelOpen) {
 }
 document.addEventListener('DOMContentLoaded', function () {
   laadPkPlanning();   // v3.14: planning uit de link, als die er is
-  var herstelOpen = document.getElementById('restore-banner').style.display !== 'none';
-  var ingang = directeModus(location.hash, herstelOpen);
+  var ingang = directeModus(location.hash, herstelOpen());   // v3.22: gedeelde melding
   if (!ingang) return;
   pkDirect = true;
   if (ingang === 'herstel') return;   // melding + alleen de Parkeren-knop (CSS)
