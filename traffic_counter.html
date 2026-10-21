@@ -56,6 +56,10 @@
   .rij .v.leeg { color: var(--border); }
   .rij.plek { margin-top: 2px; }
   .rij.plek .v { font-family: var(--font); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  /* v3.23: nauwkeurigheid van de plek in drie niveaus */
+  .rij .v.niveau-nauwkeurig { color: var(--c-goed); }
+  .rij .v.niveau-redelijk { color: var(--c-klaar); }
+  .rij .v.niveau-grof { color: var(--c-fout); }
   .klok { font-family: var(--mono); font-size: 30px; font-weight: 700; color: var(--muted); line-height: 1; }
   .klok.loopt { color: var(--c-goed); }
   .klok.klaar { color: var(--c-klaar); }
@@ -183,6 +187,7 @@
       <div class="klok" id="session-time">00:00:00</div>
     </div>
     <div class="rij plek"><span class="k">Plek</span><span class="v leeg" id="disp-gps">--</span></div>
+    <div class="rij plek"><span class="k">GPS</span><span class="v leeg" id="disp-nauw">--</span></div>
   </div>
 
   <div class="controls">
@@ -272,16 +277,40 @@
     if (stand !== undefined) document.getElementById('gpsDot').className = 'gps-dot' + (stand ? ' ' + stand : '');
   }
 
-  // ── GPS ──
-  // Wait for the fix to settle: the first sub-threshold fix is often still tens of
-  // metres off and can yield the wrong street name. So we enforce a minimum settle
-  // window + convergence detection instead of locking on the first acceptable hit.
-  const GPS_LOCK_ACC      = 8;     // m — excellent fix: lock immediately (after brief confirm)
-  const GPS_ACCEPT_ACC    = 20;    // m — after the settle window, best fix under this is good enough
-  const GPS_MIN_SETTLE_MS = 8000;  // give the GPS at least this long to converge
-  const GPS_CONVERGE_MS   = 4000;  // ...or until accuracy stops improving for this long
-  const GPS_TIMEOUT_MS    = 30000; // hard cap
-  let gpsWatchId = null;
+  // ── GPS: luisteren en middelen (v3.23) ──
+  // Static wacht nooit op de GPS: je telt vanaf Start, en de plek wordt
+  // ondertussen bepaald. Tot v3.23 nam de app binnen 30 s de beste losse
+  // positie en stopte dan; "betrouwbaar" was 20 m. Wie Static gebruikt, staat
+  // stil, en dat is de ideale situatie om te middelen:
+  // - de app luistert hooguit 3 minuten, of korter zodra de schatting goed
+  //   genoeg is (GPS_DOEL_M);
+  // - de schatting is een gewogen gemiddelde (gewicht 1/afwijking²) over de
+  //   laatste 2 minuten. Wie na Start nog naar zijn plek loopt, raakt die
+  //   eerste metingen zo kwijt;
+  // - een meting ver van de mediaan telt niet mee: uitschieters, en het
+  //   stukje lopen. Ver is verder dan 2× zijn eigen afwijking én verder dan
+  //   2,5× de mediane afstand tot de mediaan (minstens 8 m). Dat laatste
+  //   omdat een GPS in de stad vaak te gunstig over zichzelf is: dan zou het
+  //   filter de echte spreiding wegsnijden;
+  // - de afwijking van het gemiddelde is eerlijk gerekend. GPS-fouten hangen
+  //   samen over ongeveer een halve minuut, dus één onafhankelijke meting per
+  //   30 s: typische afwijking / √(halve minuten), nooit beter dan 3 m. Een
+  //   vaste fout (weerkaatsing tussen hoge gebouwen) middel je niet weg.
+  // Jay: "grenzen van 8m en 15m. 3 minuten luisteren is prima".
+  const GPS_NAUWKEURIG_M = 8;        // ≤ 8 m: nauwkeurig
+  const GPS_REDELIJK_M   = 15;       // ≤ 15 m: redelijk (en "GPS reliable" in het overzicht); daarboven grof
+  const GPS_LUISTER_MS   = 180000;   // hooguit 3 minuten luisteren
+  const GPS_VENSTER_MS   = 120000;   // middelen over de laatste 2 minuten
+  const GPS_SAMENHANG_S  = 30;       // één onafhankelijke meting per 30 s
+  const GPS_ONDERGRENS_M = 3;        // nooit nauwkeuriger opgeven dan 3 m
+  const GPS_DOEL_M       = 4;        // goed genoeg: eerder stoppen met luisteren
+  const GPS_UITSCHIETER_MIN_M = 8;   // een meting binnen 8 m van de mediaan telt altijd mee
+  const GPS_UITSCHIETER_SPREIDING = 2.5;   // ... en binnen 2,5× de mediane afstand ook
+  const GPS_ADRES_NA_MS  = 30000;    // adres opzoeken zodra redelijk, of na 30 s hoe dan ook
+  const GPS_ADRES_OPNIEUW_M = 15;    // opnieuw opzoeken als de schatting zoveel verschuift
+  let gpsWatchId = null, gpsLuisterTimer = null, gpsStartT = 0, gpsMetingen = [];
+  let gpsAdresBij = null, gpsAdresBezig = false, gpsAdresFoutT = 0;
+  const GPS_ADRES_PAUZE_MS = 30000;  // na een mislukt verzoek eerst 30 s wachten (geen bereik: Nominatim niet bestoken)
   // De fout blijft Engels in de data (het overzicht in de ZIP is Engels); op
   // het scherm staat hij in het Nederlands.
   const GPS_FOUT_NL = {
@@ -292,112 +321,176 @@
     'Unknown error': 'onbekende GPS-fout'
   };
 
-  function requestGPS() {
+  function gpsNiveau(m) { return m <= GPS_NAUWKEURIG_M ? 'nauwkeurig' : m <= GPS_REDELIJK_M ? 'redelijk' : 'grof'; }
+
+  function gpsAfstandM(a, b) {
+    const kx = 111320 * Math.cos(a.lat * Math.PI / 180), ky = 110540;
+    return Math.hypot((b.lon - a.lon) * kx, (b.lat - a.lat) * ky);
+  }
+
+  // De schatting uit de metingen [{t, lat, lon, acc}] (t in ms). Zonder
+  // bijwerkingen, zodat hij los te testen is. Geeft {lat, lon, sigma, n} of null.
+  function gpsSchatting(metingen, nu) {
+    const venster = metingen.filter(m => nu - m.t <= GPS_VENSTER_MS);
+    if (!venster.length) return null;
+    const mediaan = a => { const s = a.slice().sort((x, y) => x - y), k = s.length >> 1;
+                           return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; };
+    const mid = { lat: mediaan(venster.map(m => m.lat)), lon: mediaan(venster.map(m => m.lon)) };
+    const grens = Math.max(GPS_UITSCHIETER_MIN_M, GPS_UITSCHIETER_SPREIDING * mediaan(venster.map(m => gpsAfstandM(mid, m))));
+    let goed = venster.filter(m => gpsAfstandM(mid, m) <= Math.max(2 * m.acc, grens));
+    if (!goed.length) goed = venster;
+    let sw = 0, sLat = 0, sLon = 0;
+    goed.forEach(m => { const w = 1 / (m.acc * m.acc); sw += w; sLat += w * m.lat; sLon += w * m.lon; });
+    const gem = { lat: sLat / sw, lon: sLon / sw };
+    // Typische afwijking: wat de GPS zelf opgeeft (mediaan), of de werkelijke
+    // spreiding rond het gemiddelde als die groter is. De spreiding weegt net
+    // zo als het gemiddelde: één grove meting bederft een goede reeks niet.
+    const spreiding = Math.sqrt(goed.reduce((s, m) => s + Math.pow(gpsAfstandM(gem, m), 2) / (m.acc * m.acc), 0) / sw);
+    const typisch = Math.max(mediaan(goed.map(m => m.acc)), spreiding);
+    const duurS = (Math.max(...goed.map(m => m.t)) - Math.min(...goed.map(m => m.t))) / 1000;
+    const nEff = Math.max(1, Math.min(goed.length, duurS / GPS_SAMENHANG_S));
+    return { lat: gem.lat, lon: gem.lon, sigma: Math.max(GPS_ONDERGRENS_M, typisch / Math.sqrt(nEff)), n: goed.length };
+  }
+
+  function gpsLuistert() { return gpsWatchId !== null; }
+
+  function stopGPS() {
+    if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+    if (gpsLuisterTimer) { clearTimeout(gpsLuisterTimer); gpsLuisterTimer = null; }
+  }
+
+  // Luisteren starten. zaad: een eerdere schatting (na Doortellen), die als
+  // één meting meetelt; de teller staat nog op dezelfde plek.
+  function requestGPS(zaad) {
     if (!navigator.geolocation) {
       gpsLocation = { error: 'Geolocation not supported' };
       updateGPSDisplay();
       return;
     }
-    if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
-    updateGPSDisplay('wachten op GPS…');
-    const started = Date.now();
-    let lastImprove = started;   // when accuracy last got better
-
-    function lockIn() {
-      if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
-      if (gpsLocation && gpsLocation.lat) {
-        gpsLocation.reliable = (gpsLocation.accuracy <= GPS_ACCEPT_ACC);
-        updateGPSDisplay();
-        reverseGeocode(gpsLocation.lat, gpsLocation.lon);
-      } else {
-        updateGPSDisplay();
-      }
+    stopGPS();
+    gpsMetingen = [];
+    gpsStartT = Date.now();
+    if (zaad && zaad.lat != null && zaad.accuracy) {
+      gpsMetingen.push({ t: gpsStartT, lat: zaad.lat, lon: zaad.lon, acc: Math.max(1, zaad.accuracy) });
     }
-
     gpsWatchId = navigator.geolocation.watchPosition(
       pos => {
-        const acc = Math.round(pos.coords.accuracy);
-        const elapsed = Date.now() - started;
-        // Always keep the best (most accurate) fix seen so far
-        if (!gpsLocation || gpsLocation.error || acc < (gpsLocation.accuracy || Infinity)) {
-          gpsLocation = {
-            lat: pos.coords.latitude, lon: pos.coords.longitude,
-            accuracy: acc, heading: pos.coords.heading,
-            timestamp: new Date(), street: null, city: null, country: null, reliable: false
-          };
-          lastImprove = Date.now();
-        }
-        const best = gpsLocation ? gpsLocation.accuracy : Infinity;
-        updateGPSDisplay('GPS ±' + best + ' m, stabiliseren… (' + Math.round(elapsed / 1000) + ' s)');
-
-        // Lock-in criteria, in order of preference:
-        if (acc <= GPS_LOCK_ACC && elapsed >= 2500) {
-          lockIn();                                                          // already excellent
-        } else if (elapsed >= GPS_MIN_SETTLE_MS && best <= GPS_ACCEPT_ACC) {
-          lockIn();                                                          // settled long enough AND good enough
-        } else if (elapsed >= GPS_MIN_SETTLE_MS && (Date.now() - lastImprove) >= GPS_CONVERGE_MS) {
-          lockIn();                                                          // no longer improving — take the best
-        } else if (elapsed >= GPS_TIMEOUT_MS) {
-          lockIn();                                                          // hard cap
-        }
+        const nu = Date.now();
+        gpsMetingen.push({ t: nu, lat: pos.coords.latitude, lon: pos.coords.longitude,
+                           acc: Math.max(1, pos.coords.accuracy || 1) });
+        gpsMetingen = gpsMetingen.filter(m => nu - m.t <= GPS_VENSTER_MS);
+        gpsBijwerken(nu, pos.coords.heading);
+        if (gpsLocation.accuracy <= GPS_DOEL_M && nu - gpsStartT >= GPS_SAMENHANG_S * 1000) gpsKlaar();
       },
       err => {
-        const msgs = { 1: 'Permission denied', 2: 'Position unavailable', 3: 'Timeout' };
-        gpsLocation = { error: msgs[err.code] || 'Unknown error' };
-        if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+        // Geen toestemming: stoppen. Anders blijven proberen tot de 3 minuten om
+        // zijn; een eventuele schatting blijft staan.
+        if (err.code === 1) { stopGPS(); if (!gpsLocation || gpsLocation.lat == null) gpsLocation = { error: 'Permission denied' }; }
+        else if (!gpsLocation || gpsLocation.lat == null) gpsLocation = { error: err.code === 2 ? 'Position unavailable' : 'Timeout' };
         updateGPSDisplay();
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_TIMEOUT_MS }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
     );
+    gpsLuisterTimer = setTimeout(gpsKlaar, GPS_LUISTER_MS);
+    updateGPSDisplay();
+  }
 
-    // Safety net — stop shortly after the hard cap no matter what
-    setTimeout(() => {
-      if (gpsWatchId !== null) {
-        navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null;
-        if (!gpsLocation || gpsLocation.error) gpsLocation = { error: 'GPS timed out' };
-        updateGPSDisplay();
-        if (gpsLocation && gpsLocation.lat) reverseGeocode(gpsLocation.lat, gpsLocation.lon);
-      }
-    }, GPS_TIMEOUT_MS + 2000);
+  // Nieuwe schatting in gpsLocation. Straat en plaats blijven staan; die volgen
+  // via adresBijwerken().
+  function gpsBijwerken(nu, heading) {
+    const s = gpsSchatting(gpsMetingen, nu);
+    if (!s) return;
+    const oud = (gpsLocation && !gpsLocation.error) ? gpsLocation : {};
+    gpsLocation = {
+      lat: s.lat, lon: s.lon, accuracy: Math.round(s.sigma), n: s.n,
+      heading: heading != null ? heading : (oud.heading != null ? oud.heading : null),
+      timestamp: new Date(nu), reliable: s.sigma <= GPS_REDELIJK_M, klaar: false,
+      street: oud.street || null, city: oud.city || null, country: oud.country || null
+    };
+    updateGPSDisplay();
+    adresBijwerken(nu);
+  }
+
+  // Klaar met luisteren: na 3 minuten, bij een goede schatting, of bij Stop.
+  function gpsKlaar() {
+    const luisterde = gpsLuistert();
+    stopGPS();
+    if (!luisterde) return;
+    if (gpsLocation && gpsLocation.lat != null) gpsLocation.klaar = true;
+    else gpsLocation = { error: (gpsLocation && gpsLocation.error) || 'GPS timed out' };
+    updateGPSDisplay();
+    adresBijwerken(Date.now());
+    bewaarStatic();
+  }
+
+  // Straat en plaats opzoeken: zodra de schatting redelijk is (of na 30 s hoe
+  // dan ook), en opnieuw als hij meer dan 15 m verschuift. Eén verzoek tegelijk.
+  function adresBijwerken(nu) {
+    if (gpsAdresBezig || !gpsLocation || gpsLocation.lat == null) return;
+    if (gpsAdresFoutT && nu - gpsAdresFoutT < GPS_ADRES_PAUZE_MS) return;
+    const g = gpsLocation;
+    if (gpsAdresBij) {
+      if (gpsAfstandM(gpsAdresBij, g) <= GPS_ADRES_OPNIEUW_M) return;
+    } else if (!(g.reliable || g.klaar || nu - gpsStartT >= GPS_ADRES_NA_MS)) {
+      return;
+    }
+    reverseGeocode(g.lat, g.lon);
   }
 
   function reverseGeocode(lat, lon) {
-    updateGPSDisplay('adres opzoeken…');
+    gpsAdresBezig = true;
+    gpsAdresBij = { lat: lat, lon: lon };
     const url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=18&addressdetails=1';
     fetch(url, { headers: { 'Accept-Language': 'nl', 'User-Agent': 'TrafficCounter/1.0' } })
       .then(r => r.json())
       .then(data => {
+        gpsAdresBezig = false;
+        if (!gpsLocation || gpsLocation.lat == null) return;
         const a = data.address || {};
         const street = a.road || a.pedestrian || a.path || a.footway || a.cycleway || a.street || '';
-        const house  = a.house_number ? a.house_number + ' ' : '';
         const city   = a.city || a.town || a.village || a.suburb || a.hamlet || a.municipality || '';
-        gpsLocation.street  = (house + street).trim() || null;
+        // v3.23: op z'n Nederlands, Voorstraat 12 (was: 12 Voorstraat)
+        gpsLocation.street  = (street + (a.house_number ? ' ' + a.house_number : '')).trim() || null;
         gpsLocation.city    = city || null;
         gpsLocation.country = a.country || null;
         updateGPSDisplay();
+        adresBijwerken(Date.now());   // intussen verschoven? dan nog een keer
       })
-      .catch(() => { updateGPSDisplay(); });
+      .catch(() => {
+        gpsAdresBezig = false; gpsAdresBij = null; gpsAdresFoutT = Date.now();
+        updateGPSDisplay();
+        // Over 30 s nog een keer, ook als de app dan al klaar is met luisteren.
+        setTimeout(() => adresBijwerken(Date.now()), GPS_ADRES_PAUZE_MS + 100);
+      });
   }
 
-  // Plek in het sessiepaneel, en de GPS-stip in de statusbalk.
-  function updateGPSDisplay(msg) {
+  // Plek en nauwkeurigheid in het sessiepaneel, en de GPS-stip in de statusbalk.
+  function updateGPSDisplay() {
     const el = document.getElementById('disp-gps');
+    const nauw = document.getElementById('disp-nauw');
     const stip = document.getElementById('gpsDot');
     if (!el) return;
-    if (msg) { el.textContent = msg; el.classList.add('leeg'); stip.className = 'gps-dot searching'; return; }
-    if (!gpsLocation) { el.textContent = '--'; el.classList.add('leeg'); stip.className = 'gps-dot'; return; }
-    if (gpsLocation.error) {
-      el.textContent = GPS_FOUT_NL[gpsLocation.error] || gpsLocation.error;
-      el.classList.add('leeg'); stip.className = 'gps-dot'; return;
+    const g = gpsLocation;
+    if (!g || g.error || g.lat == null) {
+      el.textContent = g && g.error ? (GPS_FOUT_NL[g.error] || g.error) : (gpsLuistert() ? 'wachten op GPS…' : '--');
+      el.classList.add('leeg');
+      nauw.textContent = gpsLuistert() && g && g.error ? 'blijft zoeken' : '--';
+      nauw.className = 'v leeg';
+      stip.className = gpsLuistert() ? 'gps-dot searching' : 'gps-dot';
+      return;
     }
-    let line = gpsLocation.lat.toFixed(5) + ', ' + gpsLocation.lon.toFixed(5) + ' (±' + gpsLocation.accuracy + ' m)';
-    if (gpsLocation.street || gpsLocation.city) {
-      line = [gpsLocation.street, gpsLocation.city].filter(Boolean).join(', ');
-    }
-    if (!gpsLocation.reliable) line += ' (onnauwkeurig)';
-    el.textContent = line;
+    el.textContent = (g.street || g.city) ? [g.street, g.city].filter(Boolean).join(', ')
+                                          : g.lat.toFixed(5) + ', ' + g.lon.toFixed(5);
     el.classList.remove('leeg');
-    stip.className = state === 'running' ? 'gps-dot active' : 'gps-dot';   // groen alleen tijdens het tellen
+    const niveau = gpsNiveau(g.accuracy);
+    let tekst = '±' + g.accuracy + ' m · ' + niveau;
+    if (gpsLuistert()) {
+      const rest = Math.max(0, Math.ceil((GPS_LUISTER_MS - (Date.now() - gpsStartT)) / 1000));
+      tekst += ' · wordt beter, nog ' + Math.floor(rest / 60) + ':' + String(rest % 60).padStart(2, '0');
+    }
+    nauw.textContent = tekst;
+    nauw.className = 'v niveau-' + niveau;
+    stip.className = gpsLuistert() ? 'gps-dot searching' : (state === 'running' ? 'gps-dot active' : 'gps-dot');
   }
 
   function buildCards() {
@@ -467,6 +560,7 @@
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
       document.getElementById('session-time').textContent = fmtDuration(actieveMs(new Date()));
+      if (gpsLuistert()) updateGPSDisplay();   // v3.23: aftellen van het luisteren
     }, 1000);
   }
 
@@ -474,6 +568,7 @@
     if (state !== 'running') return;
     endTime = new Date(); state = 'ended';
     clearInterval(timerInterval);
+    gpsKlaar();   // v3.23: de schatting van nu gaat in de ZIP
     releaseWakeLock();
     bewaarStatic();
     toonAfgerond();
@@ -705,7 +800,7 @@
     herstelVerberg();                         // v3.22: gedeelde herstelmelding
     state = 'idle'; startTime = null; endTime = null; history = []; gpsLocation = null; sessieId = null;
     lastZipBlob = null; lastZipName = ''; lastZipCount = -1;   // vangnet vrijgeven — nieuwe telling
-    if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+    stopGPS(); gpsMetingen = []; gpsAdresBij = null; gpsAdresFoutT = 0;
     TYPES.forEach(t => {
       counts[t.id] = { a: 0, b: 0 };
       document.getElementById(`cnt-${t.id}-a`).textContent = '0';
@@ -846,7 +941,7 @@ function bewaarZip(zipBlob, zipName) {
       csv += row('GPS latitude',  gpsLocation.lat.toFixed(6));
       csv += row('GPS longitude', gpsLocation.lon.toFixed(6));
       csv += row('GPS accuracy (m)', gpsLocation.accuracy);
-      csv += row('GPS reliable', gpsLocation.reliable ? 'Yes (< 25m)' : 'No (> 25m, best available)');
+      csv += row('GPS reliable', gpsLocation.reliable ? 'Yes (<= ' + GPS_REDELIJK_M + 'm)' : 'No (> ' + GPS_REDELIJK_M + 'm, best available)');
       csv += row('GPS street',  gpsLocation.street  || 'n/a');
       csv += row('GPS city',    gpsLocation.city    || 'n/a');
       csv += row('GPS country', gpsLocation.country || 'n/a');
@@ -1045,6 +1140,7 @@ function bewaarZip(zipBlob, zipName) {
     history = d.history || [];
     gpsLocation = d.gpsLocation || null;
     if (gpsLocation && gpsLocation.timestamp) gpsLocation.timestamp = new Date(gpsLocation.timestamp);
+    if (gpsLocation && gpsLocation.street) gpsAdresBij = { lat: gpsLocation.lat, lon: gpsLocation.lon };   // v3.23
     document.getElementById('notes').value = d.notes || '';
     if (d.dirA) document.getElementById('lbl-a').value = d.dirA;
     if (d.dirB) document.getElementById('lbl-b').value = d.dirB;
@@ -1089,9 +1185,9 @@ function bewaarZip(zipBlob, zipName) {
     document.getElementById('session-time').className = 'klok loopt';
     setStatus('Telling loopt…');
     TYPES.forEach(t => document.getElementById(`card-${t.id}`).classList.remove('locked'));
-    // GPS opnieuw laten settelen als de fix bij de onderbreking nog niet was
-    // vastgezet (geen straat, niet betrouwbaar). requestGPS() houdt de beste fix.
-    if (!gpsLocation || gpsLocation.error || !(gpsLocation.reliable || gpsLocation.street || gpsLocation.city)) requestGPS();
+    // Was de app nog niet klaar met luisteren, dan verder luisteren, met de
+    // schatting van voor de onderbreking als eerste meting (v3.23).
+    if (!gpsLocation || gpsLocation.error || !gpsLocation.klaar) requestGPS(gpsLocation && !gpsLocation.error ? gpsLocation : null);
     else updateGPSDisplay();
     startKlok();
     acquireWakeLock();
@@ -1137,7 +1233,7 @@ function bewaarZip(zipBlob, zipName) {
   function kopieStilleggen() {
     clearInterval(timerInterval);
     releaseWakeLock();
-    if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+    stopGPS();
   }
 
 /* ── Noodkopie: één venster schrijft (v3.8) ──────────────────────────────

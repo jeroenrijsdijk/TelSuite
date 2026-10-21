@@ -622,7 +622,7 @@
 20260923_143205_kqd_sta;2026-09-23;14:32:05;15:02:40;standstill;verkeer;412;standstill;West;East;51.851400;4.331200;6;Voorstraat;Spijkenisse;droog, spits;1835;1.9619</div>
       <div class="csv-notes">
         <div class="csv-note">The first ten columns are the pocket <code>_sessie.csv</code> columns. <code>app_type</code> and <code>modus</code> are always <code>standstill</code>; <code>type</code> is <code>verkeer</code>; <code>n_waarnemingen</code> is the counted total.</div>
-        <div class="csv-note"><code>lat</code>/<code>lon</code>/<code>nauwkeurigheid</code>/<code>straat</code>/<code>plaats</code> are the single GPS fix of the counting point (empty without a fix). <code>notities</code> is the free-text field, with <code>;</code> and line breaks replaced by spaces.</div>
+        <div class="csv-note"><code>lat</code>/<code>lon</code>/<code>nauwkeurigheid</code>/<code>straat</code>/<code>plaats</code> describe the counting point (empty without a fix). Since v3.23 the position is the weighted average of up to 3 minutes of GPS fixes while standing still, and <code>nauwkeurigheid</code> is the estimated accuracy of that average in metres (at best 3); before v3.23 it was the best single fix. <code>notities</code> is the free-text field, with <code>;</code> and line breaks replaced by spaces.</div>
         <div class="csv-note"><code>actieve_duur_s</code> is the counted time in seconds, <strong>excluding interruptions</strong>; <code>uurfactor</code> = 3600 / <code>actieve_duur_s</code>, empty below 30 s. <code>eind_tijd</code> &minus; <code>start_tijd</code> still includes interruptions; for rates use <code>actieve_duur_s</code> or <code>uurfactor</code>.</div>
       </div>
     </div>
@@ -658,7 +658,7 @@ Observed duration;15:00
 GPS latitude;51.851400
 GPS longitude;4.331200
 GPS accuracy (m);8
-GPS reliable;Yes (&lt; 25m)
+GPS reliable;Yes (&lt;= 15m)
 GPS street;Voorstraat
 GPS city;Spijkenisse
 GPS country;NL
