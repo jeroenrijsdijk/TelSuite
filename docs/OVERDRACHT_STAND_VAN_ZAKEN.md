@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.24.** Een Engelse introductie: `about.html` naast `over.html` (Jay: "Schrijf maar een engelse over.html"), dezelfde inhoud en dezelfde kale stijl, met `hreflang` en een taallink over en weer; de voorpagina linkt "Wat is dit?" per taal (`overdracht_v3_24.md`). v3.23: Static middelt de GPS (nauwkeurig tot 8 m, redelijk tot 15 m, hooguit 3 minuten luisteren). v3.22: Static Nederlands en in de huisstijl, één herstelmelding voor de vijf veld-apps. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
+**Laatste release: v3.25.** De lettertypen staan op de eigen server, in `fonts/` (Oswald variabel en Share Tech Mono, 66 kB, SIL OFL), en gaan mee in de release-ZIP; Google Fonts krijgt geen verzoek meer en staat niet meer in de privacyverklaring (`overdracht_v3_25.md`). Installeren blijft: de ZIP uitpakken op een webserver. v3.24: Engelse introductie `about.html`. v3.23: Static middelt de GPS. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
 
 ---
 
@@ -228,7 +228,8 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 - `over.html` (en sinds v3.24 `about.html`) volgt de nieuwe indeling van de voorpagina nog niet (v2.69): drie groepen, *Verkeer tellen*, *Parkeren tellen* en *Achter je bureau*, met telplanning. De handleiding is in v2.74 bijgewerkt. Pas beide tegelijk aan.
 - Wegennet-cache (IndexedDB) ruimt oude tegels nooit op; TTL bepaalt alleen of een tegel vers genoeg is. Automatisch opruimen van tegels ouder dan bijvoorbeeld 90 dagen, in de gedeelde blokken (`leesTegels`/`OSMCACHE`). Privacy en opslagruimte.
 - `hersteltest.py` is soms wisselvallig: 1 FOUT in 1 van 4 runs bij v2.75, op ongewijzigde apps. Bij v3.9 weer gezien: `_kaart.png` van fietsparkeren week een paar regels af, terwijl de machine zwaar belast was; los twee keer groen. Vaste wachttijden (250 ms per GPS-stap, 1,2 s op een ZIP) vervangen door wachten tot een voorwaarde klopt, en de uitvoer van elke run bewaren.
-- Google Fonts zelf hosten: haalt Google uit de lijst met derden in de privacyverklaring (v2.75). Optioneel.
+- ~~Google Fonts zelf hosten~~ — gedaan in v3.25: `fonts/`, Google uit de privacyverklaring.
+- telrapport: de labels op de kaart (clusterbollen, nummers) vragen om Oswald, maar telrapport laadt hem niet en toont een reserveletter. Sinds v3.25 is het één regel (`<link href="fonts/fonts.css" rel="stylesheet">`), maar het verandert hoe de kaart eruitziet. Jay's keuze.
 - ~~Static is Engelstalig~~ — gedaan in v3.22: Nederlands, in de huisstijl van de parkeer-apps. Het leesbare `_overzicht.csv` blijft Engels (telrapport leest het).
 - **Static op de weg** (laag 2 van het voorstel bij v3.22, nog niet besloten). Na de GPS-fix het punt op de weg snappen (met de knip in stukken van v3.21); de richtingen uit het netwerk (de weg volgen tot de eerste kruising met een straat met een naam: "richting Gorsstraat"); welke knop welke richting is uit je positie ten opzichte van de as, met het kompas alleen als je te dicht op de as staat; bevestigen op een minikaartje met ⇄. In de export kolommen achteraan (`osm_way_id`, `segment_index`, A met of tegen de OSM-richting). Static draait niet in KNIME, dus het raakt alleen `zip_format_reference.html` en telrapport. Zie `overdracht_v3_22.md` §4.
 - ~~Static: `GPS reliable` "Yes (< 25m)" tegen 20 m in de app~~ — opgelost in v3.23: de app middelt, en de grens is 15 m in app en overzicht.
@@ -238,7 +239,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 
 ---
 
-## 6. Releases v2.32 → v3.24 in één oogopslag
+## 6. Releases v2.32 → v3.25 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -315,6 +316,7 @@ Eén fiets-woord volstaat om de hele sessie als fietstelling te markeren. Naam-m
 | v3.22 | **Static in de familie en één herstelmelding** (Jay: "Taal: nederlands", "Maak Herstelmelding: één gedeeld blok voor alle vijf veld-apps"): Static Nederlands, huisstijl van de parkeer-apps (kop, statusbalk, Start/Stop, tellog), palet van telrapport (constante `typekleuren`), opslaan via `bewaarZip` (nu vier bestanden, haak `zipBewaard`), Start meteen na Stop; gedeeld blok `herstelmelding` in de vijf veld-apps (tekst, Doortellen, Download ZIP, Weggooien; vraag in het blok), `herstel-haken` met Weggooien voor de parkeer-apps. Overzicht in de ZIP blijft Engels. Handleiding: hoofdstuk Static in het Nederlands. Nieuwe `herstelmeldingtest.py` (103) |
 | v3.23 | **Static middelt de GPS** (Jay: "De wachttijd mag niet te lang oplopen"; "grenzen van 8m en 15m. 3 minuten luisteren is prima"): tellen meteen, hooguit 3 minuten luisteren (eerder klaar bij ±4 m), gewogen gemiddelde over 2 minuten, uitschieters naar opgegeven afwijking én echte spreiding, eerlijke afwijking (30 s samenhang, ondergrens 3 m); niveaus nauwkeurig/redelijk/grof in een eigen regel; adres zodra redelijk, opnieuw na 15 m, 30 s pauze na een mislukt verzoek; straat als *Voorstraat 12*. Nieuwe `gpsmiddeltest.py` (39) |
 | v3.24 | **Engelse introductie** `about.html` (Jay: "Schrijf maar een engelse over.html"): vertaling van `over.html`, kale stijl, `hreflang` en een taallink over en weer, in de sitemap; de voorpagina linkt "Wat is dit?" naar `about.html` (Engels) of `over.html` (Nederlands). `robuusttest.py` deel D (89) |
+| v3.25 | **Lettertypen op de eigen server** (Jay: "google fonts zelf hosten zou ik willen, maar maakt dat het installeren bij anderen niet ingewikkelder?"; "ga"): `fonts/` met Oswald (variabel, Latijn en uitgebreid Latijn), Share Tech Mono, `fonts.css` en de licenties; 11 pagina's linken `fonts/fonts.css`; Google Fonts uit de privacyverklaring; `laadtest` gebruikt de lettertypen uit de repo, de CI installeert ze niet meer. Nieuwe `lettertypetest.py` (43) |
 
 ---
 

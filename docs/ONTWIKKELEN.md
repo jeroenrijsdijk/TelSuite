@@ -50,11 +50,13 @@ Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 |---|---|
 | `index.html` | startscherm (NL/EN) |
 | `over.html` | introductie voor nieuwe bezoekers |
+| `about.html` | dezelfde introductie in het Engels (sinds v3.24); `hreflang` over en weer |
 | `traffic_counter_help.html` | handleiding — de functies per tool staan hier |
 | `zip_format_reference.html` | technische specificatie van alle ZIP's en CSV's (EN) |
 | `privacy.html` | privacyverklaring (NL/EN); `valideer.py` controleert dat elk extern domein erin staat |
 | `verantwoording.html` | toelichting voor juristen en adviseurs: wat een telling vastlegt, wat er daarna mee gebeurt, sterke en zwakke plekken (sinds v3.4). Bij een wijziging in wat de apps vastleggen, deze pagina meenemen |
 | `sitemap.xml`, `robots.txt` | de openbare pagina's voor zoekmachines; `valideer.py` controleert dat elk adres op telonline.org staat en bestaat, en meldt een pagina die ontbreekt. Een nieuwe openbare pagina hoort erin; een interne in `NIET_IN_SITEMAP` in `valideer.py` |
+| `fonts/` | de lettertypen van de tools (sinds v3.25): `fonts.css`, drie `.woff2` en de licenties. Een tool linkt `fonts/fonts.css`; zonder de map valt hij terug op zijn reserveletter |
 
 ### Intern — bewust niet gelinkt
 
@@ -97,8 +99,8 @@ Bestanden die alleen op de server horen (een `.htaccess` of `.htpasswd`; tot
 v3.15 ook de opgeslagen planningen) staan nooit in `site`; de workflow
 stopt als er toch een `.htaccess` of `.htpasswd` in de inhoud komt.
 
-Elders: zet alles in één map op een webserver en klaar. De tools linken relatief naar
-elkaar, en de knop "Direct reconstrueren" geeft de ZIP via IndexedDB door —
+Elders: zet alles in één map op een webserver en klaar, met de map `fonts/` erbij
+(sinds v3.25). De tools linken relatief naar elkaar, en de knop "Direct reconstrueren" geeft de ZIP via IndexedDB door —
 daarvoor moeten veld-app en reconstructor op dezelfde origin staan.
 
 Wat er van buiten wordt opgehaald:
@@ -106,7 +108,9 @@ Wat er van buiten wordt opgehaald:
 - **Bibliotheken** via CDN (cdnjs, unpkg): Leaflet 1.9.4, JSZip 3.10.1,
   PapaParse 5.4.1, Leaflet.draw 1.0.4 (alleen telplanning), sql.js 1.14.2 (alleen
   telrapport, en pas bij de eerste GeoPackage-export).
-- **Lettertypen**: Google Fonts (Oswald, Share Tech Mono), in de tools. De
+- **Lettertypen**: sinds v3.25 op de eigen server, in `fonts/` (Oswald variabel,
+  Latijn en uitgebreid Latijn; Share Tech Mono), met `fonts/fonts.css` en de
+  licenties (SIL OFL 1.1). Tot v3.25 kwamen ze van Google Fonts. De
   documentatiepagina's gebruiken sinds v3.3 de systeemletter.
 - **Kaarttegels**: OpenStreetMap, CARTO, PDOK. De CARTO-sleutel staat in drie
   bestanden: `telrapport.html`, `telplanning.html`, `telreconstructie.html`.

@@ -49,6 +49,7 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/stukkentest.py       # v3.21: telrapport per stuk voor fiets en auto: origineel, _recon, auto, correctietool, 21 tests
     python3 _archief/overpass_rig/herstelmeldingtest.py  # v3.22: één herstelmelding in de vijf veld-apps; Static Nederlands en in het palet van telrapport, 103 tests
     python3 _archief/overpass_rig/gpsmiddeltest.py     # v3.23: Static middelt de GPS: schatter met nagebootste ruis, app met versnelde klok, adres, 39 tests
+    python3 _archief/overpass_rig/lettertypetest.py    # v3.25: lettertypen van de eigen server (fonts/), geen verzoek aan Google, 43 tests
     python3 _archief/overpass_rig/gpkgtest.py          # GeoPackage uit telrapport: van veld-app tot QGIS, met het QGIS-project, 80 tests
                                                        # (ook sql.js@1.14.2 in node_modules; het QGIS-deel draait als
                                                        #  PyQGIS er is, via gpkg_qgis.py, anders overgeslagen)
