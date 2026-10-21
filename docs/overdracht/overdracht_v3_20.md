@@ -132,5 +132,15 @@ Voorstel: B2.
 ## 7. Validatie
 
 ```
-VALIDATIE
+valideer.py            ALLES OK — 6 verwachte bestanden gewijzigd; gedeelde blokken OK (cacheWaysInTiles 0edf7de4,
+                       leesTegels 4ceac974, fetch-discipline be581036, gebied vooraf 23c39597); RECON_VERSIE v3.20
+functest_tegelcache.js 13/13 (nieuw; tegen v3.19: de tegel van §4 ging compleet de cache in, zonder de lange weg)
+gebiedtest.py          51/51 (deel F nieuw; tegen v3.19: 7 fouten, o.a. pocket zonder aansluitingen en
+                       de reconstructor zonder buren)
+functest.js            40/40 (o.a. schema 2 is een misser, alleen de cirkel, segment door de cirkel)
+laadtest 45, hersteltest 133, statictest 24, opruimtest 139, logicatest 30, robuusttest 87,
+planlinktest 51, onderhoudtest 17, opslaantest 48, gpkgtest 80
+functests              alle 20 groen
+test_zipref.py         referentie sluit aan op de code
+check_encoding.py      alles geldige UTF-8
 ```
