@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>What is telonline.org? Traffic counting in your browser</title>
+<meta name="description" content="telonline.org is a free set of browser tools for traffic counting: cars, bicycles, pedestrians and parking, from fieldwork to a map report.">
+<link rel="canonical" href="https://telonline.org/about.html">
+<link rel="alternate" hreflang="nl" href="https://telonline.org/over.html">
+<link rel="alternate" hreflang="en" href="https://telonline.org/about.html">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="What is telonline.org? Traffic counting in your browser">
+<meta property="og:description" content="telonline.org is a free set of browser tools for traffic counting: cars, bicycles, pedestrians and parking, from fieldwork to a map report.">
+<meta property="og:url" content="https://telonline.org/about.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="nl_NL">
+<meta property="og:site_name" content="telonline.org">
+
+<!-- Structured data: AboutPage about the counting tools (v3.24, English version of over.html) -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  "name": "What is telonline.org?",
+  "url": "https://telonline.org/about.html",
+  "description": "telonline.org is a free set of browser tools for traffic counting: cars, bicycles, pedestrians and parking, from fieldwork to a map report.",
+  "inLanguage": "en",
+  "about": {
+    "@type": "WebApplication",
+    "@id": "https://telonline.org/#app",
+    "name": "Telonline Verkeerstellingen",
+    "url": "https://telonline.org/",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Any (web browser)"
+  },
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "telonline.org",
+    "url": "https://telonline.org/"
+  }
+}
+</script>
+
+<style>
+/* ── kale stijl (v3.3): gewone HTML, systeemletter; kleur alleen waar die iets uitlegt ── */
+body{font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;max-width:46em;margin:2em auto;padding:0 1em;color:#222;background:#fff}
+h1,h2,h3,h4{line-height:1.25}h1{font-size:2.1em;margin:.8em 0 .6em;padding-bottom:.25em;border-bottom:4px solid #222}h2{font-size:1.55em;margin-top:2.8em;padding-bottom:.25em;border-bottom:3px solid #222}h4{margin-bottom:.3em}
+hr{border:0;border-top:1px solid #ddd;margin:2em 0}
+table{display:block;overflow-x:auto;border-collapse:collapse;margin:.6em 0}td,th{border:1px solid #ccc;padding:.25em .5em;vertical-align:top;text-align:left}
+code,samp,kbd{font-family:ui-monospace,Consolas,monospace;font-size:.92em}code,samp,a{overflow-wrap:break-word}img{max-width:100%;height:auto}
+.kleur{display:inline-block;width:.8em;height:.8em;border:1px solid #666;vertical-align:-.05em;margin-right:.35em}.rond{border-radius:50%}td:has(>.kleur){white-space:nowrap}
+/* ── einde kale stijl ── */
+</style>
+</head>
+<body>
+<p><a href="index.html">‹ Back to all counting tools</a> · <a href="over.html" hreflang="nl" lang="nl">Nederlands</a></p>
+<h1>What is telonline.org?</h1>
+<p>Traffic counting online — from fieldwork to a map report</p>
+<p>telonline.org is <strong>a set of online browser tools for traffic counting</strong>: cars, bicycles, pedestrians, parked vehicles and parking capacity. Everything runs in your own browser. There is nothing to install and no account to create. The apps use GPS and fit your observations onto the OpenStreetMap network, so every count becomes a usable dataset tied to a place.</p>
+<p>The aim is an easy counting app in your pocket. A lot of metadata is collected automatically, and the processing afterwards is made as simple as possible. The tools are just as suitable for regular, structured counts.</p>
+<p>Most screens are in Dutch. The front page and the start screen of Pocket also come in English, and so does the <a href="zip_format_reference.html">reference for the ZIP files</a>.</p>
+<p><strong>Who is it for?</strong></p>
+<ul>
+<li><strong>Traffic engineers</strong> at municipalities, provinces and consultancies who want to carry out field counts quickly and consistently, without installing software.</li>
+<li><strong>Students and researchers</strong> collecting traffic or mobility data for a study or a thesis.</li>
+<li><strong>Anyone who is curious</strong> how busy a street, a shopping area or a parking zone really is. The tools are free to use.</li>
+</ul>
+<p><strong>In short</strong>: count → ZIP → reconstruct → map.</p>
+<ul>
+<li><strong>Count.</strong> Pick an app, press Start, tap what you see. GPS runs along and snaps your taps to the OpenStreetMap network. At the end you get one ZIP file. Don't unzip it.</li>
+<li><strong>Post-process.</strong> Drop that ZIP into the reconstruction. It looks at your whole route at once and puts every tap on the right street after all, with the side of the road and the walking direction. Your count itself does not change; only the positions get better.</li>
+<li><strong>View.</strong> Drop one or more ZIPs into Telrapport, the report tool: how busy each road section is, a day×hour weekly profile, filters on time and session. Once the map looks the way you want, save it as a collection ZIP and you can get back to it later in one step.</li>
+</ul>
+<p>No installation, no account, no upload: everything runs in your own browser. Prefer GIS? The ZIPs load straight into QGIS, and Telrapport saves the map as a GeoPackage with a ready-made QGIS project.</p>
+<h2>How it works: three steps</h2>
+<h3>Step 1: Count</h3>
+<p>Go to telonline.org and pick a field app that fits what you want to know.</p>
+<p>GPS snaps every count to the OpenStreetMap road network. At the end of the session the app exports the result as one <code>.zip</code> file with the counts and the GPS route. Keep the ZIPs intact; there is no need to unzip them. If you organise the ZIP files in a logical way, finding things later is much easier. The manual will go into this (<i>planned</i>). Every count gets a unique three-letter code.</p>
+<p>Standing still</p>
+<p><b>▢ Stand still and count ▫▫ </b> count cars, pedestrians and cyclists from a fixed point,</p>
+<p>Parking counts</p>
+<p><b>▢ Bicycle parking ▫▫ </b> walk a route and count parked bicycles, optionally with mopeds, cargo bikes and abandoned bikes counted separately,</p>
+<p><b>▢ Car parking ▫▫ </b> walk a route and count parked cars, optionally with illegally parked cars, empty bays or special bays,</p>
+<p><b>▢ Bicycle parking capacity ▫▫ </b> <i>this option is planned</i>,</p>
+<p><b>▢ Car parking capacity ▫▫ </b> build a parking capacity map in several ways,</p>
+<p><b>▢ Parking bay file ▫▫ </b> <i>this option is planned</i>.</p>
+<p>Counting on foot (moving observer)</p>
+<p><b>▢ Simple ▫▫ </b> walk a route and count cars, pedestrians, cyclists or anything else you choose,</p>
+<p><b>▢ Transect ▫▫ </b> walk a route and count everything you meet, in named categories,</p>
+<p><b>▢ Shopping street ▫▫ </b> count people standing still and people coming towards you, made for shopping areas,</p>
+<p><b>▢ Parking ▫▫ </b> count occupied and free parking bays, left and right of the road. For cars you don't need to walk on the carriageway: the app puts the points on the carriageway next to the footpath or cycle path.</p>
+<img src="screenshot-tellen.jpg" alt="Screenshot of a field app while counting" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+<p style="display:none">📷 · screenshot-tellen.jpg · Put this file next to about.html</p>
+<p><a href="index.html">See all counting tools &gt;</a></p>
+<hr>
+<h3>Step 2: Post-process the ZIP (<em>recommended</em>)</h3>
+<p>While you count, the app knows roughly where you are, but not always exactly. GPS is a few metres off by nature, and at a junction or between tall buildings a tap can land on the wrong street.</p>
+<p>The <strong>reconstruction</strong> looks at your whole walk afterwards, in one go. Because it knows the route as a whole, it can tell much better which street you actually walked, and it puts every tap in the right place after all. It also adds which side of the road you counted and which way you walked. If a tap still ends up in the wrong place, you correct it yourself with a click on the map.</p>
+<p>The result is a cleaner map: the counts sit on the right street, and your report is more accurate. <strong>Your count itself does not change</strong>: the numbers stay exactly what you counted, only the positions get more precise.</p>
+<img src="screenshot-nabewerken.jpg" alt="Screenshot of the map in the reconstruction tool" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+<p style="display:none">📷 · screenshot-nabewerken.jpg · Put this file next to about.html</p>
+<p><a href="telreconstructie.html">Open the reconstruction tool &gt;</a></p>
+<hr>
+<h3>Step 3: Present it in Telrapport</h3>
+<p>Drop one or more ZIPs into <strong>Telrapport</strong> for a combined map of the counts: how busy each road section is, a day×hour weekly profile that shows when it is busy week after week, intensity classes, and filters on time and type of session. This is where the first two steps lead: from loose fieldwork to one readable picture.</p>
+<p>Once the map looks the way you want (a few counts side by side, the right layers on, the right view) you save it as a <strong>collection ZIP</strong>. That is one file with all the counts inside, plus how the map looked. Drop it back into Telrapport later and you are back where you were in one step, including colours, visibility and zoom level. Corrections you made by hand come along. Do keep your own count ZIPs next to it: the collection is your working map, not your archive.</p>
+<img src="screenshot-telrapport.jpg" alt="Screenshot of a map in Telrapport" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+<p style="display:none">📷 · screenshot-telrapport.jpg · Put this file next to about.html</p>
+<p><a href="telrapport.html">Open Telrapport &gt;</a></p>
+<p>Prefer GIS software? The ZIPs also load straight into <strong>QGIS</strong>, with a layer for each type of count. The Python loader script is <a href="https://telonline.org/telonline_qgis_loader.py" target="_blank">telonline_qgis_loader.py</a>. If you mainly want a neat map, save the map as you see it in <strong>Telrapport</strong> as a <strong>GeoPackage</strong>. That is one file with the observations, the cluster circles, the road sections and the walked routes, with Telrapport's colours built in. It also holds a QGIS project: open it with <em>Project → Open From → GeoPackage</em> and the map is ready, on a PDOK base map (the Netherlands) and with an A4 print layout for a PDF. Choose the file name when you save, and don't rename the file afterwards, or the project can no longer find its layers. More in the <a href="traffic_counter_help.html#rapport-gpkg">manual</a> (in Dutch).</p>
+<hr>
+<ul><li><a href="index.html">Start counting &gt; &gt;</a></li><li><a href="traffic_counter_help.html">Full manual (in Dutch) &gt; &gt;</a></li><li><a href="zip_format_reference.html">More about the ZIPs &gt; &gt;</a></li><li><a href="privacy.html">Privacy: what stays on your device and what doesn't (in Dutch, with a section in English) &gt; &gt;</a></li><li><a href="verantwoording.html">Assessing a count: notes for lawyers (in Dutch) &gt; &gt;</a></li></ul>
+<p>Questions, comments, or results you want to share? Mail <a href="mailto:verkeer@telonline.org">verkeer@telonline.org</a>, or report it on <a href="https://github.com/jeroenrijsdijk/TelSuite/issues">GitHub</a>.</p>
+<p><small>Built by JRI and Claude - Anthropic</small></p>
+</body>
+</html>
