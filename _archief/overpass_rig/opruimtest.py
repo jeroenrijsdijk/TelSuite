@@ -52,6 +52,9 @@ VERBERG = ("Object.defineProperty(document,'hidden',{value:true,configurable:tru
            "Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});"
            "document.dispatchEvent(new Event('visibilitychange'));")
 KOPIE = "Object.keys(localStorage).filter(k=>/_sessie/.test(k))"
+# De kopie zelf, zonder het wegennet ernaast (<sleutel>_netwerk; pocket sinds v3.27).
+# "Geen kopie" telt met KOPIE: dan moet ook het netwerk weg zijn.
+def hoofd(sleutels): return [k for k in sleutels if not k.endswith('_netwerk')]
 MELDING = """(()=>{for (var i of ['herstel-melding']){   // v3.22: één gedeelde melding
   var e=document.getElementById(i); if(e && e.style.display!=='none') return i;} return null})()"""
 TIK_STATIC = ("(()=>{var b=[...document.querySelectorAll('[onclick^=\"adjust(\"]')].filter(b=>!/-1\\)/.test(b.getAttribute('onclick')));"
@@ -121,9 +124,9 @@ with sync_playwright() as p:
         pg.evaluate(stop); pg.wait_for_timeout(1500)
         eis('%s: geen ongevraagde download na annuleren' % naam, downloads == [], downloads)
         pg.evaluate(VERBERG); pg.wait_for_timeout(200)
-        eis('%s: na geannuleerd deelblad staat de kopie er nog' % naam, len(pg.evaluate(KOPIE)) == 1, pg.evaluate(KOPIE))
+        eis('%s: na geannuleerd deelblad staat de kopie er nog' % naam, len(hoofd(pg.evaluate(KOPIE))) == 1, pg.evaluate(KOPIE))
         kopie, melding = heropen(ctx, pg, app)
-        eis('%s: heropenen biedt de telling weer aan' % naam, len(kopie) == 1 and melding is not None and not fouten,
+        eis('%s: heropenen biedt de telling weer aan' % naam, len(hoofd(kopie)) == 1 and melding is not None and not fouten,
             (kopie, melding, fouten))
         ctx.close()
 
@@ -150,7 +153,7 @@ with sync_playwright() as p:
         pg.evaluate(start); pg.wait_for_timeout(500)
         loop(ctx, pg, 4, tik)
         pg.evaluate(stop); pg.wait_for_timeout(1500)
-        eis('%s: na annuleren nog een kopie' % naam, len(pg.evaluate(KOPIE)) == 1)
+        eis('%s: na annuleren nog een kopie' % naam, len(hoofd(pg.evaluate(KOPIE))) == 1, pg.evaluate(KOPIE))
         pg.evaluate(opnieuw); pg.wait_for_timeout(400)
         pg.evaluate(VERBERG); pg.wait_for_timeout(200)
         kopie, melding = heropen(ctx, pg, app)

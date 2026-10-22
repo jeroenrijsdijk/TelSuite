@@ -32,7 +32,7 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_gpxtijd.js     # GPX-tijden in echte UTC, drie parkeer-apps, 31 tests
     node _archief/overpass_rig/functest_segmenttabel.js  # weekprofiel: tabel, 95%-marge, koppeling met het diagram, 23 tests
     python3 _archief/overpass_rig/laadtest.py          # elke pagina echt laden in Chromium, 45 tests (v3.15: deel D vervallen)
-    python3 _archief/overpass_rig/hersteltest.py       # harde crash + doortellen, alle veld-apps, 133 tests
+    python3 _archief/overpass_rig/hersteltest.py       # harde crash + doortellen, alle veld-apps, het wegennet van pocket (v3.27), 157 tests
     python3 _archief/overpass_rig/statictest.py        # Static door de keten: export, telrapport, verzameling, reconstructor, 24 tests
     python3 _archief/overpass_rig/opruimtest.py        # noodopslag weg na bevestigde download, en alleen dan; twee vensters (v3.8), 139 tests
     node _archief/overpass_rig/functest_kwaliteit.js   # v3.10: kwaliteitsrapport in telrapport, 33 tests (papaparse)
@@ -41,7 +41,7 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_planlink.js    # v3.14: planning als link, inpakken en uitpakken, 29 tests (Node 18+)
     python3 _archief/overpass_rig/planlinktest.py      # v3.14: link maken in telplanning, openen in parkeertelling/fiets/pocket; v3.15: zonder server; v3.16: capaciteitscontouren standaard uit, 51 tests
     node _archief/overpass_rig/functest_bbox.js        # v3.17: bbox-filter van telrapport, ook voor verzamelingen, 11 tests (jszip papaparse)
-    python3 _archief/overpass_rig/onderhoudtest.py     # v3.17: pocket zonder _netwerk.csv, zoekTerreinen met geheugen, 17 tests
+    python3 _archief/overpass_rig/onderhoudtest.py     # v3.17: pocket zonder _netwerk.csv, zoekTerreinen met geheugen; v3.27: tegels opruimen; 31 tests
     python3 _archief/overpass_rig/opslaantest.py       # v3.18: ZIP opslaan in de parkeer-apps per platform (Android, ingebouwde browser, desktop, iPhone), 48 tests
     node _archief/overpass_rig/functest_gebied.js      # v3.19: gebied vooraf ophalen: tegelset, zoekvraag, regel, 22 tests
     python3 _archief/overpass_rig/gebiedtest.py        # v3.19: gebied vooraf in de cache, lopen zonder verzoek, verversafstand, planning uit een link in telplanning; v3.20: tegelschema 3 (deel F), 51 tests
