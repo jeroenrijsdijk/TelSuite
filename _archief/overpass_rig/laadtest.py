@@ -11,10 +11,10 @@ Drie delen:
   C. index.html: links bestaan, NL/EN-sleutels compleet, niets breder dan 360 px
 
 Nodig: pip install playwright (met Chromium) en in een node_modules:
-leaflet@1.9.4, leaflet-draw@1.0.4, jszip, papaparse, @fontsource/oswald en
-@fontsource/share-tech-mono. De CDN- en Google-Fonts-verzoeken worden naar die
-lokale kopieën omgeleid; al het andere externe verkeer wordt geblokkeerd. Zonder
-de echte lettertypen meet de breedtetoets een breder noodlettertype.
+leaflet@1.9.4, leaflet-draw@1.0.4, jszip en papaparse. De CDN-verzoeken worden
+naar die lokale kopieën omgeleid; al het andere externe verkeer wordt
+geblokkeerd. De lettertypen staan sinds v3.25 in de repo (fonts/) en komen dus
+gewoon van de testserver; tot v3.25 werd Google Fonts hier nagebootst.
 Zoekt node_modules via $TEL_NODE_MODULES, ./node_modules of /home/claude/node_modules.
 
 Draaien vanuit de suite-root:  python3 _archief/overpass_rig/laadtest.py
@@ -31,13 +31,9 @@ LIB = {'leaflet.min.js': 'leaflet/dist/leaflet.js', 'leaflet.js': 'leaflet/dist/
        'leaflet.draw.js': 'leaflet-draw/dist/leaflet.draw.js',
        'jszip.min.js': 'jszip/dist/jszip.min.js', 'papaparse.min.js': 'papaparse/papaparse.min.js'}
 
-FONT = {'o5': '@fontsource/oswald/files/oswald-latin-500-normal.woff2',
-        'o7': '@fontsource/oswald/files/oswald-latin-700-normal.woff2',
-        'stm': '@fontsource/share-tech-mono/files/share-tech-mono-latin-400-normal.woff2'}
-FONTS_OK = all(os.path.exists(os.path.join(NM, f)) for f in FONT.values())
-FONT_CSS = ("@font-face{font-family:'Oswald';font-weight:500;src:url(/_font/o5)}"
-            "@font-face{font-family:'Oswald';font-weight:700;src:url(/_font/o7)}"
-            "@font-face{font-family:'Share Tech Mono';src:url(/_font/stm)}")
+# v3.25: de lettertypen staan in de repo (fonts/), de testserver geeft ze gewoon.
+FONTS_OK = all(os.path.exists(os.path.join(ROOT, 'fonts', f)) for f in
+               ['fonts.css', 'oswald-latin-wght-normal.woff2', 'share-tech-mono-latin-400-normal.woff2'])
 
 class Stil(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
@@ -47,11 +43,7 @@ BASIS = 'http://127.0.0.1:%d/' % srv.server_address[1]
 
 def route(r):
     u = r.request.url
-    if u.startswith(BASIS + '_font/') and FONTS_OK:
-        return r.fulfill(body=open(os.path.join(NM, FONT[u.rsplit('/', 1)[1]]), 'rb').read(), content_type='font/woff2')
     if u.startswith(BASIS): return r.continue_()
-    if 'fonts.googleapis.com' in u and FONTS_OK:
-        return r.fulfill(body=FONT_CSS.replace('url(/', 'url(' + BASIS), content_type='text/css')
     naam = u.split('?')[0].rsplit('/', 1)[-1]
     if naam in LIB:
         return r.fulfill(body=open(os.path.join(NM, LIB[naam]), 'rb').read(), content_type='application/javascript')

@@ -22,7 +22,7 @@
 # release en slaan de release-controles over (VALIDEER_ZONDER_RELEASE=1).
 #
 # Niets komt in de repo of op de server: de bibliotheken (jszip, papaparse,
-# sql.js, leaflet, lettertypen) en Chromium staan alleen op de runner, zie
+# sql.js, leaflet) en Chromium staan alleen op de runner, zie
 # .github/actions/testopzet. Er gaan geen secrets of schrijfrechten mee.
 #
 # Faalt een browsertest, dan staan zijn FOUT-regels als melding bij de
