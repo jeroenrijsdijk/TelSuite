@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.25.** De lettertypen staan op de eigen server, in `fonts/` (Oswald variabel en Share Tech Mono, 66 kB, SIL OFL), en gaan mee in de release-ZIP; Google Fonts krijgt geen verzoek meer en staat niet meer in de privacyverklaring (`overdracht_v3_25.md`). Installeren blijft: de ZIP uitpakken op een webserver. v3.24: Engelse introductie `about.html`. v3.23: Static middelt de GPS. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
+**Laatste release: v3.26.** De opmaak *A4 liggend* in de GeoPackage (Jay: "Een .gpkg openen in qgis is een geweldige optie om via een layout snel een pdf te maken"): de titel noemt de dag voluit, en in de legenda staat onder GPS-spoor per telling dag en datum, de tijd van de eerste en laatste tik op de kaart en de code van drie letters, zonder het soort telling (`overdracht_v3_26.md`). v3.25: lettertypen op de eigen server. v3.24: Engelse introductie. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
 
 ---
 
@@ -241,7 +241,7 @@ Opgeruimd op 21 oktober 2026.
 
 ---
 
-## 6. Releases v2.32 → v3.25 in één oogopslag
+## 6. Releases v2.32 → v3.26 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -319,6 +319,7 @@ Opgeruimd op 21 oktober 2026.
 | v3.23 | **Static middelt de GPS** (Jay: "De wachttijd mag niet te lang oplopen"; "grenzen van 8m en 15m. 3 minuten luisteren is prima"): tellen meteen, hooguit 3 minuten luisteren (eerder klaar bij ±4 m), gewogen gemiddelde over 2 minuten, uitschieters naar opgegeven afwijking én echte spreiding, eerlijke afwijking (30 s samenhang, ondergrens 3 m); niveaus nauwkeurig/redelijk/grof in een eigen regel; adres zodra redelijk, opnieuw na 15 m, 30 s pauze na een mislukt verzoek; straat als *Voorstraat 12*. Nieuwe `gpsmiddeltest.py` (39) |
 | v3.24 | **Engelse introductie** `about.html` (Jay: "Schrijf maar een engelse over.html"): vertaling van `over.html`, kale stijl, `hreflang` en een taallink over en weer, in de sitemap; de voorpagina linkt "Wat is dit?" naar `about.html` (Engels) of `over.html` (Nederlands). `robuusttest.py` deel D (89) |
 | v3.25 | **Lettertypen op de eigen server** (Jay: "google fonts zelf hosten zou ik willen, maar maakt dat het installeren bij anderen niet ingewikkelder?"; "ga"): `fonts/` met Oswald (variabel, Latijn en uitgebreid Latijn), Share Tech Mono, `fonts.css` en de licenties; 11 pagina's linken `fonts/fonts.css`; Google Fonts uit de privacyverklaring; `laadtest` gebruikt de lettertypen uit de repo, de CI installeert ze niet meer. Nieuwe `lettertypetest.py` (43) |
+| v3.26 | **Opmaak GeoPackage** (Jay: "1. Tijdstippen van eerste en laatste tik. 2. De naam van de dag van de week naast de datum 3. het woordje "pocket" verwijderen achter het gps spoor. 4. De 3-letterige codering van de telling"): titel *Telrapport · donderdag 22-10-2026*; legenda GPS-spoor *do 22-10 · 13:41–14:05 · NYK* (zonder jaar, dat staat in de titel; anders liep de legenda van het A4). `gpkgSpoorLabel`; de tabel `sessies` houdt zijn `label`. `gpkgtest.py` (82) |
 
 ---
 

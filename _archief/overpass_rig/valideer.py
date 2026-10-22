@@ -19,12 +19,9 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.25'
-# v3.25: lettertypen op de eigen server (fonts/), niet meer van Google Fonts.
-VERWACHT_GEWIJZIGD = {'capaciteitstelling.html', 'fietsparkeren.html', 'index.html', 'parkeertelling.html',
-                      'pocket_count.html', 'snap_methodology.html', 'telplanning.html', 'telreconstructie.html',
-                      'traffic_counter.html', 'winkelstraat_rekenrig.html', 'zip_format_reference.html',
-                      'privacy.html'}
+RELEASE = 'v3.26'
+# v3.26: opmaak van de GeoPackage (titel met dag, legenda GPS-spoor met tijden en code).
+VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html', 'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
