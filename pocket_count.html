@@ -1816,9 +1816,11 @@ function pkBack() {
 
 // ── Sessieherstel (v2.11) ─────────────────────────────────────────────────────
 // localStorage-vangnet: telt élke tik door zodat crash/scherm-uit geen
-// veldgegevens kost. Bewust géén snap.elements (te groot + secundair); de tikken
-// dragen hun eigen wayId, dus de export blijft volledig. Wissen pas ná bevestigd
-// klaar (preview sluiten) of bij een nieuwe sessie \u2014 nooit blind na generateAsync.
+// veldgegevens kost. Wissen pas ná bevestigd klaar (preview sluiten) of bij een
+// nieuwe sessie \u2014 nooit blind na generateAsync.
+// Het wegennet (snap.elements) staat sinds v3.27 onder een eigen sleutel, zie
+// netwerkKopieSchrijf. Tot dan ging het niet mee ("te groot"), en miste
+// _netwerk.csv na Doortellen de wegen van vóór de onderbreking.
 var LS_KEY_POCKET = 'pocket_sessie';
 
 /* ── Noodkopie: één venster schrijft (v3.8) ──────────────────────────────
@@ -2117,17 +2119,86 @@ function saveSession() {
   if (!telHistory.length || exportAfgerond) return;
   if (!kopieMagSchrijven()) return;   // v3.8: alleen het venster dat eigenaar is
   try {
-    kopieSchrijf({
+    var data = {
       modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
       telCount: telCount, telHistory: telHistory, routeLog: routeLog,
       tcCounts: tcCounts, richtingA: tcRichtingA, richtingB: tcRichtingB,
       sessieId: pocketSid(), startTime: startTime ? startTime.toISOString() : null, savedAt: nowIso()
-    });
+    };
+    kopieSchrijf(data);
+    // v3.27: is de opslag vol, dan wijkt het wegennet voor de tikken
+    if (document.getElementById('kopie-vol')) { if (netwerkKopieOpgeven()) kopieSchrijf(data); }
+    else netwerkKopieSchrijf();
   } catch (e) {}
 }
 
 function clearSession() {
-  try { localStorage.removeItem(LS_KEY_POCKET); } catch (e) {}
+  try { localStorage.removeItem(LS_KEY_POCKET); localStorage.removeItem(LS_KEY_NETWERK); } catch (e) {}
+  netwerkKopieVuil = false; netwerkKopieUit = false;
+}
+
+// ── Het wegennet in de noodkopie (v3.27) ─────────────────────────────────
+// snap.elements onder een eigen sleutel, met de knooppunten, zodat een herstelde
+// telling het netwerk van vóór de onderbreking terugkrijgt: _netwerk.csv is na
+// Doortellen compleet, en de trajectorie-hertoekenning bij Stop werkt over de
+// hele route, met de aansluitingen (snap.adjacency) erbij. Compact: per weg
+// [highway, naam, [lat, lon, lat, lon, ...], [knooppunten]]. Alleen opnieuw
+// geschreven als het netwerk groeide. Het gedeelde blok noodkopie ruimt de
+// sleutel op (KOPIE_SLEUTEL + '_netwerk'). Wordt de opslag vol, dan houden we
+// voor deze telling op met het netwerk; telrapport haalt de ontbrekende wegen
+// dan zelf bij Overpass, zoals voor ZIP's van vóór v3.27.
+var LS_KEY_NETWERK = LS_KEY_POCKET + '_netwerk';
+var netwerkKopieVuil = false;   // het netwerk groeide sinds de laatste keer schrijven
+var netwerkKopieUit = false;    // opgegeven voor deze telling (opslag vol)
+
+function netwerkKopieSchrijf() {
+  if (!netwerkKopieVuil || netwerkKopieUit) return;
+  netwerkKopieVuil = false;
+  var wegen = {};
+  Object.keys(snap.elements).forEach(function (id) {
+    var el = snap.elements[id], xy = [];
+    el.geometry.forEach(function (p) { xy.push(p.lat, p.lon); });
+    wegen[id] = [el.highway, el.osmName, xy, el.nodes || []];
+  });
+  try { localStorage.setItem(LS_KEY_NETWERK, JSON.stringify({ sessieId: pocketSid(), wegen: wegen })); }
+  catch (e) { netwerkKopieOpgeven(); }
+}
+
+// Een binnengekomen netwerk is geen tik: alleen de netwerkkopie, niet de gewone.
+// Zou een netwerk ook pocket_sessie herschrijven, dan kon een venster dat de
+// telling net herstelde niet meer doortellen (kopieClaim ziet een kopie die
+// sinds het herstel veranderde), terwijl het oude venster niets deed.
+function netwerkBewaren() {
+  if (!telHistory.length || exportAfgerond || !kopieMagSchrijven()) return;
+  netwerkKopieSchrijf();
+}
+
+// Geeft true als er een netwerkkopie stond (en dus ruimte vrijkwam).
+function netwerkKopieOpgeven() {
+  netwerkKopieUit = true;
+  try {
+    var stond = localStorage.getItem(LS_KEY_NETWERK) !== null;
+    localStorage.removeItem(LS_KEY_NETWERK);
+    return stond;
+  } catch (e) { return false; }
+}
+
+// Bij herstel: het netwerk van deze telling terug in snap.elements en de
+// aansluitingen. Een kopie van een andere telling blijft onaangeroerd.
+function netwerkKopieLees(sid) {
+  var d, n = 0;
+  try { d = JSON.parse(localStorage.getItem(LS_KEY_NETWERK) || 'null'); } catch (e) { return 0; }
+  if (!d || !sid || d.sessieId !== sid || !d.wegen) return 0;
+  Object.keys(d.wegen).forEach(function (id) {
+    var r = d.wegen[id], g = [];
+    if (!r || !r[2]) return;
+    for (var i = 0; i + 1 < r[2].length; i += 2) g.push({ lat: r[2][i], lon: r[2][i + 1] });
+    if (g.length < 2 || snap.elements[id]) return;
+    snapRegisterWay({ id: id, nodes: r[3] });
+    snap.elements[id] = { highway: r[0] || '', osmName: r[1] || '', geometry: g, nodes: r[3] || [] };
+    n++;
+  });
+  return n;
 }
 
 function restoreSession() {
@@ -2142,6 +2213,7 @@ function restoreSession() {
   var kopieSid = data.sessieId || (data.startTime ? stamUitStart(new Date(data.startTime)) + '_pkt_' +
                  (POCKET_MODUSCODE[data.modus] || 's') : '');
   if (!kopieHerstelbaar(kopieSid) || !kopieHerstelbaar(data.startTime)) return;
+  netwerkKopieLees(data.sessieId);   // v3.27
 
   currentModus = data.modus || 'simpel';
   telType = data.telType; telLabel = data.telLabel; telIcon = data.telIcon;
@@ -2191,7 +2263,8 @@ function hervatTelling() {
   var bewaard = {
     modus: currentModus, telType: telType, telLabel: telLabel, telIcon: telIcon,
     telCount: telCount, telHistory: telHistory, routeLog: routeLog, startTime: startTime, stam: pocketStam,
-    tcCounts: tcCounts, tcRichtingA: tcRichtingA, tcRichtingB: tcRichtingB
+    tcCounts: tcCounts, tcRichtingA: tcRichtingA, tcRichtingB: tcRichtingB,
+    elementen: snap.elements   // v3.27: het herstelde netwerk
   };
   herstelVerberg();
 
@@ -2203,6 +2276,8 @@ function hervatTelling() {
   telCount = bewaard.telCount; telHistory = bewaard.telHistory;
   routeLog = bewaard.routeLog; startTime = bewaard.startTime;
   pocketStam = bewaard.stam;   // v3.10: hetzelfde id (zonder: uit de starttijd)
+  snap.elements = bewaard.elementen;   // v3.27: de start*-functies maakten het leeg
+  netwerkKopieVuil = Object.keys(snap.elements).length > 0;
   var laatste = routeLog[routeLog.length - 1];
   if (laatste) { lastRouteLat = laatste.lat; lastRouteLon = laatste.lon; }
 
@@ -2946,8 +3021,10 @@ function stopTelling() {
   // Trajectorie-hertoekenning: corrigeer way+segment van fixes en tikken op basis
   // van de volledige trajectorie (topologie-eerst), vóór alle CSV's worden gebouwd.
   // Zo zijn telregels, gps én bezocht meteen bij de bron consistent.
-  // Guard: zonder live netwerk (bv. na sessieherstel) overslaan — de tikken
-  // behouden dan hun reeds-gesnapte wayId i.p.v. te worden leeggemaakt.
+  // Guard: zonder netwerk overslaan — de tikken behouden dan hun reeds-gesnapte
+  // wayId i.p.v. te worden leeggemaakt. Na sessieherstel is het netwerk er sinds
+  // v3.27 meestal wel (netwerkKopieLees); alleen bij een kopie van vóór v3.27 of
+  // een volle opslag niet.
   if (Object.keys(snap.elements).length) reassignTrajectory();
 
   // telregels.csv — conf/conf_level + gps_stab/gps_level achteraan zodat
@@ -3382,6 +3459,60 @@ function leesTegels(lat, lon, radiusM) {
     } catch (e) { res(null); }   // cache is best-effort: nooit het tellen blokkeren
   });
 }
+
+/* ── Tegels opruimen (v3.27) ──────────────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren,
+   capaciteitstelling, pocket_count en telreconstructie (bewaakt door valideer.py).
+   De tegelcache (IndexedDB telsuite_osm, store tiles) groeide tot v3.27 zonder
+   eind: een verlopen tegel werd alleen vervangen als je er weer kwam. Nu gaan
+   tegels ouder dan 90 dagen eruit. Dat ligt ruim boven de langste houdbaarheid
+   (veld-apps 14 dagen, reconstructor 60), dus er verdwijnt niets dat nog
+   gelezen wordt. Hooguit één keer per dag, vijf seconden na het openen, zodat
+   het opstarten er niet op wacht. Eerst zoeken (alleen lezen, houdt niemand
+   op), dan in één keer wissen. Best effort: lukt het niet, dan merkt niemand
+   er iets van. De store 'handoff' blijft onaangeroerd. */
+var TEGELS_WEG_NA_MS = 90 * 24 * 3600 * 1000;
+var TEGELS_OPGERUIMD = 'telsuite_tegels_opgeruimd';   // localStorage: wanneer het laatst
+function tegelsOpruimen(nu) {
+  return new Promise(function (klaar) {
+    try {
+      nu = nu || Date.now();
+      var vorige = +(localStorage.getItem(TEGELS_OPGERUIMD) || 0);
+      if (nu - vorige < 24 * 3600 * 1000 || typeof indexedDB === 'undefined' || !indexedDB) return klaar(-1);
+      localStorage.setItem(TEGELS_OPGERUIMD, String(nu));
+      var q = indexedDB.open('telsuite_osm', 1);
+      q.onupgradeneeded = function (e) {   // nog geen cache: aanmaken zoals de rest het doet
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains('tiles'))   db.createObjectStore('tiles',   { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('handoff')) db.createObjectStore('handoff', { keyPath: 'key' });
+      };
+      q.onerror = function () { klaar(0); };
+      q.onsuccess = function (e) {
+        var db = e.target.result, grens = nu - TEGELS_WEG_NA_MS, weg = [];
+        function sluit(n) { try { db.close(); } catch (x) {} klaar(n); }
+        try {
+          var lees = db.transaction('tiles', 'readonly');
+          lees.objectStore('tiles').openCursor().onsuccess = function (ev) {
+            var c = ev.target.result;
+            if (!c) return;
+            if (!c.value || !(c.value.ts >= grens)) weg.push(c.primaryKey);
+            c.continue();
+          };
+          lees.onabort = lees.onerror = function () { sluit(0); };
+          lees.oncomplete = function () {
+            if (!weg.length) return sluit(0);
+            var wis = db.transaction('tiles', 'readwrite'), st = wis.objectStore('tiles');
+            weg.forEach(function (k) { st.delete(k); });
+            wis.oncomplete = function () { sluit(weg.length); };
+            wis.onabort = wis.onerror = function () { sluit(0); };
+          };
+        } catch (x) { sluit(0); }
+      };
+    } catch (e) { klaar(0); }
+  });
+}
+setTimeout(function () { tegelsOpruimen(); }, 5000);
+/* ── einde gedeeld blok tegels opruimen ── */
 
 
 // Geef de zojuist gebouwde ZIP door aan telreconstructie.html en open die.
@@ -4157,6 +4288,7 @@ function snapVerwerkNetwerk(elements, lat, lon, fid, bron) {
   // Stap 1 — accumuleer het nieuwe netwerk in snap.elements + adjacency ZODAT de
   // segs-herbouw hieronder de nieuwe ways al meeneemt. (Volgorde t.o.v. <2.8:
   // dit blok stond na de segs-bouw; nu ervóór.)
+  var nieuw = 0;
   elements.forEach(function(el) {
     if (el.type!=='way'||!el.geometry||el.geometry.length<2) return;
     snapRegisterWay(el);  // adjacency cumulatief bijwerken
@@ -4164,10 +4296,14 @@ function snapVerwerkNetwerk(elements, lat, lon, fid, bron) {
       snap.elements[String(el.id)] = {
         highway: (el.tags&&el.tags.highway)||'',
         osmName: (el.tags&&el.tags.name)||'',
-        geometry: el.geometry
+        geometry: el.geometry,
+        nodes: el.nodes || []   // v3.27: voor de aansluitingen na herstel
       };
+      nieuw++;
     }
   });
+  // v3.27: het gegroeide netwerk naar de noodkopie (pas vanaf de eerste tik)
+  if (nieuw) { netwerkKopieVuil = true; netwerkBewaren(); }
   // Stap 2 — herbouw snap.segs uit het CUMULATIEVE netwerk (niet alleen deze
   // fetch), beperkt tot SNAP_SEGS_RADIUS rond de huidige positie. snapBuildSegs
   // herprojecteert alles tegen (lat,lon) → geen frame-menging. Hiermee verliest

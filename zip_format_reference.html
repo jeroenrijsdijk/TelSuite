@@ -586,6 +586,7 @@
 123456;2;3;residential;LINESTRING (4.3333 51.8525, 4.3337 51.8525)</div>
       <div class="csv-notes">
         <div class="csv-note">One row per segment. Ways shorter than 60m stay whole (one segment); longer ways are split parametrically into pieces of ~40m. <code>segment_count</code> is repeated per row for self-contained interpretation.</div>
+        <div class="csv-note">Since v3.27 the network is part of the emergency copy, so a session that was continued after an interruption, or downloaded from the restore notice, still lists the ways seen before the interruption. Older ZIPs may lack those ways (or the whole file); telrapport then fetches the missing geometry from Overpass. Columns unchanged.</div>
       </div>
     </div>
     <div class="csv-block">
