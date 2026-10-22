@@ -6284,6 +6284,41 @@ function gpkgSessieLabel(sid) {
           GPKG_APP_LABEL[s && s.appType] || (s && s.appType)].filter(Boolean).join(' · ');
 }
 
+// Opmaak in QGIS (v3.26, Jay: "1. Tijdstippen van eerste en laatste tik. 2. De
+// naam van de dag van de week naast de datum 3. het woordje "pocket" verwijderen
+// achter het gps spoor. 4. De 3-letterige codering van de telling").
+var GPKG_DAG_KORT = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+var GPKG_DAG_LANG = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+// "22-10-2026" (fmtDatum) → de dag van de week, kort of voluit; '' als het geen datum is.
+function gpkgDag(dmy, lang) {
+  var m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(dmy || '');
+  if (!m) return '';
+  var d = new Date(+m[3], +m[2] - 1, +m[1]);
+  return (lang ? GPKG_DAG_LANG : GPKG_DAG_KORT)[d.getDay()];
+}
+// De code van drie letters uit de sessie-id: 20261022_134012_nyk_pkt_p → NYK.
+function gpkgCode(sid) {
+  var m = /^\d{8}_\d{6}_([a-z]{3})(?:_|$)/i.exec(sid || '');
+  return m ? m[1].toUpperCase() : '';
+}
+// Uur en minuut uit een tijdstip: "2026-10-22T13:40:12", "2026-10-22 13:40:12" of "13:40:12".
+function gpkgUur(t) {
+  var m = /(?:^|[T ])(\d{1,2}):(\d{2})/.exec(String(t || ''));
+  return m ? (m[1].length === 1 ? '0' : '') + m[1] + ':' + m[2] : '';
+}
+// Regel in de legenda van de opmaak, onder GPS-spoor: dag en datum, eerste en
+// laatste tik (van wat op de kaart staat), de code en de teller. Zonder het soort
+// telling, en zonder jaar: dat staat in de titel, en de legenda reikt al tot de
+// rand van het A4. tijden: de tijdstippen van de tikken van deze telling.
+function gpkgSpoorLabel(sid, tijden) {
+  var s = sessions[sid], m = (s && s.meta) || {};
+  var d = fmtDatum(m.datum, m.start_tijd), dag = gpkgDag(d);
+  var uren = (tijden || []).slice().sort().map(gpkgUur).filter(Boolean);
+  var tik = !uren.length ? '' : (uren[0] === uren[uren.length - 1] ? uren[0] : uren[0] + '\u2013' + uren[uren.length - 1]);
+  var teller = /^\(?onbekend\)?$/i.test(String(m.teller || '').trim()) ? '' : m.teller;
+  return [dag ? dag + ' ' + d.slice(0, 5) : d, tik, gpkgCode(sid), teller].filter(Boolean).join(' \u00b7 ');
+}
+
 function gpkgVeldnaam(app, type) {
   return (app + '_' + type).toLowerCase().replace(/[^a-z0-9_]/g, '_');
 }
@@ -6430,7 +6465,12 @@ function gpkgLagen() {
                                       .sort(function (a, b) { return a.orde - b.orde; })) });
   }
 
-  // ── route: het GPS-spoor per telling
+  // ── route: het GPS-spoor per telling. In de legenda: dag, datum, eerste en
+  // laatste tik van wat op de kaart staat, code, teller (gpkgSpoorLabel, v3.26).
+  var tijden = {};
+  wRijen.forEach(function (w) {
+    if (w.waarden.tijdstip) (tijden[w.waarden.sessie_id] = tijden[w.waarden.sessie_id] || []).push(w.waarden.tijdstip);
+  });
   var rRijen = [], rCats = [];
   Object.keys(gpsLayers).forEach(function (sid) {
     var pl = gpsLayers[sid];
@@ -6439,7 +6479,7 @@ function gpkgLagen() {
     if (pts.length < 2) return;
     var kleur = (pl.options && pl.options.color) || '#4a9eff';
     rRijen.push({ geom: { lijn: pts }, waarden: { sessie_id: sid, app_type: sessions[sid].appType, kleur: kleur } });
-    rCats.push({ waarde: sid, label: gpkgSessieLabel(sid), kleur: kleur, mm: '0.4', streep: true, alfa: 0.7 });
+    rCats.push({ waarde: sid, label: gpkgSpoorLabel(sid, tijden[sid]), kleur: kleur, mm: '0.4', streep: true, alfa: 0.7 });
   });
   if (rRijen.length) {
     lijst.push({ naam: 'route', geometrie: 'LINESTRING', omschrijving: 'GPS-spoor per telling',
@@ -6686,6 +6726,7 @@ async function gpkgProjectInhoud(lagen, bestand) {
   var soorten = zichtbaar.map(function (s) { return GPKG_APP_LABEL[sessions[s].appType] || sessions[s].appType; })
     .filter(function (d, i, a) { return a.indexOf(d) === i; });
   var vandaag = fmtDatum(new Date().toISOString().slice(0, 10));
+  var metDag = function (d) { var dag = gpkgDag(d, true); return dag ? dag + ' ' + d : d; };
   var qgs = GPKG_PROJECT.maak({
     bestand: bestand,
     lagen: kaartlagen.map(function (l) {
@@ -6693,7 +6734,9 @@ async function gpkgProjectInhoud(lagen, bestand) {
     }),
     legenda: ['waarnemingen', 'route', 'wegvakken'],
     punten: punten,
-    titel: 'Telrapport · ' + (datums.length > 1 ? datums[0] + ' – ' + datums[datums.length - 1] : (datums[0] || vandaag)),
+    // v3.26: met de dag van de week voluit ("donderdag 22-10-2026")
+    titel: 'Telrapport · ' + (datums.length > 1 ? metDag(datums[0]) + ' – ' + metDag(datums[datums.length - 1])
+                                                : metDag(datums[0] || vandaag)),
     ondertitel: zichtbaar.length + (zichtbaar.length === 1 ? ' telling' : ' tellingen') + ': ' + soorten.join(', ')
               + (kaartlagen.some(function (l) { return l.naam === 'clusters'; })
                  ? ' · clusterbol = aantal waarnemingen op die plek, kleuren als bij Waarnemingen' : ''),

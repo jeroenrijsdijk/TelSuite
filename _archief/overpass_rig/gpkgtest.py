@@ -250,6 +250,25 @@ with sync_playwright() as p:
     eis('sessies: alle drie, op_kaart = 1', sorted(s for s, _ in ses) == sorted(kaart['sessies']) and all(o == 1 for _, o in ses), ses)
     info = dict(db.execute('select sleutel, waarde from export_info'))
     eis('export_info: clusterafstand en formaatversie', info.get('clusterafstand_m') == '8' and info.get('formaat_versie') == '1', info)
+    # v3.26: de regels onder GPS-spoor in de legenda (Jay: tijden van eerste en
+    # laatste tik, de dag bij de datum, geen "pocket", de code van drie letters)
+    _, xr = qml_categorieen(st['route'][1])
+    spoor = {c.get('value'): c.get('label') for c in xr.iter('category')}
+    DAGEN = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag']
+    goed_lab, fout_lab = 0, []
+    for sid, lab in spoor.items():
+        uren = sorted(re.search(r'(\d{2}:\d{2}):\d{2}', t).group(1) for (t,) in
+                      db.execute('select tijdstip from waarnemingen where sessie_id = ? and tijdstip != ""', (sid,)))
+        datum = re.match(r'(\d{4})(\d{2})(\d{2})_', sid)
+        import datetime
+        dag = DAGEN[datetime.date(int(datum.group(1)), int(datum.group(2)), int(datum.group(3))).weekday()][:2]
+        verwacht = '%s %s-%s · %s · %s' % (dag, datum.group(3), datum.group(2),
+                                          uren[0] if uren[0] == uren[-1] else uren[0] + '\u2013' + uren[-1],
+                                          re.match(r'\d{8}_\d{6}_([a-z]{3})', sid).group(1).upper())
+        if lab.startswith(verwacht) and not re.search(r'pocket|parkeren|winkelstraat', lab): goed_lab += 1
+        else: fout_lab.append((lab, verwacht))
+    eis('GPS-spoor in de legenda: "do 22-10 · eerste–laatste tik · CODE", zonder soort telling (%d)' % len(spoor),
+        goed_lab == len(spoor) == 3, fout_lab or list(spoor.values()))
     db.close()
     namen, zq = project_qgs(pad)
     eis('qgis_projects: één project "telrapport"', namen == ['telrapport'], namen)
@@ -265,6 +284,10 @@ with sync_playwright() as p:
         sorted(t for _, t in bronnen) == sorted(lagen) and all(n == 'alles.gpkg' for n, _ in bronnen), bronnen)
     eis("laag-id's eindigen op _telrapport (korte id's vervangt QGIS)",
         all(i.endswith('_telrapport') for i in re.findall(r'<id>([^<]+)</id>', qgs)))
+    titel = re.search(r'labelText="(Telrapport[^"]*)"', qgs)
+    eis('titel met de dag voluit: "%s"' % (titel and titel.group(1)),
+        titel and re.match(r'^Telrapport · (maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag|zondag) \d{2}-\d{2}-\d{4}$', titel.group(1)),
+        titel and titel.group(1))
 
     print('\n== D. Wat je uitzet, gaat niet mee ==')
     weg = pg.evaluate("Object.keys(sessions).find(s => sessions[s].appType === 'auto')")
