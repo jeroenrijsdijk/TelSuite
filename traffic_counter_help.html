@@ -811,14 +811,14 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <hr>
 <section id="rapport-gpkg">
 <h3>Kaart bewaren als GeoPackage (QGIS)</h3>
-<p>Onder <em>Kaart</em> staat <strong>bewaar kaart als GeoPackage (QGIS)</strong>. Je krijgt één bestand met de kaart zoals je hem nu ziet: de stippen, de clusterbollen, de gekleurde wegvakken en het GPS-spoor. Wat je hebt uitgezet (een telling, een type, een tijdvenster) gaat niet mee.</p>
+<p>Onder <em>Kaart</em> staat <strong>bewaar kaart als GeoPackage (QGIS)</strong>. Je krijgt één bestand met de kaart zoals je hem nu ziet: de stippen, de clusterbollen, de gekleurde wegvakken, het GPS-spoor en de capaciteit. Wat je hebt uitgezet (een telling, een type, een tijdvenster) gaat niet mee.</p>
 <p><strong>Kies de naam bij het opslaan.</strong> In Edge en Chrome opent een <em>Opslaan als</em>-venster; in andere browsers vraagt telrapport de naam en downloadt het bestand. In het bestand zit een QGIS-project dat zijn lagen onder precies die naam zoekt. <strong>Hernoem het bestand daarna niet</strong>: verplaatsen naar een andere map mag wel. (Ook als je het toch hernoemt, kun je het bestand nog in QGIS slepen; alleen het project vindt zijn lagen dan niet.)</p>
 <p>Er zijn twee manieren om het in QGIS te openen:</p>
 <ul>
 <li><strong>Het project</strong>: <em>Project → Openen vanuit → GeoPackage</em>, of in het Browser-paneel het bestand openklappen en dubbelklikken op <em>telrapport</em>. Je krijgt de hele kaart in één keer: de lagen in de goede volgorde, in RD (EPSG:28992), met PDOK BRT-A grijs als ondergrond (luchtfoto en OpenStreetMap staan uitgevinkt klaar), ingezoomd op de telling. Onder <em>Project → Opmaak</em> staat <strong>A4 liggend</strong>: kaart op een rond schaalgetal, titel, legenda, schaalstok, noordpijl en bronvermelding, klaar om als PDF of afbeelding te exporteren. De titel noemt de dag voluit (<em>Telrapport · donderdag 22-10-2026</em>). In de legenda staat onder <em>GPS-spoor</em> per telling de dag en datum, de tijd van de eerste en de laatste tik op de kaart, en de code van drie letters uit de sessie-id: <em>do 22-10 · 13:41–14:05 · NYK</em> (sinds v3.26). Het jaar staat in de titel.</li>
 <li><strong>Slepen</strong>: sleep het bestand in QGIS en kies de lagen. Elke laag komt binnen met opmaak (dezelfde kleuren als hier, de clusterbollen als taartdiagram met het totaal erin). Handig als je de lagen in een bestaand project wilt hebben.</li>
 </ul>
-<p>In het bestand staan ook een tabel <code>sessies</code> (alle geladen tellingen) en <code>export_info</code> (met welke instellingen de export gemaakt is). Capaciteitsterreinen gaan nog niet mee; de knop meldt het als ze op de kaart staan. Static-tellingen horen er niet in. In de correctiemodus werkt de knop niet: sluit die eerst af.</p>
+<p>In het bestand staan ook een tabel <code>sessies</code> (alle geladen tellingen) en <code>export_info</code> (met welke instellingen de export gemaakt is). Sinds v3.28 gaan de capaciteitsterreinen mee, als laag <em>Capaciteit</em> (tabel <code>terreinen</code>): paarse vlakken met het totaal erin, en in de tabel de capaciteit per soort. Static-tellingen horen er niet in. In de correctiemodus werkt de knop niet: sluit die eerst af.</p>
 <p>De eerste keer laadt de knop een hulpbibliotheek (sql.js, via cdnjs). Daarvoor moet je online zijn. Je tellingen gaan daarbij nergens heen: het bestand wordt in je browser gemaakt. De ondergrond haalt QGIS later zelf op bij PDOK of OpenStreetMap.</p>
 </section>
 <hr>
@@ -1044,6 +1044,7 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <tr><td><strong>Wegtype-voorkeur</strong></td><td>Een autotelling blijft op de rijbaan, een fietstelling op het fietspad, ook als de GPS naar de andere kant trekt (sinds v2.67). Is er alleen het andere wegtype, dan wordt dat alsnog gekozen. Lopende tellingen hebben geen voorkeur.</td></tr>
 <tr><td><strong>Versiestempel</strong></td><td>Elke gereconstrueerde ZIP draagt in <code>_sessie.csv</code> (kolom <code>reconstructie</code>) en in <code>_reconstructie_log.csv</code> de release waarin de reconstructor voor het laatst veranderde.</td></tr>
 <tr><td><strong>Static</strong></td><td>Een stilstaand-telling is één vaste plek zonder route; de reconstructor weigert die met een melding. Open hem direct in telrapport.</td></tr>
+<tr><td><strong>Kaartje</strong></td><td>In de ZIP zit een eenvoudig plaatje van het resultaat, <code>&lt;sessie_id&gt;_kaart.png</code>: het wegennet in grijs, het GPS-spoor gestreept en de tikken in hun kleur, zonder ondergrond. Om in een ZIP-viewer snel te zien wat erin zit (sinds v3.28).</td></tr>
 </table>
 </section>
 <!-- ══════════════════════════════════════════════════════

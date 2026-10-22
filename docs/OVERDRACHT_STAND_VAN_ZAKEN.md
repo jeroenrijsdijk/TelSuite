@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.27.** Pocket bewaart het wegennet in de noodkopie (`pocket_sessie_netwerk`, met knooppunten): na Doortellen of Download ZIP is `_netwerk.csv` compleet en loopt de hertoekenning over de hele route. Tegels ouder dan 90 dagen gaan uit de cache (gedeeld blok `tegels opruimen`, vijf bestanden). `hersteltest` was wisselvallig door het exporttijdstip in de kop van `_kaart.png`; de test vergelijkt de kaart nu zonder kop (`overdracht_v3_27.md`). v3.26: opmaak van de GeoPackage. v3.25: lettertypen op de eigen server. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
+**Laatste release: v3.28.** De capaciteit gaat mee in de GeoPackage (laag `terreinen`, in het project *Capaciteit*); de `_recon.zip` heeft een eenvoudig kaartje, `<sid>_kaart.png` (Jay: "Netwerk en tikken is genoeg"); `over.html` en `about.html` volgen de indeling van de voorpagina, met plannen vooraf (`overdracht_v3_28.md`). v3.27: het wegennet van pocket in de noodkopie, oude tegels weg. v3.26: opmaak van de GeoPackage. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
 
 ---
 
@@ -160,7 +160,7 @@ Opgeruimd op 21 oktober 2026.
 
 **Klein / afgebakend**
 - ~~Kop van de handleiding~~ — aangepast door Jay (de bovenste kop). Boven de inhoudsopgave staat nog een tweede kop "Traffic Counter Help", met daaronder "Contents". Zichtbare tekst, dus Jay's keuze.
-- Reconstructiescript een losse kaart-PNG naast de `_recon.zip` laten schrijven (afgesproken bij v2.55, nu `_kaart.png` niet meer in de verzameling meegaat). Jay bij v3.27: "mag heel basic zijn - gewoon om met een viewer even snel te kijken wat er in de zip zit. Ondergrond is niet nodig. Netwerk en tikken is genoeg." Gepland voor v3.28.
+- ~~Reconstructiescript een kaart-PNG bij de `_recon.zip`~~ — gedaan in v3.28: `<sid>_kaart.png` in de ZIP (Jay's keuze), netwerk, spoor en tikken, zonder ondergrond.
 - Besluiten over het losse transect-formaat (`*_trn.zip`): geen enkele app maakt het nog (pocket's transect-modus `_pkt_t` verving het), maar telrapport leest het wel. Liggen er nog `_trn`-ZIP's in het archief? Zo nee: sectie uit de referentie én de leescode in telrapport eruit.
 - Veiligheidsblok-kop in de handleiding: `<h1>` → `<h4>` voor consistentie (Jay's keuze — hij schreef die sectie zelf). Sinds de duidelijkere koppen (na v3.16) valt hij nog meer op dan de hoofdstukken.
 - Overpass-terugval voor het losse transect-formaat (`_trn`, telrapport `loadTransectZip`) gaat mee met het besluit over `_trn` hierboven; v3.17 liet hem staan.
@@ -223,11 +223,11 @@ Opgeruimd op 21 oktober 2026.
 - Zijde-offset live in pocket-parkeren? De ingrediënten zijn er (de gesnapte positie en de wegrichting kent pocket al), zo'n vijftien regels. Twee bezwaren: het voegt `lat_marker`/`lon_marker`/`zijde` toe aan het rauwe pocket-schema en vraagt dus KNIME-afstemming, én "links" is bij pocket relatief aan de looprichting, die de app op het moment van tikken minder zeker kent dan de reconstructor achteraf uit de hele route — precies de reden dat de reconstructor bestaat. Winst is vooral cosmetisch: ongereconstrueerde pocket-parkeertellingen zien er in telrapport dan net zo uit als parkeertellingen.
 - "Save as .png" in telrapport: het kaartbeeld exporteren. De knop is triviaal, het plaatje niet. Tegels zijn niet CORS-schoon (`L.tileLayer` zet geen `crossOrigin`), vectoren zitten in vijf SVG-panes, labels zijn acht `divIcon`-varianten. Drie routes: handgetekend canvas zonder ondergrond (patroon van de veld-apps), eigen tegel-compositor (~150 regels, geen afhankelijkheid), of `html2canvas` van een CDN. Voorstel: tegel-compositor met automatische terugval naar zonder-ondergrond bij een SecurityError. Eerst de CORS-test draaien op OSM/CARTO/PDOK; de bronvermelding moet sowieso in de PNG gebakken worden.
   *v3.1:* voor het rapportpad is er nu de GeoPackage voor QGIS (daar zitten ondergrond, schaalstok en PDF-export al in). Een PNG uit telrapport blijft nuttig voor het snelle plaatje.
-- **GeoPackage: capaciteitsterreinen** als eigen laag (`terreinen`); nu meldt de export dat ze niet meegaan. (Static hoeft niet, Jay v3.2.)
+- ~~GeoPackage: capaciteitsterreinen als eigen laag~~ — gedaan in v3.28: laag `terreinen` (POLYGON, capaciteit per soort), in het project *Capaciteit*.
 - **GeoPackage-opmaak:** bij veel tellingen loopt de legenda (GPS-spoor per telling) uit het A4-vak; dan twee kolommen of het spoor uit de legenda. Eventueel ook een A3-opmaak.
 - QGIS-loader (`telonline_qgis_loader.py`) op QGIS 4 testen (Qt6, opgeschoonde Python-API); eventueel dezelfde stijlsjablonen gebruiken als de GeoPackage-export, zodat de opmaak op één plek bestaat.
 - Parkeren uit pocket halen naar een eigen tool. Sinds v2.69 heeft het een eigen ingang op de voorpagina (`#parkeren`), wat het grootste deel van de wens dekt. Een echte afsplitsing loont pas als parkeren een eigen kant op gaat (bijv. de zijde-offset live), want dan moeten GPS, snap, fetch-discipline en noodopslag in twee bestanden gelijk blijven.
-- `over.html` (en sinds v3.24 `about.html`) volgt de nieuwe indeling van de voorpagina nog niet (v2.69): drie groepen, *Verkeer tellen*, *Parkeren tellen* en *Achter je bureau*, met telplanning. De handleiding is in v2.74 bijgewerkt. Pas beide tegelijk aan.
+- ~~`over.html` en `about.html` volgens de voorpagina~~ — gedaan in v3.28: stap 1 in *Verkeer tellen* en *Parkeren tellen*, en een alinea over plannen vooraf met Telplanning.
 - ~~Wegennet-cache ruimt oude tegels nooit op~~ — gedaan in v3.27: gedeeld blok `tegels opruimen`, tegels ouder dan 90 dagen, hooguit één keer per dag.
 - ~~`hersteltest.py` is soms wisselvallig~~ — opgelost in v3.27. De oorzaak was het exporttijdstip in de kop van `_kaart.png` (een minuutgrens tussen de twee exports), niet de wachttijden; de test vergelijkt de kaart nu pixelrij voor pixelrij zonder de kop.
 - ~~Google Fonts zelf hosten~~ — gedaan in v3.25: `fonts/`, Google uit de privacyverklaring.
@@ -241,7 +241,7 @@ Opgeruimd op 21 oktober 2026.
 
 ---
 
-## 6. Releases v2.32 → v3.27 in één oogopslag
+## 6. Releases v2.32 → v3.28 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -321,6 +321,7 @@ Opgeruimd op 21 oktober 2026.
 | v3.25 | **Lettertypen op de eigen server** (Jay: "google fonts zelf hosten zou ik willen, maar maakt dat het installeren bij anderen niet ingewikkelder?"; "ga"): `fonts/` met Oswald (variabel, Latijn en uitgebreid Latijn), Share Tech Mono, `fonts.css` en de licenties; 11 pagina's linken `fonts/fonts.css`; Google Fonts uit de privacyverklaring; `laadtest` gebruikt de lettertypen uit de repo, de CI installeert ze niet meer. Nieuwe `lettertypetest.py` (43) |
 | v3.26 | **Opmaak GeoPackage** (Jay: "1. Tijdstippen van eerste en laatste tik. 2. De naam van de dag van de week naast de datum 3. het woordje "pocket" verwijderen achter het gps spoor. 4. De 3-letterige codering van de telling"): titel *Telrapport · donderdag 22-10-2026*; legenda GPS-spoor *do 22-10 · 13:41–14:05 · NYK* (zonder jaar, dat staat in de titel; anders liep de legenda van het A4). `gpkgSpoorLabel`; de tabel `sessies` houdt zijn `label`. `gpkgtest.py` (82) |
 | v3.27 | **Pocket-netwerk in de noodkopie, oude tegels weg** (uit de lijst kleine klussen): pocket bewaart `snap.elements` met knooppunten onder `pocket_sessie_netwerk`, dus `_netwerk.csv` compleet na Doortellen en Download ZIP, hertoekenning over de hele route; bij volle opslag wijkt het netwerk voor de tikken; Overpass-terugval in telrapport blijft voor oude ZIP's. Gedeeld blok `tegels opruimen` (vijf bestanden): tegels ouder dan 90 dagen, één keer per dag; privacyverklaring bijgewerkt. `hersteltest` wisselvallig door het exporttijdstip in `_kaart.png`: kaart nu zonder kop vergeleken; pocket-delen wachten op het netwerk. `hersteltest.py` (157), `onderhoudtest.py` deel C (31) |
+| v3.28 | **Capaciteit in de GeoPackage, kaartje in de `_recon.zip`, introductie herschikt** (uit de lijst kleine klussen; Jay over het kaartje: "Ondergrond is niet nodig. Netwerk en tikken is genoeg", en: in de ZIP): laag `terreinen` (POLYGON, één gesloten ring, capaciteit per soort, paars met het totaal in een cirkel), schrijver kent vlakken, geen melding meer; `kaartPng` in telreconstructie, `<sid>_kaart.png` in de ZIP (wit vlak, wegennet grijs, spoor oranje, tikken in hun kleur, kop en legenda, geen exporttijdstip), `RECON_VERSIE` v3.28; `over.html`/`about.html`: groepen van de voorpagina, plannen vooraf. `gpkgtest.py` (93), nieuwe `reconkaarttest.py` (16) |
 
 ---
 

@@ -3,11 +3,15 @@
 
   A. Echte tellingen maken met de veld-apps (nagebootste GPS langs een straat,
      nep-wegennet): parkeertelling, pocket-parkeren en pocket-winkelstraat.
+     Daarnaast een capaciteitstelling, als ZIP in elkaar gezet: een terrein
+     (POLYGON in _netwerk.csv) en een groep zonder geometrie.
   B. Die drie in telrapport laden en "bewaar kaart als GeoPackage" doen.
   C. Het bestand controleren met SQLite: GeoPackage-kenmerken, tabellen,
      omhullende, precies de stippen/bollen/wegvakken/routes die op de kaart
      staan (tot op de coördinaat), en een standaardstijl per laag die elke
-     categorie in de data dekt.
+     categorie in de data dekt. Sinds v3.28 ook de laag terreinen: precies de
+     capaciteitsvlakken op de kaart, met de capaciteit per soort, als gesloten
+     ring.
   D. Wat je uitzet gaat niet mee (de sessie staat wel in 'sessies', op_kaart 0).
   E. In de correctiemodus weigert de export; pocket-stippen blijven daar niet
      versleepbaar (de export-tag heet bewust niet _telregel).
@@ -85,7 +89,31 @@ def gp_geom(blob):
     if typ == 1:
         return srs, 'POINT', [struct.unpack(bo + 'dd', blob[o:o + 16])]
     n = struct.unpack(bo + 'I', blob[o:o + 4])[0]; o += 4
+    if typ == 3:                                   # v3.28: Polygon, hier altijd één ring
+        assert n == 1, 'meer dan één ring'
+        m = struct.unpack(bo + 'I', blob[o:o + 4])[0]; o += 4
+        return srs, 'POLYGON', [struct.unpack(bo + 'dd', blob[o + 16 * i:o + 16 * i + 16]) for i in range(m)]
     return srs, 'LINESTRING', [struct.unpack(bo + 'dd', blob[o + 16 * i:o + 16 * i + 16]) for i in range(n)]
+
+# v3.28: een capaciteitstelling met één terrein (P Test, 20 regulier en 2
+# laadpaal) en één groep zonder geometrie (niet gesnapt: niet op de kaart).
+def maak_cap_zip(datum):
+    sid = '%s_101500_tcp' % datum.replace('-', '')
+    ring = [(LON + 0.0004, LAT + 0.0008), (LON + 0.0009, LAT + 0.0008), (LON + 0.0009, LAT + 0.0012),
+            (LON + 0.0004, LAT + 0.0012), (LON + 0.0004, LAT + 0.0008)]
+    pad = os.path.join(UIT, sid + '_cap.zip')
+    z = zipfile.ZipFile(pad, 'w')
+    z.writestr(sid + '_sessie.csv', 'sessie_id;teller;datum;start_tijd;eind_tijd;app_type;n_waarnemingen\n'
+               '%s;Jay;%s;%s 10:15:00;%s 10:25:00;capaciteit;3\n' % (sid, datum, datum, datum))
+    z.writestr(sid + '_capaciteit.csv', 'sessie_id;osm_way_id;naam;zijde;soort;capaciteit;eerste_waarneming;laatste_waarneming\n'
+               '%s;;(niet gesnapped);L+R;regulier;3;%sT10:16:00;%sT10:17:00\n' % (sid, datum, datum))
+    z.writestr(sid + '_terrein.csv', 'sessie_id;osm_way_id;naam;zijde;soort;capaciteit;eerste_waarneming;laatste_waarneming\n'
+               '%s;777001;P Test;nvt;regulier;20;%sT10:20:00;%sT10:24:00\n'
+               '%s;777001;P Test;nvt;laadpaal;2;%sT10:20:00;%sT10:24:00\n' % (sid, datum, datum, sid, datum, datum))
+    z.writestr(sid + '_netwerk.csv', 'osm_way_id;highway;geometrie_wkt\n777001;parking;POLYGON ((%s))\n'
+               % ', '.join('%.6f %.6f' % p for p in ring))
+    z.close()
+    return pad, sid, ring
 
 def qml_categorieen(qml):
     x = ET.fromstring(re.sub(r'<!DOCTYPE[^>]*>', '', qml))
@@ -106,7 +134,10 @@ OP_KAART = r"""(() => {
   Object.keys(wayLayers).forEach(k => { const g = (wayData[k] || {}).geometry || [];
     if (map.hasLayer(wayLayers[k]) && g.length >= 2 && !(g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) wv.push(k); });
   Object.keys(gpsLayers).forEach(sid => { if (map.hasLayer(gpsLayers[sid]) && sessions[sid]) rt.push(sid); });
-  return { dots, cl, wv, rt, sessies: Object.keys(sessions) };
+  const ter = [];
+  Object.keys(capLayers).forEach(sid => (capLayers[sid] || []).forEach(l => {
+    if (l._capGroep && map.hasLayer(l)) ter.push([sid, l._capGroep.naam, l.getLatLngs()[0].map(ll => [r6(ll.lng), r6(ll.lat)])]); }));
+  return { dots, cl, wv, rt, ter, sessies: Object.keys(sessions) };
 })()"""
 
 # Het Opslaan-als-venster (showSaveFilePicker) bestaat niet zonder scherm; dit
@@ -165,6 +196,8 @@ with sync_playwright() as p:
         zips.append(z); jsfout += f
         eis('%s -> %s' % (app, os.path.basename(z)), z.endswith('.zip'))
     eis('geen JS-fouten in de veld-apps', not jsfout, jsfout)
+    cap_zip, cap_sid, cap_ring = maak_cap_zip(re.search(r'(\d{4})(\d{2})(\d{2})_', os.path.basename(zips[0])).expand(r'\1-\2-\3'))
+    zips.append(cap_zip)
 
     print('\n== B. Telrapport: laden en exporteren ==')
     ctx = b.new_context(viewport={'width': 1400, 'height': 900}, accept_downloads=True)
@@ -183,7 +216,8 @@ with sync_playwright() as p:
     pg.goto(BASIS + 'telrapport.html', wait_until='load'); pg.wait_for_timeout(800)
     pg.set_input_files('#file-input', zips); pg.wait_for_timeout(3500)
     kaart = pg.evaluate(OP_KAART)
-    eis('drie tellingen geladen', len(kaart['sessies']) == 3, kaart['sessies'])
+    eis('vier tellingen geladen (drie uit de veld-apps, een capaciteitstelling)', len(kaart['sessies']) == 4, kaart['sessies'])
+    eis('capaciteit: het terrein staat op de kaart, de groep zonder geometrie niet', [t[1] for t in kaart['ter']] == ['P Test'], kaart['ter'])
     eis('er staan stippen, bollen, wegvakken en routes op de kaart (%d/%d/%d/%d)'
         % (len(kaart['dots']), len(kaart['cl']), len(kaart['wv']), len(kaart['rt'])),
         kaart['dots'] and kaart['cl'] and kaart['wv'] and kaart['rt'])
@@ -198,14 +232,14 @@ with sync_playwright() as p:
     eis('integrity_check ok', db.execute('pragma integrity_check').fetchone()[0] == 'ok')
     srs = {r[0] for r in db.execute('select srs_id from gpkg_spatial_ref_sys')}
     eis('verplichte ruimtelijke referenties -1, 0, 4326', {-1, 0, 4326} <= srs, srs)
-    lagen = ['waarnemingen', 'clusters', 'wegvakken', 'route']
-    eis('vier kaartlagen als features', all(inhoud.get(t, [None, None])[1] == 'features' for t in lagen),
+    lagen = ['waarnemingen', 'clusters', 'wegvakken', 'route', 'terreinen']
+    eis('vijf kaartlagen als features', all(inhoud.get(t, [None, None])[1] == 'features' for t in lagen),
         {t: inhoud.get(t, [None, None])[1] for t in lagen})
     eis('sessies, export_info en layer_styles als attributes',
         all(inhoud.get(t, [None, None])[1] == 'attributes' for t in ['sessies', 'export_info', 'layer_styles']))
     gc = {r[0]: r for r in db.execute('select * from gpkg_geometry_columns')}
-    eis('geometriekolommen POINT/POINT/LINESTRING/LINESTRING in EPSG:4326',
-        [gc[t][2] for t in lagen] == ['POINT', 'POINT', 'LINESTRING', 'LINESTRING'] and all(gc[t][3] == 4326 for t in lagen),
+    eis('geometriekolommen POINT/POINT/LINESTRING/LINESTRING/POLYGON in EPSG:4326',
+        [gc[t][2] for t in lagen] == ['POINT', 'POINT', 'LINESTRING', 'LINESTRING', 'POLYGON'] and all(gc[t][3] == 4326 for t in lagen),
         {t: gc.get(t) for t in lagen})
 
     def coords(tabel):
@@ -230,6 +264,27 @@ with sync_playwright() as p:
     eis('wegvakken zijn lijnen met >= 2 punten', all(t == 'LINESTRING' and len(c) >= 2 for _, t, c in gw))
     eis('route: één lijn per telling op de kaart',
         sorted(r[0] for r in db.execute('select sessie_id from route')) == sorted(kaart['rt']))
+    # v3.28: terreinen
+    gt, rt_ = coords('terreinen')
+    tkol = [c[1] for c in db.execute('pragma table_info(terreinen)')]
+    trijen = [dict(zip(tkol, r[1:])) for r in rt_]
+    eis('terreinen = de capaciteitsvlakken op de kaart (%d)' % len(trijen),
+        sorted((r['sessie_id'], r['naam']) for r in trijen) == sorted((t[0], t[1]) for t in kaart['ter']), (trijen, kaart['ter']))
+    ring_bestand = [[round(x, 7), round(y, 7)] for x, y in gt[0][2]] if gt else []
+    ring_kaart = kaart['ter'][0][2] if kaart['ter'] else []
+    eis('terrein: POLYGON, gesloten ring, dezelfde punten als op de kaart',
+        gt and gt[0][1] == 'POLYGON' and ring_bestand[0] == ring_bestand[-1]
+        and ring_bestand[:len(ring_kaart)] == ring_kaart and len(ring_bestand) in (len(ring_kaart), len(ring_kaart) + 1),
+        (ring_bestand, ring_kaart))
+    eis('terrein: de punten van _netwerk.csv',
+        [[round(x, 6), round(y, 6)] for x, y in ring_bestand] == [[round(x, 6), round(y, 6)] for x, y in cap_ring], ring_bestand)
+    t0 = trijen[0] if trijen else {}
+    eis('terrein: capaciteit per soort en totaal (20 + 2), osm_way_id, datum, teller',
+        (t0.get('regulier'), t0.get('laadpaal'), t0.get('gehandicapt'), t0.get('gereserveerd'), t0.get('totaal'),
+         t0.get('osm_way_id'), t0.get('teller')) == (20, 2, 0, 0, 22, '777001', 'Jay') and t0.get('datum'), t0)
+    bb_t = inhoud['terreinen'][5:9]
+    eis('terreinen: omhullende in gpkg_contents',
+        abs(bb_t[0] - min(p[0] for p in cap_ring)) < 1e-6 and abs(bb_t[3] - max(p[1] for p in cap_ring)) < 1e-6, bb_t)
     bb = inhoud['waarnemingen'][5:9]
     xs = [c[0][0] for _, _, c in g]; ys = [c[0][1] for _, _, c in g]
     eis('omhullende in gpkg_contents klopt', abs(bb[0] - min(xs)) < 1e-9 and abs(bb[3] - max(ys)) < 1e-9, (bb, min(xs), max(ys)))
@@ -247,9 +302,16 @@ with sync_playwright() as p:
     app_kleur = pg.evaluate("(() => { const u = {}; for (const a in APP_CONFIG) for (const t in APP_CONFIG[a].colors) u[(a+'_'+t).toLowerCase()] = APP_CONFIG[a].colors[t]; return u; })()")
     eis('taartkleuren = de kleuren van telrapport', all(kleur[v] == app_kleur.get(v) for v in kleur), kleur)
     ses = db.execute('select sessie_id, op_kaart from sessies').fetchall()
-    eis('sessies: alle drie, op_kaart = 1', sorted(s for s, _ in ses) == sorted(kaart['sessies']) and all(o == 1 for _, o in ses), ses)
+    eis('sessies: alle vier, op_kaart = 1', sorted(s for s, _ in ses) == sorted(kaart['sessies']) and all(o == 1 for _, o in ses), ses)
     info = dict(db.execute('select sleutel, waarde from export_info'))
     eis('export_info: clusterafstand en formaatversie', info.get('clusterafstand_m') == '8' and info.get('formaat_versie') == '1', info)
+    eis('export_info: niets niet meegenomen (tot v3.28: de capaciteitstelling)', info.get('niet_meegenomen') == '', info.get('niet_meegenomen'))
+    eis('na het bewaren geen melding over wat niet meeging', not any('Nog niet in deze export' in m for m in meldingen), meldingen)
+    _, xt = qml_categorieen(st['terreinen'][1])
+    vul = [{e.get('name'): e.get('value') for e in sym.iter('Option')} for sym in xt.iter('symbol')]
+    eis('terreinen: paars vlak (#8e44ad, doorzichtig) met rand, totaal als label',
+        vul and vul[0].get('color', '').startswith('142,68,173,') and vul[0].get('outline_color', '').startswith('142,68,173,255')
+        and xt.find('.//text-style') is not None and '"totaal"' in xt.find('.//text-style').get('fieldName', ''), vul)
     # v3.26: de regels onder GPS-spoor in de legenda (Jay: tijden van eerste en
     # laatste tik, de dag bij de datum, geen "pocket", de code van drie letters)
     _, xr = qml_categorieen(st['route'][1])
@@ -388,6 +450,10 @@ else:
         eis('clusters: geen stip eronder, wel het totaal als label', L['clusters']['opmaak'] == 'nullSymbol' and L['clusters']['labels'],
             (L['clusters']['opmaak'], L['clusters']['labels']))
         lb = L['clusters'].get('label') or {}
+        tq = L.get('terreinen', {})
+        eis('terreinen: QGIS leest een paars vlak met het totaal als label in een cirkel',
+            tq.get('opmaak') == 'singleSymbol' and tq.get('vulkleur') == '#8e44ad' and tq.get('labels')
+            and (tq.get('label') or {}).get('achtergrond') is True and '"totaal"' in (tq.get('label') or {}).get('veld', ''), tq)
         eis('clusters: het cijfer is vet via HTML <b> (fontWeight verschilt tussen QGIS 3 en 4)',
             lb.get('html') and lb.get('expressie') and '<b>' in lb.get('veld', '') and '"totaal"' in lb.get('veld', ''), lb)
         eis('kaart gerenderd: %s' % png, q.get('png') and os.path.getsize(png) > 20000)
@@ -396,17 +462,17 @@ else:
         pj = q.get('project') or {}
         eis('project geopend vanuit een andere map', pj.get('gelezen') is True, pj.get('gelezen'))
         eis('project-CRS RD New (EPSG:28992)', pj.get('crs') == 'EPSG:28992', pj.get('crs'))
-        eis('lagenboom: bollen, stippen, spoor, wegvakken, dan de ondergronden (alleen PDOK grijs aan)',
-            pj.get('boom') == [['Clusterbollen', True], ['Waarnemingen', True], ['GPS-spoor', True], ['Wegvakken', True],
+        eis('lagenboom: bollen, stippen, spoor, wegvakken, capaciteit, dan de ondergronden (alleen PDOK grijs aan)',
+            pj.get('boom') == [['Clusterbollen', True], ['Waarnemingen', True], ['GPS-spoor', True], ['Wegvakken', True], ['Capaciteit', True],
                                ['PDOK BRT-A grijs', True], ['PDOK luchtfoto', False], ['OpenStreetMap', False]], pj.get('boom'))
         eis('ondergronden in de groep "Ondergrond"', pj.get('groepen') == ['Ondergrond'], pj.get('groepen'))
         PL = pj.get('lagen', {})
         vect = {i: l for i, l in PL.items() if l['aanbieder'] == 'ogr'}
-        eis("vier kaartlagen geldig, met hun id's", sorted(vect) == sorted(t + '_telrapport' for t in lagen)
+        eis("vijf kaartlagen geldig, met hun id's", sorted(vect) == sorted(t + '_telrapport' for t in lagen)
             and all(l['geldig'] for l in vect.values()), {i: l['geldig'] for i, l in vect.items()})
         eis('kaartlagen houden hun opmaak in het project',
-            [vect.get(t + '_telrapport', {}).get('opmaak') for t in ['clusters', 'waarnemingen', 'route', 'wegvakken']]
-            == ['nullSymbol', 'categorizedSymbol', 'categorizedSymbol', 'categorizedSymbol']
+            [vect.get(t + '_telrapport', {}).get('opmaak') for t in ['clusters', 'waarnemingen', 'route', 'wegvakken', 'terreinen']]
+            == ['nullSymbol', 'categorizedSymbol', 'categorizedSymbol', 'categorizedSymbol', 'singleSymbol']
             and vect.get('clusters_telrapport', {}).get('diagram'), vect)
         ras = sorted(i for i, l in PL.items() if l['aanbieder'] == 'wms')
         eis('ondergronden aanwezig (PDOK via WMTS, OSM via XYZ)', ras == ['osm_telrapport', 'pdok_grijs_telrapport', 'pdok_lucht_telrapport']
@@ -417,21 +483,21 @@ else:
             (o.get('kaarten'), o.get('legendas'), o.get('schaalstokken'), o.get('plaatjes'), len(o.get('labels', []))) == (1, 1, 1, 1, 3), o)
         eis('kaart in RD op een rond schaalgetal (1:%s), telling helemaal in beeld' % o.get('schaal'),
             o.get('kaart_crs') == 'EPSG:28992' and o.get('schaal', 1) % 250 == 0 and o.get('kaart_bevat_data'), o)
-        eis('legenda: Waarnemingen, GPS-spoor, Wegvakken, gekoppeld (geen ondergrond, geen dubbele bolkleuren)',
-            o.get('legenda') == ['Waarnemingen', 'GPS-spoor', 'Wegvakken'] and o.get('legenda_gekoppeld'), o.get('legenda'))
+        eis('legenda: Waarnemingen, GPS-spoor, Wegvakken, Capaciteit, gekoppeld (geen ondergrond, geen dubbele bolkleuren)',
+            o.get('legenda') == ['Waarnemingen', 'GPS-spoor', 'Wegvakken', 'Capaciteit'] and o.get('legenda_gekoppeld'), o.get('legenda'))
         eis('titel met datum, bronvermelding met PDOK en OpenStreetMap',
             any(l.startswith('Telrapport · ') for l in o.get('labels', [])) and any('Kadaster' in l and 'OpenStreetMap' in l for l in o.get('labels', [])),
             o.get('labels'))
         eis('opmaak als PNG: %s' % opmaak_png, o.get('png') and os.path.getsize(opmaak_png) > 30000)
         afw = max(((a - x) ** 2 + (b_ - y) ** 2) ** .5 for (a, b_), (x, y) in zip(rd_js, q['rd_punten']))
         eis('RD-benadering in telrapport < 1 m van PROJ (max %.2f m)' % afw, afw < 1.0)
-        print('  BEKEND  hernoemd bestand: het project vindt %s van de 4 lagen. QGIS onthoudt de bestandsnaam;'
+        print('  BEKEND  hernoemd bestand: het project vindt %s van de 5 lagen. QGIS onthoudt de bestandsnaam;'
               ' daarom kies je de naam bij het opslaan.' % pj.get('hernoemd_geldig'))
         r3 = subprocess.run([qpy, os.path.join(HIER, 'gpkg_qgis.py'), pad3], capture_output=True, text=True,
                             env=dict(os.environ, QT_QPA_PLATFORM='offscreen'), timeout=300)
         q3 = json.loads([x for x in r3.stdout.splitlines() if x.startswith('{')][-1]).get('project', {})
         eis('naam met spatie ("Meting Spijkenisse.gpkg"): project vindt alle lagen',
-            sum(1 for l in q3.get('lagen', {}).values() if l['aanbieder'] == 'ogr' and l['geldig']) == 4)
+            sum(1 for l in q3.get('lagen', {}).values() if l['aanbieder'] == 'ogr' and l['geldig']) == 5)
 
 print('\n%d OK, %d FOUT' % (ok, fout))
 if fout == 0:

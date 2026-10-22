@@ -29,7 +29,7 @@ from qgis.core import Qgis
 uit['qgis'] = Qgis.QGIS_VERSION
 
 lagen = {}
-for naam in ['waarnemingen', 'clusters', 'wegvakken', 'route', 'sessies', 'export_info']:
+for naam in ['waarnemingen', 'clusters', 'wegvakken', 'route', 'terreinen', 'sessies', 'export_info']:
     l = QgsVectorLayer(pad + '|layername=' + naam, naam, 'ogr')
     if not l.isValid():
         uit['lagen'][naam] = {'geldig': False}
@@ -40,6 +40,8 @@ for naam in ['waarnemingen', 'clusters', 'wegvakken', 'route', 'sessies', 'expor
     if r and r.type() == 'categorizedSymbol':
         info['veld'] = r.classAttribute()
         info['categorieen'] = [[c.value(), c.label(), c.symbol().color().name()] for c in r.categories()]
+    if r and r.type() == 'singleSymbol':                   # v3.28: terreinen
+        info['vulkleur'] = r.symbol().color().name()
     d = l.diagramRenderer()
     if d:
         ds = d.diagramSettings()[0]
@@ -47,18 +49,20 @@ for naam in ['waarnemingen', 'clusters', 'wegvakken', 'route', 'sessies', 'expor
                            'kleuren': [c.name() for c in ds.categoryColors]}
     if l.labelsEnabled() and l.labeling():
         ls = l.labeling().settings()
-        info['label'] = {'veld': ls.fieldName, 'expressie': ls.isExpression, 'html': ls.format().allowHtmlFormatting()}
+        fmt = ls.format()   # eerst bewaren: background() van een tijdelijk object liet QGIS crashen
+        info['label'] = {'veld': ls.fieldName, 'expressie': ls.isExpression, 'html': fmt.allowHtmlFormatting(),
+                         'achtergrond': fmt.background().enabled()}
     uit['lagen'][naam] = info
     lagen[naam] = l
 
 if len(sys.argv) > 2:
-    volgorde = [lagen[n] for n in ['clusters', 'waarnemingen', 'route', 'wegvakken'] if n in lagen]
+    volgorde = [lagen[n] for n in ['clusters', 'waarnemingen', 'route', 'wegvakken', 'terreinen'] if n in lagen]
     for l in volgorde:
         QgsProject.instance().addMapLayer(l)
     # Inzoomen op de telling zelf (stippen, bollen, route), niet op het hele
     # opgehaalde wegennet: dat is wat je na "zoom naar laag" wilt zien.
     ext = QgsRectangle()
-    for l in [lagen[n] for n in ['waarnemingen', 'clusters', 'route'] if n in lagen] or volgorde:
+    for l in [lagen[n] for n in ['waarnemingen', 'clusters', 'route', 'terreinen'] if n in lagen] or volgorde:
         ext.combineExtentWith(l.extent())
     ext.scale(1.4)
     ms = QgsMapSettings()
