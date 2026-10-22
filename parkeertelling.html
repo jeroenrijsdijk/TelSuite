@@ -586,6 +586,60 @@ function leesTegels(lat, lon, radiusM) {
   });
 }
 
+/* ── Tegels opruimen (v3.27) ──────────────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren,
+   capaciteitstelling, pocket_count en telreconstructie (bewaakt door valideer.py).
+   De tegelcache (IndexedDB telsuite_osm, store tiles) groeide tot v3.27 zonder
+   eind: een verlopen tegel werd alleen vervangen als je er weer kwam. Nu gaan
+   tegels ouder dan 90 dagen eruit. Dat ligt ruim boven de langste houdbaarheid
+   (veld-apps 14 dagen, reconstructor 60), dus er verdwijnt niets dat nog
+   gelezen wordt. Hooguit één keer per dag, vijf seconden na het openen, zodat
+   het opstarten er niet op wacht. Eerst zoeken (alleen lezen, houdt niemand
+   op), dan in één keer wissen. Best effort: lukt het niet, dan merkt niemand
+   er iets van. De store 'handoff' blijft onaangeroerd. */
+var TEGELS_WEG_NA_MS = 90 * 24 * 3600 * 1000;
+var TEGELS_OPGERUIMD = 'telsuite_tegels_opgeruimd';   // localStorage: wanneer het laatst
+function tegelsOpruimen(nu) {
+  return new Promise(function (klaar) {
+    try {
+      nu = nu || Date.now();
+      var vorige = +(localStorage.getItem(TEGELS_OPGERUIMD) || 0);
+      if (nu - vorige < 24 * 3600 * 1000 || typeof indexedDB === 'undefined' || !indexedDB) return klaar(-1);
+      localStorage.setItem(TEGELS_OPGERUIMD, String(nu));
+      var q = indexedDB.open('telsuite_osm', 1);
+      q.onupgradeneeded = function (e) {   // nog geen cache: aanmaken zoals de rest het doet
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains('tiles'))   db.createObjectStore('tiles',   { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('handoff')) db.createObjectStore('handoff', { keyPath: 'key' });
+      };
+      q.onerror = function () { klaar(0); };
+      q.onsuccess = function (e) {
+        var db = e.target.result, grens = nu - TEGELS_WEG_NA_MS, weg = [];
+        function sluit(n) { try { db.close(); } catch (x) {} klaar(n); }
+        try {
+          var lees = db.transaction('tiles', 'readonly');
+          lees.objectStore('tiles').openCursor().onsuccess = function (ev) {
+            var c = ev.target.result;
+            if (!c) return;
+            if (!c.value || !(c.value.ts >= grens)) weg.push(c.primaryKey);
+            c.continue();
+          };
+          lees.onabort = lees.onerror = function () { sluit(0); };
+          lees.oncomplete = function () {
+            if (!weg.length) return sluit(0);
+            var wis = db.transaction('tiles', 'readwrite'), st = wis.objectStore('tiles');
+            weg.forEach(function (k) { st.delete(k); });
+            wis.oncomplete = function () { sluit(weg.length); };
+            wis.onabort = wis.onerror = function () { sluit(0); };
+          };
+        } catch (x) { sluit(0); }
+      };
+    } catch (e) { klaar(0); }
+  });
+}
+setTimeout(function () { tegelsOpruimen(); }, 5000);
+/* ── einde gedeeld blok tegels opruimen ── */
+
 
 // Geef de zojuist gebouwde ZIP door aan telreconstructie.html en open die.
 function stuurNaarReconstructie(blob, naam) {

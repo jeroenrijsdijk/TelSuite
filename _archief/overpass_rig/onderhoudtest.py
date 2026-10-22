@@ -15,6 +15,12 @@
      - tijdens een sessie: de polygonen in het netwerk, zonder dubbelen;
      - een rate-limit bij de eerste server: niet de tweede belasten, en die plek
        later opnieuw proberen.
+  C. Tegels opruimen (v3.27, gedeeld blok in vier veld-apps en de reconstructor):
+     - tegels ouder dan 90 dagen of zonder tijdstempel gaan weg; jongere (ook
+       60 dagen, de houdbaarheid van de reconstructor) en de handoff blijven;
+     - hooguit één keer per dag; de volgende dag weer;
+     - zonder cache: geen fout, en daarna werkt de cache gewoon;
+     - vanzelf, vijf seconden na het openen, ook in de reconstructor.
   (Het bbox-filter voor verzamelingen staat in functest_bbox.js.)
 
 Hulp (server, CDN-omleiding, nep-Overpass) komt uit opruimtest.py en hersteltest.py.
@@ -153,6 +159,58 @@ with sync_playwright() as p:
     eis('dezelfde plek later: opnieuw geprobeerd (mislukt zoeken wordt niet onthouden)', len(PARK['1']) == a1 + 2, len(PARK['1']))
     eis('geen JS-fouten', not fouten, fouten)
     ctx.close()
+
+    print('== C. tegels opruimen ==')
+    DAG = 24 * 3600 * 1000
+    VUL = """(async (recs) => {
+      const db = await new Promise((res, rej) => { const q = indexedDB.open('telsuite_osm', 1);
+        q.onupgradeneeded = e => { const d = e.target.result; d.createObjectStore('tiles', {keyPath: 'key'}); d.createObjectStore('handoff', {keyPath: 'key'}); };
+        q.onsuccess = e => res(e.target.result); q.onerror = () => rej(q.error); });
+      await new Promise(res => { const tx = db.transaction(['tiles', 'handoff'], 'readwrite');
+        recs.forEach(r => tx.objectStore('tiles').put(r)); tx.objectStore('handoff').put({key: 'zip', blob: 'x'});
+        tx.oncomplete = res; });
+      db.close(); })"""
+    LEES = """(async () => { const db = await new Promise(res => { const q = indexedDB.open('telsuite_osm', 1); q.onsuccess = e => res(e.target.result); });
+      const uit = await new Promise(res => { const tx = db.transaction(['tiles', 'handoff']); let t, h;
+        tx.objectStore('tiles').getAllKeys().onsuccess = e => t = e.target.result;
+        tx.objectStore('handoff').getAllKeys().onsuccess = e => h = e.target.result;
+        tx.oncomplete = () => res({tiles: t.sort(), handoff: h}); });
+      db.close(); return uit; })()"""
+    def tegels(nu):
+        return [{'key': 't_1_vers', 'ts': nu, 'v': 3, 'ways': []},
+                {'key': 't_2_60d', 'ts': nu - 60 * DAG, 'v': 3, 'ways': []},
+                {'key': 't_3_88d', 'ts': nu - 88 * DAG, 'v': 3, 'ways': []},
+                {'key': 't_4_91d', 'ts': nu - 91 * DAG, 'v': 3, 'ways': []},
+                {'key': 't_5_oud_schema', 'ts': nu - 400 * DAG, 'v': 1, 'ways': []},
+                {'key': 't_6_zonder_ts', 'ways': []}]
+    for app in ('parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html', 'pocket_count.html', 'telreconstructie.html'):
+        ctx = b.new_context(viewport={'width': 1280, 'height': 900}); ctx.route('**/*', route_met_osm)
+        pg = ctx.new_page(); fouten = []
+        pg.on('pageerror', lambda e: fouten.append(e.message[:160])); pg.on('dialog', lambda d: d.accept())
+        pg.goto(BASIS + 'index.html', wait_until='load')        # zelfde herkomst, maar zonder het blok
+        nu = pg.evaluate('Date.now()')
+        pg.evaluate(VUL, tegels(nu))
+        pg.goto(BASIS + app, wait_until='load')
+        pg.wait_for_function("localStorage.getItem('telsuite_tegels_opgeruimd') !== null", timeout=12000)
+        pg.wait_for_timeout(500)
+        st = pg.evaluate(LEES)
+        eis('%s: vanzelf na het openen, oud en zonder tijdstempel weg' % app,
+            st['tiles'] == ['t_1_vers', 't_2_60d', 't_3_88d'] and st['handoff'] == ['zip'], st)
+        if app == 'parkeertelling.html':
+            pg.evaluate(VUL, tegels(nu))
+            eis('dezelfde dag niet nog eens', pg.evaluate('tegelsOpruimen()') == -1 and len(pg.evaluate(LEES)['tiles']) == 6)
+            n = pg.evaluate('tegelsOpruimen(Date.now() + 25 * 3600 * 1000)')   # 25 uur later
+            eis('een dag later wel: 3 weg (91 dagen, oud schema, zonder tijdstempel), 3 blijven',
+                n == 3 and pg.evaluate(LEES)['tiles'] == ['t_1_vers', 't_2_60d', 't_3_88d'], (n, pg.evaluate(LEES)))
+            pg.evaluate("indexedDB.deleteDatabase('telsuite_osm'); localStorage.removeItem('telsuite_tegels_opgeruimd')")
+            pg.wait_for_timeout(300)
+            n = pg.evaluate('tegelsOpruimen()')
+            eis('zonder cache: niets weg, geen fout', n == 0, n)
+            pg.evaluate("cacheWaysInTiles([], 0, 0, 250)")
+            eis('daarna werkt de cache: leesTegels geeft een misser, geen fout',
+                pg.evaluate('leesTegels(%f, %f, 250)' % (LAT, LON)) is None)
+        eis('%s: geen JS-fouten' % app, not fouten, fouten)
+        ctx.close()
 
     b.close()
 

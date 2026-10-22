@@ -19,9 +19,11 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.26'
-# v3.26: opmaak van de GeoPackage (titel met dag, legenda GPS-spoor met tijden en code).
-VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'traffic_counter_help.html', 'zip_format_reference.html'}
+RELEASE = 'v3.27'
+# v3.27: het wegennet van pocket in de noodkopie; tegels ouder dan 90 dagen opruimen.
+VERWACHT_GEWIJZIGD = {'index.html', 'pocket_count.html', 'parkeertelling.html', 'fietsparkeren.html',
+                      'capaciteitstelling.html', 'telreconstructie.html', 'privacy.html',
+                      'traffic_counter_help.html', 'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -215,6 +217,10 @@ groepen = [
      '/* ── Herstelmelding (v3.22)', '/* ── einde gedeeld blok herstelmelding ── */'),
     ('herstel-haken', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
      '/* ── Herstelmelding: haken parkeer-apps (v3.22) ── */', '/* ── einde haken herstelmelding ── */'),
+    # v3.27: oude tegels uit de cache, in elk bestand dat de tegelcache gebruikt
+    ('tegels opruimen', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                         'pocket_count.html', 'telreconstructie.html'],
+     '/* ── Tegels opruimen (v3.27)', '/* ── einde gedeeld blok tegels opruimen ── */'),
     # v3.14: planning als link, inpakken en uitpakken
     ('planlink', ['telplanning.html', 'parkeertelling.html', 'fietsparkeren.html', 'pocket_count.html'],
      '/* ── Planning als link (v3.14) ──', '/* ── einde gedeeld blok planlink ── */'),

@@ -53,6 +53,8 @@ function maakCtx(overpass) {
       confScore: null, confLevel: 'none', gpsStabScore: null, gpsStabLevel: 'none'
     },
     snapRegisterWay() {},
+    // v3.27: een gegroeid netwerk gaat via netwerkBewaren naar de noodkopie
+    netwerkBewaren() { log.bewaard = (log.bewaard || 0) + 1; },
     snapElementsNear() { return Object.keys(ctx.snap.elements).map(k => ctx.snap.elements[k]); },
     snapBuildSegs(els) { return els.map(e => ({ wayId: 1 })); },
     snapNearestAny() { return null; },
@@ -112,6 +114,11 @@ const wacht = ms => new Promise(r => setTimeout(r, ms));
     eis('osmName overleeft de cache', c.snap.elements['77'] && c.snap.elements['77'].osmName === 'Cachestraat', c.snap.elements['77']);
     eis('trace meldt bron:tegel', c.snap.trace.some(t => (t.snap_path || '').indexOf('bron:tegel') === 0), c.snap.trace.map(t => t.snap_path));
     eis('snap.ready gezet', c.snap.ready === true);
+    eis('v3.27: nieuw netwerk -> noodkopie (netwerkBewaren, netwerkKopieVuil)',
+        c._log.bewaard === 1 && vm.runInContext('netwerkKopieVuil', c) === true, [c._log.bewaard]);
+    vm.runInContext('snap.cacheLat=null; snapStartFetch(51.855,4.335)', c);
+    await wacht(300);
+    eis('v3.27: hetzelfde netwerk nog eens -> geen nieuwe noodkopie', c._log.bewaard === 1, [c._log.bewaard]);
   }
 
   console.log('\n== pocket: rate-limit ==');
