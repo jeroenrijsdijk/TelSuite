@@ -19,10 +19,9 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.27'
-# v3.27: het wegennet van pocket in de noodkopie; tegels ouder dan 90 dagen opruimen.
-VERWACHT_GEWIJZIGD = {'index.html', 'pocket_count.html', 'parkeertelling.html', 'fietsparkeren.html',
-                      'capaciteitstelling.html', 'telreconstructie.html', 'privacy.html',
+RELEASE = 'v3.28'
+# v3.28: capaciteitsterreinen in de GeoPackage, kaart-PNG in de _recon.zip, over/about volgens de voorpagina.
+VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'telreconstructie.html', 'over.html', 'about.html',
                       'traffic_counter_help.html', 'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 

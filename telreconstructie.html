@@ -752,7 +752,7 @@ function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1))
 // _reconstructie_log.csv. valideer.py dwingt af: verandert dit bestand in een
 // release, dan moet dit gelijk zijn aan die release. Vervangt de bevroren
 // stempels v2.24 (sessie) en v2.18 (log), die elkaar tegenspraken.
-var RECON_VERSIE = 'v3.27';
+var RECON_VERSIE = 'v3.28';
 var OFFSET_M = 4;          // meters uit de wegas. zijde-offset: zelfde waarde in 5 bestanden, bewaakt door valideer.py
 var SNAP_MAX_M = 50;       // max afstand tik→way bij hersnap. Ruim, want tik-GPS valt
                            // in stadskloven tientallen meters naast de weg (multipath).
@@ -2016,7 +2016,111 @@ function bouwZipBlob() {
     zip.file(sid + '_bezocht.csv', csvUit(S.bezocht, Object.keys(S.bezocht[0])));
   }
 
-  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 9 } });
+  // v3.28: de kaart als plaatje, voor een snelle blik in de ZIP
+  return kaartPng().then(function (png) {
+    if (png) zip.file(sid + '_kaart.png', png);
+    return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 9 } });
+  });
+}
+
+/* ── Kaart-PNG in de _recon.zip (v3.28) ──────────────────────────────────────
+   Jay: "mag heel basic zijn - gewoon om met een viewer even snel te kijken wat
+   er in de zip zit. Ondergrond is niet nodig. Netwerk en tikken is genoeg."
+   Zelfde naam als in de ZIP's van de parkeer-apps: <sid>_kaart.png. Getekend op
+   een canvas, zonder kaarttegels: wit vlak, het wegennet grijs, het GPS-spoor
+   gestreept, de tikken in de kleur van de kaart hier (onzeker in oker,
+   ongesnapt niet). Kop: sessie-id, datum, soort telling en de aantallen; onder:
+   de legenda. Geen tijdstip van exporteren: dezelfde reconstructie geeft zo
+   hetzelfde plaatje. Mislukt het tekenen, dan gaat de ZIP zonder plaatje. */
+function kaartPng() {
+  return new Promise(function (klaar) {
+    try {
+      var tk = S.typeKleuren || bouwTypeKleuren(), per = {}, nOnzeker = 0, tikken = [];
+      S.taps.forEach(function (tp) {
+        if (tp.status !== 'ok' && tp.status !== 'onzeker') return;
+        var la = parseFloat(tp.latMarker), lo = parseFloat(tp.lonMarker);
+        if (!isFinite(la) || !isFinite(lo)) return;
+        var ok = tp.status === 'ok';
+        if (ok) per[tp.type] = (per[tp.type] || 0) + 1; else nOnzeker++;
+        tikken.push({ la: la, lo: lo, r: ok ? 6 : 5,
+                      kleur: ok ? (tk.map[tp.type] || cssVar('--leeg')) : cssVar('--onzeker') });
+      });
+      var spoor = S.gps.map(function (g) { return [parseFloat(g.lat), parseFloat(g.lon)]; })
+        .filter(function (p) { return isFinite(p[0]) && isFinite(p[1]); });
+      var alle = tikken.map(function (t) { return [t.la, t.lo]; }).concat(spoor);
+      if (!alle.length) return klaar(null);
+      var la0 = Infinity, la1 = -Infinity, lo0 = Infinity, lo1 = -Infinity;
+      alle.forEach(function (p) {
+        la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]);
+      });
+      var pLa = Math.max((la1 - la0) * 0.15, 0.0006), pLo = Math.max((lo1 - lo0) * 0.15, 0.001);
+      la0 -= pLa; la1 += pLa; lo0 -= pLo; lo1 += pLo;
+      function mercY(la) { return Math.log(Math.tan(Math.PI / 4 + la * Math.PI / 360)); }
+      var y0 = mercY(la0), y1 = mercY(la1), boog = (lo1 - lo0) * Math.PI / 180;
+      var W = 1600, H = Math.max(700, Math.min(1600, Math.round(W * (y1 - y0) / boog)));
+      // Houd de schaal gelijk in x en y: het smalste past, het andere krijgt marge.
+      var schaal = Math.min(W / boog, H / (y1 - y0));
+      var cx = (lo0 + lo1) / 2 * Math.PI / 180, cy = (y0 + y1) / 2;
+      var KOP = 64, VOET = 56, c = document.createElement('canvas');
+      c.width = W; c.height = KOP + H + VOET;
+      var g = c.getContext('2d');
+      function xy(la, lo) { return [W / 2 + (lo * Math.PI / 180 - cx) * schaal, KOP + H / 2 - (mercY(la) - cy) * schaal]; }
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, c.height);
+      g.save(); g.beginPath(); g.rect(0, KOP, W, H); g.clip();
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      g.strokeStyle = '#b9b4aa'; g.lineWidth = 2;                      // wegennet
+      Object.keys(S.netGeoLL || {}).forEach(function (wid) {
+        Object.keys(S.netGeoLL[wid]).forEach(function (k) {
+          var ll = S.netGeoLL[wid][k];
+          g.beginPath();
+          ll.forEach(function (p, i) { var q = xy(p[0], p[1]); if (i) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); });
+          g.stroke();
+        });
+      });
+      if (spoor.length > 1) {                                          // GPS-spoor
+        g.strokeStyle = 'rgba(255,102,0,0.85)'; g.lineWidth = 2; g.setLineDash([8, 6]);
+        g.beginPath();
+        spoor.forEach(function (p, i) { var q = xy(p[0], p[1]); if (i) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); });
+        g.stroke(); g.setLineDash([]);
+      }
+      tikken.forEach(function (t) {                                    // tikken
+        var q = xy(t.la, t.lo);
+        g.beginPath(); g.arc(q[0], q[1], t.r, 0, 2 * Math.PI);
+        g.fillStyle = t.kleur; g.globalAlpha = 0.9; g.fill(); g.globalAlpha = 1;
+        g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 1; g.stroke();
+      });
+      g.restore();
+      // kop
+      var r = S.sessieRow || {}, n = S.taps.length;
+      var nOng = S.taps.filter(function (tp) { return tp.status === 'ongesnapt'; }).length;
+      g.fillStyle = '#1a1918'; g.fillRect(0, 0, W, KOP);
+      g.textBaseline = 'middle'; g.textAlign = 'left';
+      g.fillStyle = '#ffffff'; g.font = 'bold 22px sans-serif';
+      g.fillText('TELRECONSTRUCTIE  ' + S.sid, 20, 22);
+      g.fillStyle = '#c9c6bf'; g.font = '15px sans-serif';
+      g.fillText([r.datum || '', S.profiel && S.profiel.label, n + ' tikken: ' + (n - nOnzeker - nOng) + ' geplaatst'
+                  + (nOnzeker ? ', ' + nOnzeker + ' onzeker' : '') + (nOng ? ', ' + nOng + ' ongesnapt (niet op de kaart)' : '')]
+                 .filter(Boolean).join('  \u00b7  '), 20, 47);
+      // legenda
+      var ly = KOP + H + VOET / 2, lx = 20;
+      g.strokeStyle = '#e2ded6'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, KOP + H + 0.5); g.lineTo(W, KOP + H + 0.5); g.stroke();
+      g.font = '14px sans-serif'; g.fillStyle = '#333333';
+      function stip(kleur, tekst) {
+        g.beginPath(); g.arc(lx + 6, ly, 6, 0, 2 * Math.PI); g.fillStyle = kleur; g.fill();
+        g.fillStyle = '#333333'; g.fillText(tekst, lx + 17, ly); lx += 17 + g.measureText(tekst).width + 22;
+      }
+      tk.volgorde.forEach(function (t) { if (per[t]) stip(tk.map[t], t + ' (' + per[t] + ')'); });
+      if (nOnzeker) stip(cssVar('--onzeker'), 'onzeker (' + nOnzeker + ')');
+      g.strokeStyle = 'rgba(255,102,0,0.85)'; g.lineWidth = 2; g.setLineDash([8, 6]);
+      g.beginPath(); g.moveTo(lx, ly); g.lineTo(lx + 28, ly); g.stroke(); g.setLineDash([]);
+      g.fillText('GPS-spoor', lx + 36, ly); lx += 36 + g.measureText('GPS-spoor').width + 22;
+      g.strokeStyle = '#b9b4aa'; g.beginPath(); g.moveTo(lx, ly); g.lineTo(lx + 28, ly); g.stroke();
+      g.fillText('wegennet', lx + 36, ly);
+      g.textAlign = 'right'; g.fillStyle = '#8a867e'; g.font = '12px sans-serif';
+      g.fillText('wegennet \u00a9 OpenStreetMap-bijdragers  \u00b7  telonline.org / telreconstructie ' + RECON_VERSIE, W - 20, ly);
+      c.toBlob(function (b) { klaar(b); }, 'image/png');
+    } catch (e) { klaar(null); }
+  });
 }
 
 // Interactieve download: bouw het blob en bied het aan.

@@ -3865,6 +3865,7 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
           this.setStyle({weight:2.5, fillOpacity:0.18});
         })
         .on('click', ()=>showCapDetail(g, datum, sm.teller||'', sid));
+        poly._capGroep = g;   // v3.28: voor de laag terreinen in de GeoPackage
         poly.addTo(map);
         poly.bringToBack();
         capLayers[sid].push(poly);
@@ -6015,9 +6016,9 @@ async function loadFile(file) {
 
    SQLite in de browser: sql.js van cdnjs, pas geladen bij de eerste export.
    Coördinaten in WGS84 (EPSG:4326), net als in de ZIP's.
-   Capaciteitsterreinen gaan (nog) niet mee; de export meldt het als die op de
-   kaart staan. Static hoort er niet in (Jay, v3.2): dat is een telpost, geen
-   kaartlaag.
+   Capaciteitsterreinen gaan sinds v3.28 mee als vlakkenlaag (terreinen); tot
+   dan meldde de export dat ze ontbraken. Static hoort er niet in (Jay, v3.2):
+   dat is een telpost, geen kaartlaag.
    Sinds v3.2 zit er ook een QGIS-project in het bestand; zie GPKG_PROJECT.      */
 var GPKG_SQLJS_BASIS = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.14.2/';
 var GPKG_FORMAAT_VERSIE = 1;
@@ -6040,10 +6041,12 @@ function laadSqlJs() {
 }
 
 /* Schrijver: lagen in, bytes uit. Weet niets van telrapport.
-   laag = { naam, omschrijving, geometrie: 'POINT' | 'LINESTRING' | null,
+   laag = { naam, omschrijving, geometrie: 'POINT' | 'LINESTRING' | 'POLYGON' | null,
             velden: [[naam, 'TEXT'|'INTEGER'|'REAL'], ...],
-            rijen: [{ geom: {punt:[lon,lat]} | {lijn:[[lon,lat],...]}, waarden: {veld: waarde} }],
-            qml: tekst of null }                                                 */
+            rijen: [{ geom: {punt:[lon,lat]} | {lijn:[[lon,lat],...]} | {vlak:[[lon,lat],...]},
+                      waarden: {veld: waarde} }],
+            qml: tekst of null }
+   Een vlak (v3.28) is één buitenring; de schrijver sluit hem als dat nodig is. */
 var GPKG = (function () {
   var WGS84 = 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,'
             + 'AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,'
@@ -6051,11 +6054,12 @@ var GPKG = (function () {
             + 'AUTHORITY["EPSG","4326"]]';
 
   // GeoPackage-geometrie: kop "GP" + versie + vlaggen + srs_id (+ envelop) + WKB.
-  // Little-endian. Punten zonder envelop (zo raadt de standaard aan), lijnen met.
+  // Little-endian. Punten zonder envelop (zo raadt de standaard aan), lijnen en
+  // vlakken met. Een vlak (v3.28): WKB Polygon met één ring, gesloten.
   function geomBlob(g) {
-    var pts = g.punt ? [g.punt] : g.lijn;
+    var pts = g.punt ? [g.punt] : g.lijn || ring(g.vlak);
     var env = g.punt ? 0 : 1;
-    var n = 8 + (env ? 32 : 0) + 5 + (g.punt ? 0 : 4) + 16 * pts.length;
+    var n = 8 + (env ? 32 : 0) + 5 + (g.punt ? 0 : 4) + (g.vlak ? 4 : 0) + 16 * pts.length;
     var dv = new DataView(new ArrayBuffer(n)), o = 0;
     dv.setUint8(o++, 0x47); dv.setUint8(o++, 0x50);   // "GP"
     dv.setUint8(o++, 0);                               // versie 1
@@ -6066,12 +6070,18 @@ var GPKG = (function () {
       [b[0], b[2], b[1], b[3]].forEach(function (v) { dv.setFloat64(o, v, true); o += 8; });
     }
     dv.setUint8(o++, 1);                               // WKB little-endian
-    dv.setUint32(o, g.punt ? 1 : 2, true); o += 4;     // 1 = Point, 2 = LineString
+    dv.setUint32(o, g.punt ? 1 : g.vlak ? 3 : 2, true); o += 4;   // 1 = Point, 2 = LineString, 3 = Polygon
+    if (g.vlak) { dv.setUint32(o, 1, true); o += 4; }  // één ring
     if (!g.punt) { dv.setUint32(o, pts.length, true); o += 4; }
     pts.forEach(function (p) {
       dv.setFloat64(o, p[0], true); dv.setFloat64(o + 8, p[1], true); o += 16;
     });
     return new Uint8Array(dv.buffer);
+  }
+
+  function ring(pts) {       // gesloten: het laatste punt is het eerste
+    var a = pts[0], z = pts[pts.length - 1];
+    return (a[0] === z[0] && a[1] === z[1]) ? pts : pts.concat([a]);
   }
 
   function omhulsel(pts) {   // [minx, miny, maxx, maxy]
@@ -6148,7 +6158,7 @@ var GPKG = (function () {
       });
       if (l.geometrie) {
         w.unshift(geomBlob(r.geom));
-        alle = alle.concat(r.geom.punt ? [r.geom.punt] : r.geom.lijn);
+        alle = alle.concat(r.geom.punt ? [r.geom.punt] : r.geom.lijn || r.geom.vlak);
       }
       st.run(w);
     });
@@ -6268,7 +6278,29 @@ var GPKG_QML = (function () {
     })) + '</qgis>';
   }
 
-  return { waarnemingen: waarnemingen, clusters: clusters, lijnen: lijnen, esc: esc };
+  // Capaciteitsterreinen (v3.28) zoals op de kaart: paars vlak met rand, en het
+  // totaal wit en vet in een paarse cirkel op het zwaartepunt (binnen het vlak).
+  function vlakken(kleur) {
+    return kop(true)
+      + '<renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0"><symbols>'
+      + '<symbol type="fill" name="0" alpha="1" clip_to_extent="1" force_rhr="0">'
+      + '<layer class="SimpleFill" enabled="1" pass="0" locked="0"><Option type="Map">'
+      + opt('color', rgba(kleur, 0.18)) + opt('style', 'solid') + opt('outline_color', rgba(kleur))
+      + opt('outline_style', 'solid') + opt('outline_width', '0.66') + opt('outline_width_unit', 'MM')
+      + opt('joinstyle', 'round') + '</Option></layer></symbol></symbols></renderer-v2>'
+      + '<labeling type="simple"><settings calloutType="simple">'
+      + '<text-style fieldName="\'&lt;b&gt;\' || &quot;totaal&quot; || \'&lt;/b&gt;\'" isExpression="1" allowHtml="1" '
+      + 'fontFamily="Arial" namedStyle="Bold" fontSize="8" fontSizeUnit="Point" textColor="255,255,255,255" textOpacity="1">'
+      + '<text-buffer bufferDraw="0"/>'
+      + '<background shapeDraw="1" shapeType="3" shapeSizeType="0" shapeSizeX="1" shapeSizeY="1" shapeSizeUnit="MM" '
+      + 'shapeFillColor="' + rgba(kleur) + '" shapeBorderColor="' + rgba(kleur) + '" shapeBorderWidth="0" shapeOpacity="1"/>'
+      + '</text-style>'
+      + '<placement placement="1" centroidInside="1" centroidWhole="0" quadOffset="4" dist="0" offsetType="0"/>'
+      + '<rendering obstacle="0" displayAll="1" upsidedownLabels="0"/></settings></labeling>'
+      + '</qgis>';
+  }
+
+  return { waarnemingen: waarnemingen, clusters: clusters, lijnen: lijnen, vlakken: vlakken, esc: esc };
 })();
 
 /* ── Telrapport → lagen ──────────────────────────────────────────────────────── */
@@ -6487,6 +6519,33 @@ function gpkgLagen() {
       rijen: rRijen, qml: GPKG_QML.lijnen('sessie_id', rCats) });
   }
 
+  // ── terreinen: de capaciteitsvlakken zoals op de kaart (v3.28), met de
+  // capaciteit per soort. Ook een straat uit een capaciteitstelling staat op de
+  // kaart als vlak (L.polygon sluit zijn lijn); die gaat dus zo mee.
+  var CAP_SOORTEN = ['regulier', 'gehandicapt', 'laadpaal', 'gereserveerd'];
+  var tRijen = [];
+  Object.keys(capLayers).forEach(function (sid) {
+    var s = sessions[sid]; if (!s) return;
+    (capLayers[sid] || []).forEach(function (l) {
+      var g = l._capGroep;
+      if (!g || !map.hasLayer(l)) return;
+      var ring = l.getLatLngs()[0] || [];
+      if (ring.length < 3) return;
+      var w = { sessie_id: sid, naam: g.naam === '—' ? '' : (g.naam || ''), osm_way_id: g.wayId === '_onbekend' ? '' : String(g.wayId || ''),
+                totaal: 0, datum: (s.meta && s.meta.datum) || '', teller: (s.meta && s.meta.teller) || '' };
+      CAP_SOORTEN.forEach(function (k) { w[k] = g.soorten[k] || 0; w.totaal += w[k]; });
+      Object.keys(g.soorten).forEach(function (k) { if (CAP_SOORTEN.indexOf(k) < 0) w.totaal += g.soorten[k]; });
+      tRijen.push({ geom: { vlak: ring.map(function (ll) { return [ll.lng, ll.lat]; }) }, waarden: w });
+    });
+  });
+  if (tRijen.length) {
+    lijst.push({ naam: 'terreinen', geometrie: 'POLYGON', omschrijving: 'Capaciteit per terrein of straat, zoals op de kaart',
+      velden: [['sessie_id', 'TEXT'], ['naam', 'TEXT'], ['osm_way_id', 'TEXT'], ['totaal', 'INTEGER']]
+        .concat(CAP_SOORTEN.map(function (k) { return [k, 'INTEGER']; }))
+        .concat([['datum', 'TEXT'], ['teller', 'TEXT']]),
+      rijen: tRijen, qml: GPKG_QML.vlakken('#8e44ad') });
+  }
+
   var nKaart = lijst.length;
 
   // ── sessies: alle geladen tellingen, met op_kaart = 1 voor wat er nu te zien is
@@ -6500,11 +6559,8 @@ function gpkgLagen() {
         reconstructie: m.reconstructie || '', label: gpkgSessieLabel(sid), op_kaart: s.visible ? 1 : 0 } };
     }) });
 
-  // Wat op de kaart staat maar (nog) niet in deze export past
-  var nCap = Object.keys(capLayers).filter(function (sid) {
-    return (capLayers[sid] || []).some(function (l) { return map.hasLayer(l); });
-  }).length;
-  if (nCap) nietMee.push(nCap + ' capaciteitstelling(en)');
+  // Wat op de kaart staat maar (nog) niet in deze export past. Tot v3.28 waren
+  // dat de capaciteitstellingen; die gaan nu mee als terreinen (hierboven).
 
   lijst.push({ naam: 'export_info', geometrie: null, omschrijving: 'Hoe deze export gemaakt is',
     velden: [['sleutel', 'TEXT'], ['waarde', 'TEXT']],
@@ -6608,7 +6664,7 @@ var GPKG_PROJECT = (function () {
   }
   function ext(b) { return 'xmin="' + b[0] + '" ymin="' + b[1] + '" xmax="' + b[2] + '" ymax="' + b[3] + '"'; }
 
-  /* o = { bestand, lagen: [{ naam, toon, geometrie: 'Point'|'Line', qml }] (boven naar onder),
+  /* o = { bestand, lagen: [{ naam, toon, geometrie: 'Point'|'Line'|'Polygon', qml }] (boven naar onder),
            legenda: [laagnamen], punten: [[lon, lat], ...], titel, ondertitel, bron }          */
   function maak(o) {
     var lid = function (n) { return n + '_telrapport'; };
@@ -6709,15 +6765,16 @@ async function gpkgKiesBestand(voorstel) {
 
 // Het project als { naam, metadata, inhoud } voor de tabel qgis_projects.
 async function gpkgProjectInhoud(lagen, bestand) {
-  var TOON = { clusters: 'Clusterbollen', waarnemingen: 'Waarnemingen', route: 'GPS-spoor', wegvakken: 'Wegvakken' };
-  var kaartlagen = ['clusters', 'waarnemingen', 'route', 'wegvakken']
+  var TOON = { clusters: 'Clusterbollen', waarnemingen: 'Waarnemingen', route: 'GPS-spoor', wegvakken: 'Wegvakken',
+               terreinen: 'Capaciteit' };
+  var kaartlagen = ['clusters', 'waarnemingen', 'route', 'wegvakken', 'terreinen']   // v3.28: terreinen onderop
     .map(function (n) { return lagen.lijst.filter(function (l) { return l.naam === n; })[0]; })
     .filter(Boolean);
   // Inzoomen op de telling zelf; alleen als er niets anders is op het wegennet.
   var punten = [];
   kaartlagen.forEach(function (l) {
     if (l.naam === 'wegvakken' && kaartlagen.length > 1) return;
-    l.rijen.forEach(function (r) { (r.geom.punt ? [r.geom.punt] : r.geom.lijn).forEach(function (p) { punten.push(p); }); });
+    l.rijen.forEach(function (r) { (r.geom.punt ? [r.geom.punt] : r.geom.lijn || r.geom.vlak).forEach(function (p) { punten.push(p); }); });
   });
   var zichtbaar = Object.keys(sessions).filter(function (s) { return sessions[s].visible && sessions[s].appType !== 'standstill'; });
   var datums = zichtbaar.map(function (s) { var m = sessions[s].meta || {}; return fmtDatum(m.datum, m.start_tijd); })
@@ -6730,9 +6787,10 @@ async function gpkgProjectInhoud(lagen, bestand) {
   var qgs = GPKG_PROJECT.maak({
     bestand: bestand,
     lagen: kaartlagen.map(function (l) {
-      return { naam: l.naam, toon: TOON[l.naam], geometrie: l.geometrie === 'POINT' ? 'Point' : 'Line', qml: l.qml };
+      return { naam: l.naam, toon: TOON[l.naam], qml: l.qml,
+               geometrie: l.geometrie === 'POINT' ? 'Point' : l.geometrie === 'POLYGON' ? 'Polygon' : 'Line' };
     }),
-    legenda: ['waarnemingen', 'route', 'wegvakken'],
+    legenda: ['waarnemingen', 'route', 'wegvakken', 'terreinen'],
     punten: punten,
     // v3.26: met de dag van de week voluit ("donderdag 22-10-2026")
     titel: 'Telrapport · ' + (datums.length > 1 ? metDag(datums[0]) + ' – ' + metDag(datums[datums.length - 1])
