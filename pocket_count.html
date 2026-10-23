@@ -2094,6 +2094,38 @@ function herstelNieuw() {
 }
 /* ── einde gedeeld blok herstelmelding ── */
 
+/* ── Deelwaarschuwing (v3.29) ──────────────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren,
+   capaciteitstelling, pocket_count en traffic_counter (bewaakt door valideer.py).
+   Jay: "Als mensen een telling doen vanuit huis, en ze leveren de .zip aan
+   derden, verraden ze de plek van hun woning. Dat is een waarschuwing waard."
+   Eén kleine regel onder de knop waarmee je de ZIP bewaart, altijd dezelfde en
+   niets om weg te klikken: een melding die je moet wegtikken, leer je blind
+   weg te tikken. De app geeft het element waaronder de regel komt, en zegt of
+   er een adres in de ZIP staat (Static). De taal volgt <html lang>; opnieuw
+   aanroepen werkt de tekst bij. */
+var DEEL_TEKST = {
+  nl: ['Deel je deze ZIP, dan deel je je route en je plek. Begon je thuis, dan staat je huis erin.',
+       'Deel je deze ZIP, dan deel je je plek en adres. Tel je vanuit huis, dan staat je huis erin.'],
+  en: ['Sharing this ZIP shares your route and where you were. If you started at home, your home is in it.',
+       'Sharing this ZIP shares your location and address. If you count from home, your home is in it.']
+};
+function deelWaarschuwing(onder, metAdres) {
+  if (!onder) return null;
+  var el = document.getElementById('deel-waarschuwing');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'deel-waarschuwing';
+    el.setAttribute('style', 'width:100%;max-width:420px;box-sizing:border-box;margin:2px 0 8px;padding:0 2px;' +
+      'font-size:0.72rem;line-height:1.35;color:inherit;opacity:0.7;');
+    onder.insertAdjacentElement('afterend', el);
+  }
+  var en = (document.documentElement.lang || '').slice(0, 2) === 'en';
+  el.textContent = '\u24D8 ' + DEEL_TEKST[en ? 'en' : 'nl'][metAdres ? 1 : 0];
+  return el;
+}
+/* ── einde gedeeld blok deelwaarschuwing ── */
+
 // Haken voor het gedeelde blok noodkopie (v3.8). Het id van de telling is sinds
 // v3.10 het sessie-id, dat vanaf Start vastligt (v3.8/v3.9: de starttijd).
 var KOPIE_SLEUTEL = LS_KEY_POCKET;
@@ -3224,6 +3256,7 @@ function showPreview() {
   document.getElementById('pstat-segs').textContent   = nGeteld+'/'+segKeys.length;
   document.getElementById('pstat-km').textContent     = kmStr;
   document.getElementById('pstat-max').textContent    = maxD>0?maxD.toFixed(2):'—';
+  deelWaarschuwing(document.getElementById('preview-header'), false);   // v3.29: onder Opslaan, in de taal van nu
   document.getElementById('preview-overlay').classList.add('visible');
 }
 
