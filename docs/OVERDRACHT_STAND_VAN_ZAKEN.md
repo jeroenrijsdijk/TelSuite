@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.28.** De capaciteit gaat mee in de GeoPackage (laag `terreinen`, in het project *Capaciteit*); de `_recon.zip` heeft een eenvoudig kaartje, `<sid>_kaart.png` (Jay: "Netwerk en tikken is genoeg"); `over.html` en `about.html` volgen de indeling van de voorpagina, met plannen vooraf (`overdracht_v3_28.md`). v3.27: het wegennet van pocket in de noodkopie, oude tegels weg. v3.26: opmaak van de GeoPackage. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
+**Laatste release: v3.29.** Waarschuwen bij het delen van een ZIP (Jay: "Als mensen een telling doen vanuit huis, en ze leveren de .zip aan derden, verraden ze de plek van hun woning"): één regel onder de ZIP-knop in de vijf veld-apps (gedeeld blok `deelwaarschuwing`, Static noemt het adres), de reconstructor en telrapport; *Een ZIP delen* in de privacyverklaring en de handleiding (`overdracht_v3_29.md`). v3.28: capaciteit in de GeoPackage, kaartje in de `_recon.zip`, introductie herschikt. v3.27: het wegennet van pocket in de noodkopie, oude tegels weg. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
 
 ---
 
@@ -224,6 +224,7 @@ Opgeruimd op 21 oktober 2026.
 - "Save as .png" in telrapport: het kaartbeeld exporteren. De knop is triviaal, het plaatje niet. Tegels zijn niet CORS-schoon (`L.tileLayer` zet geen `crossOrigin`), vectoren zitten in vijf SVG-panes, labels zijn acht `divIcon`-varianten. Drie routes: handgetekend canvas zonder ondergrond (patroon van de veld-apps), eigen tegel-compositor (~150 regels, geen afhankelijkheid), of `html2canvas` van een CDN. Voorstel: tegel-compositor met automatische terugval naar zonder-ondergrond bij een SecurityError. Eerst de CORS-test draaien op OSM/CARTO/PDOK; de bronvermelding moet sowieso in de PNG gebakken worden.
   *v3.1:* voor het rapportpad is er nu de GeoPackage voor QGIS (daar zitten ondergrond, schaalstok en PDF-export al in). Een PNG uit telrapport blijft nuttig voor het snelle plaatje.
 - ~~GeoPackage: capaciteitsterreinen als eigen laag~~ — gedaan in v3.28: laag `terreinen` (POLYGON, capaciteit per soort), in het project *Capaciteit*.
+- **Deelversie van een ZIP** (uit v3.29, niet besloten): begin en eind van het GPS-spoor weglaten, zoals de privacyzone van Strava, voor wie vanuit huis start. Verandert bezocht, aanwezigheid en p/m·u, dus alleen als aparte ZIP naast de echte, nooit voor KNIME. Static afronden helpt niet: de plek is de meting. v3.29 waarschuwt alleen.
 - **GeoPackage-opmaak:** bij veel tellingen loopt de legenda (GPS-spoor per telling) uit het A4-vak; dan twee kolommen of het spoor uit de legenda. Eventueel ook een A3-opmaak.
 - QGIS-loader (`telonline_qgis_loader.py`) op QGIS 4 testen (Qt6, opgeschoonde Python-API); eventueel dezelfde stijlsjablonen gebruiken als de GeoPackage-export, zodat de opmaak op één plek bestaat.
 - Parkeren uit pocket halen naar een eigen tool. Sinds v2.69 heeft het een eigen ingang op de voorpagina (`#parkeren`), wat het grootste deel van de wens dekt. Een echte afsplitsing loont pas als parkeren een eigen kant op gaat (bijv. de zijde-offset live), want dan moeten GPS, snap, fetch-discipline en noodopslag in twee bestanden gelijk blijven.
@@ -241,7 +242,7 @@ Opgeruimd op 21 oktober 2026.
 
 ---
 
-## 6. Releases v2.32 → v3.28 in één oogopslag
+## 6. Releases v2.32 → v3.29 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -322,6 +323,7 @@ Opgeruimd op 21 oktober 2026.
 | v3.26 | **Opmaak GeoPackage** (Jay: "1. Tijdstippen van eerste en laatste tik. 2. De naam van de dag van de week naast de datum 3. het woordje "pocket" verwijderen achter het gps spoor. 4. De 3-letterige codering van de telling"): titel *Telrapport · donderdag 22-10-2026*; legenda GPS-spoor *do 22-10 · 13:41–14:05 · NYK* (zonder jaar, dat staat in de titel; anders liep de legenda van het A4). `gpkgSpoorLabel`; de tabel `sessies` houdt zijn `label`. `gpkgtest.py` (82) |
 | v3.27 | **Pocket-netwerk in de noodkopie, oude tegels weg** (uit de lijst kleine klussen): pocket bewaart `snap.elements` met knooppunten onder `pocket_sessie_netwerk`, dus `_netwerk.csv` compleet na Doortellen en Download ZIP, hertoekenning over de hele route; bij volle opslag wijkt het netwerk voor de tikken; Overpass-terugval in telrapport blijft voor oude ZIP's. Gedeeld blok `tegels opruimen` (vijf bestanden): tegels ouder dan 90 dagen, één keer per dag; privacyverklaring bijgewerkt. `hersteltest` wisselvallig door het exporttijdstip in `_kaart.png`: kaart nu zonder kop vergeleken; pocket-delen wachten op het netwerk. `hersteltest.py` (157), `onderhoudtest.py` deel C (31) |
 | v3.28 | **Capaciteit in de GeoPackage, kaartje in de `_recon.zip`, introductie herschikt** (uit de lijst kleine klussen; Jay over het kaartje: "Ondergrond is niet nodig. Netwerk en tikken is genoeg", en: in de ZIP): laag `terreinen` (POLYGON, één gesloten ring, capaciteit per soort, paars met het totaal in een cirkel), schrijver kent vlakken, geen melding meer; `kaartPng` in telreconstructie, `<sid>_kaart.png` in de ZIP (wit vlak, wegennet grijs, spoor oranje, tikken in hun kleur, kop en legenda, geen exporttijdstip), `RECON_VERSIE` v3.28; `over.html`/`about.html`: groepen van de voorpagina, plannen vooraf. `gpkgtest.py` (93), nieuwe `reconkaarttest.py` (16) |
+| v3.29 | **Waarschuwen bij het delen van een ZIP** (Jay: "Als mensen een telling doen vanuit huis, en ze leveren de .zip aan derden, verraden ze de plek van hun woning. Dat is een waarschuwing waard"; "akkoord"): één regel onder de ZIP-knop, niets om weg te klikken; gedeeld blok `deelwaarschuwing` in de vijf veld-apps (NL/EN, Static met adres, pocket in het voorbeeldscherm), vaste regel in telreconstructie (`RECON_VERSIE` v3.29) en telrapport; *Een ZIP delen* in privacyverklaring (NL en EN) en handleiding (`#delen`). Geen privacyzone, geen afronding: in de backlog. Nieuwe `deeltest.py` (25) |
 
 ---
 
