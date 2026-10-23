@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.30.** Vijf losse eindjes (Jay: "Je mag de 5 punten repareren"): telrapport laadt Oswald voor de kaartlabels; het losse transect-formaat (`_trn`) is weg uit telrapport en de referentie (Jay: geen `_trn`-ZIP's meer); de kop van het veiligheidsblok is een `<h4>`; de legenda van de GeoPackage maakt het GPS-spoor één regel als hij anders niet op het A4 past; na het opslaan toont elke veld-app de vingerafdruk (SHA-256) van de ZIP met een mail-knop (gedeeld blok `vingerafdruk`). De deelwaarschuwing heeft Jay's tekst: *Begint je opname bij huis? Deel de zip dan niet zomaar met iedereen.* (`overdracht_v3_30.md`). v3.29: waarschuwen bij het delen van een ZIP. v3.28: capaciteit in de GeoPackage, kaartje in de `_recon.zip`. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
+**Laatste release: v3.31.** *Ordenen* (`telarchief.html`, Jay: "Het wordt ook tijd voor een soort organizer"): je kiest je archiefmap; de tool leest alle ZIP's (ook in submappen), toont een plan en verplaatst pas na Uitvoeren. Een map per soort zoals de voorpagina, originelen met een `_recon` in `<soort>/originelen`, gelijke inhoud (SHA-256) in `dubbel`, verzamelingen in `Verzamelingen`; nooit overschrijven, nooit wissen, een logboek in het archief. Verplaatsen alleen in Chrome en Edge (File System Access API), elders alleen het plan (`overdracht_v3_31.md`). v3.30: vijf losse eindjes. v3.29: waarschuwen bij het delen van een ZIP. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
 
 ---
 
@@ -22,6 +22,7 @@ Suite van single-file HTML-tools voor Nederlandse verkeers- en parkeertellingen,
 | `capaciteitstelling.html` | parkeercapaciteit |
 | `pocket_count.html` | Pocket — 4 sub-modi (simpel/transect/winkelstraat/parkeren); parkeren heeft een eigen ingang `#parkeren` (v2.69) |
 | `telreconstructie.html` | nabewerking (hersnap, richting, handmatige correctie) |
+| `telarchief.html` | Ordenen (v3.31): ZIP's in een map per soort telling, originelen met een reconstructie in een submap |
 | `telrapport.html` | kaartvisualisatie + analyse |
 | `telplanning.html` | planning & dekking vooraf; een planning gaat als link naar de telapp (v3.14; sinds v3.15 de enige weg) |
 | `traffic_counter_help.html` | handleiding (NL, deels EN-mix); kale HTML sinds v3.3, net als `over.html` en `privacy.html` |
@@ -241,7 +242,7 @@ Opgeruimd op 21 oktober 2026.
 
 ---
 
-## 6. Releases v2.32 → v3.30 in één oogopslag
+## 6. Releases v2.32 → v3.31 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -324,6 +325,7 @@ Opgeruimd op 21 oktober 2026.
 | v3.28 | **Capaciteit in de GeoPackage, kaartje in de `_recon.zip`, introductie herschikt** (uit de lijst kleine klussen; Jay over het kaartje: "Ondergrond is niet nodig. Netwerk en tikken is genoeg", en: in de ZIP): laag `terreinen` (POLYGON, één gesloten ring, capaciteit per soort, paars met het totaal in een cirkel), schrijver kent vlakken, geen melding meer; `kaartPng` in telreconstructie, `<sid>_kaart.png` in de ZIP (wit vlak, wegennet grijs, spoor oranje, tikken in hun kleur, kop en legenda, geen exporttijdstip), `RECON_VERSIE` v3.28; `over.html`/`about.html`: groepen van de voorpagina, plannen vooraf. `gpkgtest.py` (93), nieuwe `reconkaarttest.py` (16) |
 | v3.29 | **Waarschuwen bij het delen van een ZIP** (Jay: "Als mensen een telling doen vanuit huis, en ze leveren de .zip aan derden, verraden ze de plek van hun woning. Dat is een waarschuwing waard"; "akkoord"): één regel onder de ZIP-knop, niets om weg te klikken; gedeeld blok `deelwaarschuwing` in de vijf veld-apps (NL/EN, Static met adres, pocket in het voorbeeldscherm), vaste regel in telreconstructie (`RECON_VERSIE` v3.29) en telrapport; *Een ZIP delen* in privacyverklaring (NL en EN) en handleiding (`#delen`). Geen privacyzone, geen afronding: in de backlog. Nieuwe `deeltest.py` (25) |
 | v3.30 | **Vijf losse eindjes** (Jay: "Je mag de 5 punten repareren"; over `_trn`: "Nee, mag eruit"): Oswald in de kaartlabels van telrapport; `loadTransectZip` en de rest van appType `transect` weg uit telrapport (melding bij een `_trn.zip`), sectie en rijen uit de referentie; veiligheidsblok `<h4>`; GeoPackage: GPS-spoor als één regel met kleur uit `kleur` als de legenda anders niet op A4 past; vingerafdruk (SHA-256) na het opslaan in de vijf veld-apps, met mail-knop en controle-instructie, in `verantwoording.html`. Deelwaarschuwing met Jay's tekst ("Dat is geen mooi nederlands"); topregel van telreconstructie in gewone taal (was een opsomming uit v2.23–v2.24 met kapotte entiteiten); `RECON_VERSIE` v3.30. Nieuwe `vingerafdruktest.py` (24); `gpkgtest.py` (101), `onderhoudtest.py` deel D (34), `lettertypetest.py` (46) |
+| v3.31 | **Ordenen** (Jay: "Originelen waarvan een _recon is kunnen in een map, en ik wil aangeboden .zips verplaatsen naar een map per type telling"; keuzes: eigen pagina, mappen zoals de voorpagina, originelen in een submap per soort, één map ter plekke): `telarchief.html` met de indeling `ORDENEN` (soort uit naam, anders `_sessie.csv`; paren op sessie-id; dubbelen op SHA-256; nooit overschrijven, hoofdletters tellen niet), verplaatsen met `move()` of kopie-nalezen-weghalen, logboek `ordenen_logboek.csv`; elders dan Chrome/Edge alleen het plan. Op de voorpagina onder *Achter je bureau*, in de handleiding (`#ordenen`), `over`/`about` (het "(gepland)" over organiseren), privacyverklaring, sitemap. Nieuwe `functest_ordenen.js` (32) en `ordenentest.py` (41) |
 
 ---
 

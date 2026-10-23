@@ -19,12 +19,10 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.30'
-# v3.30: vijf losse eindjes (Oswald in telrapport, _trn weg, kop veiligheid,
-# legenda GeoPackage, vingerafdruk bij de export) en Jay's tekst voor de deelwaarschuwing.
-VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'zip_format_reference.html', 'traffic_counter_help.html',
-                      'verantwoording.html', 'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
-                      'pocket_count.html', 'traffic_counter.html', 'telreconstructie.html'}
+RELEASE = 'v3.31'
+# v3.31: Ordenen (telarchief.html, nieuw), op de voorpagina, in de handleiding en de privacyverklaring.
+VERWACHT_GEWIJZIGD = {'index.html', 'telarchief.html', 'over.html', 'about.html', 'privacy.html',
+                      'traffic_counter_help.html'}   # sitemap.xml telt hier niet mee; de sitemapcontrole hieronder ziet hem
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description

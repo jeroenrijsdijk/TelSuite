@@ -43,6 +43,7 @@ Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 | `telplanning.html` | planning maken en dekking beoordelen |
 | `telreconstructie.html` | nabewerking: hersnappen, richting, handmatige correctie |
 | `telrapport.html` | kaartvisualisatie en analyse, ook van verzamel-ZIP's |
+| `telarchief.html` | Ordenen (v3.31): ZIP's in een map per soort telling, originelen met een reconstructie in een submap; File System Access API (Chrome, Edge), elders alleen het plan |
 
 ### Publiek en documentatie
 
