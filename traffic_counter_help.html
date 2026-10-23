@@ -136,6 +136,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 </ul></li><li>Algemeen<ul>
 <li><a href="#herstel">Onderbreking, herstel &amp; doortellen</a></li>
 <li><a href="#delen">Een ZIP delen</a></li>
+<li><a href="#ordenen">ZIP's ordenen</a></li>
 <li><a href="#reconstructie">Telreconstructie in het kort</a></li>
 <li><a href="#files">Bestanden</a></li>
 </ul></li></ul>
@@ -1042,6 +1043,19 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <h3>Een ZIP delen</h3>
 <p>Een ZIP laat zien waar je hebt geteld. Bij een lopende telling is dat het GPS-spoor van Start tot Stop (<code>_gps.csv</code>, de GPX en het kaartje), bij Static de plek van de telpost tot op enkele meters, met straat en huisnummer. De tellernaam staat er ook in als je die invult. Dat geldt ook voor een <code>_recon.zip</code>, en voor een verzameling of GeoPackage uit telrapport.</p>
 <p>Tel je vanuit huis, of begin of eindig je daar, dan staat je huis dus in de ZIP. Geef je hem aan een ander, start en stop dan een eindje van huis. Sinds v3.29 staat dat ook in één regel onder de knop waarmee je de ZIP bewaart, in alle teltools, de reconstructie en telrapport. Zie ook de <a href="privacy.html">privacyverklaring</a>.</p>
+</section>
+<hr>
+<section id="ordenen">
+<h3>ZIP's ordenen</h3>
+<p>Met <a href="telarchief.html">Ordenen</a> zet je je ZIP's in een map per soort telling (sinds v3.31). Je kiest je archiefmap, en de tool leest alle ZIP's erin, ook in submappen. Eerst zie je het plan: welk bestand naar welke map, en waarom. Pas na <strong>Uitvoeren</strong> verplaatst hij iets. Er wordt niets gewist.</p>
+<table>
+<tr><td><strong>Een map per soort</strong></td><td><em>Autoparkeren</em>, <em>Fietsparkeren</em>, <em>Capaciteit</em>, <em>Stilstaand</em>, <em>Pocket parkeren</em>, <em>Pocket simpel</em>, <em>Transect</em>, <em>Winkelstraat</em>, en <em>Verzamelingen</em> voor de verzamelingen uit telrapport. De soort komt uit de naam van de ZIP, of anders uit <code>_sessie.csv</code>.</td></tr>
+<tr><td><strong>originelen</strong></td><td>Ligt er van een telling ook een reconstructie (<code>_recon.zip</code>), dan gaat het origineel naar de submap <em>originelen</em> van zijn soort. De reconstructie staat in de map zelf. Telrapport laadt een hele map, ook de submappen.</td></tr>
+<tr><td><strong>dubbel</strong></td><td>Een ZIP die er al eens ligt met precies dezelfde inhoud, zoals <code>…_car (1).zip</code>, gaat naar <em>dubbel</em>. De tool vergelijkt de vingerafdruk (SHA-256), niet de naam. Is de inhoud anders, dan blijven beide.</td></tr>
+<tr><td><strong>Blijft liggen</strong></td><td>Alles wat geen telling van telonline.org is, en een ZIP waarvan de naam in de doelmap al bezet is door een ander bestand (naamconflict). Wat al goed staat, blijft ook staan.</td></tr>
+<tr><td><strong>Logboek</strong></td><td><code>ordenen_logboek.csv</code> in je archief: per verplaatsing het tijdstip, van, naar, de reden en de vingerafdruk.</td></tr>
+</table>
+<p>Verplaatsen kan alleen in Chrome en Edge op de computer: alleen die laten een webpagina, met jouw toestemming, bestanden in een map verplaatsen. In andere browsers kun je het plan bekijken en het zelf doen. Verwerk je de ZIP's ook met een eigen script of KNIME, kijk dan of dat in submappen zoekt.</p>
 </section>
 <hr>
 <section id="reconstructie">
