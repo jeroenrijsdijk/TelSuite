@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ordenen: tel-ZIP's in een map per soort | telonline.org</title>
+<meta name="description" content="Zet je ZIP's van telonline.org in een map per soort telling. Originelen met een reconstructie gaan in een submap. Er wordt niets gewist.">
+<link rel="canonical" href="https://telonline.org/telarchief.html">
+<link href="fonts/fonts.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --bg:#eceae4; --ink:#1b1b19; --muted:#6d6d66; --line:#c7c7bf;
+  --paper:#f6f5f1; --accent:#2f5d62; --rood:#b0342b; --groen:#3a7d44; --oker:#8a7a2b;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:Oswald,system-ui,sans-serif;font-weight:300;font-size:14px;line-height:1.45}
+header{padding:14px 20px 12px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:18px;font-weight:500;letter-spacing:.03em;text-transform:uppercase}
+.sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+.sub a{color:inherit}
+main{max-width:1100px;padding:16px 20px 40px}
+.sect{margin-top:18px}
+.sect h2{font-size:11px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);
+         margin:0 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+button{font-family:inherit;font-size:13px;font-weight:400;padding:8px 16px;cursor:pointer;
+       background:var(--accent);border:none;border-radius:3px;color:#fff}
+button:disabled{background:var(--line);color:var(--muted);cursor:default}
+button.ghost{background:var(--paper);color:var(--ink);border:1px solid var(--line)}
+.note{background:var(--paper);border-left:2px solid var(--accent);padding:8px 11px;margin-top:12px;font-size:12.5px;color:#3a3a35;max-width:72ch}
+.note.warn{border-left-color:var(--oker)}
+.note.fout{border-left-color:var(--rood)}
+.hide{display:none}
+.kpi{display:flex;gap:22px;flex-wrap:wrap;margin:6px 0 10px}
+.kpi div span{display:block;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.kpi div b{font-size:22px;font-weight:400}
+.tabel{overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:3px}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:12.5px}   /* smal scherm: de tabel schuift, binnen zijn kader */
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid #e2e0d9;vertical-align:top}
+th{font-weight:500;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:#efeee9}
+td.pad{font-family:'Share Tech Mono',monospace;font-size:12px;white-space:nowrap}
+tr.goed td{color:var(--muted)}
+tr.overslaan td,tr.conflict td{color:var(--muted)}
+tr.conflict td.waarom{color:var(--rood)}
+td.uitkomst.ok{color:var(--groen)}
+td.uitkomst.fout{color:var(--rood)}
+.regel{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:8px 0}
+label{font-size:12.5px}
+ul.mappen{margin:4px 0;padding-left:18px;font-size:13px}
+ul.mappen code{font-family:'Share Tech Mono',monospace;font-size:12.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Ordenen</h1>
+  <div class="sub">Zet je ZIP's in een map per soort telling. Een origineel waarvan een reconstructie bestaat, gaat in de submap <em>originelen</em>. Er wordt niets gewist. <a href="index.html">Naar de voorpagina</a></div>
+</header>
+<main>
+  <div class="sect">
+    <h2>Je archief</h2>
+    <div class="regel">
+      <button id="kies" onclick="kiesMap()">Kies je archiefmap</button>
+      <label id="alleen-lezen" class="hide">Alleen bekijken: <input type="file" id="map-invoer" webkitdirectory multiple onchange="leesInvoer(this.files)"></label>
+    </div>
+    <div id="melding" class="note">Kies de map waarin je je ZIP's bewaart. De tool leest alle ZIP's erin, ook in submappen, en laat eerst zien wat hij zou doen. Pas na <strong>Uitvoeren</strong> verplaatst hij iets.</div>
+  </div>
+
+  <div class="sect hide" id="plan-sect">
+    <h2>Plan</h2>
+    <div class="kpi" id="kpi"></div>
+    <div class="regel">
+      <label><input type="checkbox" id="toon-goed" onchange="toonPlan()"> ook tonen wat al goed staat</label>
+    </div>
+    <div class="tabel"><table id="plan"></table></div>
+    <div class="regel">
+      <button id="uitvoeren" onclick="uitvoeren()" disabled>Uitvoeren</button>
+      <button class="ghost" id="opnieuw" onclick="opnieuwLezen()">Opnieuw lezen</button>
+      <span id="voortgang" class="sub"></span>
+    </div>
+  </div>
+
+  <div class="sect">
+    <h2>Zo wordt ingedeeld</h2>
+    <ul class="mappen">
+      <li><code>Autoparkeren</code>, <code>Fietsparkeren</code>, <code>Capaciteit</code>, <code>Stilstaand</code>, <code>Pocket parkeren</code>, <code>Pocket simpel</code>, <code>Transect</code>, <code>Winkelstraat</code>: elke telling in de map van zijn soort. De soort komt uit de naam (<code>_car</code>, <code>_fts</code>, <code>_cap</code>, <code>_pkt_s|t|w|p</code>, <code>_sta</code>) of, als die er niet in staat, uit <code>_sessie.csv</code>.</li>
+      <li><code>&lt;soort&gt;/originelen</code>: een origineel waarvan in je archief een reconstructie (<code>_recon.zip</code>) ligt. De reconstructie zelf staat in de map van de soort.</li>
+      <li><code>Verzamelingen</code>: de verzamelingen uit telrapport (<code>TelVerzameling_….zip</code>).</li>
+      <li><code>dubbel</code>: een ZIP die er al eens ligt, met precies dezelfde inhoud (zelfde vingerafdruk), bijvoorbeeld <code>…_car (1).zip</code>. Is de inhoud anders, dan blijven beide staan.</li>
+      <li>Alle andere bestanden blijven waar ze zijn. Wat verplaatst is, staat in <code>ordenen_logboek.csv</code> in je archief, zodat je het kunt terugzoeken.</li>
+    </ul>
+    <div class="note warn">Verwerk je de ZIP's ook met een eigen script of KNIME, kijk dan of dat ook in submappen zoekt.</div>
+  </div>
+</main>
+
+<script>
+/* ── Ordenen (v3.31) ─────────────────────────────────────────────────────────
+   Jay: "Het wordt ook tijd voor een soort organizer. Originelen waarvan een _recon
+   is kunnen in een map, en ik wil aangeboden .zips verplaatsen naar een map per
+   type telling." Keuzes: een eigen pagina; mappen zoals de voorpagina;
+   originelen in een submap per soort; één map, ter plekke.
+   Verplaatsen kan alleen met de File System Access API (Chrome en Edge op de
+   computer). Elders laat de pagina het plan zien, maar verplaatst niets.
+
+   ORDENEN is de indeling: een lijst bestanden in, een plan uit. Hij weet niets
+   van de browser of van mappen; functest_ordenen.js test hem los.            */
+var ORDENEN = (function () {
+  var MAP = { auto: 'Autoparkeren', fiets: 'Fietsparkeren', capaciteit: 'Capaciteit', standstill: 'Stilstaand',
+              'pocket:parkeren': 'Pocket parkeren', 'pocket:simpel': 'Pocket simpel', 'pocket:transect': 'Transect',
+              'pocket:winkelstraat': 'Winkelstraat', verzameling: 'Verzamelingen' };
+  var LETTER = { s: 'simpel', t: 'transect', w: 'winkelstraat', p: 'parkeren' };
+  var MODI = ['simpel', 'transect', 'winkelstraat', 'parkeren'];
+  var DUBBEL = 'dubbel', ORIGINELEN = 'originelen';
+
+  // Naam zonder .zip en zonder het volgnummer van een dubbele download.
+  function kern(naam) { return String(naam || '').replace(/\.zip$/i, '').replace(/\s*\(\d+\)$/, ''); }
+
+  // De soort: eerst de naam (die gaat voor, zoals in de ZIP-referentie), dan
+  // _sessie.csv. info = { naam, sessie: {app_type, modus, sessie_id, reconstructie} | null, verzameling }
+  function soort(info) {
+    var n = kern(info.naam), s = info.sessie || null, m;
+    if (info.verzameling || /^TelVerzameling_/i.test(n)) return 'verzameling';
+    if ((m = /_pkt_([stwp])(?:_recon)?$/i.exec(n))) return 'pocket:' + LETTER[m[1].toLowerCase()];
+    if (/_car$/i.test(n)) return 'auto';
+    if (/_fts$/i.test(n)) return 'fiets';
+    if (/_cap$/i.test(n)) return 'capaciteit';
+    if (/_sta(?:_recon)?$/i.test(n)) return 'standstill';
+    if (!s) return null;
+    var at = String(s.app_type || '').trim().toLowerCase();
+    if (at === 'pocket') {
+      var md = String(s.modus || '').trim().toLowerCase();
+      if (MODI.indexOf(md) >= 0) return 'pocket:' + md;
+      if ((m = /_pkt_([stwp])$/i.exec(String(s.sessie_id || '').trim()))) return 'pocket:' + LETTER[m[1].toLowerCase()];
+      return null;
+    }
+    return MAP[at] ? at : null;
+  }
+
+  function isRecon(info) {
+    return /_recon$/i.test(kern(info.naam)) || !!(info.sessie && String(info.sessie.reconstructie || '').trim());
+  }
+
+  // Wat origineel en reconstructie bindt: de sessie-id (de reconstructor houdt
+  // hem gelijk). Zonder _sessie.csv: de naam zonder _recon en zonder _car/_fts/_cap.
+  function sessieId(info) {
+    var id = info.sessie && String(info.sessie.sessie_id || '').trim();
+    if (id) return id.toLowerCase();
+    return kern(info.naam).replace(/_recon$/i, '').replace(/_(car|fts|cap)$/i, '').toLowerCase();
+  }
+
+  // Windows en macOS kennen geen verschil tussen hoofd- en kleine letters in mapnamen.
+  function gelijk(a, b) { return a.toLowerCase() === b.toLowerCase(); }
+  function mapVan(pad) { var i = pad.lastIndexOf('/'); return i < 0 ? '' : pad.slice(0, i); }
+  function naamVan(pad) { return pad.slice(pad.lastIndexOf('/') + 1); }
+  function metVolgnummer(naam, k) { return naam.replace(/(\.zip)?$/i, function (ext) { return ' (' + k + ')' + (ext || ''); }); }
+
+  /* items: [{ pad: 'sub/x.zip', naam, sha, sessie, verzameling, fout }]
+     Geeft per item een actie: { item, van, naar, status, reden, soort }.
+     status: 'verplaatsen' | 'goed' | 'overslaan' | 'conflict'. */
+  function plan(items) {
+    var acties = items.map(function (it) {
+      var so = it.fout ? null : soort(it);
+      return { item: it, van: it.pad, naar: null, status: '', reden: '', soort: so,
+               recon: !!so && so !== 'verzameling' && isRecon(it),
+               id: so && so !== 'verzameling' ? sessieId(it) : null };
+    });
+    var reconVan = {};
+    acties.forEach(function (a) { if (a.recon) reconVan[a.id] = true; });
+
+    // 1. De map waar elk bestand hoort, los van dubbelen.
+    acties.forEach(function (a) {
+      if (!a.soort) {
+        a.status = 'overslaan';
+        a.reden = a.item.fout ? 'niet te lezen: ' + a.item.fout : 'geen telling van telonline.org';
+        return;
+      }
+      var basis = MAP[a.soort];
+      if (!a.recon && a.soort !== 'verzameling' && reconVan[a.id]) {
+        a.doelmap = basis + '/' + ORIGINELEN; a.reden = basis + ' \u00b7 origineel, de reconstructie ligt er ook';
+      } else {
+        a.doelmap = basis; a.reden = basis + (a.recon ? ' \u00b7 reconstructie' : '');
+      }
+    });
+
+    // 2. Dubbelen: zelfde vingerafdruk. Eén blijft; de voorkeur heeft een die al
+    // goed staat, dan een naam zonder (1), dan het kortste pad.
+    var perSha = {};
+    acties.forEach(function (a) { if (a.soort && a.item.sha) (perSha[a.item.sha] = perSha[a.item.sha] || []).push(a); });
+    Object.keys(perSha).forEach(function (sha) {
+      var g = perSha[sha];
+      if (g.length < 2) return;
+      g.sort(function (x, y) {
+        var gx = gelijk(mapVan(x.van), x.doelmap) ? 0 : 1, gy = gelijk(mapVan(y.van), y.doelmap) ? 0 : 1;
+        if (gx !== gy) return gx - gy;
+        var nx = /\s\(\d+\)\.zip$/i.test(x.item.naam) ? 1 : 0, ny = /\s\(\d+\)\.zip$/i.test(y.item.naam) ? 1 : 0;
+        if (nx !== ny) return nx - ny;
+        if (x.van.length !== y.van.length) return x.van.length - y.van.length;
+        return x.van < y.van ? -1 : 1;
+      });
+      for (var i = 1; i < g.length; i++) {
+        g[i].doelmap = DUBBEL; g[i].dubbel = true;
+        g[i].reden = 'dubbel van ' + g[0].doelmap + '/' + g[0].item.naam;
+      }
+    });
+
+    // 3. Waarheen, en wat er al staat. Een pad dat bezet blijft, mag niet het doel zijn.
+    var bezet = {};
+    acties.forEach(function (a) {
+      if (!a.soort) { bezet[a.van.toLowerCase()] = true; return; }
+      a.naar = a.doelmap + '/' + a.item.naam;
+      if (gelijk(a.naar, a.van)) { a.naar = a.van; a.status = 'goed'; bezet[a.van.toLowerCase()] = true; }
+    });
+    acties.filter(function (a) { return a.soort && a.status !== 'goed'; })
+      .sort(function (x, y) { return x.van < y.van ? -1 : 1; })
+      .forEach(function (a) {
+        if (a.dubbel) {                                   // in dubbel/ maakt een volgnummer niets uit
+          var k = 2, naam = a.item.naam;
+          while (bezet[(DUBBEL + '/' + naam).toLowerCase()]) naam = metVolgnummer(a.item.naam, k++);
+          a.naar = DUBBEL + '/' + naam;
+        }
+        if (bezet[a.naar.toLowerCase()]) {
+          a.status = 'conflict';
+          a.reden = 'in ' + mapVan(a.naar) + ' staat al een ander bestand met deze naam';
+          bezet[a.van.toLowerCase()] = true;
+          return;
+        }
+        a.status = 'verplaatsen';
+        bezet[a.naar.toLowerCase()] = true;
+      });
+    return acties;
+  }
+
+  return { plan: plan, soort: soort, isRecon: isRecon, sessieId: sessieId, MAP: MAP, mapVan: mapVan, naamVan: naamVan };
+})();
+/* ── einde ORDENEN ── */
+
+/* ── Lezen: elke ZIP openen, vingerafdruk en _sessie.csv ─────────────────── */
+function csvVelden(regel) {
+  var uit = [], cel = '', q = false;
+  for (var i = 0; i < regel.length; i++) {
+    var c = regel[i];
+    if (q) { if (c === '"' && regel[i + 1] === '"') { cel += '"'; i++; } else if (c === '"') q = false; else cel += c; }
+    else if (c === '"') q = true; else if (c === ';') { uit.push(cel); cel = ''; } else cel += c;
+  }
+  uit.push(cel);
+  return uit;
+}
+function sessieUit(tekst) {
+  var r = String(tekst || '').replace(/^\uFEFF/, '').split(/\r?\n/).filter(function (x) { return x.trim(); });
+  if (r.length < 2) return null;
+  var kop = csvVelden(r[0]), w = csvVelden(r[1]), o = {};
+  kop.forEach(function (k, i) { o[k.trim()] = (w[i] || '').trim(); });
+  return o;
+}
+function hex(buf) {
+  var b = new Uint8Array(buf), s = '';
+  for (var i = 0; i < b.length; i++) s += (b[i] < 16 ? '0' : '') + b[i].toString(16);
+  return s;
+}
+async function vingerafdrukVan(buf) { return hex(await crypto.subtle.digest('SHA-256', buf)); }
+
+async function leesItem(item, file) {
+  try {
+    var buf = await file.arrayBuffer();
+    item.sha = await vingerafdrukVan(buf);
+    item.grootte = buf.byteLength;
+    var zip = await JSZip.loadAsync(buf);
+    var namen = Object.keys(zip.files);
+    item.verzameling = namen.indexOf('verzameling.json') >= 0;
+    var ses = namen.filter(function (n) { return /_sessie\.csv$/i.test(n) && n.indexOf('/') < 0; })[0];
+    item.sessie = ses ? sessieUit(await zip.file(ses).async('text')) : null;
+  } catch (e) {
+    item.fout = (e && e.message) || 'onbekende fout';
+  }
+  return item;
+}
+
+/* ── Bron: een echte map (Chrome, Edge) of alleen bekijken (elders) ───────── */
+var wortel = null;      // FileSystemDirectoryHandle van het archief
+var items = [], acties = [];
+var KAN_VERPLAATSEN = typeof window.showDirectoryPicker === 'function';
+
+function melding(tekst, soort) {
+  var el = document.getElementById('melding');
+  el.className = 'note' + (soort ? ' ' + soort : '');
+  el.innerHTML = tekst;
+}
+function voortgang(t) { document.getElementById('voortgang').textContent = t || ''; }
+
+(function () {
+  if (KAN_VERPLAATSEN) return;
+  document.getElementById('kies').classList.add('hide');
+  document.getElementById('alleen-lezen').classList.remove('hide');
+  melding('Verplaatsen kan alleen in Chrome of Edge op de computer: alleen die laten een webpagina, met jouw toestemming, bestanden in een map verplaatsen. Hier kun je het plan bekijken en het zelf doen.', 'warn');
+})();
+
+async function kiesMap() {
+  try {
+    wortel = await window.showDirectoryPicker({ id: 'telarchief', mode: 'readwrite' });
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    melding('Die map kon niet geopend worden: ' + ((e && e.message) || e), 'fout');
+    return;
+  }
+  await leesWortel();
+}
+
+async function verzamel(dir, pad, uit) {
+  for await (var [naam, h] of dir.entries()) {
+    if (naam.charAt(0) === '.') continue;
+    var p = pad ? pad + '/' + naam : naam;
+    if (h.kind === 'directory') await verzamel(h, p, uit);
+    else if (/\.zip$/i.test(naam)) uit.push({ pad: p, naam: naam, handle: h, ouder: dir });
+  }
+  return uit;
+}
+
+async function leesWortel() {
+  melding('Bezig met lezen\u2026');
+  var lijst = await verzamel(wortel, '', []);
+  items = [];
+  for (var i = 0; i < lijst.length; i++) {
+    voortgang('gelezen ' + i + ' van ' + lijst.length);
+    items.push(await leesItem(lijst[i], await lijst[i].handle.getFile()));
+  }
+  voortgang('');
+  maakPlan();
+}
+
+async function leesInvoer(files) {
+  var lijst = Array.prototype.filter.call(files, function (f) { return /\.zip$/i.test(f.name); });
+  items = [];
+  for (var i = 0; i < lijst.length; i++) {
+    var rel = lijst[i].webkitRelativePath || lijst[i].name;
+    var pad = rel.indexOf('/') >= 0 ? rel.slice(rel.indexOf('/') + 1) : rel;   // zonder de gekozen map zelf
+    if (pad.split('/').some(function (d) { return d.charAt(0) === '.'; })) continue;
+    voortgang('gelezen ' + i + ' van ' + lijst.length);
+    items.push(await leesItem({ pad: pad, naam: lijst[i].name }, lijst[i]));
+  }
+  voortgang('');
+  maakPlan();
+}
+
+function opnieuwLezen() {
+  if (wortel) leesWortel();
+  else document.getElementById('map-invoer').click();
+}
+
+/* ── Het plan tonen ──────────────────────────────────────────────────────── */
+function maakPlan() {
+  acties = ORDENEN.plan(items);
+  acties.forEach(function (a) { a.aan = a.status === 'verplaatsen'; a.uitkomst = ''; });
+  document.getElementById('plan-sect').classList.remove('hide');
+  var n = function (st) { return acties.filter(function (a) { return a.status === st; }).length; };
+  var nDubbel = acties.filter(function (a) { return a.dubbel && a.status === 'verplaatsen'; }).length;
+  document.getElementById('kpi').innerHTML =
+    [['te verplaatsen', n('verplaatsen')], ['waarvan dubbel', nDubbel], ['staat al goed', n('goed')],
+     ['blijft liggen', n('overslaan')], ['naamconflict', n('conflict')]]
+      .map(function (k) { return '<div><span>' + k[0] + '</span><b>' + k[1] + '</b></div>'; }).join('');
+  if (!items.length) melding('Geen ZIP-bestanden gevonden in deze map.', 'warn');
+  else if (!n('verplaatsen')) melding('Alles staat al op zijn plek.' + (n('conflict') ? ' Bekijk de naamconflicten hieronder.' : ''));
+  else if (KAN_VERPLAATSEN) melding('Bekijk het plan. Vink uit wat je wilt laten liggen, en kies <strong>Uitvoeren</strong>.');
+  else melding('Dit is het plan. Verplaatsen kan alleen in Chrome of Edge op de computer; hier kun je het overnemen.', 'warn');
+  toonPlan();
+}
+
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function toonPlan() {
+  var goedOok = document.getElementById('toon-goed').checked;
+  var rijen = acties.map(function (a, i) { return [a, i]; }).filter(function (x) { return goedOok || x[0].status !== 'goed'; });
+  var orde = { verplaatsen: 0, conflict: 1, overslaan: 2, goed: 3 };
+  rijen.sort(function (x, y) { return (orde[x[0].status] - orde[y[0].status]) || (x[0].van < y[0].van ? -1 : 1); });
+  var html = '<tr><th></th><th>Bestand</th><th>Nu in</th><th>Naar</th><th>Waarom</th><th></th></tr>';
+  rijen.forEach(function (x) {
+    var a = x[0], i = x[1];
+    var vink = a.status === 'verplaatsen'
+      ? '<input type="checkbox" data-i="' + i + '"' + (a.aan ? ' checked' : '') + (KAN_VERPLAATSEN && wortel ? '' : ' disabled') + ' onchange="vink(this)">' : '';
+    var naar = a.status === 'verplaatsen' ? ORDENEN.mapVan(a.naar) + '/' : (a.status === 'goed' ? '(blijft)' : '\u2014');
+    var uk = a.uitkomst === 'ok' ? '<td class="uitkomst ok">\u2713 verplaatst</td>'
+           : a.uitkomst ? '<td class="uitkomst fout">' + esc(a.uitkomst) + '</td>' : '<td></td>';
+    html += '<tr class="' + a.status + '" data-pad="' + esc(a.van) + '"><td>' + vink + '</td><td class="pad">' + esc(a.item.naam) +
+            '</td><td class="pad">' + esc(ORDENEN.mapVan(a.van) || '.') + '/</td><td class="pad">' + esc(naar) +
+            '</td><td class="waarom">' + esc(a.reden) + '</td>' + uk + '</tr>';
+  });
+  document.getElementById('plan').innerHTML = html;
+  var aantal = acties.filter(function (a) { return a.status === 'verplaatsen' && a.aan && !a.uitkomst; }).length;
+  var knop = document.getElementById('uitvoeren');
+  knop.disabled = !(KAN_VERPLAATSEN && wortel && aantal);
+  knop.textContent = 'Uitvoeren' + (aantal ? ' (' + aantal + ')' : '');
+}
+function vink(el) { acties[+el.getAttribute('data-i')].aan = el.checked; toonPlan(); }
+
+/* ── Uitvoeren ───────────────────────────────────────────────────────────── */
+async function submap(dir, pad) {
+  var d = dir;
+  for (var deel of pad.split('/').filter(Boolean)) d = await d.getDirectoryHandle(deel, { create: true });
+  return d;
+}
+async function bestaat(dir, naam) {
+  try { await dir.getFileHandle(naam); return true; } catch (e) { return false; }
+}
+// Eén bestand verplaatsen. Eerst move() (een hernoeming, Chrome 122+); lukt dat
+// niet, dan kopiëren, de kopie nalezen tegen de vingerafdruk, en pas dan het
+// origineel weghalen. Nooit overschrijven: staat het doel er al, dan stoppen.
+async function verplaats(a) {
+  var doel = await submap(wortel, ORDENEN.mapVan(a.naar)), naam = ORDENEN.naamVan(a.naar);
+  if (await bestaat(doel, naam)) throw new Error('het doel bestaat al');
+  var h = a.item.handle;
+  if (typeof h.move === 'function') {
+    try { await h.move(doel, naam); return 'move'; }
+    catch (e) { if (await bestaat(doel, naam)) return 'move'; }
+  }
+  var bron = await h.getFile();
+  var nieuw = await doel.getFileHandle(naam, { create: true });
+  var w = await nieuw.createWritable();
+  await w.write(bron); await w.close();
+  var terug = await (await nieuw.getFile()).arrayBuffer();
+  if (await vingerafdrukVan(terug) !== a.item.sha) {
+    await doel.removeEntry(naam);
+    throw new Error('de kopie wijkt af; het origineel blijft staan');
+  }
+  await a.item.ouder.removeEntry(a.item.naam);
+  return 'kopie';
+}
+
+var LOGBOEK = 'ordenen_logboek.csv';
+async function schrijfLogboek(regels) {
+  if (!regels.length) return;
+  var h = await wortel.getFileHandle(LOGBOEK, { create: true });
+  var f = await h.getFile();
+  var w = await h.createWritable({ keepExistingData: true });
+  await w.seek(f.size);
+  await w.write((f.size ? '' : 'tijdstip;van;naar;reden;sha256\n') + regels.join('\n') + '\n');
+  await w.close();
+}
+
+async function uitvoeren() {
+  var todo = acties.filter(function (a) { return a.status === 'verplaatsen' && a.aan && !a.uitkomst; });
+  if (!todo.length) return;
+  document.getElementById('uitvoeren').disabled = true;
+  var nu = new Date(), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+  var tijd = nu.getFullYear() + '-' + p2(nu.getMonth() + 1) + '-' + p2(nu.getDate()) + ' ' + p2(nu.getHours()) + ':' + p2(nu.getMinutes()) + ':' + p2(nu.getSeconds());
+  var regels = [], ok = 0;
+  for (var i = 0; i < todo.length; i++) {
+    var a = todo[i];
+    voortgang('verplaatsen ' + (i + 1) + ' van ' + todo.length);
+    try {
+      await verplaats(a);
+      a.uitkomst = 'ok'; ok++;
+      regels.push([tijd, a.van, a.naar, a.reden, a.item.sha].map(function (v) { return String(v).replace(/;/g, ','); }).join(';'));
+    } catch (e) {
+      a.uitkomst = 'niet verplaatst: ' + ((e && e.message) || e);
+    }
+  }
+  try { await schrijfLogboek(regels); }
+  catch (e) { melding('Verplaatst, maar het logboek kon niet geschreven worden: ' + ((e && e.message) || e), 'warn'); }
+  voortgang('');
+  var mis = todo.length - ok;
+  melding(ok + (ok === 1 ? ' bestand' : ' bestanden') + ' verplaatst' + (mis ? ', ' + mis + ' niet (zie de tabel)' : '') +
+          '. Wat er gebeurde, staat in <code>' + LOGBOEK + '</code> in je archief.', mis ? 'warn' : '');
+  toonPlan();
+}
+</script>
+</body>
+</html>
