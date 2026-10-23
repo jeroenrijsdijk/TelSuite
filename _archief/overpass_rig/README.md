@@ -54,6 +54,7 @@ Draaien vanuit de suite-map:
                                                        # (ook sql.js@1.14.2 in node_modules; het QGIS-deel draait als
                                                        #  PyQGIS er is, via gpkg_qgis.py, anders overgeslagen)
     python3 _archief/overpass_rig/reconkaarttest.py    # v3.28: de kaart-PNG in de _recon.zip, 16 tests
+    python3 _archief/overpass_rig/deeltest.py          # v3.29: de waarschuwing bij het delen van een ZIP, 25 tests
                                                        # (playwright + leaflet/jszip/papaparse/fontsource in node_modules)
     python3 _archief/overpass_rig/tekstgelijk.py oud.html nieuw.html  # zelfde tekst, woord voor woord (bij opmaakwijzigingen)
 

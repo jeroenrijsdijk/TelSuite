@@ -19,10 +19,11 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.28'
-# v3.28: capaciteitsterreinen in de GeoPackage, kaart-PNG in de _recon.zip, over/about volgens de voorpagina.
-VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'telreconstructie.html', 'over.html', 'about.html',
-                      'traffic_counter_help.html', 'zip_format_reference.html'}
+RELEASE = 'v3.29'
+# v3.29: waarschuwing bij het delen van een ZIP (je plek, en thuis je huis).
+VERWACHT_GEWIJZIGD = {'index.html', 'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                      'pocket_count.html', 'traffic_counter.html', 'telreconstructie.html', 'telrapport.html',
+                      'privacy.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -216,6 +217,10 @@ groepen = [
      '/* ── Herstelmelding (v3.22)', '/* ── einde gedeeld blok herstelmelding ── */'),
     ('herstel-haken', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
      '/* ── Herstelmelding: haken parkeer-apps (v3.22) ── */', '/* ── einde haken herstelmelding ── */'),
+    # v3.29: één regel bij de ZIP-knop over delen (je plek; thuis je huis)
+    ('deelwaarschuwing', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                          'pocket_count.html', 'traffic_counter.html'],
+     '/* ── Deelwaarschuwing (v3.29)', '/* ── einde gedeeld blok deelwaarschuwing ── */'),
     # v3.27: oude tegels uit de cache, in elk bestand dat de tegelcache gebruikt
     ('tegels opruimen', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
                          'pocket_count.html', 'telreconstructie.html'],
