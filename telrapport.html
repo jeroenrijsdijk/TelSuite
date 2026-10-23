@@ -7,6 +7,7 @@
 <meta name="description" content="Sleep je tel-ZIP's erin voor een kaart van de drukte per wegvak, een dag×uur-weekprofiel en filters op tijd. Export als GeoPackage voor QGIS.">
 <link rel="canonical" href="https://telonline.org/telrapport.html">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="fonts/fonts.css" rel="stylesheet">   <!-- v3.30: Oswald voor de labels op de kaart (clusterbollen, nummers) -->
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -598,7 +599,7 @@
             onclick="exportGeoPackage()">
             <span class="dot" style="background:#93b7be;border:1px solid #888"></span>bewaar kaart als GeoPackage (QGIS)</button>
         </div>
-        <div id="deel-waarschuwing" style="font-size:11px;line-height:1.35;opacity:0.7;margin:4px 2px 0">&#9432; Deel je een verzameling of GeoPackage, dan deel je de routes en plekken van de tellingen erin. Begon een telling thuis, dan staat dat huis erin.</div>
+        <div id="deel-waarschuwing" style="font-size:11px;line-height:1.35;opacity:0.7;margin:4px 2px 0">&#9432; Begint een opname bij huis? Deel de verzameling of GeoPackage dan niet zomaar met iedereen.</div>
         <div class="toggle-row" style="margin-top:6px">
           <button class="dot-btn" id="capnetwerk-toggle" style="color:#fff;flex:1"
             onclick="toggleCapNetwerk(this)">
@@ -753,16 +754,8 @@ const APP_CONFIG = {
     detailCols: ['totaal', 'p_per_m'],
     detailLabels: { totaal:'tikken', p_per_m:'p/m' },
     detailClasses: { totaal:'c-tot', p_per_m:'c-brom' },
-  },
-  transect: {
-    types:  ['car','truck','moto','bike','ped'],
-    colors: { car:'#cc0000', truck:'#e07800', moto:'#e6b800', bike:'#7700cc', ped:'#d4007a' },
-    labels: { car:'auto', truck:'vracht', moto:'motor', bike:'fiets', ped:'voetg.' },
-    heatVal: function(s) { return Math.sqrt((s.totaal_a||0)+(s.totaal_b||0)) / Math.sqrt(50); },
-    detailCols: ['car','truck','moto','bike','ped'],
-    detailLabels: { car:'auto', truck:'vracht', moto:'motor', bike:'fiets', ped:'voetg.' },
-    detailClasses: { car:'c-fiets', truck:'c-wrak', moto:'c-breed', bike:'c-brom', ped:'c-tot' },
   }
+  // v3.30: transect (het losse _trn-formaat) is weg; pocket's transect-modus valt onder pocket
 };
 
 // ── MAP ───────────────────────────────────────────────────────────
@@ -1091,7 +1084,6 @@ let   capSpotLayers = [];   // tijdelijke spot-markers bij klik capaciteit
 let   timeFilterActive = false;
 let   currentTimeHour  = 10;
 let   currentDayFilter = 'all';   // 'all' | 'weekday' | 'saturday' | 'sunday'
-const TYPES_TRANSECT = ['car','truck','moto','bike','ped'];
 const globalPolyMap = {};   // wayId → [[lat,lon],...] voor spatial join
 
 // Composite-key helpers — verstop het samenstel-detail op één plek.
@@ -1348,7 +1340,7 @@ const SS_VEHICLE_LOOKUP = {
 };
 const SS_TYPE_ORDER  = ['car','truck','moto','bike','ped'];
 const SS_TYPE_LABEL  = { car:'auto', truck:'vracht', moto:'motor', bike:'fiets', ped:'voetg.' };
-// Kleuren consistent met APP_CONFIG.transect zodat het visueel rijmt
+// Kleuren als TYPE_KLEUR in Static (gedeelde constante typekleuren in valideer.py)
 const SS_TYPE_COLOR  = { car:'#cc0000', truck:'#e07800', moto:'#e6b800', bike:'#7700cc', ped:'#d4007a' };
 
 // Parse traffic_counter.html CSV-export naar een gestructureerd object.
@@ -1877,97 +1869,10 @@ function renderStandStillTimeline(data, presentTypes) {
   return svg;
 }
 
-function loadTransectZip(sid, sm, telCSV, gpsCSV) {
-  sessions[sid] = { meta:sm, visible:true, appType:'transect' };
-  getSessionColor(sid);
-  clusterLayers[sid] = [];
-  dotLayers[sid] = {};
-
-  const datum = fmtDatum(sm.datum, sm.start_tijd);
-
-  // GPS-spoor
-  if (gpsCSV) {
-    const coords = parseCSV(gpsCSV).map(r=>[+r.lat,+r.lon]).filter(c=>!isNaN(c[0]));
-    if (coords.length)
-      gpsLayers[sid] = L.polyline(coords, {color:'#4a9eff',weight:1.5,opacity:0.35,dashArray:'4 4'}).addTo(map);
-  }
-
-  // Observaties: wayData vullen als osm_way_id beschikbaar, anders losse stippen
-  if (telCSV) {
-    var rows = parseCSV(telCSV);
-    var hasSnap = rows.some(function(r){ return r.osm_way_id && r.osm_way_id.trim(); });
-
-    rows.forEach(function(r) {
-      const la = parseFloat(r.lat), lo = parseFloat(r.lon);
-      if (isNaN(la)||isNaN(lo)) return;
-      const type    = r.type || 'car';
-      const richting= r.richting || 'A';
-      const kleur   = APP_CONFIG.transect.colors[type] || '#888';
-      const wid     = r.osm_way_id ? r.osm_way_id.trim() : null;
-      const naam    = r.straat || r.osmName || '';
-
-      // Stip op de kaart
-      const m = L.circleMarker([la,lo], {
-        radius:5, color:'#fff', weight:1.5,
-        fillColor:kleur, fillOpacity:0.8, pane:'clusters'
-      }).bindTooltip((APP_CONFIG.transect.labels[type]||type)+' → '+richting+' · '+datum, {direction:'top'});
-      m.addTo(map);
-      m._tikType = type;      // v2.60: type bij de marker, niet in de tooltiptekst
-      m._rij = r;             // v3.1: voor de GeoPackage-export (niet _telregel, zie pocket)
-      if (!dotLayers[sid][type]) dotLayers[sid][type] = [];
-      dotLayers[sid][type].push(m);
-
-      // wayData vullen voor clustering — transect is altijd seg 0
-      if (wid) {
-        const k = wkey(wid, 0);
-        if (!wayData[k]) wayData[k] = { geometry:[[la,lo],[la,lo]], highway:'', sessions:[], osmName:naam, wayId:wid, segIdx:0, segCount:1 };
-        let ws = wayData[k].sessions.find(function(s){ return s.sid===sid; });
-        if (!ws) {
-          ws = { sid:sid, appType:'transect', naam:naam };
-          TYPES_TRANSECT.forEach(function(t){ ws[t]=0; ws[t+'_a']=0; ws[t+'_b']=0; });
-          ws.totaal_a=0; ws.totaal_b=0;
-          wayData[k].sessions.push(ws);
-        }
-        ws[type] = (ws[type]||0)+1;
-        if (richting !== 'B') { ws[type+'_a']=(ws[type+'_a']||0)+1; ws.totaal_a++; }
-        else                  { ws[type+'_b']=(ws[type+'_b']||0)+1; ws.totaal_b++; }
-      }
-    });
-
-    // Wegvak-geometrie ophalen via netCSV als die er is
-    if (hasSnap) {
-      var sessKeys = Object.keys(wayData).filter(function(k){
-        return wayData[k].sessions.some(function(s){ return s.sid===sid; });
-      });
-      // Probeer geometrie te laden van bestaand netwerk
-      var missingGeom = sessKeys.filter(function(k){
-        var g = wayData[k].geometry;
-        return !g || (g.length===2 && g[0][0]===g[1][0] && g[0][1]===g[1][1]);
-      });
-      if (missingGeom.length) {
-        var missingWids = missingGeom.map(function(k){ return parseKey(k).wid; });
-        haalWayGeometrie(missingWids, function(geomMap){
-          Object.keys(geomMap).forEach(function(wid){
-            var k = wkey(wid, 0);
-            if (wayData[k]) {
-              wayData[k].geometry = geomMap[wid];
-              makeWayLine(k, wayData[k].geometry, {color:'#5500cc',weight:3,opacity:0.6});
-              attachPocketSegmentInteraction(k);
-            }
-          });
-          drawClusters(sid);
-        });
-      }
-    }
-  }
-
-  renderSessions(); updateUI(); updateStats();
-
-  // Zoom naar GPS-spoor
-  if (gpsLayers[sid]) {
-    try { map.fitBounds(gpsLayers[sid].getBounds().pad(0.15)); } catch(e) {}
-  }
-}
+// v3.30: hier stond loadTransectZip, de lezer van het losse transect-formaat
+// (*_trn.zip, app_type transect). Geen app maakt dat nog: pocket's transect-modus
+// (_pkt_t) verving het, en Jay heeft zulke ZIP's niet meer. Zie loadZip voor de
+// melding als er toch een binnenkomt.
 
 /* Welke coördinaat tekenen we voor een pocket-tik? (v2.51)
    Een gereconstrueerde pocket-parkeertelling draagt naast de rauwe GPS-positie
@@ -2743,7 +2648,7 @@ function makePtClusterMarker(group, sid, appType, sessionColor) {
     var c2 = SESSION_COLORS[sids[1]] || '#888';
     bgStyle = 'background:linear-gradient(135deg,'+c1+' 50%,'+c2+' 50%)';
   } else {
-    var clr = sessionColor || APP_CONFIG.transect.colors[dominant] || '#555';
+    var clr = sessionColor || SS_TYPE_COLOR[dominant] || '#555';   // v3.30: was APP_CONFIG.transect, zelfde kleuren
     bgStyle = 'background:'+clr;
   }
 
@@ -2823,7 +2728,7 @@ function getSessionColor(sid) {
 }
 
 function showPtClusterDetail(counts, sessionCounts, total, appType) {
-  document.getElementById('detail-title').textContent = appType === 'pocket' ? 'Pocket telling' : 'Transect telling';
+  document.getElementById('detail-title').textContent = 'Pocket telling';   // v3.30: alleen nog pocket (was ook het losse transect)
   var html2 = '';
   // Per sessie
   Object.keys(sessionCounts).forEach(function(sk) {
@@ -2861,8 +2766,8 @@ function drawClusters(sid) {
   if (!clustersVisible || !sessions[sid]?.visible) return;
   const appType = sessions[sid].appType;
 
-  // Transect/pocket zonder wayData: gap-clustering op losse stippen
-  if (appType === 'transect' || appType === 'pocket') {
+  // Pocket zonder wayData: gap-clustering op losse stippen
+  if (appType === 'pocket') {
     const hasWayData = Object.keys(wayData).some(function(k) {
       return wayData[k].sessions.some(function(s){ return s.sid===sid; });
     });
@@ -3701,27 +3606,6 @@ document.getElementById('polygon-cancel').addEventListener('click', cancelPolygo
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && polyDrawing) cancelPolygonDraw(); });
 
 function showClusterDetail(counts, total, sid, appType) {
-  if (appType === 'transect') {
-    const sm = (sessions[sid] && sessions[sid].meta) ? sessions[sid].meta : {};
-    const dirA = sm.dir_a || 'A', dirB = sm.dir_b || 'B';
-    document.getElementById('detail-title').textContent = 'Transect';
-    document.getElementById('detail-sub').textContent = fmtDatum(sm.datum, sm.start_tijd)+(sm.teller?' · '+sm.teller:'');
-    var html2 = '<table class="cmp-table"><tr><th>type</th><th>'+dirA+'</th><th>'+dirB+'</th><th>tot</th></tr>';
-    var totA=0, totB=0;
-    TYPES_TRANSECT.forEach(function(t) {
-      var a=counts[t+'_a']||0, b=counts[t+'_b']||0;
-      totA+=a; totB+=b;
-      if (a+b===0) return;
-      html2 += '<tr><td>'+(APP_CONFIG.transect.labels[t]||t)+'</td>'
-             + '<td style="text-align:right">'+a+'</td>'
-             + '<td style="text-align:right">'+b+'</td>'
-             + '<td style="text-align:right;font-weight:bold">'+(a+b)+'</td></tr>';
-    });
-    html2 += '<tr class="sum-row"><td>totaal</td><td style="text-align:right">'+totA+'</td><td style="text-align:right">'+totB+'</td><td style="text-align:right">'+(totA+totB)+'</td></tr></table>';
-    document.getElementById('detail-body').innerHTML = html2 + weatherBlock(sid);
-    document.getElementById('detail-panel').classList.remove('hidden');
-    return;
-  }
   const datum=fmtDatum(sessions[sid]?.meta?.datum, sessions[sid]?.meta?.start_tijd);
   const cfg=APP_CONFIG[appType]||APP_CONFIG.fiets;
   document.getElementById('detail-title').textContent=`Parkeerlocatie · ${total} stuks`;
@@ -3997,8 +3881,14 @@ async function loadZip(file, voorgeladenZip) {
   // ── Correctie-tool: bewaar originele File + alle telregels (incl. unsnapped) ──
   originalFile[sid] = file;
 
+  // v3.30: het losse transect-formaat leest telrapport niet meer.
+  if ((sm.app_type||'').trim() === 'transect') {
+    delete kwaliteit[sid]; delete originalFile[sid];
+    alert(file.name + ': een los transect-bestand (_trn). Dat formaat leest telrapport sinds v3.30 niet meer. '
+        + 'Tel een transect met pocket (Transect); die ZIP leest telrapport wel.');
+    return;
+  }
   const appType = (sm.app_type||'').trim() === 'auto' ? 'auto'
-                : (sm.app_type||'').trim() === 'transect' ? 'transect'
                 : (sm.app_type||'').trim() === 'pocket' ? 'pocket'
                 : (sm.app_type||'').trim() === 'capaciteit' ? 'capaciteit'
                 : 'fiets';
@@ -4006,12 +3896,6 @@ async function loadZip(file, voorgeladenZip) {
   // Capaciteitssessie: apart pad
   if (appType === 'capaciteit') {
     loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV);
-    return;
-  }
-
-  // Transect-sessie: apart pad
-  if (appType === 'transect') {
-    loadTransectZip(sid, sm, telCSV, gpsCSV);
     return;
   }
 
@@ -4050,10 +3934,8 @@ async function loadZip(file, voorgeladenZip) {
 
   // Stipjes + telregels voor clustering
   // Transect: observaties als losse stippen op de kaart
-  // v2.60: hier stond een tweede, volledige transect-tak. Onbereikbaar: hierboven
-  // keert `appType === 'transect'` al terug via loadTransectZip(). Zesentwintig
-  // regels die nooit draaiden en net iets anders waren dan het levende pad —
-  // precies het soort dubbelcode waarin je later één van de twee repareert.
+  // v2.60: hier stond een tweede, volledige transect-tak die nooit draaide. Sinds
+  // v3.30 is ook het losse transect-formaat zelf weg.
 
   if (telCSV) {
     const allRows=parseCSV(telCSV);
@@ -4118,13 +4000,12 @@ function sessionGroup(s) {
   }
   if (at === 'auto')       return { key:'auto',       icon:'🚗', label:'Autoparkeren' };
   if (at === 'capaciteit') return { key:'capaciteit', icon:'🅿', label:'Capaciteit' };
-  if (at === 'transect')   return { key:'transect',   icon:'🚶', label:'Transect' };
   if (at === 'standstill') return { key:'standstill', icon:'📍', label:'Stilstaand' };
   return { key:'fiets', icon:'🚲', label:'Fietsparkeren' };
 }
 
 const GROUP_ORDER = ['auto','fiets','capaciteit','pocket:winkelstraat',
-                     'pocket:transect','pocket:simpel','transect','standstill'];
+                     'pocket:transect','pocket:simpel','standstill'];
 
 // Volledigheids-telling: hoeveel getelde tikken van deze sessie belanden echt in een cluster?
 // Spiegelt de filters van drawClusters (snapped-set in telData + geometrie + numerieke marker,
@@ -4135,7 +4016,7 @@ function clusterDekking(sid) {
   var totaal = +((s.meta && s.meta.n_waarnemingen)) || 0;
   var geplaatst = 0;
   var gapPad = false;
-  if (appType === 'transect' || appType === 'pocket') {
+  if (appType === 'pocket') {
     var hasWayData = Object.keys(wayData).some(function(k) {
       return wayData[k].sessions && wayData[k].sessions.some(function(x){ return x.sid === sid; });
     });
@@ -4544,7 +4425,7 @@ function applySessionVisibility(sid) {
   if (capLayers[sid]) capLayers[sid].forEach(m => s.visible ? m.addTo(map) : map.removeLayer(m));
   const cfg = APP_CONFIG[s.appType] || APP_CONFIG.fiets;
   cfg.types.forEach(type => showHideDots(sid, type, dotVisible[type]));
-  if (s.appType === 'transect' || s.appType === 'pocket') {
+  if (s.appType === 'pocket') {
     Object.keys(dotLayers[sid] || {}).forEach(function(type) {
       showHideDots(sid, type, s.visible);
     });
@@ -5036,9 +4917,8 @@ function updateUI() {
   const hasFiets    =Object.values(sessions).some(s=>s.appType==='fiets');
   const hasAuto     =Object.values(sessions).some(s=>s.appType==='auto');
   const hasCap      =Object.values(sessions).some(s=>s.appType==='capaciteit');
-  const hasTransect =Object.values(sessions).some(s=>s.appType==='transect');
   const hasPocket   =Object.values(sessions).some(s=>s.appType==='pocket');
-  const hasAny  =hasFiets||hasAuto||hasCap||hasTransect||hasPocket;
+  const hasAny  =hasFiets||hasAuto||hasCap||hasPocket;
 
   document.getElementById('statsbar').style.display      = hasAny  ?'flex':'none';
   // v2.59: zodra er tellingen staan mag de dropzone inkrimpen. Scheelt samen met
@@ -6023,6 +5903,10 @@ async function loadFile(file) {
    Sinds v3.2 zit er ook een QGIS-project in het bestand; zie GPKG_PROJECT.      */
 var GPKG_SQLJS_BASIS = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.14.2/';
 var GPKG_FORMAAT_VERSIE = 1;
+// v3.30: zoveel regels passen in de legenda van de opmaak A4 liggend (gemeten in
+// v3.28: 16 regels en 4 laagnamen vulden 140 van de 180 mm). Komen er meer, dan
+// wordt het GPS-spoor één regel (gpkgLagen).
+var GPKG_LEGENDA_MAX = 20;
 var _sqlJsBelofte = null;
 
 function laadSqlJs() {
@@ -6301,11 +6185,25 @@ var GPKG_QML = (function () {
       + '</qgis>';
   }
 
-  return { waarnemingen: waarnemingen, clusters: clusters, lijnen: lijnen, vlakken: vlakken, esc: esc };
+  // Eén lijnstijl, met de kleur per object uit een veld (v3.30): het GPS-spoor als
+  // de legenda per telling niet meer past. Alfa via set_color_part.
+  function lijnPerKleur(veld, mm, streep, alfa) {
+    var expr = 'set_color_part("' + veld + '", \'alpha\', ' + Math.round(255 * alfa) + ')';
+    var dd = '<data_defined_properties><Option type="Map"><Option type="QString" name="name" value=""/>'
+           + '<Option name="properties" type="Map"><Option name="outlineColor" type="Map">'
+           + '<Option type="bool" name="active" value="true"/><Option type="QString" name="expression" value="' + esc(expr) + '"/>'
+           + '<Option type="int" name="type" value="3"/></Option></Option>'
+           + '<Option type="QString" name="type" value="collection"/></Option></data_defined_properties>';
+    var sym = lijn('0', '#777777', mm, streep, alfa).replace('</Option></layer>', '</Option>' + dd + '</layer>');
+    return kop(false) + '<renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0"><symbols>'
+         + sym + '</symbols></renderer-v2></qgis>';
+  }
+
+  return { waarnemingen: waarnemingen, clusters: clusters, lijnen: lijnen, vlakken: vlakken, lijnPerKleur: lijnPerKleur, esc: esc };
 })();
 
 /* ── Telrapport → lagen ──────────────────────────────────────────────────────── */
-var GPKG_APP_LABEL = { auto: 'parkeren', fiets: 'fietsparkeren', pocket: 'pocket', transect: 'transect' };
+var GPKG_APP_LABEL = { auto: 'parkeren', fiets: 'fietsparkeren', pocket: 'pocket' };
 
 function gpkgSessieLabel(sid) {
   var s = sessions[sid], m = (s && s.meta) || {};
@@ -6365,7 +6263,7 @@ function gpkgTypeVolgorde(app, types) {
 
 function gpkgLagen() {
   var lijst = [], nietMee = [];
-  var appVolgorde = ['auto', 'fiets', 'pocket', 'transect'];
+  var appVolgorde = ['auto', 'fiets', 'pocket'];
 
   // ── waarnemingen: elke stip die op de kaart staat, op de plek waar hij staat
   var wRijen = [], wTypes = {};
@@ -6545,6 +6443,17 @@ function gpkgLagen() {
         .concat(CAP_SOORTEN.map(function (k) { return [k, 'INTEGER']; }))
         .concat([['datum', 'TEXT'], ['teller', 'TEXT']]),
       rijen: tRijen, qml: GPKG_QML.vlakken('#8e44ad') });
+  }
+
+  // v3.30: past de legenda niet meer op het A4 (GPKG_LEGENDA_MAX), dan wordt het
+  // GPS-spoor één regel: één stijl, met de kleur per telling uit het veld kleur.
+  // De regel per telling (dag, tijden, code) staat dan niet in de legenda; de tabel
+  // sessies heeft hem nog.
+  var route = lijst.filter(function (l) { return l.naam === 'route'; })[0];
+  var regels = (wCats || []).length + rCats.length + Object.keys(vCats).length + (tRijen.length ? 1 : 0);
+  if (route && rCats.length > 1 && regels > GPKG_LEGENDA_MAX) {
+    route.qml = GPKG_QML.lijnPerKleur('kleur', '0.4', true, 0.7);
+    route.toon = 'GPS-spoor (' + rCats.length + ' tellingen)';
   }
 
   var nKaart = lijst.length;
@@ -6788,7 +6697,7 @@ async function gpkgProjectInhoud(lagen, bestand) {
   var qgs = GPKG_PROJECT.maak({
     bestand: bestand,
     lagen: kaartlagen.map(function (l) {
-      return { naam: l.naam, toon: TOON[l.naam], qml: l.qml,
+      return { naam: l.naam, toon: l.toon || TOON[l.naam], qml: l.qml,
                geometrie: l.geometrie === 'POINT' ? 'Point' : l.geometrie === 'POLYGON' ? 'Polygon' : 'Line' };
     }),
     legenda: ['waarnemingen', 'route', 'wegvakken', 'terreinen'],

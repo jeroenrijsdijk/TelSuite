@@ -1,6 +1,6 @@
 # Telonline Verkeerstellingen — stand van zaken
 
-**Laatste release: v3.29.** Waarschuwen bij het delen van een ZIP (Jay: "Als mensen een telling doen vanuit huis, en ze leveren de .zip aan derden, verraden ze de plek van hun woning"): één regel onder de ZIP-knop in de vijf veld-apps (gedeeld blok `deelwaarschuwing`, Static noemt het adres), de reconstructor en telrapport; *Een ZIP delen* in de privacyverklaring en de handleiding (`overdracht_v3_29.md`). v3.28: capaciteit in de GeoPackage, kaartje in de `_recon.zip`, introductie herschikt. v3.27: het wegennet van pocket in de noodkopie, oude tegels weg. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
+**Laatste release: v3.30.** Vijf losse eindjes (Jay: "Je mag de 5 punten repareren"): telrapport laadt Oswald voor de kaartlabels; het losse transect-formaat (`_trn`) is weg uit telrapport en de referentie (Jay: geen `_trn`-ZIP's meer); de kop van het veiligheidsblok is een `<h4>`; de legenda van de GeoPackage maakt het GPS-spoor één regel als hij anders niet op het A4 past; na het opslaan toont elke veld-app de vingerafdruk (SHA-256) van de ZIP met een mail-knop (gedeeld blok `vingerafdruk`). De deelwaarschuwing heeft Jay's tekst: *Begint je opname bij huis? Deel de zip dan niet zomaar met iedereen.* (`overdracht_v3_30.md`). v3.29: waarschuwen bij het delen van een ZIP. v3.28: capaciteit in de GeoPackage, kaartje in de `_recon.zip`. Open: Static op de weg (§5). Tests op GitHub bij elke PR sinds na v3.18.
 
 ---
 
@@ -50,12 +50,12 @@ Sinds v2.65 **geen deel meer van de suite**. Gaat verder als eigen tak (startpun
 
 De 4 staat in **vijf** bestanden: `SIDE_OFFSET_M` in de drie parkeer-apps (live plaatsing), `OFFSET_M` in `telreconstructie.html` en in `telrapport.html` (de correctietool: een versleepte tik landt ook 4 m uit de as). Sinds v2.66 bewaakt `valideer.py` dat de waarde overal gelijk is; elke declaratie verwijst in zijn commentaar naar die controle. Vier zichtbare teksten noemen de 4 m ook (kop van de reconstructor, handleiding, ZIP-referentie, commentaar in telrapport) — die zijn niet bewaakt en moeten bij een wijziging met de hand mee.
 
-**Welk coördinaat op de telrapport-kaart staat** (vastgelegd v2.60, test `functest_coordinaten.js`): auto/fiets/capaciteit-vakken → `lat_marker`/`lon_marker` · pocket → `tikPositie()` (marker indien aanwezig, anders `lat`/`lon`) · transect → `lat`/`lon` (dit profiel krijgt ook na reconstructie geen markerkolom) · standstill → GPS uit de metakop · capaciteitsterrein → POLYGON uit `_netwerk.csv`, label op `poly.getCenter()`. Clusterbollen staan altijd op het zwaartepunt van hun groep en tonen sinds v2.61 de typeverdeling als taartdiagram (vaste puntvolgorde uit `APP_CONFIG.types`, totaal in een donutgat, vlak onder 26 px; een gecombineerd cluster van meerdere sessies houdt zijn diagonale tweekleur). Groepen zonder geometrie krijgen **geen** marker; de sessierij meldt het.
+**Welk coördinaat op de telrapport-kaart staat** (vastgelegd v2.60, test `functest_coordinaten.js`): auto/fiets/capaciteit-vakken → `lat_marker`/`lon_marker` · pocket → `tikPositie()` (marker indien aanwezig, anders `lat`/`lon`) · standstill → GPS uit de metakop · capaciteitsterrein → POLYGON uit `_netwerk.csv`, label op `poly.getCenter()`. Clusterbollen staan altijd op het zwaartepunt van hun groep en tonen sinds v2.61 de typeverdeling als taartdiagram (vaste puntvolgorde uit `APP_CONFIG.types`, totaal in een donutgat, vlak onder 26 px; een gecombineerd cluster van meerdere sessies houdt zijn diagonale tweekleur). Groepen zonder geometrie krijgen **geen** marker; de sessierij meldt het.
 
 **Reconstructie verandert de `sessie_id` niet.** Alleen de bestandsnaam wordt `<sessie_id>_recon.zip`; de leden binnenin houden hun originele namen. Origineel en reconstructie dragen dus dezelfde identiteit — telrapport ziet ze als één sessie en laadt er één. Sinds v2.59 is dat de gereconstrueerde. Het onderscheid zit in de kolom `reconstructie` in `_sessie.csv`, niet in de naam. **Relevant voor KNIME**: joinen op `sessie_id` gooit origineel en reconstructie op één hoop.
 
 **Naamconventie ZIP's**
-`_car` → auto/parkeren · `_fts` → fiets/parkeren · `_cap` → capaciteit · `_trn` → transect · `_pkt_<s|t|w|p>` → pocket (simpel/transect/winkelstraat/parkeren).
+`_car` → auto/parkeren · `_fts` → fiets/parkeren · `_cap` → capaciteit · `_pkt_<s|t|w|p>` → pocket (simpel/transect/winkelstraat/parkeren).
 
 **Modus-letter zit in de `sessie_id`**, niet alleen in de bestandsnaam (Route A). Daardoor overleeft hij reconstructie automatisch. Gevolg: het formaat van de KNIME-joinsleutel is gewijzigd.
 
@@ -161,18 +161,17 @@ Opgeruimd op 21 oktober 2026.
 **Klein / afgebakend**
 - ~~Kop van de handleiding~~ — aangepast door Jay (de bovenste kop). Boven de inhoudsopgave staat nog een tweede kop "Traffic Counter Help", met daaronder "Contents". Zichtbare tekst, dus Jay's keuze.
 - ~~Reconstructiescript een kaart-PNG bij de `_recon.zip`~~ — gedaan in v3.28: `<sid>_kaart.png` in de ZIP (Jay's keuze), netwerk, spoor en tikken, zonder ondergrond.
-- Besluiten over het losse transect-formaat (`*_trn.zip`): geen enkele app maakt het nog (pocket's transect-modus `_pkt_t` verving het), maar telrapport leest het wel. Liggen er nog `_trn`-ZIP's in het archief? Zo nee: sectie uit de referentie én de leescode in telrapport eruit.
-- Veiligheidsblok-kop in de handleiding: `<h1>` → `<h4>` voor consistentie (Jay's keuze — hij schreef die sectie zelf). Sinds de duidelijkere koppen (na v3.16) valt hij nog meer op dan de hoofdstukken.
-- Overpass-terugval voor het losse transect-formaat (`_trn`, telrapport `loadTransectZip`) gaat mee met het besluit over `_trn` hierboven; v3.17 liet hem staan.
+- ~~Het losse transect-formaat (`*_trn.zip`)~~ — weg in v3.30 (Jay: geen `_trn`-ZIP's meer): leescode en Overpass-terugval uit telrapport, sectie uit de referentie; een `_trn.zip` geeft een melding.
+- ~~Veiligheidsblok-kop in de handleiding `<h1>` → `<h4>`~~ — gedaan in v3.30.
 - ~~Pocket: netwerk ook na Doortellen in de ZIP~~ — gedaan in v3.27: het netwerk staat in de noodkopie. De Overpass-terugval in telrapport blijft, voor oudere pocket-ZIP's en na een volle opslag.
 - **Ingebouwde browser van een app** (uit v3.18). Op Android opent een link uit sommige apps in een WebView (`; wv)` in de user-agent): geen ZIP-download, en de noodkopie staat in de opslag van die app, niet in Chrome. v3.18 laat in de parkeer-apps alleen de kopie staan. Nog open: (1) een waarschuwingsbalk bij het openen, met *Kopieer link*, in alle vijf de veld-apps (nieuw gedeeld blok, tweetalig zoals *Noodopslag vol*); (2) pocket en Static: een download in een WebView niet als opgeslagen tellen, en *Sluiten* in het voorbeeldscherm van pocket dan niet laten bevestigen. Pas oppakken als het in het veld voorkomt.
 - Ook kaal maken? `zip_format_reference.html` en `snap_methodology.html` hebben nog de oude opmaak (Jay's keuze; v3.3 deed alleen de drie pagina's voor gebruikers).
 - ~~Engelse variant van `over.html`~~ — gedaan in v3.24: `about.html`.
 - **Bewijswaarde van een telling** (uit `verantwoording.html`, v3.4), in volgorde van nut:
-  1. *Vingerafdruk bij de export* (Jay: later): SHA-256 van de ZIP tonen, met een knop "mail deze code naar mezelf". Daarmee is aantoonbaar dat de ZIP sinds dat moment niet veranderd is. WebCrypto, geen server.
+  1. ~~*Vingerafdruk bij de export*~~ — gedaan in v3.30: gedeeld blok `vingerafdruk` in de vijf veld-apps, SHA-256 van de ZIP onder de deelwaarschuwing, met een mail-knop; `verantwoording.html` bijgewerkt.
   2. *Ongedaan maken tellen* (`n_ongedaan`) en *versienummer* (`app_versie`) in `_sessie.csv`, als kolommen achteraan. Schemawijziging: eerst KNIME.
   3. ~~*Consistentiecheck* in telrapport~~ — gedaan in v3.10 als kwaliteitsrapport per telling (zie §2): aantallen in alle bestanden gelijk, elke tik binnen de sessietijd en op de route rond zijn tijdstip. Zie ook het *gezondheidsrapport per telling* bij de ideeën na v3.8.
-  `verantwoording.html` noemt het kwaliteitsrapport sinds v3.10. Bij 1 en 2 de zwakke plekken daar ook bijwerken.
+  `verantwoording.html` noemt het kwaliteitsrapport sinds v3.10 en de vingerafdruk sinds v3.30. Bij 2 de zwakke plekken daar ook bijwerken.
 
 
 **Ideeën na v3.8** (15 okt 2026)
@@ -225,14 +224,14 @@ Opgeruimd op 21 oktober 2026.
   *v3.1:* voor het rapportpad is er nu de GeoPackage voor QGIS (daar zitten ondergrond, schaalstok en PDF-export al in). Een PNG uit telrapport blijft nuttig voor het snelle plaatje.
 - ~~GeoPackage: capaciteitsterreinen als eigen laag~~ — gedaan in v3.28: laag `terreinen` (POLYGON, capaciteit per soort), in het project *Capaciteit*.
 - **Deelversie van een ZIP** (uit v3.29, niet besloten): begin en eind van het GPS-spoor weglaten, zoals de privacyzone van Strava, voor wie vanuit huis start. Verandert bezocht, aanwezigheid en p/m·u, dus alleen als aparte ZIP naast de echte, nooit voor KNIME. Static afronden helpt niet: de plek is de meting. v3.29 waarschuwt alleen.
-- **GeoPackage-opmaak:** bij veel tellingen loopt de legenda (GPS-spoor per telling) uit het A4-vak; dan twee kolommen of het spoor uit de legenda. Eventueel ook een A3-opmaak.
+- ~~GeoPackage-opmaak bij veel tellingen~~ — gedaan in v3.30: boven 20 legendaregels wordt het GPS-spoor één regel (`GPKG_LEGENDA_MAX`), met de kleur per telling uit het veld `kleur`. Een A3-opmaak is er niet.
 - QGIS-loader (`telonline_qgis_loader.py`) op QGIS 4 testen (Qt6, opgeschoonde Python-API); eventueel dezelfde stijlsjablonen gebruiken als de GeoPackage-export, zodat de opmaak op één plek bestaat.
 - Parkeren uit pocket halen naar een eigen tool. Sinds v2.69 heeft het een eigen ingang op de voorpagina (`#parkeren`), wat het grootste deel van de wens dekt. Een echte afsplitsing loont pas als parkeren een eigen kant op gaat (bijv. de zijde-offset live), want dan moeten GPS, snap, fetch-discipline en noodopslag in twee bestanden gelijk blijven.
 - ~~`over.html` en `about.html` volgens de voorpagina~~ — gedaan in v3.28: stap 1 in *Verkeer tellen* en *Parkeren tellen*, en een alinea over plannen vooraf met Telplanning.
 - ~~Wegennet-cache ruimt oude tegels nooit op~~ — gedaan in v3.27: gedeeld blok `tegels opruimen`, tegels ouder dan 90 dagen, hooguit één keer per dag.
 - ~~`hersteltest.py` is soms wisselvallig~~ — opgelost in v3.27. De oorzaak was het exporttijdstip in de kop van `_kaart.png` (een minuutgrens tussen de twee exports), niet de wachttijden; de test vergelijkt de kaart nu pixelrij voor pixelrij zonder de kop.
 - ~~Google Fonts zelf hosten~~ — gedaan in v3.25: `fonts/`, Google uit de privacyverklaring.
-- telrapport: de labels op de kaart (clusterbollen, nummers) vragen om Oswald, maar telrapport laadt hem niet en toont een reserveletter. Sinds v3.25 is het één regel (`<link href="fonts/fonts.css" rel="stylesheet">`), maar het verandert hoe de kaart eruitziet. Jay's keuze.
+- ~~telrapport: de labels op de kaart vragen om Oswald~~ — gedaan in v3.30: `fonts/fonts.css` gelinkt; de cijfers passen (bekeken).
 - ~~Static is Engelstalig~~ — gedaan in v3.22: Nederlands, in de huisstijl van de parkeer-apps. Het leesbare `_overzicht.csv` blijft Engels (telrapport leest het).
 - **Static op de weg** (laag 2 van het voorstel bij v3.22, nog niet besloten). Na de GPS-fix het punt op de weg snappen (met de knip in stukken van v3.21); de richtingen uit het netwerk (de weg volgen tot de eerste kruising met een straat met een naam: "richting Gorsstraat"); welke knop welke richting is uit je positie ten opzichte van de as, met het kompas alleen als je te dicht op de as staat; bevestigen op een minikaartje met ⇄. In de export kolommen achteraan (`osm_way_id`, `segment_index`, A met of tegen de OSM-richting). Static draait niet in KNIME, dus het raakt alleen `zip_format_reference.html` en telrapport. Zie `overdracht_v3_22.md` §4.
 - ~~Static: `GPS reliable` "Yes (< 25m)" tegen 20 m in de app~~ — opgelost in v3.23: de app middelt, en de grens is 15 m in app en overzicht.
@@ -242,7 +241,7 @@ Opgeruimd op 21 oktober 2026.
 
 ---
 
-## 6. Releases v2.32 → v3.29 in één oogopslag
+## 6. Releases v2.32 → v3.30 in één oogopslag
 
 | Versie | Kern |
 |---|---|
@@ -324,6 +323,7 @@ Opgeruimd op 21 oktober 2026.
 | v3.27 | **Pocket-netwerk in de noodkopie, oude tegels weg** (uit de lijst kleine klussen): pocket bewaart `snap.elements` met knooppunten onder `pocket_sessie_netwerk`, dus `_netwerk.csv` compleet na Doortellen en Download ZIP, hertoekenning over de hele route; bij volle opslag wijkt het netwerk voor de tikken; Overpass-terugval in telrapport blijft voor oude ZIP's. Gedeeld blok `tegels opruimen` (vijf bestanden): tegels ouder dan 90 dagen, één keer per dag; privacyverklaring bijgewerkt. `hersteltest` wisselvallig door het exporttijdstip in `_kaart.png`: kaart nu zonder kop vergeleken; pocket-delen wachten op het netwerk. `hersteltest.py` (157), `onderhoudtest.py` deel C (31) |
 | v3.28 | **Capaciteit in de GeoPackage, kaartje in de `_recon.zip`, introductie herschikt** (uit de lijst kleine klussen; Jay over het kaartje: "Ondergrond is niet nodig. Netwerk en tikken is genoeg", en: in de ZIP): laag `terreinen` (POLYGON, één gesloten ring, capaciteit per soort, paars met het totaal in een cirkel), schrijver kent vlakken, geen melding meer; `kaartPng` in telreconstructie, `<sid>_kaart.png` in de ZIP (wit vlak, wegennet grijs, spoor oranje, tikken in hun kleur, kop en legenda, geen exporttijdstip), `RECON_VERSIE` v3.28; `over.html`/`about.html`: groepen van de voorpagina, plannen vooraf. `gpkgtest.py` (93), nieuwe `reconkaarttest.py` (16) |
 | v3.29 | **Waarschuwen bij het delen van een ZIP** (Jay: "Als mensen een telling doen vanuit huis, en ze leveren de .zip aan derden, verraden ze de plek van hun woning. Dat is een waarschuwing waard"; "akkoord"): één regel onder de ZIP-knop, niets om weg te klikken; gedeeld blok `deelwaarschuwing` in de vijf veld-apps (NL/EN, Static met adres, pocket in het voorbeeldscherm), vaste regel in telreconstructie (`RECON_VERSIE` v3.29) en telrapport; *Een ZIP delen* in privacyverklaring (NL en EN) en handleiding (`#delen`). Geen privacyzone, geen afronding: in de backlog. Nieuwe `deeltest.py` (25) |
+| v3.30 | **Vijf losse eindjes** (Jay: "Je mag de 5 punten repareren"; over `_trn`: "Nee, mag eruit"): Oswald in de kaartlabels van telrapport; `loadTransectZip` en de rest van appType `transect` weg uit telrapport (melding bij een `_trn.zip`), sectie en rijen uit de referentie; veiligheidsblok `<h4>`; GeoPackage: GPS-spoor als één regel met kleur uit `kleur` als de legenda anders niet op A4 past; vingerafdruk (SHA-256) na het opslaan in de vijf veld-apps, met mail-knop en controle-instructie, in `verantwoording.html`. Deelwaarschuwing met Jay's tekst ("Dat is geen mooi nederlands"); topregel van telreconstructie in gewone taal (was een opsomming uit v2.23–v2.24 met kapotte entiteiten); `RECON_VERSIE` v3.30. Nieuwe `vingerafdruktest.py` (24); `gpkgtest.py` (101), `onderhoudtest.py` deel D (34), `lettertypetest.py` (46) |
 
 ---
 

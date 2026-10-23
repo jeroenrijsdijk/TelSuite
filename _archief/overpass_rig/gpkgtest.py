@@ -18,6 +18,9 @@
   F. Naam kiezen (v3.2): het Opslaan-als-venster (hier nagebootst) levert de
      naam waar het project naar verwijst; annuleren schrijft niets; zonder dat
      venster vraagt telrapport de naam en downloadt het bestand onder die naam.
+  E2. Veel tellingen (v3.30): past de legenda niet meer op het A4, dan wordt het
+     GPS-spoor één regel, met de kleur per telling uit het veld kleur. Getest
+     met een lagere drempel (GPKG_LEGENDA_MAX), en in deel G ook in QGIS.
   G. Als PyQGIS er is: QGIS opent het bestand, elke laag krijgt zijn opmaak
      (categorieën met de kleuren van telrapport, taartdiagram, labels), en de
      kaart wordt naar een PNG gerenderd. Sinds v3.2 ook het project: geopend
@@ -384,6 +387,33 @@ with sync_playwright() as p:
         and pg.evaluate('window.__opslaan.aantal') == n_opslaan, meldingen[-1:])
     pg.evaluate('toggleEditMode()'); pg.wait_for_timeout(300)
 
+    print('\n== E2. Veel tellingen: de legenda blijft op het A4 ==')
+    n_routes = len(kaart['rt'])
+    pg.evaluate('GPKG_LEGENDA_MAX = 5')
+    pad_sam, _ = exporteer(pg, 'samengevat.gpkg')
+    pg.evaluate('GPKG_LEGENDA_MAX = 20')
+    db, _ = lees_gpkg(pad_sam)
+    qml_r = db.execute("select styleQML from layer_styles where f_table_name='route'").fetchone()[0]
+    xr2 = ET.fromstring(re.sub(r'<!DOCTYPE[^>]*>', '', qml_r))
+    rend = xr2.find('renderer-v2')
+    dd = [o for o in xr2.iter('Option') if o.get('name') == 'outlineColor']
+    expr = [o.get('value') for o in (dd[0].iter('Option') if dd else []) if o.get('name') == 'expression']
+    eis('te veel regels: GPS-spoor is één stijl (singleSymbol), geen categorie per telling',
+        rend is not None and rend.get('type') == 'singleSymbol' and not list(xr2.iter('category')), rend is not None and rend.attrib)
+    eis('de kleur per telling komt uit het veld kleur (met de doorzichtigheid van de kaart)',
+        expr and '"kleur"' in expr[0] and 'alpha' in expr[0], expr)
+    eis('de route-tabel zelf is gelijk: één lijn per telling, met kleur',
+        db.execute('select count(*) from route where kleur like "#%"').fetchone()[0] == n_routes, n_routes)
+    db.close()
+    _, zs = project_qgs(pad_sam)
+    qgs_s = zs.read('telrapport.qgs').decode('utf-8')
+    eis('in het project heet de laag "GPS-spoor (%d tellingen)"' % n_routes,
+        'name="GPS-spoor (%d tellingen)"' % n_routes in qgs_s, re.findall(r'name="(GPS-spoor[^"]*)"', qgs_s))
+    db, _ = lees_gpkg(pad)
+    eis('met de gewone drempel blijft het een regel per telling (zie C)',
+        'categorizedSymbol' in db.execute("select styleQML from layer_styles where f_table_name='route'").fetchone()[0])
+    db.close()
+
     print('\n== F. Naam kiezen ==')
     n_opslaan = pg.evaluate('window.__opslaan.aantal')
     pg.evaluate("window.__opslaan.bytes = null; window.__kies_naam = '__annuleer__'")
@@ -496,6 +526,17 @@ else:
         r3 = subprocess.run([qpy, os.path.join(HIER, 'gpkg_qgis.py'), pad3], capture_output=True, text=True,
                             env=dict(os.environ, QT_QPA_PLATFORM='offscreen'), timeout=300)
         q3 = json.loads([x for x in r3.stdout.splitlines() if x.startswith('{')][-1]).get('project', {})
+        sam_png = os.path.join(UIT, 'opmaak_samengevat.png')
+        r4 = subprocess.run([qpy, os.path.join(HIER, 'gpkg_qgis.py'), pad_sam, os.path.join(UIT, 'kaart_samengevat.png'), sam_png],
+                            capture_output=True, text=True, env=dict(os.environ, QT_QPA_PLATFORM='offscreen'), timeout=300)
+        q4 = json.loads([x for x in r4.stdout.splitlines() if x.startswith('{')][-1])
+        r_ = q4['lagen'].get('route', {})
+        eis('samengevat spoor in QGIS: één stijl, kleur per telling uit "kleur"',
+            r_.get('opmaak') == 'singleSymbol' and '"kleur"' in (r_.get('kleur_dd') or ''), r_)
+        lg4 = ((q4.get('project') or {}).get('opmaak') or {}).get('legenda')
+        eis('legenda: Waarnemingen, GPS-spoor (%d tellingen), Wegvakken, Capaciteit' % n_routes,
+            lg4 == ['Waarnemingen', 'GPS-spoor (%d tellingen)' % n_routes, 'Wegvakken', 'Capaciteit'], lg4)
+        eis('opmaak als PNG: %s' % sam_png, os.path.exists(sam_png) and os.path.getsize(sam_png) > 30000)
         eis('naam met spatie ("Meting Spijkenisse.gpkg"): project vindt alle lagen',
             sum(1 for l in q3.get('lagen', {}).values() if l['aanbieder'] == 'ogr' and l['geldig']) == 5)
 

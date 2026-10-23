@@ -59,7 +59,6 @@
     --c-auto:       #c07800;
     --c-fiets:      #2980b9;
     --c-cap:        #8e44ad;
-    --c-transect:   #5500cc;
     --c-pocket:     #d4007a;
     --c-ss:         #0a8a30;
   }
@@ -499,36 +498,6 @@
   </div>
 </div>
 
-<!-- ── TRANSECT ── -->
-<div class="section">
-  <div class="section-header" style="border-color:#5500cc">
-    <span class="app-tag" style="background:var(--c-transect)">transect</span>
-    <h2>Move and Count</h2>
-    <span class="filename-hint">*_trn.zip</span>
-  </div>
-  <div class="section-body" style="border-color:#5500cc">
-    <div class="file-list">
-      <div class="file-row"><span class="file-name">_sessie.csv</span><span class="file-req required">Required</span><span class="file-desc">Session metadata</span></div>
-      <div class="file-row"><span class="file-name">_telregels.csv</span><span class="file-req required">Required</span><span class="file-desc">Observations per vehicle per direction</span></div>
-      <div class="file-row"><span class="file-name">_gps.csv</span><span class="file-req optional">Optional</span><span class="file-desc">GPS track (blue dashed path)</span></div>
-    </div>
-    <div class="csv-block">
-      <div class="csv-title">_sessie.csv</div>
-      <div class="csv-sample">sessie_id;teller;datum;start_tijd;eind_tijd;app_type;n_waarnemingen
-20260514_113917_ard_trn;T01;2026-05-14;2026-05-14 11:38;2026-05-14 11:39;transect;11</div>
-    </div>
-    <div class="csv-block">
-      <div class="csv-title">_telregels.csv</div>
-      <div class="csv-sample">sessie_id;nr;tijdstip;type;richting;lat;lon;nauwkeurigheid
-20260514_113917_ard_trn;1;11:38:04;car;Noord;51.852540;4.332551;6.2</div>
-      <div class="csv-notes">
-        <div class="csv-note"><code>type</code>: <code>car</code> / <code>truck</code> / <code>moto</code> / <code>bike</code> / <code>ped</code></div>
-        <div class="csv-note"><code>richting</code>: free text &mdash; label as set by the counter (e.g. "Noord", "Centrum")</div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- ── POCKET ── -->
 <div class="section">
   <div class="section-header" style="border-color:#d4007a">
@@ -697,7 +666,6 @@ Time;Vehicle;Direction
       <tr><td><code>_car</code></td><td>auto</td><td>parkeren</td><td>goed / fout / leeg / spec</td></tr>
       <tr><td><code>_fts</code></td><td>fiets</td><td>parkeren</td><td>fiets / brommer / breed / wrak</td></tr>
       <tr><td><code>_cap</code></td><td>capaciteit</td><td>&mdash;</td><td>parking areas (polygons)</td></tr>
-      <tr><td><code>_trn</code></td><td>transect</td><td>&mdash;</td><td>car / truck / moto / bike / ped</td></tr>
       <tr><td><code>_pkt_s</code></td><td>pocket</td><td>simpel</td><td>free-text objects</td></tr>
       <tr><td><code>_pkt_t</code></td><td>pocket</td><td>transect</td><td>car / truck / moto / bike / ped</td></tr>
       <tr><td><code>_pkt_w</code></td><td>pocket</td><td>winkelstraat</td><td>stilstaand / tegemoet</td></tr>
@@ -705,6 +673,7 @@ Time;Vehicle;Direction
       <tr><td><code>_sta</code></td><td>standstill</td><td>standstill</td><td>car / truck / moto / bike / ped (fixed point, v2.73)</td></tr>
     </tbody>
   </table>
+  <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>No more <code>_trn</code>.</strong> The loose transect format (<code>*_trn.zip</code>, <code>app_type</code> <code>transect</code>) is no longer read since <strong>v3.30</strong>: no app had written it since pocket&rsquo;s transect mode (<code>_pkt_t</code>) replaced it. Telrapport says so when one is dropped in, instead of drawing it.</p>
   <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Pocket modus letter.</strong> The modus letter (<code>s</code>/<code>t</code>/<code>w</code>/<code>p</code>) is part of the pocket <code>sessie_id</code> itself &mdash; not just the filename &mdash; so it survives reconstruction (<code>&hellip;_pkt_w.zip</code> &rarr; <code>&hellip;_pkt_w_recon.zip</code>).</p>
   <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Pocket sessie_id fixed at Start.</strong> Since <strong>v3.10</strong> the pocket <code>sessie_id</code> is made when the count starts, like in the other field apps: <code>&lt;yyyymmdd&gt;_&lt;hhmmss&gt;_&lt;xyz&gt;_pkt_&lt;letter&gt;</code>, with the start date and time. It is kept through Doortellen, so a count that is packed twice (for instance after a cancelled share sheet) carries the same id. v2.x&ndash;v3.9 made it at Stop, with the time of Stop. The format and the file names are unchanged.</p>
   <p style="color:var(--dim);max-width:72ch;margin-top:1.2em"><strong>Type vocabulary &rarr; modus</strong> &mdash; how a session with an absent or wrong <code>modus</code> is recovered from its tap <code>type</code>s:</p>
@@ -835,16 +804,6 @@ sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_m
         <td class="na">&mdash;</td>
       </tr>
       <tr>
-        <td>transect</td>
-        <td class="check">&#10003; required</td>
-        <td class="na">&mdash;</td>
-        <td class="na">&mdash;</td>
-        <td class="na">&mdash;</td>
-        <td class="check">&#10003; required</td>
-        <td class="opt">optional</td>
-        <td class="na">&mdash;</td>
-      </tr>
-      <tr>
         <td>pocket</td>
         <td class="check">&#10003; required</td>
         <td class="na">&mdash;</td>
@@ -866,7 +825,7 @@ sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_m
     <li><strong>What you see is what you get.</strong> The layers are read from what telrapport has drawn: sessions, types and time windows that are switched off are left out, and clusters use the current cluster distance. The <code>sessies</code> table lists every loaded session, with <code>op_kaart</code> = 0 for the hidden ones.</li>
     <li><strong>Coordinates</strong> are EPSG:4326 (WGS84), as in the ZIPs. Points are at the position shown on the map (the marker position where there is one).</li>
     <li><strong>Styling travels with the data.</strong> Each map layer has a default style in the standard <code>layer_styles</code> table (<code>useAsDefault</code> = 1), so QGIS applies it on load: colours and categories from telrapport, clusters as pie charts sized like on the map (diameter 10&nbsp;px + 5.6&nbsp;px&nbsp;&middot;&nbsp;&radic;total) with the total as label. The QML is written in QGIS 3.34 form and also loads in QGIS 4.</li>
-    <li><strong>Layout labels</strong> (since v3.26): the title gives the weekday in full (<em>Telrapport &middot; donderdag 22-10-2026</em>); in the legend, each GPS track reads <em>weekday date &middot; first&ndash;last tap &middot; CODE &middot; counter</em>, e.g. <em>do 22-10 &middot; 13:41&ndash;14:05 &middot; NYK</em>, where the times come from the observations on the map and CODE is the three letters of the <code>sessie_id</code>. These are labels in the style and the project only; the <code>sessies</code> table keeps its <code>label</code> column as before.</li>
+    <li><strong>Layout labels</strong> (since v3.26): the title gives the weekday in full (<em>Telrapport &middot; donderdag 22-10-2026</em>); in the legend, each GPS track reads <em>weekday date &middot; first&ndash;last tap &middot; CODE &middot; counter</em>, e.g. <em>do 22-10 &middot; 13:41&ndash;14:05 &middot; NYK</em>, where the times come from the observations on the map and CODE is the three letters of the <code>sessie_id</code>. These are labels in the style and the project only; the <code>sessies</code> table keeps its <code>label</code> column as before. Since v3.30, when the legend would no longer fit the A4 layout (more than 20 entries), the GPS track becomes a single entry, <em>GPS-spoor (n tellingen)</em>: one style, with each track&rsquo;s colour taken from the <code>kleur</code> column.</li>
     <li><strong>A QGIS project is embedded</strong> (since v3.2) in the standard table <code>qgis_projects(name, metadata, content)</code>, one row named <code>telrapport</code>; <code>content</code> is the <code>.qgz</code> (a ZIP holding <code>telrapport.qgs</code>) as hex text, as QGIS writes it. It sets EPSG:28992, layer order and display names, PDOK BRT-A grijs as basemap (WMTS in EPSG:28992; PDOK aerial and OpenStreetMap included but unchecked), the view on the counts, and a print layout <em>A4 liggend</em> (map at a round scale, title, legend, scale bar, north arrow, attribution). Open it with <em>Project &rarr; Open From &rarr; GeoPackage</em>.</li>
     <li><strong>The file name is part of the project.</strong> Layers are referenced as <code>./&lt;file name&gt;|layername=&hellip;</code> (relative, so moving the file is fine; QGIS has no form for &ldquo;this file itself&rdquo;, so renaming breaks the project). Telrapport therefore asks for the name before writing: the browser&rsquo;s Save-as dialog where available, otherwise a prompt followed by a download. Layer ids are <code>&lt;layer&gt;_telrapport</code>.</li>
     <li><strong>Capacity</strong> (since v3.28): the capacity areas on the map go into <code>terreinen</code>, as polygons with the capacity per soort. A street from a capacity count is drawn on the map as a closed shape, and goes in the same way. Groups without geometry are not on the map and not in the layer. Until v3.28 capacity was left out, and the export said so.</li>

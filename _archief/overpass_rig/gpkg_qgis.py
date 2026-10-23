@@ -40,8 +40,14 @@ for naam in ['waarnemingen', 'clusters', 'wegvakken', 'route', 'terreinen', 'ses
     if r and r.type() == 'categorizedSymbol':
         info['veld'] = r.classAttribute()
         info['categorieen'] = [[c.value(), c.label(), c.symbol().color().name()] for c in r.categories()]
-    if r and r.type() == 'singleSymbol':                   # v3.28: terreinen
+    if r and r.type() == 'singleSymbol':                   # v3.28: terreinen; v3.30: samengevat spoor
         info['vulkleur'] = r.symbol().color().name()
+        try:                                               # v3.30: kleur uit een veld?
+            from qgis.core import QgsSymbolLayer
+            pdd = r.symbol().symbolLayer(0).dataDefinedProperties().property(QgsSymbolLayer.PropertyStrokeColor)
+            info['kleur_dd'] = pdd.expressionString() if pdd.isActive() else ''
+        except Exception as e:
+            info['kleur_dd'] = 'fout: %s' % e
     d = l.diagramRenderer()
     if d:
         ds = d.diagramSettings()[0]
