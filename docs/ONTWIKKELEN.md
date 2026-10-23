@@ -129,8 +129,8 @@ verraden het gebied of de positie waar je telt.
 - **ZIP-namen**: `_car` auto · `_fts` fiets · `_cap` capaciteit ·
   `_pkt_<s|t|w|p>` pocket per sub-modus · `_sta` Static (sinds v2.73). Na reconstructie `<sessie_id>_recon.zip`
   (de `sessie_id` zelf verandert niet). Een bewaarde kaart:
-  `TelVerzameling_<jjjjmmdd>.zip`. Het oude `_trn`-formaat wordt alleen nog
-  gelezen.
+  `TelVerzameling_<jjjjmmdd>.zip`. Het oude `_trn`-formaat leest telrapport
+  sinds v3.30 niet meer (een melding in plaats van de kaart).
 - **Schema**: elke wijziging aan kolommen of sleutels eerst langs KNIME. De
   specificatie in `zip_format_reference.html` wordt door een test tegen de
   exportcode bewaakt.

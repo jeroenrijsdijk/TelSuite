@@ -852,6 +852,7 @@
    true als de telling met deze ZIP af is (kopie weg, melding weg), false bij
    een tussentijdse ZIP (Static, terwijl hij telt). */
 function bewaarZip(zipBlob, zipName) {
+  vingerafdruk(zipBlob, zipName);   // v3.30: de SHA-256 van deze ZIP, onder de deelwaarschuwing
   var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
   function bevestigd() {
     if (zipBewaard()) {
@@ -1517,11 +1518,12 @@ function herstelNieuw() {
    weg te tikken. De app geeft het element waaronder de regel komt, en zegt of
    er een adres in de ZIP staat (Static). De taal volgt <html lang>; opnieuw
    aanroepen werkt de tekst bij. */
+// v3.30: Jay's tekst ("Dat is geen mooi nederlands"); Static telt op één plek.
 var DEEL_TEKST = {
-  nl: ['Deel je deze ZIP, dan deel je je route en je plek. Begon je thuis, dan staat je huis erin.',
-       'Deel je deze ZIP, dan deel je je plek en adres. Tel je vanuit huis, dan staat je huis erin.'],
-  en: ['Sharing this ZIP shares your route and where you were. If you started at home, your home is in it.',
-       'Sharing this ZIP shares your location and address. If you count from home, your home is in it.']
+  nl: ['Begint je opname bij huis? Deel de zip dan niet zomaar met iedereen.',
+       'Tel je vanuit huis? Deel de zip dan niet zomaar met iedereen.'],
+  en: ['Does your recording start at home? Then don\u2019t share the ZIP with just anyone.',
+       'Counting from home? Then don\u2019t share the ZIP with just anyone.']
 };
 function deelWaarschuwing(onder, metAdres) {
   if (!onder) return null;
@@ -1538,6 +1540,65 @@ function deelWaarschuwing(onder, metAdres) {
   return el;
 }
 /* ── einde gedeeld blok deelwaarschuwing ── */
+
+/* ── Vingerafdruk (v3.30) ──────────────────────────────────────────────────
+   Gedeeld blok: byte-identiek in parkeertelling, fietsparkeren,
+   capaciteitstelling, pocket_count en traffic_counter (bewaakt door valideer.py).
+   Uit verantwoording.html (v3.4), het eerste punt bij "Bewijswaarde": de SHA-256
+   van de ZIP tonen, met een knop die een mail met de code opent. Een mail aan
+   jezelf draagt de tijd van de mailserver. Wie later dezelfde code uit het
+   bestand berekent, laat zien dat de ZIP sinds dat moment niet veranderd is.
+   WebCrypto, geen server. De regel komt onder de deelwaarschuwing (of onder
+   `onder`) en staat er één keer; een volgende ZIP vervangt hem. Zonder
+   crypto.subtle (een pagina via http) blijft hij weg. Geeft de code terug. */
+var VINGER_TEKST = {
+  nl: { label: 'Vingerafdruk (SHA-256) van', knop: '\u2709 Mail deze code naar jezelf', onderwerp: 'Vingerafdruk telling',
+        mail: function (naam, code, tijd) {
+          return 'Vingerafdruk van een telling (telonline.org)\n\nBestand: ' + naam + '\nSHA-256: ' + code +
+            '\nBerekend: ' + tijd + '\n\nControleren: bereken de SHA-256 van het bestand en vergelijk.\n' +
+            'Windows: certutil -hashfile "' + naam + '" SHA256\nmacOS of Linux: shasum -a 256 "' + naam + '"\n';
+        } },
+  en: { label: 'Fingerprint (SHA-256) of', knop: '\u2709 Mail this code to yourself', onderwerp: 'Fingerprint of count',
+        mail: function (naam, code, tijd) {
+          return 'Fingerprint of a count (telonline.org)\n\nFile: ' + naam + '\nSHA-256: ' + code +
+            '\nComputed: ' + tijd + '\n\nTo check: compute the SHA-256 of the file and compare.\n' +
+            'Windows: certutil -hashfile "' + naam + '" SHA256\nmacOS or Linux: shasum -a 256 "' + naam + '"\n';
+        } }
+};
+function vingerafdruk(blob, naam, onder) {
+  try {
+    if (!blob || !blob.arrayBuffer || !window.crypto || !crypto.subtle) return Promise.resolve(null);
+    return blob.arrayBuffer().then(function (buf) { return crypto.subtle.digest('SHA-256', buf); }).then(function (h) {
+      var b = new Uint8Array(h), code = '';
+      for (var i = 0; i < b.length; i++) code += (b[i] < 16 ? '0' : '') + b[i].toString(16);
+      var anker = onder || document.getElementById('deel-waarschuwing');
+      if (!anker) return code;
+      var el = document.getElementById('vingerafdruk');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'vingerafdruk';
+        el.setAttribute('style', 'width:100%;max-width:420px;box-sizing:border-box;margin:0 0 8px;padding:0 2px;' +
+          'font-size:0.72rem;line-height:1.35;color:inherit;opacity:0.7;');
+        anker.insertAdjacentElement('afterend', el);
+      }
+      var T = VINGER_TEKST[(document.documentElement.lang || '').slice(0, 2) === 'en' ? 'en' : 'nl'];
+      var d = new Date(), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+      var tijd = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+      el.textContent = T.label + ' ' + naam + ': ';
+      var c = document.createElement('span');
+      c.setAttribute('style', "font-family:'Share Tech Mono',monospace;word-break:break-all;");
+      c.textContent = code;
+      var a = document.createElement('a');
+      a.setAttribute('style', 'color:inherit;white-space:nowrap;');
+      a.href = 'mailto:?subject=' + encodeURIComponent(T.onderwerp + ' ' + naam) + '&body=' + encodeURIComponent(T.mail(naam, code, tijd));
+      a.textContent = T.knop;
+      el.appendChild(c); el.appendChild(document.createTextNode(' \u00b7 ')); el.appendChild(a);
+      el.setAttribute('data-sha256', code);
+      return code;
+    }).catch(function () { return null; });
+  } catch (e) { return Promise.resolve(null); }
+}
+/* ── einde gedeeld blok vingerafdruk ── */
 
   buildCards();
   herstelStatic();

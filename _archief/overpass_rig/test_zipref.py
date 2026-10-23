@@ -21,11 +21,10 @@ REF = 'zip_format_reference.html'
 # snap-engine en zijn niet bedoeld voor verwerking.
 DIAGNOSTIEK = ['sessie_id;seq;tijdstip;event;']
 
-# Beschreven in de referentie maar door geen enkele app meer gebouwd. Het losse
-# transect-formaat (*_trn.zip) is vervangen door pocket's transect-modus
-# (*_pkt_t.zip); telrapport leest het nog. De sectie blijft tot besloten is of
-# het archief ook hier is omgezet.
-ALLEEN_NOG_LEESBAAR = ['sessie_id;nr;tijdstip;type;richting;lat;lon;nauwkeurigheid']
+# Beschreven in de referentie maar door geen enkele app meer gebouwd. Tot v3.30
+# stond hier het losse transect-formaat (*_trn.zip); dat is uit de referentie en
+# uit telrapport verdwenen (Jay: geen _trn-ZIP's meer in het archief).
+ALLEEN_NOG_LEESBAAR = []
 
 
 def lees(naam):

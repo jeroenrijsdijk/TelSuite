@@ -30,9 +30,10 @@ def eis(naam, v, x=None):
     if v: ok += 1; print('  OK   ' + naam)
     else: fout += 1; print('  FOUT ' + naam + ('' if x is None else ' -> ' + str(x)[:300]))
 
-ROUTE_NL = 'Deel je deze ZIP, dan deel je je route en je plek. Begon je thuis, dan staat je huis erin.'
-ADRES_NL = 'Deel je deze ZIP, dan deel je je plek en adres. Tel je vanuit huis, dan staat je huis erin.'
-ROUTE_EN = 'Sharing this ZIP shares your route and where you were. If you started at home, your home is in it.'
+# v3.30: Jay's tekst ("Dat is geen mooi nederlands. Vervang het maar door: ...")
+ROUTE_NL = 'Begint je opname bij huis? Deel de zip dan niet zomaar met iedereen.'
+ADRES_NL = 'Tel je vanuit huis? Deel de zip dan niet zomaar met iedereen.'
+ROUTE_EN = 'Does your recording start at home? Then don\u2019t share the ZIP with just anyone.'
 
 STAAT = """(knop) => { const k = document.getElementById(knop), w = document.getElementById('deel-waarschuwing');
   const r = w && w.getBoundingClientRect();
@@ -85,8 +86,8 @@ with sync_playwright() as p:
     ctx = b.new_context(viewport={'width': 1400, 'height': 900}); ctx.route('**/*', route_met_osm)
     pg = ctx.new_page(); fouten = []
     pg.on('pageerror', lambda e: fouten.append(e.message[:120]))
-    for app, knop, nodig in [('telreconstructie.html', 'exportBtn', 'Begon hij thuis'),
-                             ('telrapport.html', None, 'Begon een telling thuis')]:
+    for app, knop, nodig in [('telreconstructie.html', 'exportBtn', 'Begint je opname bij huis? Deel de zip dan niet zomaar met iedereen.'),
+                             ('telrapport.html', None, 'Begint een opname bij huis? Deel de verzameling of GeoPackage dan niet zomaar met iedereen.')]:
         pg.goto(BASIS + app, wait_until='load'); pg.wait_for_timeout(500)
         if knop:
             st = pg.evaluate(STAAT, knop)

@@ -21,6 +21,9 @@
      - hooguit één keer per dag; de volgende dag weer;
      - zonder cache: geen fout, en daarna werkt de cache gewoon;
      - vanzelf, vijf seconden na het openen, ook in de reconstructor.
+  D. Het losse transect-formaat (v3.30, Jay: geen _trn-ZIP's meer): een
+     *_trn.zip in telrapport geeft een melding en komt niet op de kaart; een
+     pocket-ZIP ernaast laadt gewoon.
   (Het bbox-filter voor verzamelingen staat in functest_bbox.js.)
 
 Hulp (server, CDN-omleiding, nep-Overpass) komt uit opruimtest.py en hersteltest.py.
@@ -158,6 +161,28 @@ with sync_playwright() as p:
     s = zoek(C[0] + 10 * m, C[1], wacht=800)
     eis('dezelfde plek later: opnieuw geprobeerd (mislukt zoeken wordt niet onthouden)', len(PARK['1']) == a1 + 2, len(PARK['1']))
     eis('geen JS-fouten', not fouten, fouten)
+    ctx.close()
+
+    print('== D. het losse transect-formaat (_trn) ==')
+    trn = os.path.join(TMP, '20260514_113917_ard_trn.zip')
+    z = zipfile.ZipFile(trn, 'w')
+    z.writestr('20260514_113917_ard_trn_sessie.csv', 'sessie_id;teller;datum;start_tijd;eind_tijd;app_type;n_waarnemingen\n'
+               '20260514_113917_ard_trn;T01;2026-05-14;2026-05-14 11:38;2026-05-14 11:39;transect;1\n')
+    z.writestr('20260514_113917_ard_trn_telregels.csv', 'sessie_id;nr;tijdstip;type;richting;lat;lon;nauwkeurigheid\n'
+               '20260514_113917_ard_trn;1;11:38:04;car;Noord;%.6f;%.6f;6.2\n' % (LAT, LON))
+    z.close()
+    ctx = b.new_context(viewport={'width': 1280, 'height': 900}); ctx.route('**/*', route_met_osm)
+    pg = ctx.new_page(); fouten = []; meldingen = []
+    pg.on('pageerror', lambda e: fouten.append(e.message[:160]))
+    pg.on('dialog', lambda d: (meldingen.append(d.message), d.accept()))
+    pg.goto(BASIS + 'telrapport.html', wait_until='load'); pg.wait_for_timeout(600)
+    pg.set_input_files('#file-input', [trn, pocket_zip('pocket_naast_trn.zip', '20261016_100000_pkn_pkt_p')])
+    pg.wait_for_timeout(2500)
+    ses = pg.evaluate('Object.keys(sessions)')
+    eis('_trn: een melding dat telrapport het formaat niet meer leest',
+        any('los transect-bestand (_trn)' in m and 'v3.30' in m for m in meldingen), meldingen)
+    eis('_trn: niet geladen; de pocket-ZIP ernaast wel', ses == ['20261016_100000_pkn_pkt_p'], ses)
+    eis('_trn: geen JS-fouten', not fouten, fouten)
     ctx.close()
 
     print('== C. tegels opruimen ==')

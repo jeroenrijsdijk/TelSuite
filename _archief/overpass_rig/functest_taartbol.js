@@ -87,7 +87,7 @@ console.log('== bgStyle wint (gecombineerd cluster van twee sessies) ==');
 }
 
 console.log('== werkt voor alle telsoorten ==');
-['fiets', 'auto', 'pocket', 'transect'].forEach(t => {
+['fiets', 'auto', 'pocket'].forEach(t => {   // v3.30: zonder het losse transect
   const types = vm.runInContext('APP_CONFIG["' + t + '"].types', ctx);
   const counts = {}; types.slice(0, 3).forEach((x, i) => counts[x] = i + 1);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);

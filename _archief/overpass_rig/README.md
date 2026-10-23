@@ -25,8 +25,8 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_reconpaar.js   # origineel vs _recon, 22 tests
     node _archief/overpass_rig/functest_weekknop.js    # weekprofiel-knop bovenaan, 11 tests
     node _archief/overpass_rig/functest_zijkolom.js    # ruimteverdeling zijkolom, 20 tests
-    node _archief/overpass_rig/functest_coordinaten.js # welk coordinaat op de kaart, 29 tests
-    node _archief/overpass_rig/functest_taartbol.js    # clusterbol als taart, 24 tests
+    node _archief/overpass_rig/functest_coordinaten.js # welk coordinaat op de kaart, 28 tests
+    node _archief/overpass_rig/functest_taartbol.js    # clusterbol als taart, 23 tests
     node _archief/overpass_rig/functest_shiftsolo.js   # shift-klik isoleert telling, 27 tests
     node _archief/overpass_rig/functest_hwvoorkeur.js  # highway-voorkeur in de matcher + versiestempel, 22 tests
     node _archief/overpass_rig/functest_gpxtijd.js     # GPX-tijden in echte UTC, drie parkeer-apps, 31 tests
@@ -41,7 +41,7 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_planlink.js    # v3.14: planning als link, inpakken en uitpakken, 29 tests (Node 18+)
     python3 _archief/overpass_rig/planlinktest.py      # v3.14: link maken in telplanning, openen in parkeertelling/fiets/pocket; v3.15: zonder server; v3.16: capaciteitscontouren standaard uit, 51 tests
     node _archief/overpass_rig/functest_bbox.js        # v3.17: bbox-filter van telrapport, ook voor verzamelingen, 11 tests (jszip papaparse)
-    python3 _archief/overpass_rig/onderhoudtest.py     # v3.17: pocket zonder _netwerk.csv, zoekTerreinen met geheugen; v3.27: tegels opruimen; 31 tests
+    python3 _archief/overpass_rig/onderhoudtest.py     # v3.17: pocket zonder _netwerk.csv, zoekTerreinen met geheugen; v3.27: tegels opruimen; v3.30: _trn geweigerd; 34 tests
     python3 _archief/overpass_rig/opslaantest.py       # v3.18: ZIP opslaan in de parkeer-apps per platform (Android, ingebouwde browser, desktop, iPhone), 48 tests
     node _archief/overpass_rig/functest_gebied.js      # v3.19: gebied vooraf ophalen: tegelset, zoekvraag, regel, 22 tests
     python3 _archief/overpass_rig/gebiedtest.py        # v3.19: gebied vooraf in de cache, lopen zonder verzoek, verversafstand, planning uit een link in telplanning; v3.20: tegelschema 3 (deel F), 51 tests
@@ -49,12 +49,13 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/stukkentest.py       # v3.21: telrapport per stuk voor fiets en auto: origineel, _recon, auto, correctietool, 21 tests
     python3 _archief/overpass_rig/herstelmeldingtest.py  # v3.22: één herstelmelding in de vijf veld-apps; Static Nederlands en in het palet van telrapport, 103 tests
     python3 _archief/overpass_rig/gpsmiddeltest.py     # v3.23: Static middelt de GPS: schatter met nagebootste ruis, app met versnelde klok, adres, 39 tests
-    python3 _archief/overpass_rig/lettertypetest.py    # v3.25: lettertypen van de eigen server (fonts/), geen verzoek aan Google, 43 tests
-    python3 _archief/overpass_rig/gpkgtest.py          # GeoPackage uit telrapport: van veld-app tot QGIS, met het QGIS-project en de capaciteit, 93 tests
+    python3 _archief/overpass_rig/lettertypetest.py    # v3.25: lettertypen van de eigen server (fonts/), geen verzoek aan Google, 46 tests
+    python3 _archief/overpass_rig/gpkgtest.py          # GeoPackage uit telrapport: van veld-app tot QGIS, met het QGIS-project, de capaciteit en de samengevatte legenda, 101 tests
                                                        # (ook sql.js@1.14.2 in node_modules; het QGIS-deel draait als
                                                        #  PyQGIS er is, via gpkg_qgis.py, anders overgeslagen)
     python3 _archief/overpass_rig/reconkaarttest.py    # v3.28: de kaart-PNG in de _recon.zip, 16 tests
     python3 _archief/overpass_rig/deeltest.py          # v3.29: de waarschuwing bij het delen van een ZIP, 25 tests
+    python3 _archief/overpass_rig/vingerafdruktest.py  # v3.30: de SHA-256 van de ZIP na het opslaan, 24 tests
                                                        # (playwright + leaflet/jszip/papaparse/fontsource in node_modules)
     python3 _archief/overpass_rig/tekstgelijk.py oud.html nieuw.html  # zelfde tekst, woord voor woord (bij opmaakwijzigingen)
 

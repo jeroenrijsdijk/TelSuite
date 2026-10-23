@@ -19,11 +19,12 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.29'
-# v3.29: waarschuwing bij het delen van een ZIP (je plek, en thuis je huis).
-VERWACHT_GEWIJZIGD = {'index.html', 'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
-                      'pocket_count.html', 'traffic_counter.html', 'telreconstructie.html', 'telrapport.html',
-                      'privacy.html', 'traffic_counter_help.html'}
+RELEASE = 'v3.30'
+# v3.30: vijf losse eindjes (Oswald in telrapport, _trn weg, kop veiligheid,
+# legenda GeoPackage, vingerafdruk bij de export) en Jay's tekst voor de deelwaarschuwing.
+VERWACHT_GEWIJZIGD = {'index.html', 'telrapport.html', 'zip_format_reference.html', 'traffic_counter_help.html',
+                      'verantwoording.html', 'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                      'pocket_count.html', 'traffic_counter.html', 'telreconstructie.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -217,6 +218,10 @@ groepen = [
      '/* ── Herstelmelding (v3.22)', '/* ── einde gedeeld blok herstelmelding ── */'),
     ('herstel-haken', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html'],
      '/* ── Herstelmelding: haken parkeer-apps (v3.22) ── */', '/* ── einde haken herstelmelding ── */'),
+    # v3.30: de SHA-256 van de ZIP na het opslaan, met een mail-knop
+    ('vingerafdruk', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                      'pocket_count.html', 'traffic_counter.html'],
+     '/* ── Vingerafdruk (v3.30)', '/* ── einde gedeeld blok vingerafdruk ── */'),
     # v3.29: één regel bij de ZIP-knop over delen (je plek; thuis je huis)
     ('deelwaarschuwing', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
                           'pocket_count.html', 'traffic_counter.html'],

@@ -26,10 +26,10 @@ paginas = sorted(f for f in glob.glob('*.html'))
 bron = {f: open(f, encoding='utf-8').read() for f in paginas}
 # Pagina's die een van de twee lettertypen in hun opmaak noemen. privacy.html
 # noemt Google Fonts in tekst (de geschiedenis), dat is geen verzoek.
-# telrapport noemt Oswald alleen in de labels op de kaart en laadde hem nooit:
-# daar staat een reserveletter, al sinds het begin. Bewust buiten v3.25 gelaten.
-oswald = [f for f in paginas if f != 'telrapport.html'
-          and re.search(r"font-family:\s*['\"]?Oswald|--font:\s*'Oswald'", bron[f])]
+# telrapport noemt Oswald alleen in de labels op de kaart. Tot v3.30 laadde hij
+# hem niet (reserveletter); sinds v3.30 wel, en dus telt hij hier mee.
+oswald = [f for f in paginas
+          if re.search(r"font-family:\s*['\"]?Oswald|--font:\s*'Oswald'", bron[f])]
 mono = [f for f in paginas if 'Share Tech Mono' in bron[f]]
 
 print('== C. fonts/ ==')

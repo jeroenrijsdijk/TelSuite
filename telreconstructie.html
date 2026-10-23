@@ -62,7 +62,7 @@ button.ghost{background:var(--paper);color:var(--ink);border:1px solid var(--lin
 <body>
 <header>
   <h1>Telreconstructie</h1>
-  <div class="sub">Herfetch &middot; hersnap &middot; richtingslaag &middot; links/rechts 4&nbsp;m uit de wegas &middot; link-correctie link-correctie &middot; v2.23middot; modus-fix link-correctie &middot; v2.23middot; v2.24</div>
+  <div class="sub">Zet elke tik achteraf op de goede straat en aan de goede kant, met je hele route erbij.</div>
 </header>
 <main>
   <div id="panel">
@@ -108,7 +108,7 @@ button.ghost{background:var(--paper);color:var(--ink);border:1px solid var(--lin
         </div>
       </div>
       <button id="exportBtn" disabled>Herschreven ZIP downloaden</button>
-      <div id="deel-waarschuwing" style="font-size:12px;line-height:1.35;color:var(--muted);margin-top:6px">&#9432; Deel je deze ZIP, dan deel je de route en de plek van de telling. Begon hij thuis, dan staat dat huis erin.</div>
+      <div id="deel-waarschuwing" style="font-size:12px;line-height:1.35;color:var(--muted);margin-top:6px">&#9432; Begint je opname bij huis? Deel de zip dan niet zomaar met iedereen.</div>
       <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:6px">
         <input type="checkbox" id="autoDl" checked> automatisch downloaden na verversen
       </label>
@@ -753,7 +753,7 @@ function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1))
 // _reconstructie_log.csv. valideer.py dwingt af: verandert dit bestand in een
 // release, dan moet dit gelijk zijn aan die release. Vervangt de bevroren
 // stempels v2.24 (sessie) en v2.18 (log), die elkaar tegenspraken.
-var RECON_VERSIE = 'v3.29';
+var RECON_VERSIE = 'v3.30';
 var OFFSET_M = 4;          // meters uit de wegas. zijde-offset: zelfde waarde in 5 bestanden, bewaakt door valideer.py
 var SNAP_MAX_M = 50;       // max afstand tik→way bij hersnap. Ruim, want tik-GPS valt
                            // in stadskloven tientallen meters naast de weg (multipath).

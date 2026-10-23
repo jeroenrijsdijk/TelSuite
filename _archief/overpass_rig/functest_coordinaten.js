@@ -28,7 +28,9 @@ eis('tooltip wordt niet meer uitgeplozen voor het type',
   dc.indexOf("tip.getContent().split(' ')") < 0);
 eis('_tikType wordt gelezen', /dot\._tikType/.test(dc));
 eis('pocket zet _tikType', /m\._tikType = rowType;/.test(fn('loadPocketZip')));
-eis('transect zet _tikType', /m\._tikType = type;/.test(fn('loadTransectZip')));
+// v3.30: het losse transect-formaat (loadTransectZip) is weg; pocket dekt transect.
+eis('het losse transect-formaat leest telrapport niet meer, en zegt dat',
+  html.indexOf('function loadTransectZip') < 0 && /een los transect-bestand \(_trn\)/.test(html));
 
 console.log('\n== B. capaciteitslabel op het polygoon-zwaartepunt ==');
 const cap = fn('loadCapaciteitZip');
@@ -65,15 +67,13 @@ eis('geen tweede, overbodige controle bijgebouwd',
 console.log('\n== E. dode transect-tak weg ==');
 eis('tweede transect-tak bestaat niet meer',
   html.indexOf("if (appType === 'transect' && telCSV)") < 0);
-eis('het levende pad wordt precies één keer aangeroepen',
-  (html.match(/(?<!function )loadTransectZip\(sid, sm, telCSV/g) || []).length === 1);
-eis('en de functie zelf ook', (html.match(/function loadTransectZip/g) || []).length === 1);
+eis('en sinds v3.30 ook het levende pad niet: geen aanroep meer',
+  (html.match(/(?<!function )loadTransectZip\(sid, sm, telCSV/g) || []).length === 0);
+eis('en de functie zelf ook niet meer (v3.30)', (html.match(/function loadTransectZip/g) || []).length === 0);
 
 console.log('\n== de coordinaatbronnen per telsoort, zoals vastgelegd ==');
 eis('auto/fiets: lat_marker', /const la=\+r\.lat_marker, lo=\+r\.lon_marker;/.test(html));
 eis('pocket: via tikPositie()', /const pos = tikPositie\(r\);/.test(fn('loadPocketZip')));
-eis('transect: rauwe lat/lon (dit profiel krijgt geen markerkolom)',
-  /const la = parseFloat\(r\.lat\), lo = parseFloat\(r\.lon\);/.test(fn('loadTransectZip')));
 eis('capaciteit losse vakken: lat_marker', /parseFloat\(r\.lat_marker\)/.test(fn('showCapDetail')));
 eis('standstill: GPS uit de metakop', /parseFloat\(meta\['GPS latitude'\]\)/.test(html));
 
