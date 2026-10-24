@@ -28,6 +28,7 @@ button{font-family:inherit;font-size:13px;font-weight:400;padding:8px 16px;curso
        background:var(--accent);border:none;border-radius:3px;color:#fff}
 button:disabled{background:var(--line);color:var(--muted);cursor:default}
 button.ghost{background:var(--paper);color:var(--ink);border:1px solid var(--line)}
+button.ghost:disabled{background:transparent;color:var(--muted);cursor:default}
 .note{background:var(--paper);border-left:2px solid var(--accent);padding:8px 11px;margin-top:12px;font-size:12.5px;color:#3a3a35;max-width:72ch}
 .note.warn{border-left-color:var(--oker)}
 .note.fout{border-left-color:var(--rood)}
@@ -49,6 +50,12 @@ td.uitkomst.fout{color:var(--rood)}
 label{font-size:12.5px}
 ul.mappen{margin:4px 0;padding-left:18px;font-size:13px}
 ul.mappen code{font-family:'Share Tech Mono',monospace;font-size:12.5px}
+/* voortgang (v3.32): onderaan het venster, ook te zien onder aan een lange tabel */
+.voortgang{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--paper);border-top:1px solid var(--line);padding:8px 20px 9px}
+.voortgang progress{display:block;width:100%;max-width:1060px;height:8px;accent-color:var(--accent)}
+.voortgang .sub{margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:1060px}
+.voortgang .pad{font-family:'Share Tech Mono',monospace;font-size:12px}
+body.bezig main{padding-bottom:90px}
 </style>
 </head>
 <body>
@@ -76,7 +83,6 @@ ul.mappen code{font-family:'Share Tech Mono',monospace;font-size:12.5px}
     <div class="regel">
       <button id="uitvoeren" onclick="uitvoeren()" disabled>Uitvoeren</button>
       <button class="ghost" id="opnieuw" onclick="opnieuwLezen()">Opnieuw lezen</button>
-      <span id="voortgang" class="sub"></span>
     </div>
   </div>
 
@@ -87,11 +93,16 @@ ul.mappen code{font-family:'Share Tech Mono',monospace;font-size:12.5px}
       <li><code>&lt;soort&gt;/originelen</code>: een origineel waarvan in je archief een reconstructie (<code>_recon.zip</code>) ligt. De reconstructie zelf staat in de map van de soort.</li>
       <li><code>Verzamelingen</code>: de verzamelingen uit telrapport (<code>TelVerzameling_….zip</code>).</li>
       <li><code>dubbel</code>: een ZIP die er al eens ligt, met precies dezelfde inhoud (zelfde vingerafdruk), bijvoorbeeld <code>…_car (1).zip</code>. Is de inhoud anders, dan blijven beide staan.</li>
-      <li>Alle andere bestanden blijven waar ze zijn. Wat verplaatst is, staat in <code>ordenen_logboek.csv</code> in je archief, zodat je het kunt terugzoeken.</li>
+      <li>Alle andere bestanden blijven waar ze zijn. Wat verplaatst is, staat in een logboek in je archief, zodat je het kunt terugzoeken: <code>ordenen_logboek_&lt;datum&gt;_&lt;tijd&gt;.csv</code>, een per keer <strong>Uitvoeren</strong>.</li>
     </ul>
     <div class="note warn">Verwerk je de ZIP's ook met een eigen script of KNIME, kijk dan of dat ook in submappen zoekt.</div>
   </div>
 </main>
+
+<div id="voortgang" class="voortgang hide">
+  <progress id="voortgang-balk" aria-label="Voortgang"></progress>
+  <div id="voortgang-tekst" class="sub"></div>
+</div>
 
 <script>
 /* ── Ordenen (v3.31) ─────────────────────────────────────────────────────────
@@ -230,7 +241,17 @@ var ORDENEN = (function () {
     return acties;
   }
 
-  return { plan: plan, soort: soort, isRecon: isRecon, sessieId: sessieId, MAP: MAP, mapVan: mapVan, naamVan: naamVan };
+  // Het logboek van één keer Uitvoeren (v3.32, Jay: "een datum+tijd in de
+  // bestandsnaam"): ordenen_logboek_jjjjmmdd_uummss.csv, zoals in een sessie-id,
+  // met het moment waarop die ronde begon. k > 1: de naam was al bezet.
+  function logboekNaam(d, k) {
+    var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+    return 'ordenen_logboek_' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '_' +
+           p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + (k > 1 ? '_' + k : '') + '.csv';
+  }
+
+  return { plan: plan, soort: soort, isRecon: isRecon, sessieId: sessieId, MAP: MAP, mapVan: mapVan, naamVan: naamVan,
+           logboekNaam: logboekNaam };
 })();
 /* ── einde ORDENEN ── */
 
@@ -259,9 +280,11 @@ function hex(buf) {
 }
 async function vingerafdrukVan(buf) { return hex(await crypto.subtle.digest('SHA-256', buf)); }
 
+// file: een File, of een belofte van een File (getFile kan mislukken, bijvoorbeeld
+// als een ander programma het bestand vasthoudt; dan blijft alleen dat bestand liggen).
 async function leesItem(item, file) {
   try {
-    var buf = await file.arrayBuffer();
+    var buf = await (await file).arrayBuffer();
     item.sha = await vingerafdrukVan(buf);
     item.grootte = buf.byteLength;
     var zip = await JSZip.loadAsync(buf);
@@ -285,7 +308,27 @@ function melding(tekst, soort) {
   el.className = 'note' + (soort ? ' ' + soort : '');
   el.innerHTML = tekst;
 }
-function voortgang(t) { document.getElementById('voortgang').textContent = t || ''; }
+
+/* Voortgang (v3.32, Jay: "Voor tijdens het lezen en verplaatsen van .zips mag je
+   een voortgangsindicator maken"). Een balk onderaan het venster met een regel:
+   wat hij doet, hoeveel van hoeveel, en welk bestand. Zonder totaal (bij het
+   doorzoeken van de mappen) loopt de balk zonder einde. Zolang hij bezig is,
+   staan de knoppen en vinkjes uit. voortgang(null) haalt de balk weg. */
+var BEZIG = false;
+function voortgang(tekst, gedaan, totaal, naam) {
+  var blok = document.getElementById('voortgang'), balk = document.getElementById('voortgang-balk');
+  if (tekst == null) { blok.classList.add('hide'); document.getElementById('voortgang-tekst').textContent = ''; return; }
+  blok.classList.remove('hide');
+  if (totaal) { balk.max = totaal; balk.value = gedaan; } else balk.removeAttribute('value');
+  document.getElementById('voortgang-tekst').innerHTML = esc(tekst) + (naam ? ' \u00b7 <span class="pad">' + esc(naam) + '</span>' : '');
+}
+function bezig(aan) {
+  BEZIG = aan;
+  document.body.classList.toggle('bezig', aan);
+  ['kies', 'opnieuw', 'map-invoer', 'toon-goed'].forEach(function (id) { document.getElementById(id).disabled = aan; });
+  if (!aan) voortgang(null);
+  if (acties.length) toonPlan();          // de vinkjes en Uitvoeren volgen BEZIG
+}
 
 (function () {
   if (KAN_VERPLAATSEN) return;
@@ -305,43 +348,64 @@ async function kiesMap() {
   await leesWortel();
 }
 
+function zoekRegel(n, pad) { voortgang('Mappen doorzoeken: ' + n + (n === 1 ? ' ZIP' : " ZIP's") + ' gevonden', 0, 0, pad); }
 async function verzamel(dir, pad, uit) {
+  zoekRegel(uit.length, pad);
   for await (var [naam, h] of dir.entries()) {
     if (naam.charAt(0) === '.') continue;
     var p = pad ? pad + '/' + naam : naam;
     if (h.kind === 'directory') await verzamel(h, p, uit);
-    else if (/\.zip$/i.test(naam)) uit.push({ pad: p, naam: naam, handle: h, ouder: dir });
+    else if (/\.zip$/i.test(naam)) {
+      uit.push({ pad: p, naam: naam, handle: h, ouder: dir });
+      zoekRegel(uit.length, pad);
+    }
   }
   return uit;
 }
 
 async function leesWortel() {
+  if (BEZIG) return;
+  bezig(true);
   melding('Bezig met lezen\u2026');
-  var lijst = await verzamel(wortel, '', []);
-  items = [];
-  for (var i = 0; i < lijst.length; i++) {
-    voortgang('gelezen ' + i + ' van ' + lijst.length);
-    items.push(await leesItem(lijst[i], await lijst[i].handle.getFile()));
+  try {
+    var lijst = await verzamel(wortel, '', []);
+    items = [];
+    for (var i = 0; i < lijst.length; i++) {
+      voortgang('Lezen: ' + (i + 1) + ' van ' + lijst.length, i, lijst.length, lijst[i].pad);
+      items.push(await leesItem(lijst[i], lijst[i].handle.getFile()));
+    }
+  } catch (e) {
+    // Een half gelezen archief geeft een verkeerd plan (een reconstructie die
+    // niet gelezen is, mist bij zijn origineel). Dus geen plan.
+    items = []; acties = [];
+    document.getElementById('plan-sect').classList.add('hide');
+    bezig(false);
+    melding('De map kon niet helemaal gelezen worden: ' + esc((e && e.message) || e), 'fout');
+    return;
   }
-  voortgang('');
+  bezig(false);
   maakPlan();
 }
 
 async function leesInvoer(files) {
+  if (BEZIG) return;
   var lijst = Array.prototype.filter.call(files, function (f) { return /\.zip$/i.test(f.name); });
   items = [];
-  for (var i = 0; i < lijst.length; i++) {
-    var rel = lijst[i].webkitRelativePath || lijst[i].name;
-    var pad = rel.indexOf('/') >= 0 ? rel.slice(rel.indexOf('/') + 1) : rel;   // zonder de gekozen map zelf
-    if (pad.split('/').some(function (d) { return d.charAt(0) === '.'; })) continue;
-    voortgang('gelezen ' + i + ' van ' + lijst.length);
-    items.push(await leesItem({ pad: pad, naam: lijst[i].name }, lijst[i]));
-  }
-  voortgang('');
+  bezig(true);
+  try {
+    for (var i = 0; i < lijst.length; i++) {
+      var rel = lijst[i].webkitRelativePath || lijst[i].name;
+      var pad = rel.indexOf('/') >= 0 ? rel.slice(rel.indexOf('/') + 1) : rel;   // zonder de gekozen map zelf
+      if (pad.split('/').some(function (d) { return d.charAt(0) === '.'; })) continue;
+      voortgang('Lezen: ' + (i + 1) + ' van ' + lijst.length, i, lijst.length, pad);
+      items.push(await leesItem({ pad: pad, naam: lijst[i].name }, lijst[i]));
+    }
+  } finally { bezig(false); }
   maakPlan();
 }
 
 function opnieuwLezen() {
+  if (BEZIG) return;
   if (wortel) leesWortel();
   else document.getElementById('map-invoer').click();
 }
@@ -375,7 +439,7 @@ function toonPlan() {
   rijen.forEach(function (x) {
     var a = x[0], i = x[1];
     var vink = a.status === 'verplaatsen'
-      ? '<input type="checkbox" data-i="' + i + '"' + (a.aan ? ' checked' : '') + (KAN_VERPLAATSEN && wortel ? '' : ' disabled') + ' onchange="vink(this)">' : '';
+      ? '<input type="checkbox" data-i="' + i + '"' + (a.aan ? ' checked' : '') + (KAN_VERPLAATSEN && wortel && !BEZIG ? '' : ' disabled') + ' onchange="vink(this)">' : '';
     var naar = a.status === 'verplaatsen' ? ORDENEN.mapVan(a.naar) + '/' : (a.status === 'goed' ? '(blijft)' : '\u2014');
     var uk = a.uitkomst === 'ok' ? '<td class="uitkomst ok">\u2713 verplaatst</td>'
            : a.uitkomst ? '<td class="uitkomst fout">' + esc(a.uitkomst) + '</td>' : '<td></td>';
@@ -386,7 +450,7 @@ function toonPlan() {
   document.getElementById('plan').innerHTML = html;
   var aantal = acties.filter(function (a) { return a.status === 'verplaatsen' && a.aan && !a.uitkomst; }).length;
   var knop = document.getElementById('uitvoeren');
-  knop.disabled = !(KAN_VERPLAATSEN && wortel && aantal);
+  knop.disabled = BEZIG || !(KAN_VERPLAATSEN && wortel && aantal);
   knop.textContent = 'Uitvoeren' + (aantal ? ' (' + aantal + ')' : '');
 }
 function vink(el) { acties[+el.getAttribute('data-i')].aan = el.checked; toonPlan(); }
@@ -424,42 +488,48 @@ async function verplaats(a) {
   return 'kopie';
 }
 
-var LOGBOEK = 'ordenen_logboek.csv';
-async function schrijfLogboek(regels) {
-  if (!regels.length) return;
-  var h = await wortel.getFileHandle(LOGBOEK, { create: true });
-  var f = await h.getFile();
-  var w = await h.createWritable({ keepExistingData: true });
-  await w.seek(f.size);
-  await w.write((f.size ? '' : 'tijdstip;van;naar;reden;sha256\n') + regels.join('\n') + '\n');
+// Een logboek per keer Uitvoeren, met datum en tijd in de naam (v3.32; tot dan
+// werd ordenen_logboek.csv aangevuld, en dat bestand blijft gewoon staan).
+// Nooit overschrijven: is de naam bezet, dan _2, _3, …  Geeft de naam terug.
+async function schrijfLogboek(regels, nu) {
+  if (!regels.length) return '';
+  var k = 1;
+  while (await bestaat(wortel, ORDENEN.logboekNaam(nu, k))) k++;
+  var naam = ORDENEN.logboekNaam(nu, k);
+  var w = await (await wortel.getFileHandle(naam, { create: true })).createWritable();
+  await w.write('tijdstip;van;naar;reden;sha256\n' + regels.join('\n') + '\n');
   await w.close();
+  return naam;
 }
 
 async function uitvoeren() {
   var todo = acties.filter(function (a) { return a.status === 'verplaatsen' && a.aan && !a.uitkomst; });
-  if (!todo.length) return;
-  document.getElementById('uitvoeren').disabled = true;
+  if (!todo.length || BEZIG) return;
+  bezig(true);
   var nu = new Date(), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
   var tijd = nu.getFullYear() + '-' + p2(nu.getMonth() + 1) + '-' + p2(nu.getDate()) + ' ' + p2(nu.getHours()) + ':' + p2(nu.getMinutes()) + ':' + p2(nu.getSeconds());
-  var regels = [], ok = 0;
-  for (var i = 0; i < todo.length; i++) {
-    var a = todo[i];
-    voortgang('verplaatsen ' + (i + 1) + ' van ' + todo.length);
-    try {
-      await verplaats(a);
-      a.uitkomst = 'ok'; ok++;
-      regels.push([tijd, a.van, a.naar, a.reden, a.item.sha].map(function (v) { return String(v).replace(/;/g, ','); }).join(';'));
-    } catch (e) {
-      a.uitkomst = 'niet verplaatst: ' + ((e && e.message) || e);
+  var regels = [], ok = 0, logboek = '', logfout = '';
+  try {
+    for (var i = 0; i < todo.length; i++) {
+      var a = todo[i];
+      voortgang('Verplaatsen: ' + (i + 1) + ' van ' + todo.length, i, todo.length, a.van);
+      try {
+        await verplaats(a);
+        a.uitkomst = 'ok'; ok++;
+        regels.push([tijd, a.van, a.naar, a.reden, a.item.sha].map(function (v) { return String(v).replace(/;/g, ','); }).join(';'));
+      } catch (e) {
+        a.uitkomst = 'niet verplaatst: ' + ((e && e.message) || e);
+      }
     }
-  }
-  try { await schrijfLogboek(regels); }
-  catch (e) { melding('Verplaatst, maar het logboek kon niet geschreven worden: ' + ((e && e.message) || e), 'warn'); }
-  voortgang('');
+    voortgang('Logboek schrijven', todo.length, todo.length);
+    try { logboek = await schrijfLogboek(regels, nu); }
+    catch (e) { logfout = (e && e.message) || String(e); }
+  } finally { bezig(false); }
   var mis = todo.length - ok;
-  melding(ok + (ok === 1 ? ' bestand' : ' bestanden') + ' verplaatst' + (mis ? ', ' + mis + ' niet (zie de tabel)' : '') +
-          '. Wat er gebeurde, staat in <code>' + LOGBOEK + '</code> in je archief.', mis ? 'warn' : '');
-  toonPlan();
+  melding(ok + (ok === 1 ? ' bestand' : ' bestanden') + ' verplaatst' + (mis ? ', ' + mis + ' niet (zie de tabel)' : '') + '.' +
+          (logboek ? ' Wat er verplaatst is, staat in <code>' + esc(logboek) + '</code> in je archief.'
+           : logfout ? ' Het logboek kon niet geschreven worden: ' + esc(logfout) : ''),
+          mis || logfout ? 'warn' : '');
 }
 </script>
 </body>

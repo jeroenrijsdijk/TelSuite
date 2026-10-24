@@ -1,4 +1,5 @@
 /* v3.31 functionele test — de indeling van Ordenen (telarchief.html), los van de browser.
+   v3.32: de naam van het logboek, met datum en tijd.
    ORDENEN.plan krijgt een lijst bestanden en geeft per bestand: blijven, verplaatsen
    (waarheen en waarom), overslaan of een naamconflict. */
 const fs = require('fs');
@@ -101,6 +102,14 @@ eis('hoofdletters tellen niet (Windows): AUTOPARKEREN/x_car.zip bezet Autoparker
 
 eis('een map met andere hoofdletters telt als goed (autoparkeren/ is Autoparkeren/)',
   O.plan([item('autoparkeren/x_car.zip', ses('auto', 'x'))])[0].status === 'goed');
+
+console.log('\n== het logboek: datum en tijd in de naam (v3.32) ==');
+eis('ordenen_logboek_jjjjmmdd_uummss.csv, zoals een sessie-id',
+  O.logboekNaam(new Date(2026, 9, 24, 8, 10, 12)) === 'ordenen_logboek_20261024_081012.csv', O.logboekNaam(new Date(2026, 9, 24, 8, 10, 12)));
+eis('met voorloopnullen (2 januari, 03:04:05)', O.logboekNaam(new Date(2026, 0, 2, 3, 4, 5)) === 'ordenen_logboek_20260102_030405.csv');
+eis('naam bezet: _2, _3; k = 1 geeft geen nummer',
+  O.logboekNaam(new Date(2026, 0, 2, 3, 4, 5), 2) === 'ordenen_logboek_20260102_030405_2.csv' &&
+  O.logboekNaam(new Date(2026, 0, 2, 3, 4, 5), 1) === O.logboekNaam(new Date(2026, 0, 2, 3, 4, 5)));
 
 console.log('\n' + (fout === 0 ? 'ALLE ' + ok + ' TESTS OK' : ok + ' ok, ' + fout + ' FOUT'));
 process.exit(fout ? 1 : 0);
