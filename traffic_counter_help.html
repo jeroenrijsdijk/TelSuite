@@ -1053,7 +1053,8 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <tr><td><strong>originelen</strong></td><td>Ligt er van een telling ook een reconstructie (<code>_recon.zip</code>), dan gaat het origineel naar de submap <em>originelen</em> van zijn soort. De reconstructie staat in de map zelf. Telrapport laadt een hele map, ook de submappen.</td></tr>
 <tr><td><strong>dubbel</strong></td><td>Een ZIP die er al eens ligt met precies dezelfde inhoud, zoals <code>…_car (1).zip</code>, gaat naar <em>dubbel</em>. De tool vergelijkt de vingerafdruk (SHA-256), niet de naam. Is de inhoud anders, dan blijven beide.</td></tr>
 <tr><td><strong>Blijft liggen</strong></td><td>Alles wat geen telling van telonline.org is, en een ZIP waarvan de naam in de doelmap al bezet is door een ander bestand (naamconflict). Wat al goed staat, blijft ook staan.</td></tr>
-<tr><td><strong>Logboek</strong></td><td><code>ordenen_logboek.csv</code> in je archief: per verplaatsing het tijdstip, van, naar, de reden en de vingerafdruk.</td></tr>
+<tr><td><strong>Voortgang</strong></td><td>Tijdens het lezen en het verplaatsen staat onderaan een balk: hoeveel van hoeveel, en welk bestand. Zolang die er staat, staan de knoppen uit (sinds v3.32).</td></tr>
+<tr><td><strong>Logboek</strong></td><td>Elke keer <strong>Uitvoeren</strong> geeft een eigen logboek in je archief, met de datum en tijd in de naam: <code>ordenen_logboek_20261024_081012.csv</code> (sinds v3.32; daarvoor werd <code>ordenen_logboek.csv</code> aangevuld). Per verplaatsing het tijdstip, van, naar, de reden en de vingerafdruk.</td></tr>
 </table>
 <p>Verplaatsen kan alleen in Chrome en Edge op de computer: alleen die laten een webpagina, met jouw toestemming, bestanden in een map verplaatsen. In andere browsers kun je het plan bekijken en het zelf doen. Verwerk je de ZIP's ook met een eigen script of KNIME, kijk dan of dat in submappen zoekt.</p>
 </section>

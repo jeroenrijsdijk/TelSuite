@@ -27,7 +27,7 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_zijkolom.js    # ruimteverdeling zijkolom, 20 tests
     node _archief/overpass_rig/functest_coordinaten.js # welk coordinaat op de kaart, 28 tests
     node _archief/overpass_rig/functest_taartbol.js    # clusterbol als taart, 23 tests
-    node _archief/overpass_rig/functest_ordenen.js     # v3.31: de indeling van Ordenen (soort, originelen, dubbel, conflict), 32 tests
+    node _archief/overpass_rig/functest_ordenen.js     # v3.31: de indeling van Ordenen (soort, originelen, dubbel, conflict) en de naam van het logboek (v3.32), 35 tests
     node _archief/overpass_rig/functest_shiftsolo.js   # shift-klik isoleert telling, 27 tests
     node _archief/overpass_rig/functest_hwvoorkeur.js  # highway-voorkeur in de matcher + versiestempel, 22 tests
     node _archief/overpass_rig/functest_gpxtijd.js     # GPX-tijden in echte UTC, drie parkeer-apps, 31 tests
@@ -57,7 +57,7 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/reconkaarttest.py    # v3.28: de kaart-PNG in de _recon.zip, 16 tests
     python3 _archief/overpass_rig/deeltest.py          # v3.29: de waarschuwing bij het delen van een ZIP, 25 tests
     python3 _archief/overpass_rig/vingerafdruktest.py  # v3.30: de SHA-256 van de ZIP na het opslaan, 24 tests
-    python3 _archief/overpass_rig/ordenentest.py       # v3.31: Ordenen op echte bestanden (OPFS), met en zonder move(), en alleen bekijken, 41 tests
+    python3 _archief/overpass_rig/ordenentest.py       # v3.31: Ordenen op echte bestanden (OPFS), met en zonder move(), en alleen bekijken; v3.32: de voortgang en een logboek per ronde, 58 tests
                                                        # (playwright + leaflet/jszip/papaparse/fontsource in node_modules)
     python3 _archief/overpass_rig/tekstgelijk.py oud.html nieuw.html  # zelfde tekst, woord voor woord (bij opmaakwijzigingen)
 

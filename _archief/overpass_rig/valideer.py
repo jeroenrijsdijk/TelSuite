@@ -19,10 +19,9 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.31'
-# v3.31: Ordenen (telarchief.html, nieuw), op de voorpagina, in de handleiding en de privacyverklaring.
-VERWACHT_GEWIJZIGD = {'index.html', 'telarchief.html', 'over.html', 'about.html', 'privacy.html',
-                      'traffic_counter_help.html'}   # sitemap.xml telt hier niet mee; de sitemapcontrole hieronder ziet hem
+RELEASE = 'v3.32'
+# v3.32: Ordenen met een voortgangsbalk en een logboek per ronde (datum en tijd in de naam).
+VERWACHT_GEWIJZIGD = {'index.html', 'telarchief.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
