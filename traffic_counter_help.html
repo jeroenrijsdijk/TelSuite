@@ -128,6 +128,8 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <li><a href="#rapport-tijdfilter">Tijdfilter</a></li>
 <li><a href="#rapport-sessies">Sessielijst &amp; interacties</a></li>
 <li><a href="#rapport-kaarten">Kaartopties</a></li>
+</ul></li><li>Passanten<ul>
+<li><a href="#passanten">Passanten per uur in een winkelstraat</a></li>
 </ul></li><li>Telplanning<ul>
 <li><a href="#planning-overzicht">Wat doet de telplanning?</a></li>
 <li><a href="#planning-gebruik">Gebiedselectie &amp; wegen</a></li>
@@ -757,6 +759,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <p>Voetgangerstelling met precies twee categorieën: <strong>🚶 Tegemoet</strong> (komt je voorbij lopen) en <strong>🧍 Stilstaand</strong> (staat/hangt rond — bij een etalage, terras, of gewoon pratend). Het onderscheid is de kern van deze modus: waar loopt publiek gewoon door, en waar blijft het hangen.</p>
 <h4>Twee grote tegels</h4>
 <p>Het scherm toont twee kleurvakken, elk met eigen teller. Tik de tegel om +1 te registreren; het kleine <code>−</code>-hoekje op elke tegel maakt de laatste tik van die categorie ongedaan. Boven de tegels staat het totaal van beide samen.</p>
+<p>Hoeveel passanten per uur dat langs een plek betekent, rekent <a href="#passanten">Passanten</a> uit (sinds v3.34).</p>
 <h4>Snelheid wordt meegelogd</h4>
 <p>Elke tik legt ook je eigen looptempo op dat moment vast (uit de GPS). Dat is geen toevalligheid: tegemoet-tikken van een snel lopende waarnemer en stilstaand-tikken van een langzaam lopende waarnemer zijn systematisch anders bemonsterd, en die snelheid is precies wat nodig is om dat in KNIME schoon te ontrafelen (Wardrop &amp; Charlesworth-achtige decompositie van tegemoetkomende flux versus stilstaande voorraad).</p>
 <p>In <code>_telregels.csv</code> komt de categorie in de kolom <code>type</code> (<code>tegemoet</code>/<code>stilstaand</code>) en het looptempo in <code>snelheid</code> (m/s). Dit zijn ook precies de categorieën die de plakkerigheid-analyse in telrapport en de losse plakkerigheid-proeftuin gebruiken om winkelstraat-ZIP's te herkennen.</p>
@@ -928,6 +931,23 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <p>De <strong>basis</strong>-slider regelt de opacity van de gekozen basemap (0–100%). Wisselen tussen kaarten behoudt je opacity-instelling — zet de luchtfoto bv. op 70% om straatnamen er doorheen te laten schemeren.</p>
 <p>PDOK-tiles kunnen bij eerste zoom op een nieuw gebied een halve seconde latency hebben. Voor snelle navigatie: OSM of Positron.</p>
 </section>
+<!-- ══════════════════════════════════════════════════════
+     PASSANTEN (v3.34)
+     ══════════════════════════════════════════════════════ -->
+<h2>Passanten per uur</h2><p><a href="passanten.html">passanten.html</a></p>
+<section id="passanten">
+<h3>Passanten per uur in een winkelstraat</h3>
+<p>Hoeveel mensen lopen er per uur langs een winkel? <a href="passanten.html">Passanten</a> rekent het uit je winkelstraat-tellingen van pocket (sinds v3.34). Lees de ZIP's in, of een hele map, kies een dag en een uur, en de kaart laat per stuk straat het aantal passanten per uur zien, ook als getal. Zo'n stuk is 30 tot 60 meter; een kort straatje kan korter zijn.</p>
+<table>
+<tr><td><strong>Rekenen</strong></td><td>Lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat: passanten per uur = 3600 &middot; tegenliggers &divide; (lengte &divide; 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers, en de enige aanname. Het is de <em>moving observer</em>-methode van Wardrop en Charlesworth.</td></tr>
+<tr><td><strong>Dag en uur</strong></td><td>Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen. Eerst worden alle tegenliggers en alle tijd opgeteld, dan wordt er gedeeld; een lange passage weegt zo zwaarder dan een korte. Een passage telt in het uur waarin het midden ervan valt. Je kunt alleen kiezen wat gemeten is.</td></tr>
+<tr><td><strong>Richting</strong></td><td>Je ziet alleen wie je tegemoet komt: naar het noorden lopend tel je wie naar het zuiden gaat. Liep je een stuk heen en terug, dan zijn beide stromen gemeten en opgeteld. Liep je maar één kant op, dan staat er een sterretje (<em>210*</em>): dat is één van de twee stromen, en die wordt niet verdubbeld. Tel als <em>tegemoet</em> dus alleen wie je tegemoet loopt, niet wie jou inhaalt.</td></tr>
+<tr><td><strong>Kaart</strong></td><td>Hoe donkerder, hoe drukker. De schaal geldt voor alle dagen en uren, zodat een kleur steeds hetzelfde betekent. Grijs: wel geteld, maar niet op deze dag en dit uur. Getallen die elkaar zouden raken, vallen weg (het drukste blijft staan); zoom in om ze te zien.</td></tr>
+<tr><td><strong>Klik op een stuk</strong></td><td>De straat, het aantal met de marge (95%), hoe vaak je er langsliep en op welke dagen, of beide richtingen gemeten zijn, en de stilstaanders per 100 meter. Hoe vaker je langsloopt, hoe kleiner de marge.</td></tr>
+<tr><td><strong>Wat meedoet</strong></td><td>Alleen winkelstraat-tellingen van pocket. Ligt er van een telling ook een reconstructie, dan telt die. Wat niet meedoet, staat erboven met de reden, en ook hoeveel tikken buiten een passage over een stuk straat vielen (die tellen niet mee).</td></tr>
+</table>
+</section>
+<hr>
 <!-- ══════════════════════════════════════════════════════
      TELPLANNING
      ══════════════════════════════════════════════════════ -->
