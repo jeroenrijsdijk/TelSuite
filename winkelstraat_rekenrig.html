@@ -86,7 +86,7 @@ input[type=number]{font-family:inherit;font-size:12px;width:52px;padding:3px 5px
 
   <div class="sect">
     <h2>Aanname</h2>
-    <label>v<sub>voetganger</sub> <input type="number" id="vped" value="1.3" step="0.1" min="0.5" max="2.5"> m/s</label>
+    <label>v<sub>voetganger</sub> <input type="number" id="vped" value="1.1" step="0.1" min="0.5" max="2.5"> m/s</label>
     <div class="dim" style="font-size:11.5px;margin-top:5px">Enige aanname in de methode. Bereik 1,0&ndash;1,5 verschuift de uitkomst ca. &plusmn;10%.</div>
   </div>
 
@@ -135,7 +135,7 @@ input[type=number]{font-family:inherit;font-size:12px;width:52px;padding:3px 5px
    zonder enige snelheidsaanname.
    ========================================================================== */
 
-var VPED = 1.3;
+var VPED = 1.1;      // v3.34: de standaard van passanten.html (Jay: "Zet de loopsnelheid maar op 1,1 m/s")
 var SESSIES = [];     // {id, datum, modus, visits[], nTel, nWees}
 var SEGMENTEN = {};   // "way/seg" -> {way,seg,straat,L,cells{}}
 var HUIDIG = null;
@@ -195,202 +195,244 @@ function parseCsv(txt){
   }).data;
 }
 
-/* ---------- geometrie ------------------------------------------------------ */
+/* ── Passanten per uur: de rekenkern (v3.34) ─────────────────────────────────
+   Gedeeld door passanten.html en winkelstraat_rekenrig.html, byte-identiek
+   (valideer.py). Uit het rekenrig gehaald; de uitkomsten zijn ongewijzigd.
 
-function wktPunten(wkt){
-  var m = /\((.*)\)/.exec(wkt || '');
-  if (!m) return [];
-  return m[1].split(',').map(function(p){
-    var xy = p.trim().split(/\s+/);
-    return [parseFloat(xy[0]), parseFloat(xy[1])];   // [lon, lat]
-  });
-}
+   Schatter (moving observer, Wardrop-Charlesworth):
+       q = 3600 * m / (L/v_voet + t)
+   m = aantal 'tegemoet'-tikken tijdens de passage
+   L = segmentlengte uit OSM-geometrie (betrouwbaar; géén GPS-afstand)
+   t = aanwezigheidstijd in het segment uit _bezocht.csv
+   De noemer is het ONTMOETINGSVENSTER: de tijd waarin een tegemoetkomer
+   jou had kunnen tegenkomen.
 
-function haversine(a, b){
-  var R = 6371000, rad = Math.PI / 180;
-  var la1 = a[1]*rad, la2 = b[1]*rad, dla = (b[1]-a[1])*rad, dlo = (b[0]-a[0])*rad;
-  var h = Math.sin(dla/2)*Math.sin(dla/2) +
-          Math.cos(la1)*Math.cos(la2)*Math.sin(dlo/2)*Math.sin(dlo/2);
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
+   Pooling over meerdere passages = ratio-of-sums, NIET het gemiddelde van de
+   losse q's (dat weegt korte passages te zwaar; scheelt op veldwerk tot 28%):
+       q_cel = 3600 * Σm / Σ(L/v_voet + t)
+   Een cel is een weekdag en een uur: alle gemeten zaterdagen samen zijn één
+   zaterdag (Jay, v3.34: "Middel alle gemeten zaterdagen naar 1 waarde").
 
-function polyLengte(p){
-  var s = 0;
-  for (var i = 0; i < p.length - 1; i++) s += haversine(p[i], p[i+1]);
-  return s;
-}
+   Per waargenomen LOOPRICHTING poolen, dan optellen. Loop je A→B, dan meet je
+   uitsluitend de stroom B→A. Heen én terug gelopen = echt totaal; één richting
+   gelopen = die ene stroom, met label.
 
-// positie langs polyline in meters — alleen gebruikt als terugval voor richting
-function langsPolyline(pt, poly){
-  var best = Infinity, bestPos = 0, cum = 0;
-  for (var i = 0; i < poly.length - 1; i++){
-    var a = poly[i], b = poly[i+1], seg = haversine(a, b);
-    if (seg < 1e-9) continue;
-    var dx = b[0]-a[0], dy = b[1]-a[1];
-    var t = ((pt[0]-a[0])*dx + (pt[1]-a[1])*dy) / (dx*dx + dy*dy);
-    t = Math.max(0, Math.min(1, t));
-    var d = haversine(pt, [a[0]+t*dx, a[1]+t*dy]);
-    if (d < best){ best = d; bestPos = cum + t*seg; }
-    cum += seg;
+   Stilstaanders zijn géén stroom maar een momentopname: je passage ziet ieder
+   stilstaand persoon in het segment precies één keer. Dus k = Σm_stil / ΣL,
+   zonder enige snelheidsaanname.
+
+   Puur: geen DOM en geen bibliotheken. Invoer: de CSV's van één ZIP als rijen
+   (een object per regel, met de kop als sleutels).                           */
+var PASSANTEN = (function () {
+  var V_VOET = 1.1;     // m/s; Jay, v3.34: "Zet de loopsnelheid maar op 1,1 m/s." (het rig had 1,3)
+
+  /* ---------- geometrie ---------------------------------------------------- */
+  function wktPunten(wkt) {
+    var m = /\((.*)\)/.exec(wkt || '');
+    if (!m) return [];
+    return m[1].split(',').map(function (p) {
+      var xy = p.trim().split(/\s+/);
+      return [parseFloat(xy[0]), parseFloat(xy[1])];   // [lon, lat]
+    });
   }
-  return bestPos;
-}
+  function haversine(a, b) {
+    var R = 6371000, rad = Math.PI / 180;
+    var la1 = a[1] * rad, la2 = b[1] * rad, dla = (b[1] - a[1]) * rad, dlo = (b[0] - a[0]) * rad;
+    var h = Math.sin(dla / 2) * Math.sin(dla / 2) +
+            Math.cos(la1) * Math.cos(la2) * Math.sin(dlo / 2) * Math.sin(dlo / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  function polyLengte(p) {
+    var s = 0;
+    for (var i = 0; i < p.length - 1; i++) s += haversine(p[i], p[i + 1]);
+    return s;
+  }
+  // positie langs polyline in meters — alleen gebruikt als terugval voor richting
+  function langsPolyline(pt, poly) {
+    var best = Infinity, bestPos = 0, cum = 0;
+    for (var i = 0; i < poly.length - 1; i++) {
+      var a = poly[i], b = poly[i + 1], seg = haversine(a, b);
+      if (seg < 1e-9) continue;
+      var dx = b[0] - a[0], dy = b[1] - a[1];
+      var t = ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / (dx * dx + dy * dy);
+      t = Math.max(0, Math.min(1, t));
+      var d = haversine(pt, [a[0] + t * dx, a[1] + t * dy]);
+      if (d < best) { best = d; bestPos = cum + t * seg; }
+      cum += seg;
+    }
+    return bestPos;
+  }
 
-/* ---------- sessie inlezen ------------------------------------------------- */
-
-function tijdNaarSec(hms){
-  var p = String(hms).split(':').map(Number);
-  return p[0]*3600 + p[1]*60 + (p[2] || 0);
-}
-function isoNaarSec(iso){
-  var t = String(iso).split('T')[1] || '';
-  return tijdNaarSec(t);
-}
-
-function voegSessieToe(d, bestandsnaam){
-  var ses = d.sessie[0] || {};
-  var sid = ses.sessie_id || bestandsnaam;
-  if (SESSIES.some(function(s){ return s.id === sid; })) return;   // dubbel geladen
-
-  // geometrie van dit netwerkbestand
-  var geo = {}, len = {};
-  d.netwerk.forEach(function(r){
-    var k = r.osm_way_id + '/' + r.segment_index;
-    var p = wktPunten(r.geometrie_wkt);
-    if (p.length >= 2){ geo[k] = p; len[k] = polyLengte(p); }
-  });
-
-  // tikken indexeren
-  var tikken = d.telregels.map(function(r){
-    return { k: r.osm_way_id + '/' + r.segment_index, sec: isoNaarSec(r.tijdstip), type: r.type };
-  });
-
-  var visits = d.bezocht.map(function(r){
-    var k = r.osm_way_id + '/' + r.segment_index;
-    var t0 = tijdNaarSec(r.start_tijd), t1 = tijdNaarSec(r.eind_tijd);
-    var teg = 0, stil = 0;
-    tikken.forEach(function(x){
-      if (x.k !== k || x.sec < t0 || x.sec > t1) return;
-      if (x.type === 'tegemoet') teg++; else if (x.type === 'stilstaand') stil++;
+  /* ---------- sessie inlezen ----------------------------------------------- */
+  function tijdNaarSec(hms) {
+    var p = String(hms).split(':').map(Number);
+    return p[0] * 3600 + p[1] * 60 + (p[2] || 0);
+  }
+  function isoNaarSec(iso) {
+    var t = String(iso).split('T')[1] || '';
+    return tijdNaarSec(t);
+  }
+  // d = { sessie, bezocht, telregels, netwerk, gps }: rijen per CSV (gps mag ontbreken).
+  // Geeft { id, datum, modus, visits[], nTel, nGekoppeld, nWees, geo }.
+  function sessie(d, bestandsnaam) {
+    var ses = d.sessie[0] || {};
+    var sid = ses.sessie_id || bestandsnaam;
+    // geometrie van dit netwerkbestand
+    var geo = {}, len = {};
+    d.netwerk.forEach(function (r) {
+      var k = r.osm_way_id + '/' + r.segment_index;
+      var p = wktPunten(r.geometrie_wkt);
+      if (p.length >= 2) { geo[k] = p; len[k] = polyLengte(p); }
     });
-    return {
-      key: k, way: r.osm_way_id, seg: parseInt(r.segment_index, 10),
-      straat: r.straat || '(naamloos)',
-      L: len[k] || 0, t: parseFloat(r.duur_sec) || 0,
-      t0: t0, t1: t1, teg: teg, stil: stil,
-      datum: r.datum || ses.datum, richting: null, richtingBron: ''
-    };
-  }).filter(function(v){ return v.L > 0 && v.t > 0; });
-
-  bepaalRichtingen(visits, d.gps || [], geo);
-
-  var gekoppeld = visits.reduce(function(s, v){ return s + v.teg + v.stil; }, 0);
-  SESSIES.push({
-    id: sid, datum: ses.datum || '', modus: ses.modus || ses.type || '',
-    visits: visits, nTel: d.telregels.length, nGekoppeld: gekoppeld,
-    nWees: d.telregels.length - gekoppeld
-  });
-
-  visits.forEach(function(v){
-    if (!SEGMENTEN[v.key]){
-      SEGMENTEN[v.key] = { key: v.key, way: v.way, seg: v.seg,
-                           straat: v.straat, L: v.L, passages: [] };
-    }
-    SEGMENTEN[v.key].passages.push(v);
-  });
-}
-
-/* ---------- richting per passage -------------------------------------------
-   Primair uit de VOLGORDE van passages op dezelfde way: 0→1→2 betekent richting
-   A (oplopende segment_index), 2→1→0 betekent B. Die conclusie rust op welk
-   segment je in zat, niet op coördinaten, en is dus ongevoelig voor GPS-ruis.
-   Terugval alleen voor een way met één enkele passage: projectie van de eerste
-   en laatste GPS-fix op de segmentgeometrie, met drempel van 8 m.
-   -------------------------------------------------------------------------- */
-
-function bepaalRichtingen(visits, gps, geo){
-  visits.forEach(function(v, i){
-    var vorige = i > 0 ? visits[i-1] : null;
-    var volgende = i < visits.length - 1 ? visits[i+1] : null;
-    if (vorige && vorige.way === v.way && vorige.seg !== v.seg){
-      v.richting = v.seg > vorige.seg ? 'A' : 'B';
-      v.richtingBron = 'volgorde';
-      return;
-    }
-    if (volgende && volgende.way === v.way && volgende.seg !== v.seg){
-      v.richting = volgende.seg > v.seg ? 'A' : 'B';
-      v.richtingBron = 'volgorde';
-      return;
-    }
-    var poly = geo[v.key];
-    if (!poly) return;
-    var fixes = gps.filter(function(g){
-      var s = isoNaarSec(g.tijdstip);
-      return s >= v.t0 && s <= v.t1 && isFinite(parseFloat(g.lat));
+    // tikken indexeren
+    var tikken = d.telregels.map(function (r) {
+      return { k: r.osm_way_id + '/' + r.segment_index, sec: isoNaarSec(r.tijdstip), type: r.type };
     });
-    if (fixes.length < 2) return;
-    var a = langsPolyline([parseFloat(fixes[0].lon), parseFloat(fixes[0].lat)], poly);
-    var b = langsPolyline([parseFloat(fixes[fixes.length-1].lon),
-                           parseFloat(fixes[fixes.length-1].lat)], poly);
-    if (Math.abs(b - a) >= 8){
-      v.richting = b > a ? 'A' : 'B';
-      v.richtingBron = 'gps ' + (b > a ? '+' : '') + (b - a).toFixed(0) + ' m';
-    } else {
-      v.richtingBron = 'gps \u0394' + (b - a).toFixed(0) + ' m te klein';
-    }
-  });
-}
-
-/* ---------- aggregatie naar dag/uur-cellen --------------------------------- */
-
-function dagIndex(datum){
-  var d = new Date(datum + 'T12:00:00');
-  return isNaN(d) ? null : (d.getDay() + 6) % 7;      // 0 = maandag
-}
-
-function herbereken(){
-  Object.keys(SEGMENTEN).forEach(function(k){
-    var seg = SEGMENTEN[k];
-    seg.cells = {};
-    seg.passages.forEach(function(v){
-      var dag = dagIndex(v.datum);
-      if (dag === null) return;
-      var uur = Math.floor(((v.t0 + v.t1) / 2) / 3600);   // uur van het midden
-      var ck = dag + ':' + uur;
-      var c = seg.cells[ck];
-      if (!c){
-        c = seg.cells[ck] = { dag: dag, uur: uur, n: 0,
-          stromen: { A: {m:0, w:0, n:0}, B: {m:0, w:0, n:0}, '?': {m:0, w:0, n:0} },
-          stil: 0, stilL: 0 };
-      }
-      var venster = v.L / VPED + v.t;                    // ontmoetingsvenster (s)
-      var r = v.richting || '?';
-      c.stromen[r].m += v.teg;
-      c.stromen[r].w += venster;
-      c.stromen[r].n += 1;
-      c.stil += v.stil;
-      c.stilL += v.L;
-      c.n += 1;
-    });
-    // celwaarden afleiden
-    Object.keys(seg.cells).forEach(function(ck){
-      var c = seg.cells[ck], totaal = 0, labels = [], m = 0;
-      ['A','B','?'].forEach(function(r){
-        var s = c.stromen[r];
-        if (!s.n) return;
-        s.q = 3600 * s.m / s.w;
-        totaal += s.q; m += s.m;
-        // gelopen richting A meet de stroom B→A
-        labels.push(r === '?' ? '?' : (r === 'A' ? 'B\u2192A' : 'A\u2192B'));
+    var visits = d.bezocht.map(function (r) {
+      var k = r.osm_way_id + '/' + r.segment_index;
+      var t0 = tijdNaarSec(r.start_tijd), t1 = tijdNaarSec(r.eind_tijd);
+      var teg = 0, stil = 0;
+      tikken.forEach(function (x) {
+        if (x.k !== k || x.sec < t0 || x.sec > t1) return;
+        if (x.type === 'tegemoet') teg++; else if (x.type === 'stilstaand') stil++;
       });
-      c.q = totaal;
-      c.m = m;
-      c.labels = labels;
-      c.kStil = c.stilL > 0 ? 100 * c.stil / c.stilL : 0;
-      c.compleet = c.stromen.A.n > 0 && c.stromen.B.n > 0;
+      return {
+        key: k, way: r.osm_way_id, seg: parseInt(r.segment_index, 10),
+        straat: r.straat || '(naamloos)',
+        L: len[k] || 0, t: parseFloat(r.duur_sec) || 0,
+        t0: t0, t1: t1, teg: teg, stil: stil,
+        datum: r.datum || ses.datum, richting: null, richtingBron: ''
+      };
+    }).filter(function (v) { return v.L > 0 && v.t > 0; });
+    bepaalRichtingen(visits, d.gps || [], geo);
+    var gekoppeld = visits.reduce(function (s, v) { return s + v.teg + v.stil; }, 0);
+    return {
+      id: sid, datum: ses.datum || '', modus: ses.modus || ses.type || '',
+      visits: visits, nTel: d.telregels.length, nGekoppeld: gekoppeld,
+      nWees: d.telregels.length - gekoppeld, geo: geo
+    };
+  }
+  // De passages van een sessie bij de stukken weg zetten: "way/seg" -> { …, passages[] }.
+  function voegToe(segmenten, s) {
+    s.visits.forEach(function (v) {
+      if (!segmenten[v.key]) {
+        segmenten[v.key] = { key: v.key, way: v.way, seg: v.seg,
+                             straat: v.straat, L: v.L, geom: s.geo[v.key], passages: [] };
+      }
+      segmenten[v.key].passages.push(v);
     });
-  });
+  }
+
+  /* ---------- richting per passage -------------------------------------------
+     Primair uit de VOLGORDE van passages op dezelfde way: 0→1→2 betekent richting
+     A (oplopende segment_index), 2→1→0 betekent B. Die conclusie rust op welk
+     segment je in zat, niet op coördinaten, en is dus ongevoelig voor GPS-ruis.
+     Terugval alleen voor een way met één enkele passage: projectie van de eerste
+     en laatste GPS-fix op de segmentgeometrie, met drempel van 8 m.
+     ------------------------------------------------------------------------ */
+  function bepaalRichtingen(visits, gps, geo) {
+    visits.forEach(function (v, i) {
+      var vorige = i > 0 ? visits[i - 1] : null;
+      var volgende = i < visits.length - 1 ? visits[i + 1] : null;
+      if (vorige && vorige.way === v.way && vorige.seg !== v.seg) {
+        v.richting = v.seg > vorige.seg ? 'A' : 'B';
+        v.richtingBron = 'volgorde';
+        return;
+      }
+      if (volgende && volgende.way === v.way && volgende.seg !== v.seg) {
+        v.richting = volgende.seg > v.seg ? 'A' : 'B';
+        v.richtingBron = 'volgorde';
+        return;
+      }
+      var poly = geo[v.key];
+      if (!poly) return;
+      var fixes = gps.filter(function (g) {
+        var s = isoNaarSec(g.tijdstip);
+        return s >= v.t0 && s <= v.t1 && isFinite(parseFloat(g.lat));
+      });
+      if (fixes.length < 2) return;
+      var a = langsPolyline([parseFloat(fixes[0].lon), parseFloat(fixes[0].lat)], poly);
+      var b = langsPolyline([parseFloat(fixes[fixes.length - 1].lon),
+                             parseFloat(fixes[fixes.length - 1].lat)], poly);
+      if (Math.abs(b - a) >= 8) {
+        v.richting = b > a ? 'A' : 'B';
+        v.richtingBron = 'gps ' + (b > a ? '+' : '') + (b - a).toFixed(0) + ' m';
+      } else {
+        v.richtingBron = 'gps Δ' + (b - a).toFixed(0) + ' m te klein';
+      }
+    });
+  }
+
+  /* ---------- aggregatie naar dag/uur-cellen ------------------------------- */
+  function dagIndex(datum) {
+    var d = new Date(datum + 'T12:00:00');
+    return isNaN(d) ? null : (d.getDay() + 6) % 7;      // 0 = maandag
+  }
+  // Vult seg.cells["dag:uur"] voor elk stuk weg, met loopsnelheid vped (m/s).
+  function bereken(segmenten, vped) {
+    vped = vped || V_VOET;
+    Object.keys(segmenten).forEach(function (k) {
+      var seg = segmenten[k];
+      seg.cells = {};
+      seg.passages.forEach(function (v) {
+        var dag = dagIndex(v.datum);
+        if (dag === null) return;
+        var uur = Math.floor(((v.t0 + v.t1) / 2) / 3600);   // uur van het midden
+        var ck = dag + ':' + uur;
+        var c = seg.cells[ck];
+        if (!c) {
+          c = seg.cells[ck] = { dag: dag, uur: uur, n: 0,
+            stromen: { A: { m: 0, w: 0, n: 0 }, B: { m: 0, w: 0, n: 0 }, '?': { m: 0, w: 0, n: 0 } },
+            stil: 0, stilL: 0, datums: [] };
+        }
+        var venster = v.L / vped + v.t;                    // ontmoetingsvenster (s)
+        var r = v.richting || '?';
+        c.stromen[r].m += v.teg;
+        c.stromen[r].w += venster;
+        c.stromen[r].n += 1;
+        c.stil += v.stil;
+        c.stilL += v.L;
+        c.n += 1;
+        if (c.datums.indexOf(v.datum) < 0) c.datums.push(v.datum);
+      });
+      // celwaarden afleiden
+      Object.keys(seg.cells).forEach(function (ck) {
+        var c = seg.cells[ck], totaal = 0, labels = [], m = 0;
+        ['A', 'B', '?'].forEach(function (r) {
+          var s = c.stromen[r];
+          if (!s.n) return;
+          s.q = 3600 * s.m / s.w;
+          totaal += s.q; m += s.m;
+          // gelopen richting A meet de stroom B→A
+          labels.push(r === '?' ? '?' : (r === 'A' ? 'B→A' : 'A→B'));
+        });
+        c.q = totaal;
+        c.m = m;
+        c.labels = labels;
+        c.kStil = c.stilL > 0 ? 100 * c.stil / c.stilL : 0;
+        c.compleet = c.stromen.A.n > 0 && c.stromen.B.n > 0;
+        c.datums.sort();
+      });
+    });
+    return segmenten;
+  }
+
+  return { V_VOET: V_VOET, sessie: sessie, voegToe: voegToe, bereken: bereken, dagIndex: dagIndex,
+           wktPunten: wktPunten, haversine: haversine, polyLengte: polyLengte };
+})();
+/* ── einde gedeeld blok passanten ── */
+
+/* ---------- het rig op de rekenkern ---------------------------------------
+   v3.34: de berekening staat in het gedeelde blok PASSANTEN hierboven, dat ook
+   passanten.html gebruikt. Het rig houdt zijn eigen scherm en de instelbare
+   loopsnelheid; de uitkomsten zijn dezelfde als voor v3.34.              */
+function voegSessieToe(d, bestandsnaam){
+  var s = PASSANTEN.sessie(d, bestandsnaam);
+  if (SESSIES.some(function(x){ return x.id === s.id; })) return;   // dubbel geladen
+  SESSIES.push(s);
+  PASSANTEN.voegToe(SEGMENTEN, s);
 }
+function herbereken(){ PASSANTEN.bereken(SEGMENTEN, VPED); }
 
 /* ---------- tekenen -------------------------------------------------------- */
 
