@@ -19,10 +19,10 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.33'
-# v3.33: Ordenen wordt Archief, met een Overzicht (kaart, tabel, catalogus.csv).
-VERWACHT_GEWIJZIGD = {'index.html', 'telarchief.html', 'over.html', 'about.html', 'privacy.html',
-                      'traffic_counter_help.html', 'zip_format_reference.html'}
+RELEASE = 'v3.34'
+# v3.34: Passanten per uur (passanten.html, nieuw); het rekenrig rekent met dezelfde kern.
+VERWACHT_GEWIJZIGD = {'passanten.html', 'winkelstraat_rekenrig.html', 'index.html', 'over.html', 'about.html',
+                      'privacy.html', 'traffic_counter_help.html'}   # sitemap.xml: de sitemapcontrole hieronder
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -237,6 +237,12 @@ groepen = [
     # v3.33: de clusterbol (taart per soort) van telrapport, ook op de kaart van Archief
     ('clusterbol', ['telrapport.html', 'telarchief.html'],
      '/* ── Clusterbol (v2.61)', "       + cijfer + '\">' + total + '</div></div>';\n}"),
+    # v3.34: de rekenkern van Passanten per uur, ook in het rekenrig
+    ('passanten', ['passanten.html', 'winkelstraat_rekenrig.html'],
+     '/* ── Passanten per uur: de rekenkern (v3.34)', '/* ── einde gedeeld blok passanten ── */'),
+    # v3.34: de marge (Garwood) van telrapport, ook in Passanten
+    ('poisson', ['telrapport.html', 'passanten.html'],
+     'function poissonCdf(k, lam) {', "zoek(l => poissonCdf(k, l), 0.025)];\n}"),
     # v3.3: de kale stijl van de documentatiepagina's
     ('kale stijl', KAAL,
      '/* ── kale stijl (v3.3)', '/* ── einde kale stijl ── */'),

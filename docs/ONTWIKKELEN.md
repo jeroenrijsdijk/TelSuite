@@ -44,6 +44,7 @@ Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 | `telreconstructie.html` | nabewerking: hersnappen, richting, handmatige correctie |
 | `telrapport.html` | kaartvisualisatie en analyse, ook van verzamel-ZIP's |
 | `telarchief.html` | Archief (v3.33; tot dan Ordenen, v3.31): de verkenner over alle tellingen. *Overzicht*: kaart (Leaflet, clusterbol van telrapport), filters, tabel en `catalogus.csv` in de moedermap. *Ordenen*: ZIP's in een map per soort telling, originelen met een reconstructie in een submap. File System Access API (Chrome, Edge); elders alleen bekijken en de CSV als download |
+| `passanten.html` | Passanten per uur (v3.34): winkelstraat-ZIP's in, dag en uur kiezen, per stuk straat het aantal passanten per uur op de kaart, met labels. Rekenkern: gedeeld blok `passanten` (ook in `winkelstraat_rekenrig.html`); marge: gedeeld blok `poisson` (uit telrapport). PapaParse, JSZip, Leaflet |
 
 ### Publiek en documentatie
 

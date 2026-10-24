@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""v3.34 passantentest — Passanten per uur (passanten.html) in Chromium.
+
+Jay: "Qua winkelstraat kan ik me voorstellen dat het een eigen rapport is - op
+basis van de aanbeboden winkeltellingen rektn hij - je selecteert een dag en
+uur en op het netwerk verschijnen de gemeten gemiddelden in passanten per uur,
+ook als tekstueel label. Basiskaart eronder en niet teveel opties." En: "Zet de
+loopsnelheid maar op 1,1 m/s. Middel alle gemeten zaterdagen naar 1 waarde."
+
+De ZIP's worden hier gemaakt: een Voorstraat van 200 m (vijf stukken van 40 m),
+heen en terug gelopen; een Kerkstraat van 90 m (twee stukken), alleen heen; een
+Steegje van 25 m (één stuk, één passage: de richting komt uit de GPS). Twee
+zaterdagen om 13 uur en een donderdag om 11 uur, een reconstructie die voor
+het origineel gaat, en een pocket-simpel-ZIP die overgeslagen wordt.
+
+De verwachte waarden rekent deze test zelf uit, los van de pagina, met de
+formule van het rekenrig: q = 3600 · Σm / Σ(L/v + t), per looprichting, dan
+opgeteld; v = 1,1 m/s.
+
+  A. Inlezen: welke ZIP's meedoen, welke niet en waarom; de reconstructie gaat
+     voor het origineel.
+  B. Dag en uur: alleen wat gemeten is, is aan te klikken; de standaardkeuze.
+  C. Kaart: elk gemeten stuk heeft de goede waarde, als label; één richting
+     gemeten geeft een sterretje; niet op dit moment gemeten is grijs.
+  D. Labels: overlappen nooit; bij inzoomen komen ze terug.
+  E. Popup: straat, waarde, marge, hoe vaak en op welke dagen, richtingen,
+     stilstaanders per 100 m.
+  F. Twee zaterdagen worden één waarde (eerst optellen, dan delen).
+  G. Op 390 px: niets breder dan het scherm.
+
+Hulp (server, CDN-omleiding) komt uit hersteltest.py ernaast.
+Draaien vanuit de suite-root:  python3 _archief/overpass_rig/passantentest.py
+"""
+import io, json, math, os, re, shutil, sys, tempfile, zipfile
+HIER = os.path.dirname(os.path.abspath(__file__))
+
+# ── testgegevens ────────────────────────────────────────────────────────────
+LAT0, LON0 = 51.8500, 4.3000
+M_LAT = 111320.0
+M_LON = 111320.0 * math.cos(math.radians(LAT0))
+V_VOET = 1.1
+
+def punt(dx, dy):
+    """dx meter naar het oosten, dy meter naar het noorden -> (lat, lon)."""
+    return (LAT0 + dy / M_LAT, LON0 + dx / M_LON)
+
+WEGEN = {   # way_id: (naam, begin (dx, dy), eind (dx, dy), aantal stukken)
+    1001: ('Voorstraat', (0, 0), (200, 0), 5),
+    1002: ('Kerkstraat', (200, 0), (200, 90), 2),
+    1003: ('Steegje', (0, 0), (0, -25), 1),
+}
+
+def stuk(way, seg):
+    """(begin, eind) in meters van stuk seg van een rechte weg."""
+    _, a, b, n = WEGEN[way]
+    f0, f1 = seg / n, (seg + 1) / n
+    return ((a[0] + (b[0] - a[0]) * f0, a[1] + (b[1] - a[1]) * f0),
+            (a[0] + (b[0] - a[0]) * f1, a[1] + (b[1] - a[1]) * f1))
+
+def haversine(p, q):
+    R, rad = 6371000, math.pi / 180
+    la1, la2, dla, dlo = p[0] * rad, q[0] * rad, (q[0] - p[0]) * rad, (q[1] - p[1]) * rad
+    h = math.sin(dla / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin(dlo / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(h))
+
+def lengte(way, seg):
+    """Zoals de pagina hem ziet: uit de WKT van _netwerk.csv, met zes decimalen."""
+    a, b = stuk(way, seg)
+    r = lambda pt: (round(pt[0], 6), round(pt[1], 6))
+    return haversine(r(punt(*a)), r(punt(*b)))
+
+def hms(s): return '%02d:%02d:%02d' % (s // 3600, s // 60 % 60, s % 60)
+
+def sessie_zip(sid, datum, start, passages, wees=0, modus='winkelstraat', recon='', naam=None):
+    """passages: [(way, seg, 'heen'|'terug', duur_s, n_tegemoet, n_stil)], achter elkaar gelopen."""
+    t = start; bez, tel, gps = [], [], []
+    nr = 0
+    for way, seg, kant, duur, nteg, nstil in passages:
+        a, b = stuk(way, seg)
+        if kant == 'terug': a, b = b, a
+        t0, t1 = t, t + duur
+        for i in range(0, duur + 1, 2):
+            f = i / duur
+            la, lo = punt(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+            gps.append('%s;%sT%s;%.6f;%.6f;5;%d;%d;%s' % (sid, datum, hms(t0 + i), la, lo, way, seg, WEGEN[way][0]))
+        typen = ['tegemoet'] * nteg + ['stilstaand'] * nstil
+        for i, ty in enumerate(typen):
+            ts = t0 + 1 + (i * (duur - 2)) // max(1, len(typen))
+            la, lo = punt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            nr += 1
+            tel.append('%s;%d;%sT%s;%s;%.6f;%.6f;%d;%d;%s;;;;;;1.0' % (sid, nr, datum, hms(ts), ty, la, lo, way, seg, WEGEN[way][0]))
+        bez.append('%s;%s;%d;%d;%s;%s;%s;%d;%d;%d' % (sid, datum, way, seg, WEGEN[way][0], hms(t0), hms(t1), duur, duur // 2 + 1, nteg + nstil))
+        t = t1 + 1
+    for i in range(wees):        # tikken buiten elke passage: tellen nergens mee
+        nr += 1
+        tel.append('%s;%d;%sT%s;tegemoet;%.6f;%.6f;1001;2;Voorstraat;;;;;;1.0' % (sid, nr, datum, hms(t + 30 + i), LAT0, LON0))
+    net = ['osm_way_id;segment_index;segment_count;highway;geometrie_wkt']
+    for way, (nm, a, b, n) in sorted(WEGEN.items()):
+        for s in range(n):
+            p, q = stuk(way, s)
+            (la1, lo1), (la2, lo2) = punt(*p), punt(*q)
+            net.append('%d;%d;%d;pedestrian;LINESTRING (%.6f %.6f, %.6f %.6f)' % (way, s, n, lo1, la1, lo2, la2))
+    kop = 'sessie_id;datum;start_tijd;eind_tijd;app_type;type;n_waarnemingen;modus;richting_a;richting_b' + (';reconstructie' if recon else '')
+    rij = ';'.join([sid, datum, hms(start), hms(t), 'pocket', 'ped', str(len(tel)), modus, '', ''] + ([recon] if recon else []))
+    bz = io.BytesIO(); z = zipfile.ZipFile(bz, 'w')
+    z.writestr(sid + '_sessie.csv', kop + '\n' + rij + '\n')
+    z.writestr(sid + '_telregels.csv', 'sessie_id;nr;tijdstip;type;lat;lon;osm_way_id;segment_index;straat;conf;conf_level;gps_stab;gps_level;richting;snelheid\n' + '\n'.join(tel) + '\n')
+    z.writestr(sid + '_bezocht.csv', 'sessie_id;datum;osm_way_id;segment_index;straat;start_tijd;eind_tijd;duur_sec;n_gps;n_tellingen\n' + '\n'.join(bez) + '\n')
+    z.writestr(sid + '_gps.csv', 'sessie_id;tijdstip;lat;lon;nauwkeurigheid;osm_way_id;segment_index;straat\n' + '\n'.join(gps) + '\n')
+    z.writestr(sid + '_netwerk.csv', '\n'.join(net) + '\n')
+    z.close()
+    return (naam or (sid + ('_recon' if recon else '') + '.zip')), bz.getvalue(), passages, datum, start
+
+HEEN = lambda duur, teg, stil: [(1001, s, 'heen', duur, teg[s], stil[s]) for s in range(5)]
+TERUG = lambda duur, teg, stil: [(1001, s, 'terug', duur, teg[s], stil[s]) for s in (4, 3, 2, 1, 0)]
+S1 = ('20261024_130500_abc_pkt_w', '2026-10-24', 13 * 3600 + 5 * 60,       # zaterdag
+      HEEN(35, [6, 8, 5, 7, 9], [1, 0, 2, 0, 1]) + TERUG(40, [7, 6, 9, 4, 5], [0, 1, 1, 0, 0]) +
+      [(1002, 0, 'heen', 40, 3, 0), (1002, 1, 'heen', 40, 4, 1)] +            # Kerkstraat: één richting
+      [(1003, 0, 'heen', 20, 2, 0)])                                          # Steegje: richting uit de GPS
+S1_RECON = (S1[0], S1[1], S1[2], [(w, s, k, d, t + (1 if (w, s) == (1001, 0) else 0), st) for (w, s, k, d, t, st) in S1[3]])
+S2 = ('20261017_132000_def_pkt_w', '2026-10-17', 13 * 3600 + 20 * 60,      # zaterdag
+      HEEN(30, [5, 5, 5, 5, 5], [0, 0, 0, 0, 0]) + TERUG(30, [4, 4, 4, 4, 4], [0, 0, 0, 0, 0]))
+S3 = ('20261022_110000_ghi_pkt_w', '2026-10-22', 11 * 3600,                # donderdag
+      HEEN(45, [2, 3, 2, 3, 2], [0, 0, 0, 0, 0]) + TERUG(45, [3, 2, 3, 2, 3], [0, 0, 0, 0, 0]))
+
+def archief():
+    """{naam: bytes} en de passages per sessie zoals de pagina ze moet gebruiken."""
+    uit, gebruikt = {}, []
+    for spec, extra in ((S1, dict(wees=3)), (S1_RECON, dict(recon='v3.33', wees=2)), (S2, {}), (S3, {})):
+        naam, data, pas, datum, start = sessie_zip(*spec, **extra)
+        uit[naam] = data
+        if spec is not S1: gebruikt.append((datum, start, pas))       # S1 zelf: de reconstructie gaat voor
+    naam, data, *_ = sessie_zip('20261023_100000_jkl_pkt_s', '2026-10-23', 10 * 3600, HEEN(30, [1] * 5, [0] * 5), modus='simpel')
+    uit[naam] = data                                                     # pocket simpel: geen winkelstraat
+    uit['foto.zip'] = b'PK\x05\x06' + b'\x00' * 18                        # lege ZIP: ook overslaan
+    return uit, gebruikt
+
+DAG = {'2026-10-24': 5, '2026-10-17': 5, '2026-10-22': 3}   # 0 = maandag
+def verwacht(gebruikt, v=V_VOET):
+    """{(way, seg, dag, uur): dict(q, m, compleet, stil100, n, datums)} met de formule van het rig."""
+    cel = {}
+    for datum, start, pas in gebruikt:
+        t = start
+        for way, seg, kant, duur, nteg, nstil in pas:
+            t0, t1 = t, t + duur; t = t1 + 1
+            uur = ((t0 + t1) // 2) // 3600
+            k = (way, seg, DAG[datum], uur)
+            c = cel.setdefault(k, {'stromen': {}, 'stil': 0, 'L': 0.0, 'n': 0, 'datums': set()})
+            # richting: A = oplopende segment_index; een losse passage op een way: uit de GPS (begin -> eind van de way)
+            r = 'A' if kant == 'heen' else 'B'
+            s = c['stromen'].setdefault(r, [0, 0.0])
+            L = lengte(way, seg)
+            s[0] += nteg; s[1] += L / v + duur
+            c['stil'] += nstil; c['L'] += L; c['n'] += 1; c['datums'].add(datum)
+    uit = {}
+    for k, c in cel.items():
+        q = sum(3600 * m / w for m, w in c['stromen'].values())
+        uit[k] = dict(q=q, m=sum(m for m, _ in c['stromen'].values()), compleet=set(c['stromen']) == {'A', 'B'},
+                      stil100=100 * c['stil'] / c['L'], n=c['n'], datums=sorted(c['datums']))
+    return uit
+
+if __name__ != '__main__':
+    pass   # alleen de gegevens (zo leest een ander script ze in)
+else:
+    _hsrc = open(os.path.join(HIER, 'hersteltest.py'), encoding='utf-8').read()
+    exec(_hsrc.split('\nok = fout = 0\n')[0].replace(
+        "HIER = os.path.dirname(os.path.abspath(__file__))", "HIER = %r" % HIER))
+    ok = fout = 0
+    def eis(naam, v, x=None):
+        global ok, fout
+        if v: ok += 1; print('  OK   ' + naam)
+        else: fout += 1; print('  FOUT ' + naam + ('' if x is None else ' -> ' + str(x)[:400]))
+    def route_kaart(r):
+        if r.request.url.split('?')[0].endswith('/leaflet.css'):
+            return r.fulfill(body=open(os.path.join(NM, 'leaflet/dist/leaflet.css'), 'rb').read(), content_type='text/css')
+        return route(r)
+
+    BESTANDEN, GEBRUIKT = archief()
+    V = verwacht(GEBRUIKT)
+    tmp = tempfile.mkdtemp(prefix='passanten_')
+    PADEN = []
+    for naam, data in BESTANDEN.items():
+        PADEN.append(os.path.join(tmp, naam)); open(PADEN[-1], 'wb').write(data)
+    GEMETEN = """() => GEMETEN.map(x => ({ k: x.seg.key, q: x.c.q, m: x.c.m, compleet: x.c.compleet, kStil: x.c.kStil, n: x.c.n, tekst: labelTekst(x.c) }))"""
+    LABELS = """() => [...document.querySelectorAll('.qlabel span')].map(e => { const b = e.getBoundingClientRect(); return [e.textContent, b.left, b.top, b.right, b.bottom]; })"""
+    def overlap(lab):
+        return any(a[1] < b[3] and b[1] < a[3] and a[2] < b[4] and b[2] < a[4] for i, a in enumerate(lab) for b in lab[i + 1:])
+    def sleutel(k): w, sg = k.split('/'); return int(w), int(sg)
+
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        ctx = b.new_context(viewport={'width': 1300, 'height': 900}); ctx.route('**/*', route_kaart)
+        pg = ctx.new_page(); fouten = []
+        pg.on('pageerror', lambda e: fouten.append(e.message[:160]))
+        pg.goto(BASIS + 'passanten.html', wait_until='load'); pg.wait_for_timeout(300)
+        pg.set_input_files('#bestanden', PADEN)
+        pg.wait_for_function("GEMETEN.length > 0", timeout=20000); pg.wait_for_timeout(300)
+
+        print('== A. Inlezen ==')
+        ses = pg.evaluate("Object.fromEntries(Object.entries(SESSIES).map(([k, v]) => [k, [v.recon, v.naam]]))")
+        eis('drie winkelstraat-tellingen doen mee', sorted(ses) == sorted([S1[0], S2[0], S3[0]]), ses)
+        eis('van de eerste de reconstructie, niet het origineel', ses.get(S1[0]) == [True, S1[0] + '_recon.zip'], ses.get(S1[0]))
+        over = dict(pg.evaluate("OVERGESLAGEN"))
+        eis('niet meegenomen, met de reden: het origineel, de pocket-simpel-ZIP, een ZIP zonder telling',
+            over == {S1[0] + '.zip': 'origineel; de reconstructie doet mee', '20261023_100000_jkl_pkt_s.zip': 'geen winkelstraat-telling',
+                     'foto.zip': 'geen telling van telonline.org'}, over)
+        mel = pg.inner_text('#melding')
+        eis('de melding noemt wat niet meedoet, en de tikken buiten een passage', 'Niet meegenomen' in mel and 'foto.zip' in mel and '2 van de' in mel, mel)
+        sam = pg.inner_text('#samenvatting')
+        eis('samenvatting: 3 tellingen, 1 donderdag, 2 zaterdagen, 8 stukken straat', sam == '3 tellingen · 1 donderdag, 2 zaterdagen · 8 stukken straat', sam)
+
+        print('\n== B. Dag en uur ==')
+        knoppen = pg.evaluate("[...document.querySelectorAll('#dagen button')].map(b => [b.textContent, b.disabled, b.getAttribute('aria-pressed')])")
+        eis('alleen donderdag en zaterdag zijn aan te klikken; zaterdag staat aan (daar zijn de meeste stukken gemeten)',
+            [k[0] for k in knoppen if not k[1]] == ['do', 'za'] and [k[0] for k in knoppen if k[2] == 'true'] == ['za'], knoppen)
+        eis('uur: alleen 13 (en die staat aan)', pg.evaluate("[...document.querySelectorAll('#uren button')].map(b => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '!' : ''))") == ['13!'])
+
+        print('\n== C. Kaart: zaterdag 13 uur ==')
+        gem = pg.evaluate(GEMETEN)
+        eis('8 stukken straat gemeten op zaterdag 13 uur', len(gem) == 8, [g['k'] for g in gem])
+        fout_q = [(g['k'], g['q'], V[sleutel(g['k']) + (5, 13)]['q']) for g in gem if abs(g['q'] - V[sleutel(g['k']) + (5, 13)]['q']) > 1e-6]
+        eis('elke waarde volgens de formule: 3600 · Σm / Σ(L/1,1 + t), per looprichting, opgeteld', not fout_q, fout_q)
+        eis('het label is de afgeronde waarde', all(g['tekst'].rstrip('*') == str(round(V[sleutel(g['k']) + (5, 13)]['q'])) for g in gem), [g['tekst'] for g in gem])
+        ster = sorted(g['k'] for g in gem if g['tekst'].endswith('*'))
+        eis('een sterretje alleen waar maar één richting gelopen is: Kerkstraat en Steegje', ster == ['1002/0', '1002/1', '1003/0'], ster)
+        pg.click('#dagen button[data-dag="3"]'); pg.wait_for_timeout(200)
+        grijs = pg.evaluate("lijnLaag.getLayers().filter(l => l.options.color === GRIJS).length")
+        eis('donderdag: uur springt naar 11; Kerkstraat en Steegje (3 stukken) zijn grijs, de Voorstraat is gemeten',
+            pg.evaluate("UUR") == 11 and grijs == 3 and len(pg.evaluate(GEMETEN)) == 5, [pg.evaluate("UUR"), grijs])
+        eis('donderdag 11 uur: ook volgens de formule', all(abs(g['q'] - V[sleutel(g['k']) + (3, 11)]['q']) < 1e-6 for g in pg.evaluate(GEMETEN)))
+        eis('de kleurschaal loopt over alle dagen (zelfde maximum op donderdag als op zaterdag)',
+            abs(pg.evaluate("MAXQ") - max(c['q'] for c in V.values())) < 1e-6)
+        pg.click('#dagen button[data-dag="5"]'); pg.wait_for_timeout(200)
+
+        print('\n== D. Labels ==')
+        lab = pg.evaluate(LABELS)
+        eis('labels raken elkaar nooit (bij het eerste beeld, %d labels)' % len(lab), lab and not overlap(lab), lab)
+        pg.evaluate("kaart.setZoom(15, { animate: false })"); pg.wait_for_timeout(300)
+        lab15 = pg.evaluate(LABELS)
+        eis('uitgezoomd: minder labels (%d), nog steeds zonder overlap, de drukste blijft' % len(lab15),
+            0 < len(lab15) < 8 and not overlap(lab15) and str(round(max(V[sleutel(g['k']) + (5, 13)]['q'] for g in gem))) in [x[0] for x in lab15], [x[0] for x in lab15])
+        pg.evaluate("kaart.setZoom(19, { animate: false })"); pg.wait_for_timeout(300)
+        lab19 = pg.evaluate(LABELS)
+        eis('ingezoomd: alle 8 labels terug', len(lab19) == 8 and not overlap(lab19), len(lab19))
+        pg.evaluate("kaart.fitBounds(L.latLngBounds([].concat(...Object.values(SEGMENTEN).map(lijnVan))).pad(0.15), { animate: false })"); pg.wait_for_timeout(300)
+
+        print('\n== E. Popup ==')
+        v0 = V[(1001, 0, 5, 13)]
+        t = pg.evaluate("(() => { const d = document.createElement('div'); d.innerHTML = popupHtml(SEGMENTEN['1001/0'], SEGMENTEN['1001/0'].cells['5:13']); return d.textContent; })()")
+        eis('Voorstraat: de waarde, "zaterdag 13:00–14:00", 4 keer langs op 2 zaterdagen, beide richtingen, stilstaanders',
+            'Voorstraat' in t and '≈ %d passanten per uur' % round(v0['q']) in t and 'zaterdag 13:00–14:00' in t and '4 keer langsgelopen, op 2 zaterdagen (17-10, 24-10)' in t
+            and 'in beide richtingen gemeten' in t and ('stilstaand: %s per 100 m' % ('%.1f' % v0['stil100']).replace('.', ',')) in t, t)
+        mg = pg.evaluate("marge(SEGMENTEN['1001/0'].cells['5:13'])")
+        eis('de marge omsluit de waarde', mg[0] < v0['q'] < mg[1], mg)
+        tk = pg.evaluate("(() => { const d = document.createElement('div'); d.innerHTML = popupHtml(SEGMENTEN['1002/0'], SEGMENTEN['1002/0'].cells['5:13']); return d.textContent; })()")
+        eis('Kerkstraat: "* maar één looprichting gemeten", 1 keer op zaterdag 24-10-2026', '* maar één looprichting gemeten' in tk and '1 keer langsgelopen, op zaterdag 24-10-2026' in tk, tk)
+        pg.evaluate("lijnLaag.getLayers().find(l => l.options.color !== GRIJS).openPopup()"); pg.wait_for_timeout(200)
+        eis('een lijn aanklikken opent de popup', 'passanten per uur' in pg.inner_text('.leaflet-popup'))
+
+        print('\n== F. Twee zaterdagen worden één waarde ==')
+        apart = [verwacht([g])[(1001, 2, 5, 13)]['q'] for g in GEBRUIKT if g[0] in ('2026-10-24', '2026-10-17')]
+        samen = V[(1001, 2, 5, 13)]['q']
+        eis('Voorstraat stuk 3 op zaterdag: eerst optellen, dan delen (%.0f), niet het gemiddelde van de twee zaterdagen (%.0f)' % (samen, sum(apart) / 2),
+            abs(pg.evaluate("SEGMENTEN['1001/2'].cells['5:13'].q") - samen) < 1e-6 and abs(samen - sum(apart) / 2) > 1, apart)
+        eis('geen JS-fouten', not fouten, fouten)
+        if os.environ.get('PASSANTEN_PNG'):
+            pg.screenshot(path=os.environ['PASSANTEN_PNG'])
+        ctx.close()
+
+        print('\n== G. Op 390 px ==')
+        ctx = b.new_context(viewport={'width': 390, 'height': 844}); ctx.route('**/*', route_kaart)
+        pg = ctx.new_page(); fouten = []
+        pg.on('pageerror', lambda e: fouten.append(e.message[:160]))
+        pg.goto(BASIS + 'passanten.html', wait_until='load'); pg.wait_for_timeout(300)
+        pg.set_input_files('#bestanden', PADEN)
+        pg.wait_for_function("GEMETEN.length > 0", timeout=20000); pg.wait_for_timeout(300)
+        breed = pg.evaluate("document.documentElement.scrollWidth")
+        eis('niets breder dan het scherm (%d px); de kaart en de knoppen zijn zichtbaar' % breed,
+            breed <= 390 and pg.is_visible('#kaart') and pg.is_visible('#dagen button[data-dag="5"]'))
+        if os.environ.get('PASSANTEN_PNG'):
+            pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_390.png'))
+        eis('geen JS-fouten', not fouten, fouten)
+        ctx.close(); b.close()
+    shutil.rmtree(tmp, ignore_errors=True)
+    srv.shutdown()
+    print('\n' + ('ALLE %d TESTS OK' % ok if fout == 0 else '%d ok, %d FOUT' % (ok, fout)))
+    sys.exit(1 if fout else 0)

@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passanten per uur in een winkelstraat | telonline.org</title>
+<meta name="description" content="Hoeveel mensen lopen er per uur langs een winkel? Uit je winkelstraat-tellingen van telonline.org: per weekdag en uur, op de kaart van de straat.">
+<link rel="canonical" href="https://telonline.org/passanten.html">
+<link href="fonts/fonts.css" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{
+  --bg:#eceae4; --ink:#1b1b19; --muted:#6d6d66; --line:#c7c7bf;
+  --paper:#f6f5f1; --accent:#2f5d62; --oker:#8a7a2b; --rood:#b0342b;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:Oswald,system-ui,sans-serif;font-weight:300;font-size:14px;line-height:1.45}
+header{padding:14px 20px 12px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:18px;font-weight:500;letter-spacing:.03em;text-transform:uppercase}
+.sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+.sub a{color:inherit}
+main{padding:12px 20px 30px;max-width:1300px}
+.balk{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.knop{display:inline-block;font-size:13px;font-weight:400;padding:7px 14px;cursor:pointer;background:var(--accent);border-radius:3px;color:#fff}
+.knop.ghost{background:var(--paper);color:var(--ink);border:1px solid var(--line)}
+.note{background:var(--paper);border-left:2px solid var(--accent);padding:8px 11px;margin-top:10px;font-size:12.5px;color:#3a3a35;max-width:90ch}
+.note.warn{border-left-color:var(--oker)}
+.hide{display:none!important}
+.keuze{margin:12px 0 8px}
+.keuze .rij{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0}
+.keuze .kop{width:34px;font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.keuze button{font-family:inherit;font-size:13px;min-width:38px;padding:5px 8px;cursor:pointer;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:3px}
+.keuze button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.keuze button:disabled{color:#b7b6ae;background:transparent;border-style:dashed;cursor:default}
+#kaartvak{position:relative}
+#kaart{height:calc(100vh - 230px);min-height:380px;background:#dcdad3;border:1px solid var(--line);border-radius:3px}
+.leaflet-container{font-family:Oswald,system-ui,sans-serif;font-size:12.5px}
+.leaflet-popup-content{margin:10px 13px;line-height:1.5}
+.pop .groot{font-size:20px;font-weight:400;margin:2px 0 0}
+.pop .dim{color:var(--muted)}
+.qlabel span{display:inline-block;background:#fff;border:1px solid #1b1b19;border-radius:9px;padding:0 5px;font:500 11.5px/15px Oswald,sans-serif;color:#1b1b19;white-space:nowrap;transform:translate(-50%,-50%)}
+#legenda{position:absolute;right:10px;top:10px;z-index:800;background:rgba(246,245,241,.94);border:1px solid var(--line);border-radius:3px;padding:7px 10px;font-size:11.5px;line-height:1.5;max-width:260px}
+#legenda .schaal{height:9px;border-radius:2px;margin:3px 0 1px}
+#legenda .getallen{display:flex;justify-content:space-between;color:var(--muted)}
+#legenda .grijs{display:inline-block;width:22px;height:3px;background:#8d8d86;vertical-align:middle;margin-right:5px}
+.voet{margin-top:10px;max-width:100ch}
+.sleep{position:fixed;inset:0;z-index:2000;background:rgba(47,93,98,.85);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;letter-spacing:.04em}
+@media (max-width:700px){#kaart{height:62vh}main{padding:10px 12px 24px}#legenda{position:static;max-width:none;margin-top:6px}}   /* telefoon: legenda onder de kaart */
+</style>
+</head>
+<body>
+<header>
+  <h1>Passanten per uur</h1>
+  <div class="sub">Hoeveel mensen lopen er per uur langs een plek in de winkelstraat? Lees je winkelstraat-tellingen in, kies een dag en een uur, en de kaart laat het per stuk straat zien. <a href="index.html">Naar de voorpagina</a></div>
+</header>
+<main>
+  <div class="balk">
+    <label class="knop">Kies ZIP's<input type="file" id="bestanden" multiple accept=".zip" hidden onchange="lees(this.files); this.value='';"></label>
+    <label class="knop ghost">of een map<input type="file" id="map" webkitdirectory multiple hidden onchange="lees(this.files); this.value='';"></label>
+    <span id="samenvatting" class="sub">Of sleep ze hierheen. Alleen winkelstraat-tellingen van pocket doen mee.</span>
+  </div>
+  <div id="melding" class="note hide"></div>
+  <div class="keuze hide" id="keuze">
+    <div class="rij"><span class="kop">Dag</span><span id="dagen"></span></div>
+    <div class="rij"><span class="kop">Uur</span><span id="uren"></span></div>
+  </div>
+  <div id="kaartvak"><div id="kaart"></div><div id="legenda" class="hide"></div></div>
+  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
+</main>
+<div id="sleep" class="sleep hide">Laat los om in te lezen</div>
+
+<script>
+/* ── Passanten per uur: de rekenkern (v3.34) ─────────────────────────────────
+   Gedeeld door passanten.html en winkelstraat_rekenrig.html, byte-identiek
+   (valideer.py). Uit het rekenrig gehaald; de uitkomsten zijn ongewijzigd.
+
+   Schatter (moving observer, Wardrop-Charlesworth):
+       q = 3600 * m / (L/v_voet + t)
+   m = aantal 'tegemoet'-tikken tijdens de passage
+   L = segmentlengte uit OSM-geometrie (betrouwbaar; géén GPS-afstand)
+   t = aanwezigheidstijd in het segment uit _bezocht.csv
+   De noemer is het ONTMOETINGSVENSTER: de tijd waarin een tegemoetkomer
+   jou had kunnen tegenkomen.
+
+   Pooling over meerdere passages = ratio-of-sums, NIET het gemiddelde van de
+   losse q's (dat weegt korte passages te zwaar; scheelt op veldwerk tot 28%):
+       q_cel = 3600 * Σm / Σ(L/v_voet + t)
+   Een cel is een weekdag en een uur: alle gemeten zaterdagen samen zijn één
+   zaterdag (Jay, v3.34: "Middel alle gemeten zaterdagen naar 1 waarde").
+
+   Per waargenomen LOOPRICHTING poolen, dan optellen. Loop je A→B, dan meet je
+   uitsluitend de stroom B→A. Heen én terug gelopen = echt totaal; één richting
+   gelopen = die ene stroom, met label.
+
+   Stilstaanders zijn géén stroom maar een momentopname: je passage ziet ieder
+   stilstaand persoon in het segment precies één keer. Dus k = Σm_stil / ΣL,
+   zonder enige snelheidsaanname.
+
+   Puur: geen DOM en geen bibliotheken. Invoer: de CSV's van één ZIP als rijen
+   (een object per regel, met de kop als sleutels).                           */
+var PASSANTEN = (function () {
+  var V_VOET = 1.1;     // m/s; Jay, v3.34: "Zet de loopsnelheid maar op 1,1 m/s." (het rig had 1,3)
+
+  /* ---------- geometrie ---------------------------------------------------- */
+  function wktPunten(wkt) {
+    var m = /\((.*)\)/.exec(wkt || '');
+    if (!m) return [];
+    return m[1].split(',').map(function (p) {
+      var xy = p.trim().split(/\s+/);
+      return [parseFloat(xy[0]), parseFloat(xy[1])];   // [lon, lat]
+    });
+  }
+  function haversine(a, b) {
+    var R = 6371000, rad = Math.PI / 180;
+    var la1 = a[1] * rad, la2 = b[1] * rad, dla = (b[1] - a[1]) * rad, dlo = (b[0] - a[0]) * rad;
+    var h = Math.sin(dla / 2) * Math.sin(dla / 2) +
+            Math.cos(la1) * Math.cos(la2) * Math.sin(dlo / 2) * Math.sin(dlo / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  function polyLengte(p) {
+    var s = 0;
+    for (var i = 0; i < p.length - 1; i++) s += haversine(p[i], p[i + 1]);
+    return s;
+  }
+  // positie langs polyline in meters — alleen gebruikt als terugval voor richting
+  function langsPolyline(pt, poly) {
+    var best = Infinity, bestPos = 0, cum = 0;
+    for (var i = 0; i < poly.length - 1; i++) {
+      var a = poly[i], b = poly[i + 1], seg = haversine(a, b);
+      if (seg < 1e-9) continue;
+      var dx = b[0] - a[0], dy = b[1] - a[1];
+      var t = ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / (dx * dx + dy * dy);
+      t = Math.max(0, Math.min(1, t));
+      var d = haversine(pt, [a[0] + t * dx, a[1] + t * dy]);
+      if (d < best) { best = d; bestPos = cum + t * seg; }
+      cum += seg;
+    }
+    return bestPos;
+  }
+
+  /* ---------- sessie inlezen ----------------------------------------------- */
+  function tijdNaarSec(hms) {
+    var p = String(hms).split(':').map(Number);
+    return p[0] * 3600 + p[1] * 60 + (p[2] || 0);
+  }
+  function isoNaarSec(iso) {
+    var t = String(iso).split('T')[1] || '';
+    return tijdNaarSec(t);
+  }
+  // d = { sessie, bezocht, telregels, netwerk, gps }: rijen per CSV (gps mag ontbreken).
+  // Geeft { id, datum, modus, visits[], nTel, nGekoppeld, nWees, geo }.
+  function sessie(d, bestandsnaam) {
+    var ses = d.sessie[0] || {};
+    var sid = ses.sessie_id || bestandsnaam;
+    // geometrie van dit netwerkbestand
+    var geo = {}, len = {};
+    d.netwerk.forEach(function (r) {
+      var k = r.osm_way_id + '/' + r.segment_index;
+      var p = wktPunten(r.geometrie_wkt);
+      if (p.length >= 2) { geo[k] = p; len[k] = polyLengte(p); }
+    });
+    // tikken indexeren
+    var tikken = d.telregels.map(function (r) {
+      return { k: r.osm_way_id + '/' + r.segment_index, sec: isoNaarSec(r.tijdstip), type: r.type };
+    });
+    var visits = d.bezocht.map(function (r) {
+      var k = r.osm_way_id + '/' + r.segment_index;
+      var t0 = tijdNaarSec(r.start_tijd), t1 = tijdNaarSec(r.eind_tijd);
+      var teg = 0, stil = 0;
+      tikken.forEach(function (x) {
+        if (x.k !== k || x.sec < t0 || x.sec > t1) return;
+        if (x.type === 'tegemoet') teg++; else if (x.type === 'stilstaand') stil++;
+      });
+      return {
+        key: k, way: r.osm_way_id, seg: parseInt(r.segment_index, 10),
+        straat: r.straat || '(naamloos)',
+        L: len[k] || 0, t: parseFloat(r.duur_sec) || 0,
+        t0: t0, t1: t1, teg: teg, stil: stil,
+        datum: r.datum || ses.datum, richting: null, richtingBron: ''
+      };
+    }).filter(function (v) { return v.L > 0 && v.t > 0; });
+    bepaalRichtingen(visits, d.gps || [], geo);
+    var gekoppeld = visits.reduce(function (s, v) { return s + v.teg + v.stil; }, 0);
+    return {
+      id: sid, datum: ses.datum || '', modus: ses.modus || ses.type || '',
+      visits: visits, nTel: d.telregels.length, nGekoppeld: gekoppeld,
+      nWees: d.telregels.length - gekoppeld, geo: geo
+    };
+  }
+  // De passages van een sessie bij de stukken weg zetten: "way/seg" -> { …, passages[] }.
+  function voegToe(segmenten, s) {
+    s.visits.forEach(function (v) {
+      if (!segmenten[v.key]) {
+        segmenten[v.key] = { key: v.key, way: v.way, seg: v.seg,
+                             straat: v.straat, L: v.L, geom: s.geo[v.key], passages: [] };
+      }
+      segmenten[v.key].passages.push(v);
+    });
+  }
+
+  /* ---------- richting per passage -------------------------------------------
+     Primair uit de VOLGORDE van passages op dezelfde way: 0→1→2 betekent richting
+     A (oplopende segment_index), 2→1→0 betekent B. Die conclusie rust op welk
+     segment je in zat, niet op coördinaten, en is dus ongevoelig voor GPS-ruis.
+     Terugval alleen voor een way met één enkele passage: projectie van de eerste
+     en laatste GPS-fix op de segmentgeometrie, met drempel van 8 m.
+     ------------------------------------------------------------------------ */
+  function bepaalRichtingen(visits, gps, geo) {
+    visits.forEach(function (v, i) {
+      var vorige = i > 0 ? visits[i - 1] : null;
+      var volgende = i < visits.length - 1 ? visits[i + 1] : null;
+      if (vorige && vorige.way === v.way && vorige.seg !== v.seg) {
+        v.richting = v.seg > vorige.seg ? 'A' : 'B';
+        v.richtingBron = 'volgorde';
+        return;
+      }
+      if (volgende && volgende.way === v.way && volgende.seg !== v.seg) {
+        v.richting = volgende.seg > v.seg ? 'A' : 'B';
+        v.richtingBron = 'volgorde';
+        return;
+      }
+      var poly = geo[v.key];
+      if (!poly) return;
+      var fixes = gps.filter(function (g) {
+        var s = isoNaarSec(g.tijdstip);
+        return s >= v.t0 && s <= v.t1 && isFinite(parseFloat(g.lat));
+      });
+      if (fixes.length < 2) return;
+      var a = langsPolyline([parseFloat(fixes[0].lon), parseFloat(fixes[0].lat)], poly);
+      var b = langsPolyline([parseFloat(fixes[fixes.length - 1].lon),
+                             parseFloat(fixes[fixes.length - 1].lat)], poly);
+      if (Math.abs(b - a) >= 8) {
+        v.richting = b > a ? 'A' : 'B';
+        v.richtingBron = 'gps ' + (b > a ? '+' : '') + (b - a).toFixed(0) + ' m';
+      } else {
+        v.richtingBron = 'gps Δ' + (b - a).toFixed(0) + ' m te klein';
+      }
+    });
+  }
+
+  /* ---------- aggregatie naar dag/uur-cellen ------------------------------- */
+  function dagIndex(datum) {
+    var d = new Date(datum + 'T12:00:00');
+    return isNaN(d) ? null : (d.getDay() + 6) % 7;      // 0 = maandag
+  }
+  // Vult seg.cells["dag:uur"] voor elk stuk weg, met loopsnelheid vped (m/s).
+  function bereken(segmenten, vped) {
+    vped = vped || V_VOET;
+    Object.keys(segmenten).forEach(function (k) {
+      var seg = segmenten[k];
+      seg.cells = {};
+      seg.passages.forEach(function (v) {
+        var dag = dagIndex(v.datum);
+        if (dag === null) return;
+        var uur = Math.floor(((v.t0 + v.t1) / 2) / 3600);   // uur van het midden
+        var ck = dag + ':' + uur;
+        var c = seg.cells[ck];
+        if (!c) {
+          c = seg.cells[ck] = { dag: dag, uur: uur, n: 0,
+            stromen: { A: { m: 0, w: 0, n: 0 }, B: { m: 0, w: 0, n: 0 }, '?': { m: 0, w: 0, n: 0 } },
+            stil: 0, stilL: 0, datums: [] };
+        }
+        var venster = v.L / vped + v.t;                    // ontmoetingsvenster (s)
+        var r = v.richting || '?';
+        c.stromen[r].m += v.teg;
+        c.stromen[r].w += venster;
+        c.stromen[r].n += 1;
+        c.stil += v.stil;
+        c.stilL += v.L;
+        c.n += 1;
+        if (c.datums.indexOf(v.datum) < 0) c.datums.push(v.datum);
+      });
+      // celwaarden afleiden
+      Object.keys(seg.cells).forEach(function (ck) {
+        var c = seg.cells[ck], totaal = 0, labels = [], m = 0;
+        ['A', 'B', '?'].forEach(function (r) {
+          var s = c.stromen[r];
+          if (!s.n) return;
+          s.q = 3600 * s.m / s.w;
+          totaal += s.q; m += s.m;
+          // gelopen richting A meet de stroom B→A
+          labels.push(r === '?' ? '?' : (r === 'A' ? 'B→A' : 'A→B'));
+        });
+        c.q = totaal;
+        c.m = m;
+        c.labels = labels;
+        c.kStil = c.stilL > 0 ? 100 * c.stil / c.stilL : 0;
+        c.compleet = c.stromen.A.n > 0 && c.stromen.B.n > 0;
+        c.datums.sort();
+      });
+    });
+    return segmenten;
+  }
+
+  return { V_VOET: V_VOET, sessie: sessie, voegToe: voegToe, bereken: bereken, dagIndex: dagIndex,
+           wktPunten: wktPunten, haversine: haversine, polyLengte: polyLengte };
+})();
+/* ── einde gedeeld blok passanten ── */
+
+/* ── Marge (Garwood), gelijk aan telrapport ── */
+function poissonCdf(k, lam) {               // P(X ≤ k), in log-ruimte: ook voor grote k
+  if (lam <= 0) return 1;
+  if (k < 0) return 0;
+  const logs = [-lam];
+  for (let i = 1; i <= k; i++) logs.push(logs[i-1] + Math.log(lam) - Math.log(i));
+  const max = Math.max.apply(null, logs);
+  let som = 0; logs.forEach(l => { som += Math.exp(l - max); });
+  return Math.min(1, Math.exp(max) * som);
+}
+function poissonMarge(k) {                  // [onder, boven] voor het verwachte aantal tikken
+  k = Math.max(0, Math.round(k));
+  const zoek = (f, doel) => {               // f daalt met λ: bisectie
+    let lo = 0, hi = k + 10 * Math.sqrt(k + 1) + 10;
+    for (let n = 0; n < 60; n++) { const m = (lo + hi) / 2; if (f(m) > doel) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  };
+  return [k === 0 ? 0 : zoek(l => poissonCdf(k - 1, l), 0.975),
+          zoek(l => poissonCdf(k, l), 0.025)];
+}
+
+/* ── Passanten per uur (v3.34) ───────────────────────────────────────────────
+   Jay: "Qua winkelstraat kan ik me voorstellen dat het een eigen rapport is - op
+   basis van de aanbeboden winkeltellingen rektn hij - je selecteert een dag en
+   uur en op het netwerk verschijnen de gemeten gemiddelden in passanten per
+   uur, ook als tekstueel label. Basiskaart eronder en niet teveel opties."
+   De berekening is die van het rekenrig (gedeeld blok PASSANTEN hierboven).
+   Hier: inlezen, dag en uur kiezen, en de kaart.                              */
+var SESSIES = {};          // sessie_id -> { s: PASSANTEN.sessie(...), recon, naam }
+var SEGMENTEN = {}, MAXQ = 0, DAG = null, UUR = null;
+var OVERGESLAGEN = [];     // [naam, reden]
+var kaart = null, lijnLaag = null, labelLaag = null, gepast = false;
+var DAGNAAM = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag'];
+var DAGKORT = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
+var GRIJS = '#8d8d86';
+
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function rond(x) { return Math.round(x).toLocaleString('nl-NL'); }
+function komma(x, d) { return x.toFixed(d).replace('.', ','); }
+function melding(tekst, soort) {
+  var el = document.getElementById('melding');
+  el.className = 'note' + (soort ? ' ' + soort : '') + (tekst ? '' : ' hide');
+  el.innerHTML = tekst || '';
+}
+function csv(tekst) {
+  return Papa.parse(String(tekst).replace(/^\uFEFF/, '').trim(), { header: true, delimiter: ';', skipEmptyLines: true }).data;
+}
+
+/* ── Inlezen ─────────────────────────────────────────────────────────────── */
+// Een winkelstraat-telling. Wat de telling zelf zegt, gaat voor: de modus in
+// _sessie.csv, dan de letter in de sessie-id of de naam (_pkt_w). Alleen als
+// geen van beide er is (oud formaat): een pocket-telling met tikken
+// tegemoet/stilstaand.
+function isWinkelstraat(ses, naam, tel) {
+  var modus = String(ses.modus || '').trim().toLowerCase();
+  if (modus) return modus === 'winkelstraat';
+  var m = /_pkt_([stwp])(?:_recon)?$/i.exec(String(ses.sessie_id || '').trim()) ||
+          /_pkt_([stwp])(?:_recon)?(?:\s*\(\d+\))?\.zip$/i.exec(naam);
+  if (m) return m[1].toLowerCase() === 'w';
+  return String(ses.app_type || '').trim().toLowerCase() === 'pocket' &&
+         tel.some(function (r) { return r.type === 'tegemoet' || r.type === 'stilstaand'; });
+}
+async function leesZip(file) {
+  var zip;
+  try { zip = await JSZip.loadAsync(file); } catch (e) { OVERGESLAGEN.push([file.name, 'geen leesbare ZIP']); return; }
+  var namen = Object.keys(zip.files).filter(function (n) { return n.indexOf('/') < 0; });
+  var lid = function (soort) { return namen.filter(function (x) { return x.indexOf('_' + soort + '.csv') >= 0; })[0]; };
+  if (!lid('sessie')) { OVERGESLAGEN.push([file.name, 'geen telling van telonline.org']); return; }
+  var d = {};
+  for (var soort of ['sessie', 'telregels', 'bezocht', 'netwerk', 'gps']) {
+    d[soort] = lid(soort) ? csv(await zip.file(lid(soort)).async('string')) : null;
+  }
+  var ses = d.sessie[0] || {};
+  if (!isWinkelstraat(ses, file.name, d.telregels || [])) { OVERGESLAGEN.push([file.name, 'geen winkelstraat-telling']); return; }
+  if (!d.telregels || !d.bezocht || !d.netwerk) {
+    OVERGESLAGEN.push([file.name, 'mist ' + ['telregels', 'bezocht', 'netwerk'].filter(function (k) { return !d[k]; }).map(function (k) { return '_' + k + '.csv'; }).join(' en ')]);
+    return;
+  }
+  var s = PASSANTEN.sessie(d, file.name);
+  var recon = /_recon(\s*\(\d+\))?\.zip$/i.test(file.name) || !!String(ses.reconstructie || '').trim();
+  var al = SESSIES[s.id];
+  // Een reconstructie gaat voor het origineel; verder telt elke telling één keer.
+  if (al && (al.recon || !recon)) { OVERGESLAGEN.push([file.name, al.recon && !recon ? 'origineel; de reconstructie doet mee' : 'dubbel']); return; }
+  if (al) OVERGESLAGEN.push([al.naam, 'origineel; de reconstructie doet mee']);
+  SESSIES[s.id] = { s: s, recon: recon, naam: file.name };
+}
+async function lees(lijst) {
+  var zips = Array.prototype.filter.call(lijst || [], function (f) { return /\.zip$/i.test(f.name); });
+  if (!zips.length) { melding('Geen ZIP-bestanden gevonden.', 'warn'); return; }
+  melding('Bezig met lezen…');
+  for (var i = 0; i < zips.length; i++) await leesZip(zips[i]);
+  herbereken();
+}
+function herbereken() {
+  SEGMENTEN = {};
+  Object.keys(SESSIES).sort().forEach(function (id) { PASSANTEN.voegToe(SEGMENTEN, SESSIES[id].s); });
+  PASSANTEN.bereken(SEGMENTEN, PASSANTEN.V_VOET);
+  MAXQ = 0;
+  Object.keys(SEGMENTEN).forEach(function (k) {
+    var cells = SEGMENTEN[k].cells;
+    Object.keys(cells).forEach(function (ck) { MAXQ = Math.max(MAXQ, cells[ck].q); });
+  });
+  kiesStandaard();
+  tekenAlles();
+}
+
+// Welke dag en welk uur: houd de keuze als die nog kan; anders het moment
+// waarop de meeste stukken straat gemeten zijn.
+function momenten() {
+  var per = {};
+  Object.keys(SEGMENTEN).forEach(function (k) {
+    Object.keys(SEGMENTEN[k].cells).forEach(function (ck) { per[ck] = (per[ck] || 0) + 1; });
+  });
+  return per;
+}
+function kiesStandaard() {
+  var per = momenten();
+  if (DAG !== null && per[DAG + ':' + UUR]) return;
+  var beste = Object.keys(per).sort(function (a, b) {
+    return per[b] - per[a] || (a < b ? -1 : 1);
+  })[0];
+  if (beste) { DAG = +beste.split(':')[0]; UUR = +beste.split(':')[1]; }
+}
+function kiesDag(d) {
+  DAG = d;
+  var uren = urenVan(d);
+  if (uren.indexOf(UUR) < 0) {
+    var per = momenten();
+    UUR = uren.slice().sort(function (a, b) { return per[d + ':' + b] - per[d + ':' + a] || a - b; })[0];
+  }
+  tekenAlles();
+}
+function kiesUur(u) { UUR = u; tekenAlles(); }
+function urenVan(d) {
+  var u = {};
+  Object.keys(momenten()).forEach(function (ck) { if (+ck.split(':')[0] === d) u[+ck.split(':')[1]] = true; });
+  return Object.keys(u).map(Number).sort(function (a, b) { return a - b; });
+}
+
+/* ── Tekenen ─────────────────────────────────────────────────────────────── */
+function tekenAlles() {
+  var n = Object.keys(SESSIES).length, ks = Object.keys(SEGMENTEN);
+  var datums = {};
+  Object.keys(SESSIES).forEach(function (id) { var dt = SESSIES[id].s.datum, di = PASSANTEN.dagIndex(dt); if (di !== null) (datums[di] = datums[di] || {})[dt] = true; });
+  var dagen = Object.keys(datums).map(Number).sort().map(function (di) {
+    var k = Object.keys(datums[di]).length;
+    return k + ' ' + DAGNAAM[di] + (k === 1 ? '' : 'en');
+  });
+  var wees = 0, tikken = 0;
+  Object.keys(SESSIES).forEach(function (id) { wees += SESSIES[id].s.nWees; tikken += SESSIES[id].s.nTel; });
+  document.getElementById('samenvatting').textContent = n
+    ? n + (n === 1 ? ' telling' : ' tellingen') + ' · ' + dagen.join(', ') + ' · ' + ks.length + ' stukken straat'
+    : 'Of sleep ze hierheen. Alleen winkelstraat-tellingen van pocket doen mee.';
+  var regels = [];
+  if (OVERGESLAGEN.length) {
+    regels.push('<b>Niet meegenomen:</b> ' + OVERGESLAGEN.map(function (o) { return esc(o[0]) + ' (' + esc(o[1]) + ')'; }).join(', ') + '.');
+  }
+  if (wees) regels.push(wees + ' van de ' + tikken + ' tikken lagen buiten een passage over een stuk straat en tellen niet mee.');
+  if (!n) regels.unshift('Er is nog geen winkelstraat-telling ingelezen.');
+  melding(regels.join(' '), (OVERGESLAGEN.length || !n) ? 'warn' : '');
+  document.getElementById('keuze').classList.toggle('hide', !n);
+  if (!n) return;
+  tekenKeuze();
+  tekenKaart();
+}
+
+function tekenKeuze() {
+  var per = momenten(), heeftDag = {};
+  Object.keys(per).forEach(function (ck) { heeftDag[+ck.split(':')[0]] = true; });
+  document.getElementById('dagen').innerHTML = DAGKORT.map(function (k, d) {
+    return '<button data-dag="' + d + '" aria-pressed="' + (d === DAG) + '"' + (heeftDag[d] ? '' : ' disabled') +
+           ' title="' + DAGNAAM[d] + '" onclick="kiesDag(' + d + ')">' + k + '</button>';
+  }).join(' ');
+  document.getElementById('uren').innerHTML = urenVan(DAG).map(function (u) {
+    return '<button data-uur="' + u + '" aria-pressed="' + (u === UUR) + '" title="' + u + ':00–' + (u + 1) + ':00" onclick="kiesUur(' + u + ')">' + u + '</button>';
+  }).join(' ');
+}
+
+// Kleur: bleek zeegroen (rustig) naar diep petrol (druk), zoals in het rekenrig.
+// De schaal loopt over alle dagen en uren, zodat een kleur bij elk uur hetzelfde betekent.
+function kleur(q) {
+  var f = MAXQ > 0 ? Math.pow(Math.min(1, q / MAXQ), 0.6) : 0;
+  return 'rgb(' + Math.round(198 + (26 - 198) * f) + ',' + Math.round(216 + (78 - 216) * f) + ',' + Math.round(210 + (84 - 210) * f) + ')';
+}
+function lijnVan(seg) { return (seg.geom || []).map(function (p) { return [p[1], p[0]]; }); }
+// Het punt halverwege de lijn (langs de lijn, niet het gemiddelde van de hoekpunten).
+function midden(ll) {
+  if (ll.length < 2) return ll[0];
+  var d = [0];
+  for (var i = 1; i < ll.length; i++) d.push(d[i - 1] + L.latLng(ll[i - 1]).distanceTo(ll[i]));
+  var helft = d[d.length - 1] / 2;
+  for (i = 1; i < ll.length; i++) if (d[i] >= helft) {
+    var f = (helft - d[i - 1]) / ((d[i] - d[i - 1]) || 1);
+    return [ll[i - 1][0] + (ll[i][0] - ll[i - 1][0]) * f, ll[i - 1][1] + (ll[i][1] - ll[i - 1][1]) * f];
+  }
+  return ll[ll.length - 1];
+}
+function maakKaart() {
+  if (kaart) return true;
+  if (typeof L === 'undefined') {
+    document.getElementById('kaart').innerHTML = '<div class="note warn">De kaart kon niet laden (ben je online?).</div>';
+    return false;
+  }
+  kaart = L.map('kaart').setView([52.1, 5.2], 7);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=cb1_2a2n_1_3583b21ab7073b803a894288', {
+    attribution: '© CARTO · © OpenStreetMap', maxZoom: 20, subdomains: 'abcd'
+  }).addTo(kaart);
+  lijnLaag = L.layerGroup().addTo(kaart);
+  labelLaag = L.layerGroup().addTo(kaart);
+  kaart.on('zoomend', tekenLabels);
+  return true;
+}
+var GEMETEN = [];          // [{ seg, c, mid }] voor de labels
+function tekenKaart() {
+  if (!maakKaart()) return;
+  lijnLaag.clearLayers();
+  GEMETEN = [];
+  var ck = DAG + ':' + UUR, alles = [];
+  Object.keys(SEGMENTEN).forEach(function (k) {
+    var seg = SEGMENTEN[k], ll = lijnVan(seg);
+    if (ll.length < 2) return;
+    alles = alles.concat(ll);
+    var c = seg.cells[ck];
+    if (!c) {
+      lijnLaag.addLayer(L.polyline(ll, { color: GRIJS, weight: 3, opacity: 0.75 })
+        .bindPopup(function () { return popupNiet(seg); }));
+      return;
+    }
+    lijnLaag.addLayer(L.polyline(ll, { color: kleur(c.q), weight: 7, opacity: 0.95 })
+      .bindPopup(function () { return popupHtml(seg, c); }));
+    GEMETEN.push({ seg: seg, c: c, mid: midden(ll) });
+  });
+  if (!gepast && alles.length) { kaart.fitBounds(L.latLngBounds(alles).pad(0.15), { maxZoom: 18 }); gepast = true; }
+  tekenLabels();
+  tekenLegenda();
+}
+function labelTekst(c) { return rond(c.q) + (c.compleet ? '' : '*'); }
+// Labels: de drukste eerst; een label dat een al geplaatst label zou raken, valt
+// weg. Bij inzoomen is er meer ruimte en komen ze terug.
+function tekenLabels() {
+  if (!kaart) return;
+  labelLaag.clearLayers();
+  var geplaatst = [];
+  GEMETEN.slice().sort(function (a, b) { return b.c.q - a.c.q; }).forEach(function (x) {
+    var tekst = labelTekst(x.c), p = kaart.latLngToLayerPoint(x.mid);
+    var w = tekst.length * 7 + 14, h = 18;
+    var vak = [p.x - w / 2, p.y - h / 2, p.x + w / 2, p.y + h / 2];
+    if (geplaatst.some(function (b) { return vak[0] < b[2] && b[0] < vak[2] && vak[1] < b[3] && b[1] < vak[3]; })) return;
+    geplaatst.push(vak);
+    labelLaag.addLayer(L.marker(x.mid, { interactive: false, keyboard: false,
+      icon: L.divIcon({ className: 'qlabel', html: '<span>' + tekst + '</span>', iconSize: [0, 0], iconAnchor: [0, 0] }) }));
+  });
+}
+function tekenLegenda() {
+  var el = document.getElementById('legenda'), stappen = [];
+  for (var i = 0; i <= 10; i++) stappen.push(kleur(MAXQ * i / 10));
+  el.innerHTML = '<b>Passanten per uur</b> · ' + DAGNAAM[DAG] + ' ' + UUR + ':00–' + (UUR + 1) + ':00' +
+    '<div class="schaal" style="background:linear-gradient(90deg,' + stappen.join(',') + ')"></div>' +
+    '<div class="getallen"><span>0</span><span>' + rond(MAXQ) + '</span></div>' +
+    '<div>* maar één looprichting gemeten</div>' +
+    '<div><span class="grijs"></span>niet gemeten op dit moment</div>' +
+    '<div class="dim">loopsnelheid voetgangers: ' + komma(PASSANTEN.V_VOET, 1) + ' m/s</div>';
+  el.classList.remove('hide');
+}
+
+/* ── Popup ───────────────────────────────────────────────────────────────── */
+// Marge: Garwood op het totaal aantal tegenliggers, geschaald met wat één
+// tegenligger hier in passanten per uur waard is. Zonder tegenliggers: met het
+// gemiddelde ontmoetingsvenster per gemeten stroom.
+function marge(c) {
+  var st = ['A', 'B', '?'].map(function (r) { return c.stromen[r]; }).filter(function (s) { return s.n; });
+  var w = st.reduce(function (a, s) { return a + s.w; }, 0);
+  var waard = c.m > 0 ? c.q / c.m : 3600 * st.length / w;
+  var g = poissonMarge(c.m);
+  return [g[0] * waard, g[1] * waard];
+}
+function datumKort(d) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d); return m ? +m[3] + '-' + +m[2] : d; }
+function popupHtml(seg, c) {
+  var mg = marge(c), dag = DAGNAAM[c.dag];
+  var dagen = c.datums.length === 1 ? 'op ' + dag + ' ' + datumKort(c.datums[0]) + '-' + c.datums[0].slice(0, 4)
+    : 'op ' + c.datums.length + ' ' + dag + 'en (' + c.datums.map(datumKort).join(', ') + ')';
+  var stromen = ['A', 'B', '?'].filter(function (r) { return c.stromen[r].n; }).map(function (r) { return rond(c.stromen[r].q); });
+  var richting = c.compleet ? 'in beide richtingen gemeten: ' + stromen.join(' + ') + ' per uur'
+    : '* maar één looprichting gemeten. Je ziet alleen wie je tegemoet komt, dus dit is één van de twee stromen.';
+  return '<div class="pop"><b>' + esc(seg.straat) + '</b> <span class="dim">· ' + Math.round(seg.L) + ' m</span>' +
+    '<div class="groot">≈ ' + labelTekst(c) + ' passanten per uur</div>' +
+    '<div class="dim">marge ' + rond(mg[0]) + '–' + rond(mg[1]) + ' (95%)</div>' +
+    '<div>' + dag + ' ' + c.uur + ':00–' + (c.uur + 1) + ':00 · ' + c.n + ' keer langsgelopen, ' + dagen + '</div>' +
+    '<div>' + richting + '</div>' +
+    '<div>stilstaand: ' + komma(c.kStil, 1) + ' per 100 m</div></div>';
+}
+function popupNiet(seg) {
+  var wanneer = Object.keys(seg.cells).sort(function (a, b) { var x = a.split(':').map(Number), y = b.split(':').map(Number); return x[0] - y[0] || x[1] - y[1]; })
+    .map(function (ck) { var c = seg.cells[ck]; return DAGKORT[c.dag] + ' ' + c.uur + ' u'; });
+  return '<div class="pop"><b>' + esc(seg.straat) + '</b> <span class="dim">· ' + Math.round(seg.L) + ' m</span>' +
+    '<div>Op ' + DAGNAAM[DAG] + ' ' + UUR + ':00–' + (UUR + 1) + ':00 niet gemeten.</div>' +
+    '<div class="dim">Wel op: ' + wanneer.join(', ') + '</div></div>';
+}
+
+/* ── Slepen: bestanden of een hele map ───────────────────────────────────── */
+function alleEntries(reader) {
+  return new Promise(function (ok, fout) {
+    var alle = [];
+    (function volgende() {
+      reader.readEntries(function (stuk) { if (!stuk.length) return ok(alle); alle.push.apply(alle, stuk); volgende(); }, fout);
+    })();
+  });
+}
+function bestandenVan(entry) {
+  if (entry.isFile) return new Promise(function (ok) { entry.file(function (f) { ok([f]); }, function () { ok([]); }); });
+  if (entry.isDirectory) return alleEntries(entry.createReader()).then(function (kids) {
+    return Promise.all(kids.map(bestandenVan)).then(function (a) { return [].concat.apply([], a); });
+  });
+  return Promise.resolve([]);
+}
+(function () {
+  var sleep = document.getElementById('sleep');
+  document.addEventListener('dragover', function (e) { e.preventDefault(); sleep.classList.remove('hide'); });
+  sleep.addEventListener('dragleave', function () { sleep.classList.add('hide'); });
+  document.addEventListener('drop', function (e) {
+    e.preventDefault(); sleep.classList.add('hide');
+    var items = e.dataTransfer.items, entries = [];
+    if (items) for (var i = 0; i < items.length; i++) { var en = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry(); if (en) entries.push(en); }
+    if (entries.length) Promise.all(entries.map(bestandenVan)).then(function (a) { lees([].concat.apply([], a)); });
+    else lees(e.dataTransfer.files);
+  });
+})();
+</script>
+</body>
+</html>
