@@ -136,7 +136,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 </ul></li><li>Algemeen<ul>
 <li><a href="#herstel">Onderbreking, herstel &amp; doortellen</a></li>
 <li><a href="#delen">Een ZIP delen</a></li>
-<li><a href="#ordenen">ZIP's ordenen</a></li>
+<li><a href="#ordenen">Je archief: overzicht en ordenen</a></li>
 <li><a href="#reconstructie">Telreconstructie in het kort</a></li>
 <li><a href="#files">Bestanden</a></li>
 </ul></li></ul>
@@ -1046,8 +1046,17 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 </section>
 <hr>
 <section id="ordenen">
-<h3>ZIP's ordenen</h3>
-<p>Met <a href="telarchief.html">Ordenen</a> zet je je ZIP's in een map per soort telling (sinds v3.31). Je kiest je archiefmap, en de tool leest alle ZIP's erin, ook in submappen. Eerst zie je het plan: welk bestand naar welke map, en waarom. Pas na <strong>Uitvoeren</strong> verplaatst hij iets. Er wordt niets gewist.</p>
+<h3>Je archief: overzicht en ordenen</h3>
+<p><a href="telarchief.html">Archief</a> is de verkenner over al je tellingen (sinds v3.33; tot dan heette de pagina Ordenen). Je kiest je moedermap, en de tool leest alle ZIP's erin, ook in submappen. Daarna zijn er twee tabbladen. De plaatjes en de rapportage maak je in <a href="telrapport.html">telrapport</a>.</p>
+<p><strong>Overzicht.</strong> Al je tellingen op een kaart en in een tabel.</p>
+<table>
+<tr><td><strong>Bovenaan</strong></td><td>Hoeveel tellingen, van wanneer tot wanneer, en wat aandacht vraagt: <em>dubbel</em> (precies dezelfde inhoud), <em>zelfde telling, andere inhoud</em> (bijvoorbeeld twee reconstructies van dezelfde telling), <em>zonder reconstructie</em> en <em>zonder plek</em>. Klik erop om alleen die te zien; nog eens klikken laat weer alles zien.</td></tr>
+<tr><td><strong>Kaart</strong></td><td>Elke telling staat op het midden van zijn GPS-spoor, dus niet thuis als de opname daar begon. Static staat op zijn telplek. Tellingen op dezelfde plek worden een bol met het aantal, verdeeld naar soort. Klik op een bol om in te zoomen, of, als ze op één plek liggen, om er een te kiezen.</td></tr>
+<tr><td><strong>Tabel</strong></td><td>De nieuwste bovenaan. Klik op een regel: de kaart gaat erheen, met de gegevens en de route uit de ZIP.</td></tr>
+<tr><td><strong>Filters</strong></td><td>Soort, periode en wat je wilt zien: alles, zonder reconstructie, dubbel, zelfde telling of zonder plek. De kaart en de tabel volgen.</td></tr>
+<tr><td><strong>catalogus.csv</strong></td><td>Dezelfde lijst als tekst, in je moedermap: per telling de sessie, soort, datum en weekdag, tijden, het aantal waarnemingen, <code>recon</code> (ja, nee, zelf of n.v.t.), <code>dubbel_van</code>, <code>lat</code> en <code>lon</code>, het pad, de grootte, de wijzigdatum en de vingerafdruk. Te openen in Excel, KNIME of QGIS (als puntenlaag). Hij wordt na elk lezen en na elke keer Uitvoeren opnieuw gemaakt uit de ZIP's. In andere browsers dan Chrome en Edge download je hem onder de tabel.</td></tr>
+</table>
+<p><strong>Ordenen.</strong> Je ZIP's in een map per soort telling (sinds v3.31). Eerst zie je het plan: welk bestand naar welke map, en waarom. Pas na <strong>Uitvoeren</strong> verplaatst hij iets. Er wordt niets gewist.</p>
 <table>
 <tr><td><strong>Een map per soort</strong></td><td><em>Autoparkeren</em>, <em>Fietsparkeren</em>, <em>Capaciteit</em>, <em>Stilstaand</em>, <em>Pocket parkeren</em>, <em>Pocket simpel</em>, <em>Transect</em>, <em>Winkelstraat</em>, en <em>Verzamelingen</em> voor de verzamelingen uit telrapport. De soort komt uit de naam van de ZIP, of anders uit <code>_sessie.csv</code>.</td></tr>
 <tr><td><strong>originelen</strong></td><td>Ligt er van een telling ook een reconstructie (<code>_recon.zip</code>), dan gaat het origineel naar de submap <em>originelen</em> van zijn soort. De reconstructie staat in de map zelf. Telrapport laadt een hele map, ook de submappen.</td></tr>
