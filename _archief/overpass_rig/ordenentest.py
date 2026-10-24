@@ -162,7 +162,8 @@ def ronde(b, zonder_move, label):
         pg.evaluate("typeof FileSystemFileHandle.prototype.move") == ('undefined' if zonder_move else 'function'))
     pg.evaluate(VOLG)
     pg.click('#kies')
-    pg.wait_for_function("!document.getElementById('plan-sect').classList.contains('hide') && acties.length > 0", timeout=20000)
+    pg.wait_for_function("!document.getElementById('plan-sect').classList.contains('hide') && acties.length > 0 && !BEZIG", timeout=20000)
+    pg.click('#tab-ordenen')                   # v3.33: Ordenen is een tabblad naast Overzicht
     plan = pg.evaluate(PLAN)
     if not zonder_move:
         print('\n== F. Voortgang bij lezen ==')
@@ -198,21 +199,23 @@ def ronde(b, zonder_move, label):
     pg.evaluate('window.__vg = []')
     todo = pg.evaluate("acties.filter(a => a.status === 'verplaatsen' && a.aan).map(a => a.van)")
     pg.click('#uitvoeren')
-    pg.wait_for_function("document.getElementById('melding').textContent.indexOf('verplaatst') >= 0 && !BEZIG", timeout=30000)
+    pg.wait_for_function("document.getElementById('plan-melding').textContent.indexOf('verplaatst') >= 0 && !BEZIG", timeout=30000)
     if not zonder_move:
         print('\n== F. Voortgang bij Uitvoeren ==')
         vg = pg.evaluate('window.__vg'); vp = [v for v in vg if v['tekst'].startswith('Verplaatsen') and v['zicht']]
         eis('"Verplaatsen: k van 6" voor k = 1..6, telkens met het bestand dat gaat',
             [v['tekst'] for v in vp] == ['Verplaatsen: %d van 6 \u00b7 %s' % (k + 1, todo[k]) for k in range(6)]
             and all(v['waarde'] == k and v['max'] == 6 for k, v in enumerate(vp)), [v['tekst'] for v in vp][:2])
-        eis('daarna "Logboek schrijven", de balk vol, en dan weg (zonder tekst)',
-            vg[-2]['tekst'] == 'Logboek schrijven' and vg[-2]['waarde'] == 6 and vg[-2]['max'] == 6 and not vg[-1]['zicht'] and vg[-1]['tekst'] == '', vg[-2:])
+        eis('daarna "Logboek schrijven" en (v3.33) "Catalogus bijwerken", de balk vol, en dan weg (zonder tekst)',
+            [v['tekst'] for v in vg[-3:-1]] == ['Logboek schrijven', 'Catalogus bijwerken'] and all(v['waarde'] == 6 and v['max'] == 6 for v in vg[-3:-1])
+            and not vg[-1]['zicht'] and vg[-1]['tekst'] == '', vg[-3:])
         eis('tijdens Uitvoeren staan de knoppen en alle vinkjes uit',
             all(all(v['knoppen']) and v['vinkjes'] == 0 for v in vg if v['zicht']), [v for v in vg if v['zicht'] and (not all(v['knoppen']) or v['vinkjes'])][:1])
         rust = pg.evaluate(RUST)
         eis('daarna is de balk weg; Opnieuw lezen kan weer', rust == {'zicht': False, 'knoppen': [False, False]}, rust)
         print('\n== B. Uitvoeren ==')
     boom = {k: base64.b64decode(v) for k, v in pg.evaluate(BOOM).items()}
+    boom.pop('catalogus.csv', None)            # v3.33: afgeleid; archieftest.py kijkt ernaar
     lognamen = logs(boom)
     log1 = boom.pop(lognamen[0], b'') if len(lognamen) == 1 else b''
     log = log1.decode('utf-8')
@@ -232,7 +235,7 @@ def ronde(b, zonder_move, label):
     eis('%s: een logboek, met in de naam de tijd van de ronde (%s)' % (label, lognamen),
         m and not m.group(3) and m.group(1) + '_' + m.group(2) == re.sub(r'[-:]', '', tijd).replace(' ', '_')
         and all(r.split(';')[0] == tijd for r in regels[1:]), [lognamen, tijd])
-    eis('%s: de melding noemt het logboek' % label, bool(lognamen) and lognamen[0] in pg.evaluate("document.getElementById('melding').textContent"))
+    eis('%s: de melding noemt het logboek' % label, bool(lognamen) and lognamen[0] in pg.evaluate("document.getElementById('plan-melding').textContent"))
     if not zonder_move:
         eis('met move(): elke verplaatsing een hernoeming (6 keer move, geen kopie)', pg.evaluate('window.__moves') == 6, pg.evaluate('window.__moves'))
     eis('%s: in de tabel staat bij elke verplaatsing een vinkje' % label,
@@ -246,24 +249,24 @@ def ronde(b, zonder_move, label):
     eis('%s: de logboeken tellen niet als ZIP' % label, not [k for k in plan2 if k.endswith('.csv')])
     if not zonder_move:
         print('\n== G. Een tweede ronde: een tweede logboek ==')
-        # De namen van de komende seconden bezet maken (een eerder logboek blijft
-        # zoals het is): de nieuwe ronde moet dan _2 nemen, en niets overschrijven.
+        # Een bezette naam, zonder op de klok te wachten (v3.33: onder belasting
+        # was "de komende 15 seconden bezetten" niet genoeg). De naam van deze
+        # ronde ligt vast op 24-10-2026 08:10:12; dat bestand staat er al.
+        # Dan moet de ronde _2 nemen, en niets overschrijven.
         bezet = pg.evaluate("""async () => {
-          const arch = await (await navigator.storage.getDirectory()).getDirectoryHandle('archief'), uit = [];
-          for (let s = 0; s < 15; s++) {
-            const n = ORDENEN.logboekNaam(new Date(Date.now() + s * 1000));
-            try { await arch.getFileHandle(n); continue; } catch (e) {}
-            const w = await (await arch.getFileHandle(n, { create: true })).createWritable(); await w.write('bezet\\n'); await w.close(); uit.push(n);
-          }
-          return uit; }""")
+          const echt = ORDENEN.logboekNaam, vast = new Date(2026, 9, 24, 8, 10, 12);
+          ORDENEN.logboekNaam = (d, k) => echt(vast, k);
+          const arch = await (await navigator.storage.getDirectory()).getDirectoryHandle('archief'), n = echt(vast);
+          const w = await (await arch.getFileHandle(n, { create: true })).createWritable(); await w.write('bezet\\n'); await w.close();
+          return [n]; }""")
         pg.check('#plan tr[data-pad="20261020_110000_def_fts.zip"] input')
         pg.click('#uitvoeren')
-        pg.wait_for_function("document.getElementById('melding').textContent.indexOf('verplaatst') >= 0 && !BEZIG", timeout=30000)
+        pg.wait_for_function("document.getElementById('plan-melding').textContent.indexOf('verplaatst') >= 0 && !BEZIG", timeout=30000)
         boom2 = {k: base64.b64decode(v) for k, v in pg.evaluate(BOOM).items()}
         nieuw = [k for k in logs(boom2) if k not in lognamen and k not in bezet]
         r2 = boom2[nieuw[0]].decode('utf-8').strip().splitlines() if len(nieuw) == 1 else []
         eis('de fietstelling staat nu in Fietsparkeren', 'Fietsparkeren/20261020_110000_def_fts.zip' in boom2 and '20261020_110000_def_fts.zip' not in boom2)
-        eis('een tweede logboek, met _2 (de naam was bezet), met kop en 1 regel', len(nieuw) == 1 and LOGNAAM.match(nieuw[0]).group(3) == '_2'
+        eis('een tweede logboek, met _2 (de naam was bezet), met kop en 1 regel', nieuw == ['ordenen_logboek_20261024_081012_2.csv']
             and r2[0] == 'tijdstip;van;naar;reden;sha256' and len(r2) == 2 and ';Fietsparkeren/20261020_110000_def_fts.zip;' in r2[1], [nieuw, r2])
         eis('het eerste logboek is onveranderd, de bezette namen ook',
             boom2.get(lognamen[0]) == log1 and all(boom2.get(n) == b'bezet\n' for n in bezet) and bezet, [len(bezet)])

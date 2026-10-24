@@ -19,9 +19,10 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.32'
-# v3.32: Ordenen met een voortgangsbalk en een logboek per ronde (datum en tijd in de naam).
-VERWACHT_GEWIJZIGD = {'index.html', 'telarchief.html', 'traffic_counter_help.html'}
+RELEASE = 'v3.33'
+# v3.33: Ordenen wordt Archief, met een Overzicht (kaart, tabel, catalogus.csv).
+VERWACHT_GEWIJZIGD = {'index.html', 'telarchief.html', 'over.html', 'about.html', 'privacy.html',
+                      'traffic_counter_help.html', 'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -233,6 +234,9 @@ groepen = [
     # v3.19: het geplande gebied vooraf in de tegelcache, in de apps die een planning-link openen
     ('gebied vooraf', ['parkeertelling.html', 'fietsparkeren.html', 'pocket_count.html'],
      '/* ── Gebied vooraf ophalen (v3.19)', '/* ── einde gedeeld blok gebied vooraf ── */'),
+    # v3.33: de clusterbol (taart per soort) van telrapport, ook op de kaart van Archief
+    ('clusterbol', ['telrapport.html', 'telarchief.html'],
+     '/* ── Clusterbol (v2.61)', "       + cijfer + '\">' + total + '</div></div>';\n}"),
     # v3.3: de kale stijl van de documentatiepagina's
     ('kale stijl', KAAL,
      '/* ── kale stijl (v3.3)', '/* ── einde kale stijl ── */'),

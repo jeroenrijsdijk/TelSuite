@@ -3,11 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ordenen: tel-ZIP's in een map per soort | telonline.org</title>
-<meta name="description" content="Zet je ZIP's van telonline.org in een map per soort telling. Originelen met een reconstructie gaan in een submap. Er wordt niets gewist.">
+<title>Archief: je tellingen op de kaart en geordend | telonline.org</title>
+<meta name="description" content="Verken al je tellingen van telonline.org op een kaart: waar en wanneer, wat dubbel is en wat nog geen reconstructie heeft. En orden je ZIP's per soort.">
 <link rel="canonical" href="https://telonline.org/telarchief.html">
 <link href="fonts/fonts.css" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{
   --bg:#eceae4; --ink:#1b1b19; --muted:#6d6d66; --line:#c7c7bf;
@@ -51,17 +53,54 @@ label{font-size:12.5px}
 ul.mappen{margin:4px 0;padding-left:18px;font-size:13px}
 ul.mappen code{font-family:'Share Tech Mono',monospace;font-size:12.5px}
 /* voortgang (v3.32): onderaan het venster, ook te zien onder aan een lange tabel */
-.voortgang{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--paper);border-top:1px solid var(--line);padding:8px 20px 9px}
+.voortgang{position:fixed;left:0;right:0;bottom:0;z-index:1100;background:var(--paper);border-top:1px solid var(--line);padding:8px 20px 9px}
 .voortgang progress{display:block;width:100%;max-width:1060px;height:8px;accent-color:var(--accent)}
 .voortgang .sub{margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:1060px}
 .voortgang .pad{font-family:'Share Tech Mono',monospace;font-size:12px}
 body.bezig main{padding-bottom:90px}
+/* tabbladen en overzicht (v3.33) */
+.tabs{display:flex;gap:2px;margin-top:18px;border-bottom:1px solid var(--line)}
+.tabs button{background:none;color:var(--muted);border:none;border-bottom:2px solid transparent;border-radius:0;padding:7px 14px;font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.tabs button.actief{color:var(--ink);border-bottom-color:var(--accent)}
+body[data-tab="ordenen"] #overzicht-sect,body[data-tab="overzicht"] #plan-sect{display:none}
+.tellers{font-size:13px;margin:4px 0 10px;line-height:1.9}
+.tellers b{font-weight:500}
+.tellers button{background:none;border:none;padding:0;color:var(--accent);font-size:13px;text-decoration:underline;text-underline-offset:2px}
+.tellers button.let{color:var(--oker)}
+.tellers button.aan{color:var(--ink);font-weight:500;text-decoration:none;border-bottom:2px solid var(--accent)}
+.tellers .nul{color:var(--muted)}
+.overzicht{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:14px;align-items:start}
+#kaart{height:440px;background:#dcdad3;border:1px solid var(--line);border-radius:3px}
+.kaartvak .note{margin:0}
+.leaflet-container{font-family:Oswald,system-ui,sans-serif;font-size:12.5px}
+.leaflet-popup-content{margin:9px 12px;line-height:1.5}
+.pop .mono,.lijst .mono{font-family:'Share Tech Mono',monospace;font-size:12px}
+.lijst a{display:block;color:var(--ink);text-decoration:none;padding:2px 0;border-bottom:1px solid #eee}
+.lijst a:hover{color:var(--accent)}
+.filters{background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:8px 11px;font-size:12.5px}
+.filters h3{font-size:10px;font-weight:500;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:6px 0 4px}
+.filters label{display:block;padding:1px 0;white-space:nowrap}
+.filters .aantal{color:var(--muted)}
+.filters input[type=date]{font-family:inherit;font-size:12px;width:118px;padding:2px}
+.filters .klein{font-size:11.5px;color:var(--muted)}
+.filters .klein a{color:inherit}
+.stip{display:inline-block;width:10px;height:10px;border-radius:50%;border:1px solid #1b1b19;margin-right:6px;vertical-align:-1px}
+.ruimte{flex:1}
+#catalogus-tabel td{white-space:nowrap}
+#catalogus-tabel tr[data-i]{cursor:pointer}
+#catalogus-tabel tr[data-i]:hover td{background:#efeee9}
+#catalogus-tabel tr.gekozen td{background:#e1e7e1}
+td.getal{text-align:right}
+td.recon-nee{color:var(--oker);font-weight:500}
+td.recon-nvt,td.recon-zelf{color:var(--muted)}
+.merk{display:inline-block;font-size:10.5px;letter-spacing:.05em;color:var(--oker);border:1px solid var(--oker);border-radius:2px;padding:0 4px;margin-left:6px;font-family:Oswald,sans-serif}
+@media (max-width:760px){.overzicht{grid-template-columns:1fr}#kaart{height:320px}}
 </style>
 </head>
 <body>
 <header>
-  <h1>Ordenen</h1>
-  <div class="sub">Zet je ZIP's in een map per soort telling. Een origineel waarvan een reconstructie bestaat, gaat in de submap <em>originelen</em>. Er wordt niets gewist. <a href="index.html">Naar de voorpagina</a></div>
+  <h1>Archief</h1>
+  <div class="sub">Al je tellingen op een kaart: waar en wanneer, wat dubbel is en wat nog geen reconstructie heeft. En je ZIP's in een map per soort. De plaatjes en de rapportage maak je in <a href="telrapport.html">telrapport</a>. Er wordt niets gewist. <a href="index.html">Naar de voorpagina</a></div>
 </header>
 <main>
   <div class="sect">
@@ -70,11 +109,39 @@ body.bezig main{padding-bottom:90px}
       <button id="kies" onclick="kiesMap()">Kies je archiefmap</button>
       <label id="alleen-lezen" class="hide">Alleen bekijken: <input type="file" id="map-invoer" webkitdirectory multiple onchange="leesInvoer(this.files)"></label>
     </div>
-    <div id="melding" class="note">Kies de map waarin je je ZIP's bewaart. De tool leest alle ZIP's erin, ook in submappen, en laat eerst zien wat hij zou doen. Pas na <strong>Uitvoeren</strong> verplaatst hij iets.</div>
+    <div id="melding" class="note">Kies de map waarin je je ZIP's bewaart, je moedermap. De tool leest alle ZIP's erin, ook in submappen, en laat zien wat er is. Verplaatsen doet hij pas als je bij <strong>Ordenen</strong> op <strong>Uitvoeren</strong> drukt.</div>
+  </div>
+
+  <nav class="tabs hide" id="tabs">
+    <button id="tab-overzicht" onclick="toonTab('overzicht')">Overzicht</button>
+    <button id="tab-ordenen" onclick="toonTab('ordenen')">Ordenen</button>
+  </nav>
+
+  <div class="sect hide" id="overzicht-sect">
+    <div class="tellers" id="tellers"></div>
+    <div class="overzicht">
+      <div class="kaartvak"><div id="kaart"></div></div>
+      <div class="filters">
+        <h3>Soort</h3>
+        <div id="f-soorten"></div>
+        <h3>Periode</h3>
+        <div><input type="date" id="f-van" onchange="filterPeriode()"> tot en met</div>
+        <div><input type="date" id="f-tot" onchange="filterPeriode()"></div>
+        <h3>Laat zien</h3>
+        <div id="f-controle"></div>
+      </div>
+    </div>
+    <div class="regel">
+      <span id="getoond" class="sub"></span><span class="ruimte"></span>
+      <span id="catalogus-status" class="sub"></span>
+      <button class="ghost" id="download-catalogus" onclick="downloadCatalogus()">Download catalogus.csv</button>
+    </div>
+    <div class="tabel"><table id="catalogus-tabel" onclick="tabelKlik(event)"></table></div>
   </div>
 
   <div class="sect hide" id="plan-sect">
     <h2>Plan</h2>
+    <div id="plan-melding" class="note"></div>
     <div class="kpi" id="kpi"></div>
     <div class="regel">
       <label><input type="checkbox" id="toon-goed" onchange="toonPlan()"> ook tonen wat al goed staat</label>
@@ -94,6 +161,7 @@ body.bezig main{padding-bottom:90px}
       <li><code>Verzamelingen</code>: de verzamelingen uit telrapport (<code>TelVerzameling_….zip</code>).</li>
       <li><code>dubbel</code>: een ZIP die er al eens ligt, met precies dezelfde inhoud (zelfde vingerafdruk), bijvoorbeeld <code>…_car (1).zip</code>. Is de inhoud anders, dan blijven beide staan.</li>
       <li>Alle andere bestanden blijven waar ze zijn. Wat verplaatst is, staat in een logboek in je archief, zodat je het kunt terugzoeken: <code>ordenen_logboek_&lt;datum&gt;_&lt;tijd&gt;.csv</code>, een per keer <strong>Uitvoeren</strong>.</li>
+      <li><code>catalogus.csv</code>: een regel per telling, met wanneer, waar (<code>lat</code>, <code>lon</code>: het midden van het GPS-spoor), of er een reconstructie is en of het een dubbel is. Te lezen in Excel, KNIME of QGIS (als puntenlaag). Hij wordt na elke keer lezen opnieuw gemaakt uit de ZIP's; met de hand bijwerken heeft dus geen zin.</li>
     </ul>
     <div class="note warn">Verwerk je de ZIP's ook met een eigen script of KNIME, kijk dan of dat ook in submappen zoekt.</div>
   </div>
@@ -114,7 +182,9 @@ body.bezig main{padding-bottom:90px}
    computer). Elders laat de pagina het plan zien, maar verplaatst niets.
 
    ORDENEN is de indeling: een lijst bestanden in, een plan uit. Hij weet niets
-   van de browser of van mappen; functest_ordenen.js test hem los.            */
+   van de browser of van mappen; functest_ordenen.js test hem los.
+   v3.33: de pagina heet Archief, met Overzicht (kaart, tabel, catalogus.csv)
+   en Ordenen. ORDENEN maakt ook de catalogus.                                */
 var ORDENEN = (function () {
   var MAP = { auto: 'Autoparkeren', fiets: 'Fietsparkeren', capaciteit: 'Capaciteit', standstill: 'Stilstaand',
               'pocket:parkeren': 'Pocket parkeren', 'pocket:simpel': 'Pocket simpel', 'pocket:transect': 'Transect',
@@ -209,7 +279,7 @@ var ORDENEN = (function () {
         return x.van < y.van ? -1 : 1;
       });
       for (var i = 1; i < g.length; i++) {
-        g[i].doelmap = DUBBEL; g[i].dubbel = true;
+        g[i].doelmap = DUBBEL; g[i].dubbel = true; g[i].dubbelVan = g[0];
         g[i].reden = 'dubbel van ' + g[0].doelmap + '/' + g[0].item.naam;
       }
     });
@@ -250,8 +320,109 @@ var ORDENEN = (function () {
            p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + (k > 1 ? '_' + k : '') + '.csv';
   }
 
+  /* ── Catalogus (v3.33) ──────────────────────────────────────────────────
+     Jay: "De catalogus is puur bedoeld als 'wanneer en waar' zijn er tellingen
+     gedaan. Ik wil kunnen checken op dubbele bestanden. Ik wil kunnen zien of er
+     bestanden zijn zonder _recon versie." En: "met als basis een csv of iets
+     anders dat ook in tekst te bekijken is." Eén regel per telling; de ZIP's
+     blijven de bron, catalogus.csv is er altijd opnieuw uit te maken.        */
+
+  // Kleur per soort, op de kaart en in de tabel. De vijf apps zoals in de
+  // ZIP-referentie; de pocket-modi elk een eigen kleur.
+  var KLEUR = { auto: '#c07800', fiets: '#2980b9', capaciteit: '#8e44ad', standstill: '#0a8a30',
+                'pocket:parkeren': '#d4007a', 'pocket:simpel': '#795548', 'pocket:transect': '#16a085',
+                'pocket:winkelstraat': '#c0392b', verzameling: '#777777' };
+  var VOLGORDE = Object.keys(MAP);   // vaste volgorde, ook in de taartbollen
+
+  // Wat telreconstructie kan nabewerken: de parkeertellingen en pocket. Static
+  // (één plek) en capaciteit niet, en een verzameling is geen telling.
+  function reconBaar(so) { return so === 'auto' || so === 'fiets' || /^pocket:/.test(so); }
+
+  var DAGEN = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+  function weekdag(datum) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(datum || '').trim());
+    return m ? DAGEN[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()] : '';
+  }
+  // Zonder _sessie.csv: de datum uit de naam (20261020_… of TelVerzameling_20261020).
+  function datumUitNaam(naam) {
+    var m = /(?:^|\D)(20\d{2})(\d{2})(\d{2})(?!\d)/.exec(String(naam || ''));
+    return m ? m[1] + '-' + m[2] + '-' + m[3] : '';
+  }
+
+  // Waar: per coördinaat de mediaan van de punten. Begint de opname thuis, dan
+  // ligt het punt toch waar geteld is, want daar liggen de meeste punten.
+  function mediaan(xs) {
+    var s = xs.slice().sort(function (a, b) { return a - b; }), n = s.length;
+    return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  }
+  function plek(punten) {
+    var la = [], lo = [];
+    (punten || []).forEach(function (p) {
+      var a = parseFloat(p[0]), o = parseFloat(p[1]);
+      if (isFinite(a) && isFinite(o) && (a || o) && Math.abs(a) <= 90 && Math.abs(o) <= 180) { la.push(a); lo.push(o); }
+    });
+    return la.length ? { lat: mediaan(la), lon: mediaan(lo) } : null;
+  }
+
+  /* items als bij plan, plus plek {lat, lon}, grootte en gewijzigd. Eén regel
+     per telling of verzameling; andere ZIP's niet. Op datum, tijd en pad.
+     recon: ja (er is een reconstructie), nee (nog niet), zelf (dit is er een),
+     n.v.t. (Static, capaciteit, verzameling). dubbel_van: het pad van het
+     bestand met precies dezelfde inhoud dat blijft (zoals Ordenen het kiest). */
+  function catalogus(items) {
+    var acties = plan(items), metRecon = {};
+    acties.forEach(function (a) { if (a.recon) metRecon[a.id] = true; });
+    var rijen = acties.filter(function (a) { return a.soort; }).map(function (a) {
+      var it = a.item, s = it.sessie || {};
+      var v = function (k) { return String(s[k] == null ? '' : s[k]).trim(); };
+      var datum = v('datum') || datumUitNaam(it.naam);
+      return {
+        sessie_id: v('sessie_id') || kern(it.naam).replace(/_recon$/i, ''),
+        soort: MAP[a.soort], code: a.soort, datum: datum, weekdag: weekdag(datum),
+        start_tijd: v('start_tijd'), eind_tijd: v('eind_tijd'), n_waarnemingen: v('n_waarnemingen'),
+        recon: a.recon ? 'zelf' : !reconBaar(a.soort) ? 'n.v.t.' : metRecon[a.id] ? 'ja' : 'nee',
+        dubbel_van: a.dubbel ? a.dubbelVan.van : '',
+        lat: it.plek ? it.plek.lat : null, lon: it.plek ? it.plek.lon : null,
+        pad: a.van, bytes: it.grootte == null ? '' : it.grootte, gewijzigd: it.gewijzigd || '', sha256: it.sha || '',
+        item: it, id: a.id, isRecon: a.recon, heeftDubbel: false, zelfde: 0
+      };
+    });
+    var perPad = {};
+    rijen.forEach(function (r) { perPad[r.pad] = r; });
+    rijen.forEach(function (r) { if (r.dubbel_van && perPad[r.dubbel_van]) perPad[r.dubbel_van].heeftDubbel = true; });
+    // Zelfde telling, andere inhoud: twee originelen, of twee reconstructies, met
+    // dezelfde sessie-id maar een andere vingerafdruk. Geen kopie; kijk welke je houdt.
+    var groep = {};
+    rijen.forEach(function (r) {
+      if (!r.id || r.dubbel_van || r.code === 'verzameling') return;
+      var k = r.id + (r.isRecon ? '|recon' : '|origineel');
+      (groep[k] = groep[k] || []).push(r);
+    });
+    Object.keys(groep).forEach(function (k) {
+      if (groep[k].length > 1) groep[k].forEach(function (r) { r.zelfde = groep[k].length; });
+    });
+    return rijen.sort(function (x, y) {
+      return (x.datum < y.datum ? -1 : x.datum > y.datum ? 1 : 0) ||
+             (x.start_tijd < y.start_tijd ? -1 : x.start_tijd > y.start_tijd ? 1 : 0) ||
+             (x.pad < y.pad ? -1 : x.pad > y.pad ? 1 : 0);
+    });
+  }
+
+  // catalogus.csv: puntkomma, punt als decimaalteken, UTF-8, zoals de andere CSV's.
+  // De kop staat letterlijk in de ZIP-referentie (test_zipref.py houdt ze gelijk).
+  var KOLOMMEN = 'sessie_id;soort;datum;weekdag;start_tijd;eind_tijd;n_waarnemingen;recon;dubbel_van;lat;lon;pad;bytes;gewijzigd;sha256'.split(';');
+  function csvTekst(rijen) {
+    var veld = function (x) { return String(x == null ? '' : x).replace(/;/g, ',').replace(/[\r\n]+/g, ' '); };
+    return KOLOMMEN.join(';') + '\n' + rijen.map(function (r) {
+      return KOLOMMEN.map(function (k) {
+        return veld((k === 'lat' || k === 'lon') && r[k] != null ? r[k].toFixed(6) : r[k]);
+      }).join(';') + '\n';
+    }).join('');
+  }
+
   return { plan: plan, soort: soort, isRecon: isRecon, sessieId: sessieId, MAP: MAP, mapVan: mapVan, naamVan: naamVan,
-           logboekNaam: logboekNaam };
+           logboekNaam: logboekNaam, catalogus: catalogus, csvTekst: csvTekst, KOLOMMEN: KOLOMMEN, KLEUR: KLEUR,
+           VOLGORDE: VOLGORDE, plek: plek, weekdag: weekdag, reconBaar: reconBaar };
 })();
 /* ── einde ORDENEN ── */
 
@@ -284,18 +455,61 @@ async function vingerafdrukVan(buf) { return hex(await crypto.subtle.digest('SHA
 // als een ander programma het bestand vasthoudt; dan blijft alleen dat bestand liggen).
 async function leesItem(item, file) {
   try {
-    var buf = await (await file).arrayBuffer();
+    var f = await file;
+    var buf = await f.arrayBuffer();
     item.sha = await vingerafdrukVan(buf);
     item.grootte = buf.byteLength;
+    item.gewijzigd = f.lastModified ? tijdTekst(new Date(f.lastModified)) : '';
     var zip = await JSZip.loadAsync(buf);
     var namen = Object.keys(zip.files);
     item.verzameling = namen.indexOf('verzameling.json') >= 0;
     var ses = namen.filter(function (n) { return /_sessie\.csv$/i.test(n) && n.indexOf('/') < 0; })[0];
     item.sessie = ses ? sessieUit(await zip.file(ses).async('text')) : null;
+    item.plek = await plekUitZip(zip, item.sessie);
   } catch (e) {
     item.fout = (e && e.message) || 'onbekende fout';
   }
   return item;
+}
+
+function tijdTekst(d) {
+  var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' +
+         p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
+}
+
+// Punten [lat, lon] uit een CSV in de ZIP (bovenin, niet in een submap), in
+// volgorde. lats/lons: mogelijke kolomnamen. [] als het bestand of de kolom ontbreekt.
+async function tabelPunten(zip, patroon, lats, lons) {
+  var naam = Object.keys(zip.files).filter(function (n) { return patroon.test(n) && n.indexOf('/') < 0; })[0];
+  if (!naam) return [];
+  var regels = (await zip.file(naam).async('text')).replace(/^\uFEFF/, '').split(/\r?\n/);
+  var kop = csvVelden(regels[0] || '').map(function (k) { return k.trim().toLowerCase(); });
+  var kol = function (namen) { for (var k = 0; k < namen.length; k++) if (kop.indexOf(namen[k]) >= 0) return kop.indexOf(namen[k]); return -1; };
+  var i = kol(lats), j = kol(lons), uit = [];
+  if (i < 0 || j < 0) return [];
+  for (var r = 1; r < regels.length; r++) {
+    if (!regels[r]) continue;
+    var w = regels[r].indexOf('"') < 0 ? regels[r].split(';') : csvVelden(regels[r]);
+    uit.push([parseFloat(w[i]), parseFloat(w[j])]);
+  }
+  return uit;
+}
+// Waar de telling was (v3.33): de mediaan van het GPS-spoor; zonder spoor de
+// telplek uit _sessie.csv (Static), dan de tikken. null als er niets is.
+async function plekUitZip(zip, sessie) {
+  var p = ORDENEN.plek(await tabelPunten(zip, /_gps\.csv$/i, ['lat'], ['lon']));
+  if (!p && sessie) p = ORDENEN.plek([[sessie.lat, sessie.lon]]);
+  if (!p) p = ORDENEN.plek(await tabelPunten(zip, /_telregels\.csv$/i, ['lat', 'lat_gps'], ['lon', 'lon_gps']));
+  return p;
+}
+// De route, pas als je een telling aanklikt: uit de ZIP zelf, niet uit de catalogus.
+async function routeVan(it) {
+  var f = it.handle ? await it.handle.getFile() : it.file;
+  var zip = await JSZip.loadAsync(await f.arrayBuffer());
+  return (await tabelPunten(zip, /_gps\.csv$/i, ['lat'], ['lon'])).filter(function (p) {
+    return isFinite(p[0]) && isFinite(p[1]) && (p[0] || p[1]);
+  });
 }
 
 /* ── Bron: een echte map (Chrome, Edge) of alleen bekijken (elders) ───────── */
@@ -376,15 +590,14 @@ async function leesWortel() {
     }
   } catch (e) {
     // Een half gelezen archief geeft een verkeerd plan (een reconstructie die
-    // niet gelezen is, mist bij zijn origineel). Dus geen plan.
-    items = []; acties = [];
-    document.getElementById('plan-sect').classList.add('hide');
+    // niet gelezen is, mist bij zijn origineel). Dus geen plan en geen overzicht.
+    items = []; acties = []; rijen = [];
+    ['tabs', 'overzicht-sect', 'plan-sect'].forEach(function (id) { document.getElementById(id).classList.add('hide'); });
     bezig(false);
     melding('De map kon niet helemaal gelezen worden: ' + esc((e && e.message) || e), 'fout');
     return;
   }
-  bezig(false);
-  maakPlan();
+  await naLezen();
 }
 
 async function leesInvoer(files) {
@@ -392,16 +605,46 @@ async function leesInvoer(files) {
   var lijst = Array.prototype.filter.call(files, function (f) { return /\.zip$/i.test(f.name); });
   items = [];
   bezig(true);
+  melding('Bezig met lezen\u2026');
   try {
     for (var i = 0; i < lijst.length; i++) {
       var rel = lijst[i].webkitRelativePath || lijst[i].name;
       var pad = rel.indexOf('/') >= 0 ? rel.slice(rel.indexOf('/') + 1) : rel;   // zonder de gekozen map zelf
       if (pad.split('/').some(function (d) { return d.charAt(0) === '.'; })) continue;
       voortgang('Lezen: ' + (i + 1) + ' van ' + lijst.length, i, lijst.length, pad);
-      items.push(await leesItem({ pad: pad, naam: lijst[i].name }, lijst[i]));
+      items.push(await leesItem({ pad: pad, naam: lijst[i].name, file: lijst[i] }, lijst[i]));
     }
-  } finally { bezig(false); }
+  } catch (e) {
+    bezig(false);
+    melding('De map kon niet helemaal gelezen worden: ' + esc((e && e.message) || e), 'fout');
+    return;
+  }
+  await naLezen();
+}
+
+// Na het lezen: het plan (Ordenen), het overzicht en catalogus.csv. Zolang dat
+// loopt, blijft BEZIG aan; het schrijven van de catalogus hoort erbij.
+async function naLezen() {
   maakPlan();
+  if (!items.length) {
+    bezig(false);
+    ['tabs', 'overzicht-sect', 'plan-sect'].forEach(function (id) { document.getElementById(id).classList.add('hide'); });
+    melding('Geen ZIP-bestanden gevonden in deze map.', 'warn');
+    return;
+  }
+  document.getElementById('tabs').classList.remove('hide');
+  document.getElementById('overzicht-sect').classList.remove('hide');
+  toonTab(document.body.getAttribute('data-tab') || 'overzicht');   // eerst zichtbaar, dan pas de kaart
+  maakOverzicht();
+  var tekst = samenvatting() + ' gelezen.';
+  if (wortel) {
+    voortgang('Catalogus schrijven', 1, 1);
+    tekst += ' ' + await catalogusBijwerken();
+  } else {
+    tekst += ' Hier kan de pagina niets in je map zetten: download <code>catalogus.csv</code> onder de tabel.';
+  }
+  bezig(false);
+  melding(tekst);
 }
 
 function opnieuwLezen() {
@@ -421,11 +664,15 @@ function maakPlan() {
     [['te verplaatsen', n('verplaatsen')], ['waarvan dubbel', nDubbel], ['staat al goed', n('goed')],
      ['blijft liggen', n('overslaan')], ['naamconflict', n('conflict')]]
       .map(function (k) { return '<div><span>' + k[0] + '</span><b>' + k[1] + '</b></div>'; }).join('');
-  if (!items.length) melding('Geen ZIP-bestanden gevonden in deze map.', 'warn');
-  else if (!n('verplaatsen')) melding('Alles staat al op zijn plek.' + (n('conflict') ? ' Bekijk de naamconflicten hieronder.' : ''));
-  else if (KAN_VERPLAATSEN) melding('Bekijk het plan. Vink uit wat je wilt laten liggen, en kies <strong>Uitvoeren</strong>.');
-  else melding('Dit is het plan. Verplaatsen kan alleen in Chrome of Edge op de computer; hier kun je het overnemen.', 'warn');
+  if (!n('verplaatsen')) planMelding('Alles staat al op zijn plek.' + (n('conflict') ? ' Bekijk de naamconflicten hieronder.' : ''));
+  else if (KAN_VERPLAATSEN) planMelding('Bekijk het plan. Vink uit wat je wilt laten liggen, en kies <strong>Uitvoeren</strong>.');
+  else planMelding('Dit is het plan. Verplaatsen kan alleen in Chrome of Edge op de computer; hier kun je het overnemen.', 'warn');
   toonPlan();
+}
+function planMelding(tekst, soort) {
+  var el = document.getElementById('plan-melding');
+  el.className = 'note' + (soort ? ' ' + soort : '');
+  el.innerHTML = tekst;
 }
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -455,6 +702,332 @@ function toonPlan() {
 }
 function vink(el) { acties[+el.getAttribute('data-i')].aan = el.checked; toonPlan(); }
 
+/* ── Clusterbol (v2.61) ──────────────────────────────────────────────────────
+   Tot v2.60 kreeg de bol één vlakke kleur: die van het meest voorkomende type.
+   Bij een parkeertelling betekende dat "meestal goed" of "meestal leeg", zonder
+   de verhouding — terwijl die verhouding de telling ís. Nu een taartdiagram.
+
+   Drie keuzes die het leesbaar houden:
+   • Vaste puntvolgorde uit APP_CONFIG.types, niet op aantal gesorteerd. Zo ziet
+     dezelfde straat er elke keer hetzelfde uit en kun je bollen vergelijken.
+   • Het totaal staat in een donutgat, niet over de punten heen. Wit op een
+     lichtgrijze 'leeg'-punt is anders niet te lezen.
+   • Onder PIE_MIN_PX blijft het een vlakke bol met het cijfer erop, precies
+     zoals vroeger. Taartpunten van een paar pixels zijn mush, en een diagram dat
+     je niet kunt aflezen liegt meer dan het vertelt.                          */
+var PIE_MIN_PX = 26;          // kleinere bollen blijven vlak
+var PIE_GAT_KLEUR = '#1a1c1e';  // gelijk aan --bg
+
+// Punten in vaste volgorde; types buiten de config komen er alfabetisch achter.
+function clusterPunten(counts, cfg) {
+  var volgorde = (cfg && cfg.types) ? cfg.types.slice() : [];
+  Object.keys(counts).sort().forEach(function (t) {
+    if (volgorde.indexOf(t) < 0) volgorde.push(t);
+  });
+  var uit = [];
+  volgorde.forEach(function (t) {
+    var n = counts[t] || 0;
+    if (n > 0) uit.push({ type: t, n: n, kleur: (cfg && cfg.colors && cfg.colors[t]) || '#777777' });
+  });
+  return uit;
+}
+
+function conicAchtergrond(punten, total) {
+  var stops = [], acc = 0;
+  punten.forEach(function (p, i) {
+    var van = acc / total * 100;
+    acc += p.n;
+    // laatste punt exact op 100% sluiten, anders blijft er een haarlijn over
+    var tot = (i === punten.length - 1) ? 100 : (acc / total * 100);
+    stops.push(p.kleur + ' ' + van.toFixed(3) + '% ' + tot.toFixed(3) + '%');
+  });
+  return 'background:conic-gradient(' + stops.join(',') + ')';
+}
+
+/* counts  : { type: aantal }
+   total   : som daarvan
+   cfg     : APP_CONFIG[appType]
+   opts    : { size, fontSize, bgStyle?, fallback?, schaduw? }
+             bgStyle overschrijft de taart (gebruikt voor de sessie-tweekleur
+             van een gecombineerd cluster — die zegt iets anders dan het type). */
+function clusterBolHtml(counts, total, cfg, opts) {
+  opts = opts || {};
+  var size = opts.size, fontSize = opts.fontSize;
+  var punten = clusterPunten(counts || {}, cfg);
+  var taart = !opts.bgStyle && punten.length > 1 && size >= PIE_MIN_PX;
+  var bg = opts.bgStyle
+        || (taart ? conicAchtergrond(punten, total)
+                  : 'background:' + (opts.fallback || (punten[0] && punten[0].kleur) || '#777777'));
+  var schaduw = opts.schaduw === false ? '' : 'box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+  var buiten = '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;' + bg + ';'
+             + 'border:1.5px solid #000;opacity:0.85;display:flex;align-items:center;justify-content:center;'
+             + 'transform:translate(-50%,-50%);box-sizing:border-box;' + schaduw + '">';
+  var cijfer = 'font-family:Oswald,sans-serif;font-size:' + fontSize + 'px;font-weight:700;color:#fff;';
+  if (!taart) {
+    return buiten + '<span style="' + cijfer + 'text-shadow:0 1px 2px rgba(0,0,0,0.5);">'
+         + total + '</span></div>';
+  }
+  var gat = Math.max(14, Math.round(size * 0.52));
+  return buiten
+       + '<div style="width:' + gat + 'px;height:' + gat + 'px;border-radius:50%;'
+       + 'background:' + PIE_GAT_KLEUR + ';display:flex;align-items:center;justify-content:center;'
+       + cijfer + '">' + total + '</div></div>';
+}
+
+/* ── Overzicht (v3.33) ───────────────────────────────────────────────────────
+   Jay: "eingelijk is Archief nu een soort Verkenner over alle tellingen, in
+   telrapport maak je de plaatjes/rapportage." Wanneer en waar, wat dubbel is
+   en wat nog geen reconstructie heeft. Kaart, tabel en catalogus.csv komen uit
+   dezelfde regels (ORDENEN.catalogus). De bollen zijn die van telrapport
+   (gedeeld blok Clusterbol): een taart per soort met het aantal in het midden. */
+var rijen = [], zicht = [], kaart = null, puntLaag = null, routeLaag = null, gekozen = null, kaartGepast = false;
+var FILTER = { soorten: {}, van: '', tot: '', toon: 'alles' };
+var MAANDEN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+var TOON = [['alles', 'alles'], ['zonder', 'zonder reconstructie'], ['dubbel', 'dubbel (en wat het kopieert)'],
+            ['zelfde', 'zelfde telling, andere inhoud'], ['zonderplek', 'zonder plek']];
+var CEL_PX = 40;                       // bollen: alles binnen een vak van 40 px samen
+
+function toonTab(t) {
+  document.body.setAttribute('data-tab', t);
+  document.getElementById('tab-overzicht').classList.toggle('actief', t === 'overzicht');
+  document.getElementById('tab-ordenen').classList.toggle('actief', t === 'ordenen');
+  if (t === 'overzicht' && kaart) setTimeout(function () { kaart.invalidateSize(); }, 0);
+}
+
+function telling(r) { return r.code !== 'verzameling'; }
+function samenvatting() {
+  var n = rijen.filter(telling).length, v = rijen.length - n;
+  return n + (n === 1 ? ' telling' : ' tellingen') + (v ? ' en ' + v + (v === 1 ? ' verzameling' : ' verzamelingen') : '');
+}
+function maandTekst(d) { var m = /^(\d{4})-(\d{2})/.exec(d || ''); return m ? MAANDEN[+m[2] - 1] + ' ' + m[1] : ''; }
+
+function maakOverzicht() {
+  rijen = ORDENEN.catalogus(items);
+  var nu = {};
+  rijen.forEach(function (r) { nu[r.code] = true; });
+  Object.keys(nu).forEach(function (c) { if (!(c in FILTER.soorten)) FILTER.soorten[c] = true; });
+  if (gekozen) gekozen = rijen.filter(function (r) { return r.item === gekozen.item; })[0] || null;
+  maakKaart();
+  tekenFilters();
+  toon();
+  if (kaart && !kaartGepast) {
+    var p = rijen.filter(function (r) { return r.lat != null; }).map(function (r) { return [r.lat, r.lon]; });
+    if (p.length) { kaart.fitBounds(L.latLngBounds(p).pad(0.15), { maxZoom: 15 }); kaartGepast = true; }
+  }
+}
+
+function past(r) {
+  if (!FILTER.soorten[r.code]) return false;
+  if (FILTER.van && !(r.datum && r.datum >= FILTER.van)) return false;
+  if (FILTER.tot && !(r.datum && r.datum <= FILTER.tot)) return false;
+  switch (FILTER.toon) {
+    case 'zonder': return r.recon === 'nee';
+    case 'dubbel': return !!r.dubbel_van || r.heeftDubbel;
+    case 'zelfde': return r.zelfde > 1;
+    case 'zonderplek': return r.lat == null;
+  }
+  return true;
+}
+function toon() {
+  zicht = rijen.filter(past);
+  tekenTellers();
+  tekenPunten();
+  tekenTabel();
+  if (gekozen && zicht.indexOf(gekozen) < 0) { gekozen = null; if (routeLaag) routeLaag.clearLayers(); if (kaart) kaart.closePopup(); }
+}
+
+function tekenTellers() {
+  var t = rijen.filter(telling), data = t.map(function (r) { return r.datum; }).filter(Boolean).sort();
+  var aantal = {
+    zonder: rijen.filter(function (r) { return r.recon === 'nee'; }).length,
+    dubbel: rijen.filter(function (r) { return r.dubbel_van; }).length,
+    zelfde: rijen.filter(function (r) { return r.zelfde > 1; }).length,
+    zonderplek: t.filter(function (r) { return r.lat == null; }).length
+  };
+  var knop = function (k, tekst) {
+    if (!aantal[k]) return '<span class="nul">' + tekst.replace('#', 'geen') + '</span>';
+    return '<button class="' + (FILTER.toon === k ? 'aan' : 'let') + '" data-toon="' + k + '" onclick="kiesToon(this.getAttribute(\'data-toon\'))">' +
+           tekst.replace('#', aantal[k]) + '</button>';
+  };
+  document.getElementById('tellers').innerHTML =
+    '<b>' + samenvatting() + '</b>' + (data.length ? ' · ' + maandTekst(data[0]) + ' – ' + maandTekst(data[data.length - 1]) : '') +
+    ' · ' + knop('dubbel', '# dubbel') + ' · ' + knop('zelfde', '# zelfde telling, andere inhoud') +
+    ' · ' + knop('zonder', '# zonder reconstructie') + (aantal.zonderplek ? ' · ' + knop('zonderplek', '# zonder plek') : '');
+  document.getElementById('getoond').textContent = zicht.length === rijen.length ? 'alle ' + rijen.length + ' getoond'
+    : zicht.length + ' van ' + rijen.length + ' getoond';
+}
+
+function tekenFilters() {
+  var per = {};
+  rijen.forEach(function (r) { per[r.code] = (per[r.code] || 0) + 1; });
+  document.getElementById('f-soorten').innerHTML = ORDENEN.VOLGORDE.filter(function (c) { return per[c]; }).map(function (c) {
+    return '<label><input type="checkbox" data-soort="' + c + '"' + (FILTER.soorten[c] ? ' checked' : '') +
+           ' onchange="FILTER.soorten[this.getAttribute(\'data-soort\')] = this.checked; toon();"> <span class="stip" style="background:' +
+           ORDENEN.KLEUR[c] + '"></span>' + esc(ORDENEN.MAP[c]) + ' <span class="aantal">' + per[c] + '</span></label>';
+  }).join('') + '<div class="klein"><a href="#" onclick="alleSoorten(true); return false;">alle</a> · <a href="#" onclick="alleSoorten(false); return false;">geen</a></div>';
+  document.getElementById('f-controle').innerHTML = TOON.map(function (k) {
+    return '<label><input type="radio" name="toon" value="' + k[0] + '"' + (FILTER.toon === k[0] ? ' checked' : '') +
+           ' onchange="kiesToon(this.value)"> ' + k[1] + '</label>';
+  }).join('');
+  var data = rijen.map(function (r) { return r.datum; }).filter(Boolean).sort();
+  ['f-van', 'f-tot'].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.min = data[0] || ''; el.max = data[data.length - 1] || '';
+  });
+}
+function alleSoorten(aan) { Object.keys(FILTER.soorten).forEach(function (c) { FILTER.soorten[c] = aan; }); tekenFilters(); toon(); }
+function kiesToon(k) {
+  FILTER.toon = FILTER.toon === k && k !== 'alles' ? 'alles' : k;    // nog eens klikken op een teller: weer alles
+  var rad = document.querySelector('#f-controle input[value="' + FILTER.toon + '"]');
+  if (rad) rad.checked = true;
+  toon();
+}
+function filterPeriode() {
+  FILTER.van = document.getElementById('f-van').value || '';
+  FILTER.tot = document.getElementById('f-tot').value || '';
+  toon();
+}
+
+/* De kaart: CARTO Positron, zoals in telrapport. Zonder Leaflet (offline) blijft
+   het overzicht werken, alleen zonder kaart. */
+function maakKaart() {
+  if (kaart) return;
+  if (typeof L === 'undefined') {
+    document.getElementById('kaart').innerHTML = '<div class="note warn">De kaart kon niet laden (ben je online?). De tabel en de catalogus werken wel.</div>';
+    return;
+  }
+  kaart = L.map('kaart', { zoomControl: true }).setView([52.1, 5.2], 7);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=cb1_2a2n_1_3583b21ab7073b803a894288', {
+    attribution: '© CARTO · © OpenStreetMap', maxZoom: 20, subdomains: 'abcd'
+  }).addTo(kaart);
+  routeLaag = L.layerGroup().addTo(kaart);
+  puntLaag = L.layerGroup().addTo(kaart);
+  kaart.on('zoomend', tekenPunten);
+}
+
+// Bollen: alle tellingen in hetzelfde vak van CEL_PX bij deze zoom samen; één
+// telling is een stip in de kleur van zijn soort.
+function tekenPunten() {
+  if (!kaart) return;
+  puntLaag.clearLayers();
+  var z = kaart.getZoom(), vakken = {};
+  zicht.forEach(function (r) {
+    if (r.lat == null) return;
+    var p = kaart.project([r.lat, r.lon], z), k = Math.floor(p.x / CEL_PX) + ':' + Math.floor(p.y / CEL_PX);
+    (vakken[k] = vakken[k] || []).push(r);
+  });
+  Object.keys(vakken).forEach(function (k) {
+    var g = vakken[k];
+    puntLaag.addLayer(g.length === 1 ? stipVan(g[0]) : bolVan(g));
+  });
+}
+function stipVan(r) {
+  return L.circleMarker([r.lat, r.lon], { radius: 7, color: '#1b1b19', weight: 1.2, fillColor: ORDENEN.KLEUR[r.code], fillOpacity: 0.9 })
+    .on('click', function () { kies(r, false); });
+}
+function bolVan(g) {
+  var counts = {}, lat = 0, lon = 0;
+  g.forEach(function (r) { counts[r.code] = (counts[r.code] || 0) + 1; lat += r.lat / g.length; lon += r.lon / g.length; });
+  var size = Math.min(56, Math.round((6 + Math.sqrt(g.length) * 3.2) * 2)), fs = g.length < 10 ? 13 : g.length < 100 ? 11 : 9;
+  var icon = L.divIcon({ className: '', iconSize: [0, 0], iconAnchor: [0, 0],
+    html: clusterBolHtml(counts, g.length, { types: ORDENEN.VOLGORDE, colors: ORDENEN.KLEUR }, { size: size, fontSize: fs }) });
+  return L.marker([lat, lon], { icon: icon }).on('click', function () {
+    var b = L.latLngBounds(g.map(function (r) { return [r.lat, r.lon]; }));
+    // Uit elkaar te zoomen? Dan inzoomen. Liggen ze (bijna) op één plek, of kan het
+    // niet verder, dan een lijstje om er een te kiezen.
+    if (kaart.getZoom() < kaart.getMaxZoom() - 1 && b.getNorthEast().distanceTo(b.getSouthWest()) > 25) {
+      kaart.fitBounds(b.pad(0.4), { maxZoom: kaart.getMaxZoom() });
+    } else {
+      var div = document.createElement('div');
+      div.className = 'lijst';
+      div.innerHTML = '<b>' + g.length + ' tellingen hier</b>' + g.slice().sort(function (x, y) { return x.datum < y.datum ? 1 : -1; }).map(function (r) {
+        return '<a href="#" data-i="' + rijen.indexOf(r) + '"><span class="stip" style="background:' + ORDENEN.KLEUR[r.code] + '"></span>' +
+               esc(r.weekdag + ' ' + r.datum + ' · ' + r.soort) + ' <span class="mono">' + esc(r.sessie_id) + '</span></a>';
+      }).join('');
+      div.addEventListener('click', function (e) {
+        var a = e.target.closest('a[data-i]');
+        if (a) { e.preventDefault(); kies(rijen[+a.getAttribute('data-i')], false); }
+      });
+      L.popup({ maxHeight: 260 }).setLatLng([lat, lon]).setContent(div).openOn(kaart);
+    }
+  });
+}
+
+function popupHtml(r) {
+  var tijd = r.start_tijd ? r.start_tijd.slice(0, 5) + (r.eind_tijd ? '–' + r.eind_tijd.slice(0, 5) : '') : '';
+  var recon = { ja: 'er is een reconstructie', nee: 'nog geen reconstructie', zelf: 'dit is een reconstructie', 'n.v.t.': '' }[r.recon];
+  return '<div class="pop"><b>' + esc(r.soort) + '</b> · ' + esc(r.weekdag + ' ' + r.datum) + (tijd ? ' · ' + tijd : '') +
+         '<br><span class="mono">' + esc(r.sessie_id) + '</span>' +
+         (r.n_waarnemingen ? '<br>' + esc(r.n_waarnemingen) + ' waarnemingen' : '') + (recon ? (r.n_waarnemingen ? ' · ' : '<br>') + recon : '') +
+         '<br><span class="mono">' + esc(r.pad) + '</span>' +
+         (r.dubbel_van ? '<br>dubbel van <span class="mono">' + esc(r.dubbel_van) + '</span>' : '') +
+         (r.zelfde > 1 ? '<br>zelfde telling als ' + (r.zelfde - 1) + ' ander bestand, met andere inhoud' : '') + '</div>';
+}
+
+// Een telling kiezen (op de kaart of in de tabel): de gegevens, en de route uit de ZIP.
+async function kies(r, vanTabel) {
+  gekozen = r;
+  tekenTabel();
+  if (!vanTabel) {
+    var tr = document.querySelector('#catalogus-tabel tr.gekozen');
+    if (tr && tr.scrollIntoView) tr.scrollIntoView({ block: 'nearest' });
+  }
+  if (!kaart) return;
+  routeLaag.clearLayers();
+  if (r.lat == null) { kaart.closePopup(); return; }
+  if (vanTabel) kaart.setView([r.lat, r.lon], Math.max(kaart.getZoom(), 15));
+  L.popup({ autoPan: !vanTabel }).setLatLng([r.lat, r.lon]).setContent(popupHtml(r)).openOn(kaart);
+  try {
+    var spoor = await routeVan(r.item);
+    if (gekozen !== r || spoor.length < 2) return;      // ondertussen iets anders gekozen
+    routeLaag.addLayer(L.polyline(spoor, { color: ORDENEN.KLEUR[r.code], weight: 3, opacity: 0.85 }));
+    if (vanTabel) kaart.fitBounds(L.latLngBounds(spoor).pad(0.1), { maxZoom: 17 });
+  } catch (e) { /* de ZIP is weg of veranderd: dan alleen het punt */ }
+}
+
+function tekenTabel() {
+  var html = '<tr><th>Datum</th><th>Tijd</th><th>Soort</th><th>Sessie</th><th>n</th><th>Reconstructie</th><th>Bestand</th></tr>';
+  zicht.slice().reverse().forEach(function (r) {           // nieuwste bovenaan
+    var tijd = r.start_tijd ? r.start_tijd.slice(0, 5) + (r.eind_tijd ? '–' + r.eind_tijd.slice(0, 5) : '') : '';
+    var merk = (r.dubbel_van ? '<span class="merk">dubbel</span>' : '') + (r.zelfde > 1 ? '<span class="merk">zelfde telling</span>' : '') +
+               (telling(r) && r.lat == null ? '<span class="merk">zonder plek</span>' : '');
+    html += '<tr data-i="' + rijen.indexOf(r) + '"' + (r === gekozen ? ' class="gekozen"' : '') + '><td>' + esc(r.weekdag + ' ' + r.datum) +
+            '</td><td>' + tijd + '</td><td><span class="stip" style="background:' + ORDENEN.KLEUR[r.code] + '"></span>' + esc(r.soort) +
+            '</td><td class="pad">' + esc(r.sessie_id) + '</td><td class="getal">' + esc(r.n_waarnemingen) +
+            '</td><td class="recon-' + r.recon.replace(/\W/g, '') + '">' + esc(r.recon) + '</td><td class="pad">' + esc(r.pad) + merk + '</td></tr>';
+  });
+  document.getElementById('catalogus-tabel').innerHTML = html;
+}
+function tabelKlik(e) {
+  var tr = e.target.closest('tr[data-i]');
+  if (tr) kies(rijen[+tr.getAttribute('data-i')], true);
+}
+
+/* catalogus.csv (v3.33): na elk lezen en na Uitvoeren opnieuw gemaakt uit de
+   ZIP's, in de moedermap. Hij is afgeleid, dus overschrijven mag, anders dan bij
+   de ZIP's en de logboeken. Elders dan Chrome en Edge: als download. */
+var CATALOGUS = 'catalogus.csv';
+async function catalogusBijwerken() {
+  var status = document.getElementById('catalogus-status');
+  try {
+    var w = await (await wortel.getFileHandle(CATALOGUS, { create: true })).createWritable();
+    await w.write(ORDENEN.csvTekst(rijen));
+    await w.close();
+    status.textContent = CATALOGUS + ' bijgewerkt om ' + tijdTekst(new Date()).slice(11, 16);
+    return '<code>' + CATALOGUS + '</code> staat bijgewerkt in je archief.';
+  } catch (e) {
+    status.textContent = CATALOGUS + ' kon niet geschreven worden';
+    return '<code>' + CATALOGUS + '</code> kon niet geschreven worden: ' + esc((e && e.message) || e) + '. Download hem onder de tabel.';
+  }
+}
+function downloadCatalogus() {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([ORDENEN.csvTekst(rijen)], { type: 'text/csv;charset=utf-8' }));
+  a.download = CATALOGUS;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+}
+
 /* ── Uitvoeren ───────────────────────────────────────────────────────────── */
 async function submap(dir, pad) {
   var d = dir;
@@ -472,8 +1045,8 @@ async function verplaats(a) {
   if (await bestaat(doel, naam)) throw new Error('het doel bestaat al');
   var h = a.item.handle;
   if (typeof h.move === 'function') {
-    try { await h.move(doel, naam); return 'move'; }
-    catch (e) { if (await bestaat(doel, naam)) return 'move'; }
+    try { await h.move(doel, naam); verhuisd(a, doel, naam, h); return 'move'; }
+    catch (e) { if (await bestaat(doel, naam)) { verhuisd(a, doel, naam, await doel.getFileHandle(naam)); return 'move'; } }
   }
   var bron = await h.getFile();
   var nieuw = await doel.getFileHandle(naam, { create: true });
@@ -485,8 +1058,12 @@ async function verplaats(a) {
     throw new Error('de kopie wijkt af; het origineel blijft staan');
   }
   await a.item.ouder.removeEntry(a.item.naam);
+  verhuisd(a, doel, naam, nieuw);
   return 'kopie';
 }
+// v3.33: het item wijst daarna naar de nieuwe plek, zodat het overzicht, de
+// catalogus en de route bij een klik kloppen zonder opnieuw te lezen.
+function verhuisd(a, doel, naam, h) { a.item.pad = a.naar; a.item.naam = naam; a.item.ouder = doel; a.item.handle = h; }
 
 // Een logboek per keer Uitvoeren, met datum en tijd in de naam (v3.32; tot dan
 // werd ordenen_logboek.csv aangevuld, en dat bestand blijft gewoon staan).
@@ -506,9 +1083,8 @@ async function uitvoeren() {
   var todo = acties.filter(function (a) { return a.status === 'verplaatsen' && a.aan && !a.uitkomst; });
   if (!todo.length || BEZIG) return;
   bezig(true);
-  var nu = new Date(), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
-  var tijd = nu.getFullYear() + '-' + p2(nu.getMonth() + 1) + '-' + p2(nu.getDate()) + ' ' + p2(nu.getHours()) + ':' + p2(nu.getMinutes()) + ':' + p2(nu.getSeconds());
-  var regels = [], ok = 0, logboek = '', logfout = '';
+  var nu = new Date(), tijd = tijdTekst(nu);
+  var regels = [], ok = 0, logboek = '', logfout = '', cat = '';
   try {
     for (var i = 0; i < todo.length; i++) {
       var a = todo[i];
@@ -524,11 +1100,16 @@ async function uitvoeren() {
     voortgang('Logboek schrijven', todo.length, todo.length);
     try { logboek = await schrijfLogboek(regels, nu); }
     catch (e) { logfout = (e && e.message) || String(e); }
+    if (ok) {                                    // de paden zijn veranderd
+      voortgang('Catalogus bijwerken', todo.length, todo.length);
+      maakOverzicht();
+      cat = ' ' + await catalogusBijwerken();
+    }
   } finally { bezig(false); }
   var mis = todo.length - ok;
-  melding(ok + (ok === 1 ? ' bestand' : ' bestanden') + ' verplaatst' + (mis ? ', ' + mis + ' niet (zie de tabel)' : '') + '.' +
+  planMelding(ok + (ok === 1 ? ' bestand' : ' bestanden') + ' verplaatst' + (mis ? ', ' + mis + ' niet (zie de tabel)' : '') + '.' +
           (logboek ? ' Wat er verplaatst is, staat in <code>' + esc(logboek) + '</code> in je archief.'
-           : logfout ? ' Het logboek kon niet geschreven worden: ' + esc(logfout) : ''),
+           : logfout ? ' Het logboek kon niet geschreven worden: ' + esc(logfout) : '') + cat,
           mis || logfout ? 'warn' : '');
 }
 </script>
