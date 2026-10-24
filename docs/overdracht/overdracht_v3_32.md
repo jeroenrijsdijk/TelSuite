@@ -110,5 +110,9 @@ Nodig, omdat een balk die bij een fout blijft hangen erger is dan geen balk.
 ## 7. Validatie
 
 ```
-VALIDATIE_HIER
+valideer.py            ALLES OK — precies de 3 verwachte bestanden gewijzigd (index, telarchief, handleiding);
+                       gedeelde blokken OK; titel 55, description 136; sitemap 16 adressen
+functest_ordenen.js    35/35
+ordenentest.py         58/58 (F: voortgang, G: logboek per ronde)
+alle overige browsertests en de 21 functests groen; test_zipref en check_encoding OK
 ```
