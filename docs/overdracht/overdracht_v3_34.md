@@ -160,5 +160,10 @@ Aan de ZIP's en het schema verandert niets. Passanten leest alleen.
 ## 6. Validatie
 
 ```
-VALIDATIE_HIER
+valideer.py            ALLES OK — passanten.html nieuw, de 6 andere verwachte bestanden gewijzigd; titel 53,
+                       description 145; sitemap 17 adressen; gedeelde blokken OK, nieuw: passanten (2), poisson (2)
+functest_passanten.js  19/19 (nieuw)
+passantentest.py       25/25 (nieuw)
+rekenrig               voor en na: dezelfde cellen bij 1,3 en 1,1 m/s (eenmalig nagerekend, en tegen Python)
+alle overige browsertests en de 22 functests groen; test_zipref OK; check_encoding OK op de bestanden in git
 ```
