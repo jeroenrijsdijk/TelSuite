@@ -846,6 +846,26 @@ sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_m
   <p style="color:var(--dim);max-width:72ch">Layers without features are omitted. The file is built in the browser with sql.js (loaded from cdnjs on first use); nothing is uploaded.</p>
 </div>
 
+<!-- ── Archive catalogue (v3.33) ── -->
+<div class="summary-section">
+  <h2>Archive catalogue (catalogus.csv, Archief)</h2>
+  <p style="color:var(--dim);max-width:72ch">Since v3.33, <code>telarchief.html</code> (<em>Archief</em>) reads every ZIP in the folder the user picks, subfolders included, and writes <code>catalogus.csv</code> in that folder: one row per count or collection, for &ldquo;when and where&rdquo;, duplicates and counts without a reconstruction. It is derived: rebuilt from the ZIPs after every read and after every <em>Uitvoeren</em>, so it may be overwritten, and editing it by hand has no effect. The ZIPs, and the KNIME pipeline, are unchanged. Outside Chrome and Edge the page cannot write to the folder and offers the file as a download.</p>
+  <div class="csv-block">
+    <div class="csv-title">catalogus.csv</div>
+    <div class="csv-sample">sessie_id;soort;datum;weekdag;start_tijd;eind_tijd;n_waarnemingen;recon;dubbel_van;lat;lon;pad;bytes;gewijzigd;sha256
+20261001_100000_abc;Autoparkeren;2026-10-01;do;10:00:00;10:30:00;120;ja;;51.850150;4.300000;Autoparkeren/originelen/20261001_100000_abc_car.zip;48213;2026-10-01 10:31:02;9f86d081&hellip;</div>
+    <div class="csv-notes">
+      <div class="csv-note">Semicolon, dot as decimal separator, UTF-8, one header line; rows in order of <code>datum</code>, <code>start_tijd</code>, <code>pad</code>.</div>
+      <div class="csv-note"><code>soort</code>: the folder name Ordenen uses (<code>Autoparkeren</code>, <code>Fietsparkeren</code>, <code>Capaciteit</code>, <code>Stilstaand</code>, <code>Pocket parkeren</code>, <code>Pocket simpel</code>, <code>Transect</code>, <code>Winkelstraat</code>, <code>Verzamelingen</code>). Filename markers win, then <code>_sessie.csv</code>. ZIPs that are not counts get no row.</div>
+      <div class="csv-note"><code>sessie_id</code>, <code>datum</code>, <code>start_tijd</code>, <code>eind_tijd</code>, <code>n_waarnemingen</code> from <code>_sessie.csv</code>; without it, the date comes from the file name. <code>weekdag</code>: <code>ma</code> &hellip; <code>zo</code>.</div>
+      <div class="csv-note"><code>recon</code>: <code>ja</code> (a reconstruction with the same <code>sessie_id</code> is in the archive), <code>nee</code> (none yet), <code>zelf</code> (this file is one), <code>n.v.t.</code> (Static, capacity and collections, which are not reconstructed).</div>
+      <div class="csv-note"><code>dubbel_van</code>: for a file with exactly the same content (SHA-256) as another, the path of the one that stays (the one already in place, then a name without <code>(1)</code>, then the shortest path); empty otherwise.</div>
+      <div class="csv-note"><code>lat</code>, <code>lon</code>: the per-coordinate median of <code>_gps.csv</code>, six decimals, EPSG:4326. A recording that starts at home still lands where the counting was. Without a track: the counting point in <code>_sessie.csv</code> (Static), then the taps; empty when there is nothing. QGIS opens the file as a point layer (delimited text, x = <code>lon</code>, y = <code>lat</code>).</div>
+      <div class="csv-note"><code>pad</code>: relative to the chosen folder, with <code>/</code>. <code>bytes</code>, <code>gewijzigd</code> (the file&rsquo;s last-modified time, local) and <code>sha256</code> describe the file itself.</div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Planning link (v3.14) ── -->
 <div class="summary-section">
   <h2>Planning link (telplanning &rarr; field apps)</h2>

@@ -14,7 +14,8 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HIER, '..', '..'))
 
 APPS = ['traffic_counter.html', 'parkeertelling.html', 'fietsparkeren.html',
-        'capaciteitstelling.html', 'pocket_count.html', 'telreconstructie.html']
+        'capaciteitstelling.html', 'pocket_count.html', 'telreconstructie.html',
+        'telarchief.html']   # v3.33: catalogus.csv van Archief
 REF = 'zip_format_reference.html'
 
 # Bewust niet beschreven: diagnostiek. De kolommen veranderen met de

@@ -1,5 +1,6 @@
 /* v3.31 functionele test — de indeling van Ordenen (telarchief.html), los van de browser.
    v3.32: de naam van het logboek, met datum en tijd.
+   v3.33: de catalogus (wanneer, waar, dubbel, zonder reconstructie) en catalogus.csv.
    ORDENEN.plan krijgt een lijst bestanden en geeft per bestand: blijven, verplaatsen
    (waarheen en waarom), overslaan of een naamconflict. */
 const fs = require('fs');
@@ -110,6 +111,58 @@ eis('met voorloopnullen (2 januari, 03:04:05)', O.logboekNaam(new Date(2026, 0, 
 eis('naam bezet: _2, _3; k = 1 geeft geen nummer',
   O.logboekNaam(new Date(2026, 0, 2, 3, 4, 5), 2) === 'ordenen_logboek_20260102_030405_2.csv' &&
   O.logboekNaam(new Date(2026, 0, 2, 3, 4, 5), 1) === O.logboekNaam(new Date(2026, 0, 2, 3, 4, 5)));
+
+console.log('\n== catalogus (v3.33): wanneer, waar, dubbel, zonder reconstructie ==');
+const thuis = [52.0, 4.0], hier = [51.85, 4.30];
+const pl = O.plek([thuis, thuis, thuis, [51.8501, 4.3001], [51.8502, 4.2999], hier, hier, hier, hier, hier]);
+eis('plek: de mediaan ligt in het telgebied (binnen 20 m), ook als de opname thuis begint (3 van de 10 punten)',
+  Math.abs(pl.lat - 51.85) < 0.0002 && Math.abs(pl.lon - 4.3) < 0.0003, pl);
+eis('plek: lege, nul- en kapotte waarden tellen niet mee; niets bruikbaars geeft null',
+  JSON.stringify(O.plek([['', ''], ['0', '0'], ['x', '4'], ['51.9', '4.5']])) === JSON.stringify({ lat: 51.9, lon: 4.5 }) && O.plek([['', '']]) === null && O.plek([]) === null);
+eis('weekdag: za 24 oktober 2026, ma 19 oktober 2026, leeg zonder datum',
+  O.weekdag('2026-10-24') === 'za' && O.weekdag('2026-10-19') === 'ma' && O.weekdag('') === '');
+const P_ = (lat, lon) => ({ plek: { lat, lon } });
+const K = O.catalogus([
+  item('20261001_100000_abc_car.zip', ses('auto', '20261001_100000_abc', { datum: '2026-10-01', start_tijd: '10:00:00', eind_tijd: '10:30:00', n_waarnemingen: '120' }), Object.assign({ sha: 'A', grootte: 1234, gewijzigd: '2026-10-01 10:31:00' }, P_(51.85, 4.3))),
+  item('20261001_100000_abc_car (1).zip', ses('auto', '20261001_100000_abc', { datum: '2026-10-01', start_tijd: '10:00:00' }), Object.assign({ sha: 'A' }, P_(51.85, 4.3))),
+  item('Autoparkeren/20261001_100000_abc_recon.zip', ses('auto', '20261001_100000_abc', { datum: '2026-10-01', start_tijd: '10:00:00', reconstructie: 'v3.30' }), P_(51.85, 4.3)),
+  item('20261002_090000_def_car.zip', ses('auto', '20261002_090000_def', { datum: '2026-10-02', start_tijd: '09:00:00' }), P_(51.86, 4.31)),
+  item('veld/20261003_110000_ghi_pkt_w.zip', ses('pocket', '20261003_110000_ghi_pkt_w', { modus: 'winkelstraat', datum: '2026-10-03', start_tijd: '11:00:00' }), P_(51.84, 4.32)),
+  item('20261004_120000_jkl_sta.zip', ses('standstill', '20261004_120000_jkl_sta', { datum: '2026-10-04', start_tijd: '12:00:00' }), P_(51.83, 4.33)),
+  item('20261005_130000_mno_cap.zip', ses('capaciteit', '20261005_130000_mno', { datum: '2026-10-05', start_tijd: '13:00:00' }), P_(51.82, 4.34)),
+  item('TelVerzameling_20261020.zip', null, { verzameling: true }),
+  item('a/20261006_140000_xyz_fts.zip', ses('fiets', '20261006_140000_xyz', { datum: '2026-10-06', start_tijd: '14:00:00' }), { sha: 'X1' }),
+  item('b/20261006_140000_xyz_fts.zip', ses('fiets', '20261006_140000_xyz', { datum: '2026-10-06', start_tijd: '14:00:00' }), { sha: 'X2' }),
+  item('foto.zip', null),
+  item('20261001_080000_vro_car.zip', ses('auto', '20261001_080000_vro; met puntkomma', { datum: '2026-10-01', start_tijd: '08:00:00' }), {})
+]);
+const rij = pad => K.find(r => r.pad === pad) || {};
+eis('een regel per telling of verzameling, niet voor foto.zip', K.length === 11 && !K.some(r => r.pad === 'foto.zip'), K.map(r => r.pad));
+eis('recon: ja (er is een reconstructie), zelf, nee (nog niet)',
+  rij('20261001_100000_abc_car.zip').recon === 'ja' && rij('Autoparkeren/20261001_100000_abc_recon.zip').recon === 'zelf' &&
+  rij('20261002_090000_def_car.zip').recon === 'nee' && rij('veld/20261003_110000_ghi_pkt_w.zip').recon === 'nee');
+eis('recon: n.v.t. voor Static, capaciteit en een verzameling',
+  ['20261004_120000_jkl_sta.zip', '20261005_130000_mno_cap.zip', 'TelVerzameling_20261020.zip'].every(p => rij(p).recon === 'n.v.t.'));
+eis('dubbel_van: de kopie wijst naar het bestand dat blijft; dat weet dat het een dubbel heeft',
+  rij('20261001_100000_abc_car (1).zip').dubbel_van === '20261001_100000_abc_car.zip' && rij('20261001_100000_abc_car.zip').heeftDubbel &&
+  rij('20261001_100000_abc_car.zip').dubbel_van === '' && !rij('20261002_090000_def_car.zip').heeftDubbel);
+eis('zelfde telling, andere inhoud: twee fietstellingen met dezelfde sessie-id en een andere vingerafdruk',
+  rij('a/20261006_140000_xyz_fts.zip').zelfde === 2 && rij('b/20261006_140000_xyz_fts.zip').zelfde === 2 &&
+  !rij('20261001_100000_abc_car.zip').zelfde && !rij('Autoparkeren/20261001_100000_abc_recon.zip').zelfde);
+eis('een verzameling: datum uit de naam (di 20 oktober), soort Verzamelingen, zonder plek',
+  rij('TelVerzameling_20261020.zip').datum === '2026-10-20' && rij('TelVerzameling_20261020.zip').weekdag === 'di' &&
+  rij('TelVerzameling_20261020.zip').soort === 'Verzamelingen' && rij('TelVerzameling_20261020.zip').lat === null);
+eis('op datum en dan begintijd: 08:00 voor 10:00 op 1 oktober, de verzameling achteraan',
+  K[0].pad === '20261001_080000_vro_car.zip' && K[1].start_tijd === '10:00:00' && K[K.length - 1].pad === 'TelVerzameling_20261020.zip', K.map(r => r.pad));
+const csv = O.csvTekst(K), regels = csv.split('\n');
+eis('csv: de kop zoals afgesproken', regels[0] === 'sessie_id;soort;datum;weekdag;start_tijd;eind_tijd;n_waarnemingen;recon;dubbel_van;lat;lon;pad;bytes;gewijzigd;sha256', regels[0]);
+eis('csv: een regel per telling, en een slotregel', regels.length === K.length + 2 && regels[regels.length - 1] === '' && csv.endsWith('\n'));
+eis('csv: een volledige regel (lat/lon met zes decimalen)',
+  regels.includes('20261001_100000_abc;Autoparkeren;2026-10-01;do;10:00:00;10:30:00;120;ja;;51.850000;4.300000;20261001_100000_abc_car.zip;1234;2026-10-01 10:31:00;A'),
+  regels.filter(x => x.startsWith('20261001_100000_abc;Autoparkeren')));
+eis('csv: een puntkomma in een waarde wordt een komma; zonder plek blijven lat en lon leeg',
+  regels.some(x => x.startsWith('20261001_080000_vro, met puntkomma;Autoparkeren;') && x.split(';').length === 15 && x.split(';')[9] === '' && x.split(';')[10] === ''));
+eis('csv: elke regel 15 velden', regels.slice(0, -1).every(x => x.split(';').length === 15));
 
 console.log('\n' + (fout === 0 ? 'ALLE ' + ok + ' TESTS OK' : ok + ' ok, ' + fout + ' FOUT'));
 process.exit(fout ? 1 : 0);
