@@ -130,5 +130,7 @@ met verhouding) en de Kerkstraat (*267\**, *356\**, × 2).
 ## 5. Validatie
 
 ```
-VALIDATIE_HIER
+valideer.py            ALLES OK — precies de 3 verwachte bestanden gewijzigd; gedeelde blokken OK
+passantentest.py       46/46 (deel S nieuw)
+alle overige browsertests en de 22 functests groen; test_zipref en check_encoding OK
 ```
