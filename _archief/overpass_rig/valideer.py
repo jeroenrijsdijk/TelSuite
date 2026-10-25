@@ -19,10 +19,9 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.34'
-# v3.34: Passanten per uur (passanten.html, nieuw); het rekenrig rekent met dezelfde kern.
-VERWACHT_GEWIJZIGD = {'passanten.html', 'winkelstraat_rekenrig.html', 'index.html', 'over.html', 'about.html',
-                      'privacy.html', 'traffic_counter_help.html'}   # sitemap.xml: de sitemapcontrole hieronder
+RELEASE = 'v3.35'
+# v3.35: Passanten, het weekoverzicht van een stuk straat.
+VERWACHT_GEWIJZIGD = {'passanten.html', 'index.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
