@@ -90,5 +90,7 @@ tonen.
 ## 5. Validatie
 
 ```
-VALIDATIE_HIER
+valideer.py            ALLES OK — precies de 3 verwachte bestanden gewijzigd; gedeelde blokken OK
+passantentest.py       40/40
+alle overige browsertests en de 22 functests groen; test_zipref en check_encoding OK
 ```
