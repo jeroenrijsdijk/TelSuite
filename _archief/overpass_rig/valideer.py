@@ -19,8 +19,8 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.35'
-# v3.35: Passanten, het weekoverzicht van een stuk straat.
+RELEASE = 'v3.36'
+# v3.36: Passanten, één looprichting gemeten: × 2.
 VERWACHT_GEWIJZIGD = {'passanten.html', 'index.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
