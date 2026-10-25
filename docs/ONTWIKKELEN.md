@@ -2,7 +2,7 @@
 
 Losse HTML-tools voor Nederlandse verkeers- en parkeertellingen, online op
 **telonline.org**. Elk hulpmiddel is één HTML-bestand: geen framework, geen
-buildstap, geen account, geen backend (sinds v3.15 ook niet meer voor planningen: die gaan als link).
+buildstap, geen account. Op de server alleen de teller (`teller/index.php`, v3.37); planningen gaan sinds v3.15 als link.
 Veldwerk op de telefoon (iPhone/Safari), verwerking op de desktop.
 
 Dit bestand is de plattegrond. Wat er nu speelt, welke afspraken vastliggen en
@@ -70,10 +70,30 @@ Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 
 ### Server
 
-Geen. Tot v3.15 bewaarde `planningen/` (drie PHP-scripts en een `.htaccess`)
-de planningen van telplanning; sinds v3.15 gaat een planning als link
-(`#plan=…`, blok `planlink`) en is die map uit de repo. Op de server zelf moet
-de map met de oude planningen met de hand weg (Plesk, bestandsbeheer).
+Alleen de teller (sinds v3.37): `teller/index.php`, PHP 8, geen database.
+- `GET /teller/` geeft `{"tellingen": N}` (mag een minuut in de cache);
+  `POST /teller/` met `h=<64 hex>` telt een vingerafdruk één keer.
+- De vingerafdruk komt uit het gedeelde blok `teller` in de vijf veld-apps:
+  SHA-256 van `telonline.org teller <ZIP-naam zonder .zip>`, bij het opslaan
+  (`bewaarZip`; in pocket bij het tonen van de ZIP). Geen verbinding, of 429/5xx:
+  hij wacht in `localStorage` (`telsuite_teller_wacht`, hooguit 50) en gaat mee
+  bij het volgende openen van een app. Global Privacy Control of
+  `telsuite_niet_tellen` (knop in de privacyverklaring): niets versturen.
+- Opslag: `gezien.txt` (één regel van 64 tekens per telling, dus
+  N = 409 + grootte / 65) en `recent.txt` (tijden van de laatste nieuwe, voor de
+  rem: `TELLER_MAX_PER_UUR`, standaard 60). Geen IP-adressen.
+- Waar: `TELLER_MAP`, anders twee mappen boven het script. In Plesk is dat
+  `/var/www/vhosts/telonline.org/teller-data`, naast `httpdocs`: buiten de
+  webmap, en een nieuwe release raakt hem niet. Ligt de opslag toch in de
+  webmap, dan weigert het script (503).
+- PHP moet voor het domein aan staan (Plesk, *PHP-instellingen*). Staat het uit,
+  dan geeft `/teller/` de broncode, een 403 of een 404, en laat de voorpagina de
+  regel weg.
+- Het beginaantal (409, Jay op 25 oktober 2026) staat als `BEGIN` in het script.
+
+Tot v3.15 bewaarde `planningen/` (drie PHP-scripts en een `.htaccess`) de
+planningen van telplanning; sinds v3.15 gaat een planning als link (`#plan=…`,
+blok `planlink`) en is die map uit de repo.
 
 ### Scripts
 

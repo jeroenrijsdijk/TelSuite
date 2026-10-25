@@ -78,8 +78,13 @@ Put all files in one folder on any web server. The tools link to each other
 relatively; field app and reconstruction tool must share an origin, because
 the "reconstruct now" hand-off uses IndexedDB.
 
-There is no server-side component: a planning from `telplanning.html` travels
-to the field app as a link (since v3.15 nothing is saved on the server).
+The only server-side part is `teller/index.php` (since v3.37), the counter on
+the front page: a field app sends the SHA-256 of a ZIP's name when it is saved,
+and the script keeps those fingerprints outside the web root (set `TELLER_MAP`
+if the default, next to the web root, does not suit). Without PHP the tools work
+as before and the front page leaves the line out. A planning from
+`telplanning.html` travels to the field app as a link (since v3.15 nothing is
+saved on the server).
 
 External dependencies, loaded at runtime: Leaflet, JSZip, PapaParse and
 Leaflet.draw via CDN; map tiles from OpenStreetMap, CARTO and PDOK; road

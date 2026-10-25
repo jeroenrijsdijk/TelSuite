@@ -2657,6 +2657,64 @@ function vingerafdruk(blob, naam, onder) {
   } catch (e) { return Promise.resolve(null); }
 }
 /* ── einde gedeeld blok vingerafdruk ── */
+/* ── Teller (v3.37) ───────────────────────────────────────────────────────────
+   Jay: "De echte wens is dat er op de voorpagina van telonline.org "Al 253
+   tellingen gedaan"." en "Dan dus een kleine eigen teller op de server."
+   Bij het opslaan van een ZIP stuurt de app één vingerafdruk naar /teller/:
+   de SHA-256 van de naam van de ZIP (zonder .zip) met een vast voorvoegsel.
+   Niets uit de telling zelf: geen plek, geen aantallen. De teller telt elke
+   vingerafdruk één keer, dus twee keer opslaan of doortellen telt niet dubbel.
+   Geen verbinding? Dan wacht de vingerafdruk (hooguit 50, in localStorage) tot
+   een van de apps weer opent. Niet bij Global Privacy Control, niet als dit
+   toestel is uitgezet (privacyverklaring: telsuite_niet_tellen), en alleen
+   als de pagina via http(s) open is. Gedeeld blok in de vijf veld-apps,
+   byte-identiek (valideer.py).                                               */
+var TELLER_URL = '/teller/', TELLER_WACHT = 'telsuite_teller_wacht';
+function tellerMag() {
+  try {
+    if (!/^https?:$/.test(location.protocol) || !window.crypto || !crypto.subtle || !window.fetch) return false;
+    if (navigator.globalPrivacyControl) return false;
+    return !localStorage.getItem('telsuite_niet_tellen');
+  } catch (e) { return false; }
+}
+function tellerWachtLees() {
+  try { var w = JSON.parse(localStorage.getItem(TELLER_WACHT) || '[]'); return Array.isArray(w) ? w : []; } catch (e) { return []; }
+}
+function tellerWachtZet(w) {
+  try { if (w.length) localStorage.setItem(TELLER_WACHT, JSON.stringify(w.slice(-50))); else localStorage.removeItem(TELLER_WACHT); } catch (e) {}
+}
+// Eén vingerafdruk versturen. Geen verbinding, of de server zegt "later" (429,
+// 502, 503, 504): dan wacht hij. Elk ander antwoord, ook een weigering of een
+// server zonder teller, is voor deze kant genoeg.
+function tellerStuur(h) {
+  return fetch(TELLER_URL, { method: 'POST', body: new URLSearchParams({ h: h }), keepalive: true, credentials: 'omit' })
+    .then(function (r) {
+      if ([429, 502, 503, 504].indexOf(r.status) >= 0) throw new Error('later');
+      tellerWachtZet(tellerWachtLees().filter(function (x) { return x !== h; }));
+    })
+    .catch(function () {
+      var w = tellerWachtLees();
+      if (w.indexOf(h) < 0) { w.push(h); tellerWachtZet(w); }
+    });
+}
+function telTelling(naam) {
+  try {
+    if (!tellerMag()) return Promise.resolve(null);
+    var tekst = new TextEncoder().encode('telonline.org teller ' + String(naam || '').replace(/\.zip$/i, ''));
+    return crypto.subtle.digest('SHA-256', tekst).then(function (buf) {
+      var b = new Uint8Array(buf), h = '';
+      for (var i = 0; i < b.length; i++) h += (b[i] < 16 ? '0' : '') + b[i].toString(16);
+      return tellerStuur(h).then(function () { return h; });
+    }).catch(function () { return null; });
+  } catch (e) { return Promise.resolve(null); }
+}
+// Bij het openen: wat nog wacht, alsnog versturen (hooguit 5 per keer).
+function tellerInhalen() {
+  if (!tellerMag()) return;
+  tellerWachtLees().slice(0, 5).forEach(tellerStuur);
+}
+window.addEventListener('load', function () { setTimeout(tellerInhalen, 4000); });
+/* ── einde gedeeld blok teller ── */
 
 /* ── Noodkopie: haken parkeer-apps (v3.8) ── */
 var KOPIE_SLEUTEL = LS_KEY;
@@ -3100,6 +3158,7 @@ function exportZip() {
    een tussentijdse ZIP (Static, terwijl hij telt). */
 function bewaarZip(zipBlob, zipName) {
   vingerafdruk(zipBlob, zipName);   // v3.30: de SHA-256 van deze ZIP, onder de deelwaarschuwing
+  telTelling(zipName);               // v3.37: deze telling telt mee op de voorpagina (één keer)
   var zipFile = new File([zipBlob], zipName, {type:'application/zip'});
   function bevestigd() {
     if (zipBewaard()) {
