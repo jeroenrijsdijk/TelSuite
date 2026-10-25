@@ -82,6 +82,9 @@ def sessie_zip(sid, datum, start, passages, wees=0, modus='winkelstraat', recon=
     for way, seg, kant, duur, nteg, nstil in passages:
         a, b = stuk(way, seg)
         if kant == 'terug': a, b = b, a
+        if kant == 'ter plekke':          # midden van het stuk, 3 m verder: de richting is niet te zien
+            m_ = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); L_ = math.hypot(b[0] - a[0], b[1] - a[1]) or 1
+            a, b = m_, (m_[0] + 3 * (b[0] - a[0]) / L_, m_[1] + 3 * (b[1] - a[1]) / L_)
         t0, t1 = t, t + duur
         for i in range(0, duur + 1, 2):
             f = i / duur
@@ -123,7 +126,8 @@ S1 = ('20261024_130500_abc_pkt_w', '2026-10-24', 13 * 3600 + 5 * 60,       # zat
       [(1003, 0, 'heen', 20, 2, 0)])                                          # Steegje: richting uit de GPS
 S1_RECON = (S1[0], S1[1], S1[2], [(w, s, k, d, t + (1 if (w, s) == (1001, 0) else 0), st) for (w, s, k, d, t, st) in S1[3]])
 S2 = ('20261017_132000_def_pkt_w', '2026-10-17', 13 * 3600 + 20 * 60,      # zaterdag
-      HEEN(30, [5, 5, 5, 5, 5], [0, 0, 0, 0, 0]) + TERUG(30, [4, 4, 4, 4, 4], [0, 0, 0, 0, 0]))
+      HEEN(30, [5, 5, 5, 5, 5], [0, 0, 0, 0, 0]) + TERUG(30, [4, 4, 4, 4, 4], [0, 0, 0, 0, 0]) +
+      [(1003, 0, 'ter plekke', 30, 3, 0)])                                    # Steegje: richting onbekend (v3.36)
 S3 = ('20261022_110000_ghi_pkt_w', '2026-10-22', 11 * 3600,                # donderdag
       HEEN(45, [2, 3, 2, 3, 2], [0, 0, 0, 0, 0]) + TERUG(45, [3, 2, 3, 2, 3], [0, 0, 0, 0, 0]))
 
@@ -151,7 +155,7 @@ def verwacht(gebruikt, v=V_VOET):
             k = (way, seg, DAG[datum], uur)
             c = cel.setdefault(k, {'stromen': {}, 'stil': 0, 'L': 0.0, 'n': 0, 'datums': set()})
             # richting: A = oplopende segment_index; een losse passage op een way: uit de GPS (begin -> eind van de way)
-            r = 'A' if kant == 'heen' else 'B'
+            r = {'heen': 'A', 'terug': 'B'}.get(kant, '?')
             s = c['stromen'].setdefault(r, [0, 0.0])
             L = lengte(way, seg)
             s[0] += nteg; s[1] += L / v + duur
@@ -162,6 +166,10 @@ def verwacht(gebruikt, v=V_VOET):
         uit[k] = dict(q=q, m=sum(m for m, _ in c['stromen'].values()), compleet=set(c['stromen']) == {'A', 'B'},
                       stil100=100 * c['stil'] / c['L'], n=c['n'], datums=sorted(c['datums']), stromen=c['stromen'])
     return uit
+
+def schat(c):
+    """v3.36: precies één gemeten stroom en niet compleet -> x 2 (evenveel de andere kant op)."""
+    return c['q'] * (2 if not c['compleet'] and len(c['stromen']) == 1 else 1)
 
 def samen(cellen):
     """Cellen samennemen zoals de kolom gem.: per richting optellen, dan delen. (q, compleet)"""
@@ -232,7 +240,12 @@ else:
         eis('8 stukken straat gemeten op zaterdag 13 uur', len(gem) == 8, [g['k'] for g in gem])
         fout_q = [(g['k'], g['q'], V[sleutel(g['k']) + (5, 13)]['q']) for g in gem if abs(g['q'] - V[sleutel(g['k']) + (5, 13)]['q']) > 1e-6]
         eis('elke waarde volgens de formule: 3600 · Σm / Σ(L/1,1 + t), per looprichting, opgeteld', not fout_q, fout_q)
-        eis('het label is de afgeronde waarde', all(g['tekst'].rstrip('*') == str(round(V[sleutel(g['k']) + (5, 13)]['q'])) for g in gem), [g['tekst'] for g in gem])
+        eis('het label is de afgeronde waarde (v3.36: één richting \u00d7 2)', all(g['tekst'].rstrip('*') == str(round(schat(V[sleutel(g['k']) + (5, 13)]))) for g in gem), [g['tekst'] for g in gem])
+        eis('Kerkstraat (alleen heen): het label is tweemaal de gemeten stroom, met een sterretje',
+            [g['tekst'] for g in gem if g['k'] == '1002/1'] == [str(round(2 * V[(1002, 1, 5, 13)]['q'])) + '*'], [g['tekst'] for g in gem if g['k'] == '1002/1'])
+        eis('Steegje (een keer heen, een keer ter plekke: richting deels onbekend): het gemeten totaal, niet \u00d7 2, wel een sterretje',
+            [g['tekst'] for g in gem if g['k'] == '1003/0'] == [str(round(V[(1003, 0, 5, 13)]['q'])) + '*'] and len(V[(1003, 0, 5, 13)]['stromen']) == 2,
+            [g['tekst'] for g in gem if g['k'] == '1003/0'])
         ster = sorted(g['k'] for g in gem if g['tekst'].endswith('*'))
         eis('een sterretje alleen waar maar één richting gelopen is: Kerkstraat en Steegje', ster == ['1002/0', '1002/1', '1003/0'], ster)
         pg.click('#dagen button[data-dag="3"]'); pg.wait_for_timeout(200)
@@ -241,7 +254,7 @@ else:
             pg.evaluate("UUR") == 11 and grijs == 3 and len(pg.evaluate(GEMETEN)) == 5, [pg.evaluate("UUR"), grijs])
         eis('donderdag 11 uur: ook volgens de formule', all(abs(g['q'] - V[sleutel(g['k']) + (3, 11)]['q']) < 1e-6 for g in pg.evaluate(GEMETEN)))
         eis('de kleurschaal loopt over alle dagen (zelfde maximum op donderdag als op zaterdag)',
-            abs(pg.evaluate("MAXQ") - max(c['q'] for c in V.values())) < 1e-6)
+            abs(pg.evaluate("MAXQ") - max(schat(c) for c in V.values())) < 1e-6)
         pg.click('#dagen button[data-dag="5"]'); pg.wait_for_timeout(200)
 
         print('\n== D. Labels ==')
@@ -250,7 +263,7 @@ else:
         pg.evaluate("kaart.setZoom(15, { animate: false })"); pg.wait_for_timeout(300)
         lab15 = pg.evaluate(LABELS)
         eis('uitgezoomd: minder labels (%d), nog steeds zonder overlap, de drukste blijft' % len(lab15),
-            0 < len(lab15) < 8 and not overlap(lab15) and str(round(max(V[sleutel(g['k']) + (5, 13)]['q'] for g in gem))) in [x[0] for x in lab15], [x[0] for x in lab15])
+            0 < len(lab15) < 8 and not overlap(lab15) and str(round(max(schat(V[sleutel(g['k']) + (5, 13)]) for g in gem))) in [x[0].rstrip('*') for x in lab15], [x[0] for x in lab15])
         pg.evaluate("kaart.setZoom(19, { animate: false })"); pg.wait_for_timeout(300)
         lab19 = pg.evaluate(LABELS)
         eis('ingezoomd: alle 8 labels terug', len(lab19) == 8 and not overlap(lab19), len(lab19))
@@ -311,7 +324,16 @@ else:
         tk = pg.inner_text('#week-detail')
         eis('een grijs stuk (Kerkstraat op donderdag): het weekoverzicht op het moment dat wel gemeten is, met het sterretje',
             pg.inner_text('#week-titel') == 'Kerkstraat' and '* maar \u00e9\u00e9n looprichting gemeten' in tk and '1 keer langsgelopen, op zaterdag 24-10-2026' in tk
-            and pg.evaluate("document.querySelector('#week-tabel td.sel').textContent") == str(round(V[(1002, 0, 5, 13)]['q'])) + '*', tk)
+            and pg.evaluate("document.querySelector('#week-tabel td.sel').textContent") == str(round(2 * V[(1002, 0, 5, 13)]['q'])) + '*', tk)
+        k0 = V[(1002, 0, 5, 13)]
+        eis('de details: wat gemeten is, en \u00d7 2 met de aanname', ('* maar \u00e9\u00e9n looprichting gemeten: %d per uur' % round(k0['q'])) in tk
+            and 'evenveel mensen de andere kant op lopen: \u00d7 2' in tk and ('\u2248 %d* passanten per uur' % round(2 * k0['q'])) in tk, tk)
+        mg2 = pg.evaluate("marge(SEGMENTEN['1002/0'].cells['5:13'])")
+        mg1 = pg.evaluate("(() => { const c = SEGMENTEN['1002/0'].cells['5:13'], g = poissonMarge(c.m); return [g[0] * c.q / c.m, g[1] * c.q / c.m]; })()")
+        eis('de marge gaat \u00d7 2 mee, en omsluit de opgehoogde waarde', abs(mg2[0] - 2 * mg1[0]) < 1e-9 and abs(mg2[1] - 2 * mg1[1]) < 1e-9 and mg2[0] < 2 * k0['q'] < mg2[1], [mg1, mg2])
+        rijen_k = pg.evaluate("[...document.querySelectorAll('#week-tabel tbody tr')].map(tr => [...tr.children].map(x => x.textContent))")
+        eis('ook gem. (za, en alles samen) is \u00d7 2: er is maar één richting gemeten',
+            rijen_k[5][25] == rijen_k[7][25] == str(round(2 * k0['q'])) + '*', [rijen_k[5][25], rijen_k[7][25]])
         pg.keyboard.press('Escape')
         eis('Escape sluit het weekoverzicht', not pg.is_visible('#week'))
         pg.click('#dagen button[data-dag="5"]'); pg.wait_for_timeout(200)

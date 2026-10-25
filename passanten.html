@@ -88,7 +88,7 @@ main{padding:12px 20px 30px;max-width:1300px}
     <div class="rij"><span class="kop">Uur</span><span id="uren"></span></div>
   </div>
   <div id="kaartvak"><div id="kaart"></div><div id="legenda" class="hide"></div></div>
-  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
+  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Liep je een stuk maar één kant op, dan is die ene stroom verdubbeld (aangenomen dat er evenveel mensen de andere kant op lopen) en staat er een sterretje bij. Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
 </main>
 <div id="week" class="week hide" onclick="if (event.target === this) sluitWeek()">
   <div class="week-vak" role="dialog" aria-modal="true" aria-labelledby="week-titel">
@@ -96,7 +96,7 @@ main{padding:12px 20px 30px;max-width:1300px}
       <div><div id="week-titel"></div><div id="week-sub" class="sub"></div></div>
       <button class="sluit" onclick="sluitWeek()" aria-label="Sluiten">&#x2715;</button>
     </div>
-    <div class="sub">Passanten per uur, per weekdag en uur. Leeg: niet gemeten. *: maar &eacute;&eacute;n looprichting gemeten. <em>Gem.</em>: de gemeten uren of dagen samen, op dezelfde manier gerekend. Klik op een cel voor de details.</div>
+    <div class="sub">Passanten per uur, per weekdag en uur. Leeg: niet gemeten. *: niet in beide richtingen gemeten; &eacute;&eacute;n richting: &times; 2. <em>Gem.</em>: de gemeten uren of dagen samen, op dezelfde manier gerekend. Klik op een cel voor de details.</div>
     <div class="week-tabel"><table id="week-tabel" onclick="weekKlik(event)"></table></div>
     <div id="week-detail"></div>
   </div>
@@ -431,7 +431,7 @@ function herbereken() {
   MAXQ = 0;
   Object.keys(SEGMENTEN).forEach(function (k) {
     var cells = SEGMENTEN[k].cells;
-    Object.keys(cells).forEach(function (ck) { MAXQ = Math.max(MAXQ, cells[ck].q); });
+    Object.keys(cells).forEach(function (ck) { MAXQ = Math.max(MAXQ, schat(cells[ck]).q); });
   });
   kiesStandaard();
   tekenAlles();
@@ -559,7 +559,7 @@ function tekenKaart() {
         .on('click', function () { openWeek(seg); }));
       return;
     }
-    lijnLaag.addLayer(L.polyline(ll, { color: kleur(c.q), weight: 7, opacity: 0.95 })
+    lijnLaag.addLayer(L.polyline(ll, { color: kleur(schat(c).q), weight: 7, opacity: 0.95 })
       .on('click', function () { openWeek(seg); }));
     GEMETEN.push({ seg: seg, c: c, mid: midden(ll) });
   });
@@ -567,14 +567,28 @@ function tekenKaart() {
   tekenLabels();
   tekenLegenda();
 }
-function labelTekst(c) { return rond(c.q) + (c.compleet ? '' : '*'); }
+/* Eén looprichting gemeten (v3.36). Jay: "De linkjes die maar in 1 richting
+   gelopen zijn - doe je die passantentelling x 2 om op te hogen naar een
+   2-richtingen waarde?" en "ja". Dan wordt de gemeten stroom verdubbeld, met
+   de aanname dat er in dat uur evenveel mensen de andere kant op lopen. Zo zijn
+   alle stukken op de kaart onderling te vergelijken; het sterretje blijft.
+   Alleen bij precies één gemeten stroom. Twee stromen waarvan één een
+   onbekende richting heeft: het gemeten totaal, niet opgehoogd.
+   c: een cel, of de uitkomst van samen(). Geeft { q, f, gemeten }.          */
+var OPHOGEN = 2;
+function stromenIn(c) { return c.nStromen != null ? c.nStromen : ['A', 'B', '?'].filter(function (r) { return c.stromen[r].n; }).length; }
+function schat(c) {
+  var f = !c.compleet && stromenIn(c) === 1 ? OPHOGEN : 1;
+  return { q: c.q * f, f: f, gemeten: c.q };
+}
+function labelTekst(c) { return rond(schat(c).q) + (c.compleet ? '' : '*'); }
 // Labels: de drukste eerst; een label dat een al geplaatst label zou raken, valt
 // weg. Bij inzoomen is er meer ruimte en komen ze terug.
 function tekenLabels() {
   if (!kaart) return;
   labelLaag.clearLayers();
   var geplaatst = [];
-  GEMETEN.slice().sort(function (a, b) { return b.c.q - a.c.q; }).forEach(function (x) {
+  GEMETEN.slice().sort(function (a, b) { return schat(b.c).q - schat(a.c).q; }).forEach(function (x) {
     var tekst = labelTekst(x.c), p = kaart.latLngToLayerPoint(x.mid);
     var w = tekst.length * 7 + 14, h = 18;
     var vak = [p.x - w / 2, p.y - h / 2, p.x + w / 2, p.y + h / 2];
@@ -590,7 +604,7 @@ function tekenLegenda() {
   el.innerHTML = '<b>Passanten per uur</b> · ' + DAGNAAM[DAG] + ' ' + UUR + ':00–' + (UUR + 1) + ':00' +
     '<div class="schaal" style="background:linear-gradient(90deg,' + stappen.join(',') + ')"></div>' +
     '<div class="getallen"><span>0</span><span>' + rond(MAXQ) + '</span></div>' +
-    '<div>* maar één looprichting gemeten</div>' +
+    '<div>* niet in beide richtingen gemeten; één richting: × 2</div>' +
     '<div><span class="grijs"></span>niet gemeten op dit moment</div>' +
     '<div class="dim">loopsnelheid voetgangers: ' + komma(PASSANTEN.V_VOET, 1) + ' m/s</div>';
   el.classList.remove('hide');
@@ -604,8 +618,8 @@ function marge(c) {
   var st = ['A', 'B', '?'].map(function (r) { return c.stromen[r]; }).filter(function (s) { return s.n; });
   var w = st.reduce(function (a, s) { return a + s.w; }, 0);
   var waard = c.m > 0 ? c.q / c.m : 3600 * st.length / w;
-  var g = poissonMarge(c.m);
-  return [g[0] * waard, g[1] * waard];
+  var g = poissonMarge(c.m), f = schat(c).f;      // opgehoogd: de marge gaat mee
+  return [g[0] * waard * f, g[1] * waard * f];
 }
 function datumKort(d) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d); return m ? +m[3] + '-' + +m[2] : d; }
 function popupHtml(seg, c) {
@@ -613,8 +627,10 @@ function popupHtml(seg, c) {
   var dagen = c.datums.length === 1 ? 'op ' + dag + ' ' + datumKort(c.datums[0]) + '-' + c.datums[0].slice(0, 4)
     : 'op ' + c.datums.length + ' ' + dag + 'en (' + c.datums.map(datumKort).join(', ') + ')';
   var stromen = ['A', 'B', '?'].filter(function (r) { return c.stromen[r].n; }).map(function (r) { return rond(c.stromen[r].q); });
+  var sc = schat(c);
   var richting = c.compleet ? 'in beide richtingen gemeten: ' + stromen.join(' + ') + ' per uur'
-    : '* maar één looprichting gemeten. Je ziet alleen wie je tegemoet komt, dus dit is één van de twee stromen.';
+    : sc.f > 1 ? '* maar één looprichting gemeten: ' + rond(sc.gemeten) + ' per uur, de stroom die je tegemoet kwam. Aangenomen dat er evenveel mensen de andere kant op lopen: × 2.'
+    : '* de looprichting is deels onbekend; dit is het gemeten totaal (' + stromen.join(' + ') + ' per uur), niet opgehoogd.';
   return '<div class="pop"><b>' + esc(seg.straat) + '</b> <span class="dim">· ' + Math.round(seg.L) + ' m</span>' +
     '<div class="groot">≈ ' + labelTekst(c) + ' passanten per uur</div>' +
     '<div class="dim">marge ' + rond(mg[0]) + '–' + rond(mg[1]) + ' (95%)</div>' +
@@ -638,7 +654,8 @@ function samen(cellen) {
     n += c.n;
   });
   ['A', 'B', '?'].forEach(function (r) { if (st[r].n) q += 3600 * st[r].m / st[r].w; });
-  return n ? { q: q, compleet: st.A.n > 0 && st.B.n > 0, n: n } : null;
+  return n ? { q: q, compleet: st.A.n > 0 && st.B.n > 0, n: n,
+               nStromen: ['A', 'B', '?'].filter(function (r) { return st[r].n; }).length } : null;
 }
 function openWeek(seg) {
   WEEKSEG = seg;
@@ -656,7 +673,7 @@ function openWeek(seg) {
 }
 function sluitWeek() { document.getElementById('week').classList.add('hide'); WEEKSEG = null; }
 function tekstKleur(q) { return MAXQ > 0 && Math.pow(Math.min(1, q / MAXQ), 0.6) > 0.5 ? '#fff' : '#1b1b19'; }
-function weekWaarde(x) { return x ? rond(x.q) + (x.compleet ? '' : '*') : ''; }
+function weekWaarde(x) { return x ? rond(schat(x).q) + (x.compleet ? '' : '*') : ''; }
 function tekenWeek() {
   var seg = WEEKSEG, html = '<thead><tr><th></th>';
   for (var h = 0; h < 24; h++) html += '<th>' + h + '</th>';
@@ -668,7 +685,7 @@ function tekenWeek() {
       var ck = d + ':' + h, c = seg.cells[ck];
       if (!c) { html += '<td class="leeg" title="' + DAGNAAM[d] + ' ' + h + ':00 \u00b7 niet gemeten"></td>'; continue; }
       dag.push(c);
-      html += '<td data-cel="' + ck + '"' + (ck === WEEKCEL ? ' class="sel"' : '') + ' style="background:' + kleur(c.q) + ';color:' + tekstKleur(c.q) + '"' +
+      html += '<td data-cel="' + ck + '"' + (ck === WEEKCEL ? ' class="sel"' : '') + ' style="background:' + kleur(schat(c).q) + ';color:' + tekstKleur(schat(c).q) + '"' +
               ' title="' + DAGNAAM[d] + ' ' + h + ':00\u2013' + (h + 1) + ':00 \u00b7 ' + weekWaarde(c) + ' passanten per uur">' + weekWaarde(c) + '</td>';
     }
     html += '<td class="gem">' + weekWaarde(samen(dag)) + '</td></tr>';
