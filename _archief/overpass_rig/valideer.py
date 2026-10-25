@@ -19,12 +19,11 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.37'
-# v3.37: de teller op de voorpagina ("Al 409 tellingen gedaan"); teller/index.php
-# is geen HTML en valt buiten deze vergelijking.
-VERWACHT_GEWIJZIGD = {'index.html', 'privacy.html', 'verantwoording.html', 'parkeertelling.html',
-                      'fietsparkeren.html', 'capaciteitstelling.html', 'pocket_count.html',
-                      'traffic_counter.html'}
+RELEASE = 'v3.38'
+# v3.38: Global Privacy Control telt niet meer voor de teller (de knop blijft);
+# teller/index.php (geen HTML) maakt zijn opslagmap ook bij drukte.
+VERWACHT_GEWIJZIGD = {'index.html', 'privacy.html', 'parkeertelling.html', 'fietsparkeren.html',
+                      'capaciteitstelling.html', 'pocket_count.html', 'traffic_counter.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description

@@ -1,8 +1,8 @@
 /* v3.37 functionele test — het blok "teller" van de vijf veld-apps, los van de browser.
    Bij het opslaan van een ZIP: één vingerafdruk (SHA-256 van "telonline.org teller "
    + de naam zonder .zip) naar /teller/. Geen verbinding of "later": wachten in
-   localStorage. Niet bij Global Privacy Control, niet als het toestel is uitgezet,
-   alleen via http(s). */
+   localStorage. Niet als het toestel is uitgezet, alleen via http(s). Global
+   Privacy Control telt niet (Jay: "GPC eruit, de knop blijft"). */
 const fs = require('fs');
 const vm = require('vm');
 const nodeCrypto = require('crypto');
@@ -81,15 +81,16 @@ function omgeving(opties) {
   eis('nog steeds geen verbinding: ze blijven wachten', o.wacht().length === 2);
 
   console.log('\n== niet versturen ==');
-  o = omgeving({ gpc: true });
-  eis('Global Privacy Control: niets', (await o.ctx.telTelling('c_car.zip')) === null && o.verzoeken.length === 0);
   o = omgeving({ opslag: { telsuite_niet_tellen: '1' } });
   eis('dit toestel uitgezet (privacyverklaring): niets', (await o.ctx.telTelling('c_car.zip')) === null && o.verzoeken.length === 0);
   o = omgeving({ protocol: 'file:' });
   eis('een bestand van schijf (file:): niets', (await o.ctx.telTelling('c_car.zip')) === null && o.verzoeken.length === 0);
-  o = omgeving({ gpc: true, opslag: { telsuite_teller_wacht: JSON.stringify([sha('z')]) } });
+  o = omgeving({ opslag: { telsuite_niet_tellen: '1', telsuite_teller_wacht: JSON.stringify([sha('z')]) } });
   o.ctx.tellerInhalen();
   eis('ook inhalen niet, als het niet mag', o.verzoeken.length === 0);
+  o = omgeving({ gpc: true, antwoord: 200 });
+  eis('Global Privacy Control telt niet (Jay: "GPC eruit, de knop blijft"): wel verstuurd',
+      (await o.ctx.telTelling('c_car.zip')) === sha('telonline.org teller c_car') && o.verzoeken.length === 1);
 
   console.log('\n== hetzelfde blok in de vijf veld-apps ==');
   eis('byte-identiek in ' + APPS.join(', '), APPS.every(f => blok(f) === BLOK));

@@ -2665,15 +2665,15 @@ function vingerafdruk(blob, naam, onder) {
    Niets uit de telling zelf: geen plek, geen aantallen. De teller telt elke
    vingerafdruk één keer, dus twee keer opslaan of doortellen telt niet dubbel.
    Geen verbinding? Dan wacht de vingerafdruk (hooguit 50, in localStorage) tot
-   een van de apps weer opent. Niet bij Global Privacy Control, niet als dit
-   toestel is uitgezet (privacyverklaring: telsuite_niet_tellen), en alleen
-   als de pagina via http(s) open is. Gedeeld blok in de vijf veld-apps,
-   byte-identiek (valideer.py).                                               */
+   een van de apps weer opent. Niet als dit toestel is uitgezet
+   (privacyverklaring: telsuite_niet_tellen), en alleen als de pagina via
+   http(s) open is. Global Privacy Control telt niet: dat signaal gaat over
+   volgen en doorverkopen, en dat gebeurt hier niet (Jay: "GPC eruit, de knop
+   blijft"). Gedeeld blok in de vijf veld-apps, byte-identiek (valideer.py). */
 var TELLER_URL = '/teller/', TELLER_WACHT = 'telsuite_teller_wacht';
 function tellerMag() {
   try {
     if (!/^https?:$/.test(location.protocol) || !window.crypto || !crypto.subtle || !window.fetch) return false;
-    if (navigator.globalPrivacyControl) return false;
     return !localStorage.getItem('telsuite_niet_tellen');
   } catch (e) { return false; }
 }
