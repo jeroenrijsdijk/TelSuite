@@ -19,9 +19,12 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.36'
-# v3.36: Passanten, één looprichting gemeten: × 2.
-VERWACHT_GEWIJZIGD = {'passanten.html', 'index.html', 'traffic_counter_help.html'}
+RELEASE = 'v3.37'
+# v3.37: de teller op de voorpagina ("Al 409 tellingen gedaan"); teller/index.php
+# is geen HTML en valt buiten deze vergelijking.
+VERWACHT_GEWIJZIGD = {'index.html', 'privacy.html', 'verantwoording.html', 'parkeertelling.html',
+                      'fietsparkeren.html', 'capaciteitstelling.html', 'pocket_count.html',
+                      'traffic_counter.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
@@ -242,6 +245,10 @@ groepen = [
     # v3.34: de marge (Garwood) van telrapport, ook in Passanten
     ('poisson', ['telrapport.html', 'passanten.html'],
      'function poissonCdf(k, lam) {', "zoek(l => poissonCdf(k, l), 0.025)];\n}"),
+    # v3.37: de teller (één vingerafdruk per telling naar /teller/), in de vijf veld-apps
+    ('teller', ['parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html',
+                'pocket_count.html', 'traffic_counter.html'],
+     '/* ── Teller (v3.37)', '/* ── einde gedeeld blok teller ── */'),
     # v3.3: de kale stijl van de documentatiepagina's
     ('kale stijl', KAAL,
      '/* ── kale stijl (v3.3)', '/* ── einde kale stijl ── */'),
