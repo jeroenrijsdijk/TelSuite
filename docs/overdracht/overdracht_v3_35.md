@@ -83,5 +83,7 @@ ook. Aan de berekening en de ZIP's verandert niets.
 ## 5. Validatie
 
 ```
-VALIDATIE_HIER
+valideer.py            ALLES OK — precies de 3 verwachte bestanden gewijzigd; gedeelde blokken OK
+passantentest.py       35/35 (deel W nieuw)
+alle overige browsertests en de 22 functests groen; test_zipref en check_encoding OK
 ```
