@@ -48,6 +48,25 @@ main{padding:12px 20px 30px;max-width:1300px}
 #legenda .getallen{display:flex;justify-content:space-between;color:var(--muted)}
 #legenda .grijs{display:inline-block;width:22px;height:3px;background:#8d8d86;vertical-align:middle;margin-right:5px}
 .voet{margin-top:10px;max-width:100ch}
+/* weekoverzicht van één stuk straat (v3.35), zoals het weekprofiel in telrapport */
+.week{position:fixed;inset:0;z-index:1500;background:rgba(27,27,25,.45);overflow:auto;padding:4vh 12px}
+.week-vak{background:var(--paper);max-width:1060px;margin:0 auto;border-radius:4px;padding:14px 16px 16px;box-shadow:0 6px 30px rgba(0,0,0,.25)}
+.week-kop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+#week-titel{font-size:17px;font-weight:500}
+.sluit{font-family:inherit;font-size:16px;background:none;border:1px solid var(--line);border-radius:3px;padding:2px 9px;cursor:pointer}
+.week-tabel{overflow-x:auto;margin-top:10px}
+#week-tabel{border-collapse:separate;border-spacing:2px;font-variant-numeric:tabular-nums}
+#week-tabel th{font-weight:400;font-size:10.5px;color:var(--muted);padding:0 3px;text-align:center}
+#week-tabel tbody th{text-align:left;padding-right:6px}
+#week-tabel td{width:34px;min-width:34px;height:26px;padding:0;text-align:center;font-size:11px;border-radius:2px;white-space:nowrap}
+#week-tabel td.leeg{background:repeating-linear-gradient(45deg,#e8e7e1,#e8e7e1 3px,#f2f1ec 3px,#f2f1ec 6px)}
+#week-tabel td[data-cel]{cursor:pointer}
+#week-tabel td.sel{outline:2px solid var(--ink);outline-offset:-2px}
+#week-tabel td.gem,#week-tabel th.gem{background:#ebeae4;font-weight:500;color:var(--ink)}
+#week-tabel tr.gem th,#week-tabel tr.gem td{border-top:1px solid var(--line)}
+#week-detail{margin-top:10px;font-size:13px}
+#week-detail .pop{background:#fff;border:1px solid var(--line);border-radius:3px;padding:8px 11px;max-width:560px}
+#week-detail button{font-family:inherit;font-size:12.5px;margin-top:8px;padding:5px 12px;cursor:pointer;background:var(--accent);color:#fff;border:none;border-radius:3px}
 .sleep{position:fixed;inset:0;z-index:2000;background:rgba(47,93,98,.85);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;letter-spacing:.04em}
 @media (max-width:700px){#kaart{height:62vh}main{padding:10px 12px 24px}#legenda{position:static;max-width:none;margin-top:6px}}   /* telefoon: legenda onder de kaart */
 </style>
@@ -71,6 +90,17 @@ main{padding:12px 20px 30px;max-width:1300px}
   <div id="kaartvak"><div id="kaart"></div><div id="legenda" class="hide"></div></div>
   <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
 </main>
+<div id="week" class="week hide" onclick="if (event.target === this) sluitWeek()">
+  <div class="week-vak" role="dialog" aria-modal="true" aria-labelledby="week-titel">
+    <div class="week-kop">
+      <div><div id="week-titel"></div><div id="week-sub" class="sub"></div></div>
+      <button class="sluit" onclick="sluitWeek()" aria-label="Sluiten">&#x2715;</button>
+    </div>
+    <div class="sub">Passanten per uur, per weekdag en uur. Leeg: niet gemeten. *: maar &eacute;&eacute;n looprichting gemeten. <em>Gem.</em>: de gemeten uren of dagen samen, op dezelfde manier gerekend. Klik op een cel voor de details.</div>
+    <div class="week-tabel"><table id="week-tabel" onclick="weekKlik(event)"></table></div>
+    <div id="week-detail"></div>
+  </div>
+</div>
 <div id="sleep" class="sleep hide">Laat los om in te lezen</div>
 
 <script>
@@ -526,11 +556,11 @@ function tekenKaart() {
     var c = seg.cells[ck];
     if (!c) {
       lijnLaag.addLayer(L.polyline(ll, { color: GRIJS, weight: 3, opacity: 0.75 })
-        .bindPopup(function () { return popupNiet(seg); }));
+        .on('click', function () { openWeek(seg); }));
       return;
     }
     lijnLaag.addLayer(L.polyline(ll, { color: kleur(c.q), weight: 7, opacity: 0.95 })
-      .bindPopup(function () { return popupHtml(seg, c); }));
+      .on('click', function () { openWeek(seg); }));
     GEMETEN.push({ seg: seg, c: c, mid: midden(ll) });
   });
   if (!gepast && alles.length) { kaart.fitBounds(L.latLngBounds(alles).pad(0.15), { maxZoom: 18 }); gepast = true; }
@@ -592,13 +622,83 @@ function popupHtml(seg, c) {
     '<div>' + richting + '</div>' +
     '<div>stilstaand: ' + komma(c.kStil, 1) + ' per 100 m</div></div>';
 }
-function popupNiet(seg) {
-  var wanneer = Object.keys(seg.cells).sort(function (a, b) { var x = a.split(':').map(Number), y = b.split(':').map(Number); return x[0] - y[0] || x[1] - y[1]; })
-    .map(function (ck) { var c = seg.cells[ck]; return DAGKORT[c.dag] + ' ' + c.uur + ' u'; });
-  return '<div class="pop"><b>' + esc(seg.straat) + '</b> <span class="dim">· ' + Math.round(seg.L) + ' m</span>' +
-    '<div>Op ' + DAGNAAM[DAG] + ' ' + UUR + ':00–' + (UUR + 1) + ':00 niet gemeten.</div>' +
-    '<div class="dim">Wel op: ' + wanneer.join(', ') + '</div></div>';
+/* ── Weekoverzicht van één stuk straat (v3.35) ───────────────────────────────
+   Jay: "als ik in passanten.html op een link klik, kun je dan hetzelfe
+   weekvoerzicht geven als in telrapport: een tabel met 7 dagen (ma-zo), alle
+   uren, en het aantal passanten?" Een klik op een stuk straat opent het, zoals
+   in telrapport. Cellen: passanten per uur, in de kleur van de kaart. Gem.: de
+   passages van die dag (of dat uur) samen, per looprichting gepoold en dan
+   opgeteld, dus dezelfde formule als in een cel.                              */
+var WEEKSEG = null, WEEKCEL = null;
+// Cellen samennemen: per richting tegenliggers en vensters optellen, dan delen.
+function samen(cellen) {
+  var st = { A: { m: 0, w: 0, n: 0 }, B: { m: 0, w: 0, n: 0 }, '?': { m: 0, w: 0, n: 0 } }, q = 0, n = 0;
+  cellen.forEach(function (c) {
+    ['A', 'B', '?'].forEach(function (r) { var s = c.stromen[r]; st[r].m += s.m; st[r].w += s.w; st[r].n += s.n; });
+    n += c.n;
+  });
+  ['A', 'B', '?'].forEach(function (r) { if (st[r].n) q += 3600 * st[r].m / st[r].w; });
+  return n ? { q: q, compleet: st.A.n > 0 && st.B.n > 0, n: n } : null;
 }
+function openWeek(seg) {
+  WEEKSEG = seg;
+  var cellen = Object.keys(seg.cells);
+  WEEKCEL = seg.cells[DAG + ':' + UUR] ? DAG + ':' + UUR
+    : cellen.sort(function (a, b) { return seg.cells[b].n - seg.cells[a].n || (a < b ? -1 : 1); })[0];
+  var n = 0, datums = {};
+  cellen.forEach(function (ck) { n += seg.cells[ck].n; seg.cells[ck].datums.forEach(function (d) { datums[d] = true; }); });
+  document.getElementById('week-titel').textContent = seg.straat;
+  document.getElementById('week-sub').textContent = Math.round(seg.L) + ' m \u00b7 ' + n + ' keer langsgelopen, op ' +
+    Object.keys(datums).length + (Object.keys(datums).length === 1 ? ' dag' : ' dagen');
+  if (kaart) kaart.closePopup();
+  tekenWeek();
+  document.getElementById('week').classList.remove('hide');
+}
+function sluitWeek() { document.getElementById('week').classList.add('hide'); WEEKSEG = null; }
+function tekstKleur(q) { return MAXQ > 0 && Math.pow(Math.min(1, q / MAXQ), 0.6) > 0.5 ? '#fff' : '#1b1b19'; }
+function weekWaarde(x) { return x ? rond(x.q) + (x.compleet ? '' : '*') : ''; }
+function tekenWeek() {
+  var seg = WEEKSEG, html = '<thead><tr><th></th>';
+  for (var h = 0; h < 24; h++) html += '<th>' + h + '</th>';
+  html += '<th class="gem">gem.</th></tr></thead><tbody>';
+  for (var d = 0; d < 7; d++) {
+    html += '<tr><th>' + DAGKORT[d] + '</th>';
+    var dag = [];
+    for (h = 0; h < 24; h++) {
+      var ck = d + ':' + h, c = seg.cells[ck];
+      if (!c) { html += '<td class="leeg" title="' + DAGNAAM[d] + ' ' + h + ':00 \u00b7 niet gemeten"></td>'; continue; }
+      dag.push(c);
+      html += '<td data-cel="' + ck + '"' + (ck === WEEKCEL ? ' class="sel"' : '') + ' style="background:' + kleur(c.q) + ';color:' + tekstKleur(c.q) + '"' +
+              ' title="' + DAGNAAM[d] + ' ' + h + ':00\u2013' + (h + 1) + ':00 \u00b7 ' + weekWaarde(c) + ' passanten per uur">' + weekWaarde(c) + '</td>';
+    }
+    html += '<td class="gem">' + weekWaarde(samen(dag)) + '</td></tr>';
+  }
+  html += '<tr class="gem"><th class="gem">gem.</th>';
+  for (h = 0; h < 24; h++) {
+    var uur = [];
+    for (d = 0; d < 7; d++) if (seg.cells[d + ':' + h]) uur.push(seg.cells[d + ':' + h]);
+    html += '<td class="gem">' + weekWaarde(samen(uur)) + '</td>';
+  }
+  html += '<td class="gem">' + weekWaarde(samen(Object.keys(seg.cells).map(function (k) { return seg.cells[k]; }))) + '</td></tr></tbody>';
+  document.getElementById('week-tabel').innerHTML = html;
+  var c = seg.cells[WEEKCEL];
+  document.getElementById('week-detail').innerHTML = c ? popupHtml(seg, c) +
+    '<button onclick="toonOpKaart()">Toon ' + DAGNAAM[c.dag] + ' ' + c.uur + ':00 op de kaart</button>' : '';
+}
+function weekKlik(e) {
+  var td = e.target.closest('td[data-cel]');
+  if (!td) return;
+  WEEKCEL = td.getAttribute('data-cel');
+  tekenWeek();
+}
+function toonOpKaart() {
+  var c = WEEKSEG && WEEKSEG.cells[WEEKCEL];
+  if (!c) return;
+  DAG = c.dag; UUR = c.uur;
+  sluitWeek();
+  tekenAlles();
+}
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') sluitWeek(); });
 
 /* ── Slepen: bestanden of een hele map ───────────────────────────────────── */
 function alleEntries(reader) {
