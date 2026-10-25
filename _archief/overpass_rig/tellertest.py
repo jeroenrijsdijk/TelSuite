@@ -106,14 +106,20 @@ eis('in de opslag: alleen vingerafdrukken, één per regel (4 stuks)', inhoud.sp
 alles = ''.join(open(os.path.join(opslag, f)).read() for f in os.listdir(opslag))
 eis('geen IP-adres bewaard', '127.0.0.1' not in alles and sorted(os.listdir(opslag)) == ['gezien.txt', 'recent.txt'], sorted(os.listdir(opslag)))
 
-p, B = start(os.path.join(tmp, 'druk'), werkers=4)
-try:
-    with concurrent.futures.ThreadPoolExecutor(8) as ex:
-        list(ex.map(lambda i: vraag(B, 'POST', sha('tegelijk%d' % i)), range(20)))
-    st, d, _ = vraag(B)
-    eis('twintig nieuwe tegelijk (4 PHP-werkers): precies twintig erbij, 429 tellingen', d == {'tellingen': 429}, d)
-finally:
-    p.terminate(); p.wait()
+# Tien keer, elke keer met een opslagmap die er nog niet is: de eerste verzoeken
+# komen dan tegelijk bij een lege server. Zonder de tweede is_dir na mkdir gaf
+# dat soms een 503 (gevonden in de eerste ronde van v3.37).
+uitslag = []
+for ronde in range(10):
+    p, B = start(os.path.join(tmp, 'druk%d' % ronde), werkers=4)
+    try:
+        with concurrent.futures.ThreadPoolExecutor(8) as ex:
+            rs = list(ex.map(lambda i: vraag(B, 'POST', sha('tegelijk%d' % i)), range(20)))
+        uitslag.append((sorted({(st, json.dumps(d)) for st, d, _ in rs if st != 200 or d.get('nieuw') is not True}), vraag(B)[1]))
+    finally:
+        p.terminate(); p.wait()
+eis('twintig nieuwe tegelijk op een lege server (4 PHP-werkers, 10 keer): elk antwoord 200 en nieuw, precies 429 tellingen',
+    all(x == ([], {'tellingen': 429}) for x in uitslag), uitslag)
 binnen = os.path.join(ROOT, 'teller', '_test_opslag')
 p, B = start(binnen)
 try:

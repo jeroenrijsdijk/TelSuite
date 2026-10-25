@@ -77,7 +77,9 @@ het blok `vingerafdruk` (md5-groep `teller` in `valideer.py`).
   - `TELLER_MAP` als die gezet is, anders twee mappen boven het script.
   - Op telonline.org (Plesk, `httpdocs`) is dat
     `/var/www/vhosts/telonline.org/teller-data`. Die map maakt het script zelf
-    aan bij het eerste verzoek.
+    aan bij het eerste verzoek. Komen de eerste verzoeken tegelijk, dan maakt
+    één de map en gaan de andere gewoon door; zonder die tweede blik gaven ze
+    een 503. De test vond dat in de eerste ronde.
   - Ligt de opslag in de webmap, dan weigert het script met 503, in plaats van
     de lijst op straat te leggen.
   - Een nieuwe release raakt de opslag niet: die staat niet in de repo.
@@ -169,7 +171,8 @@ het opslaan gebeurt.
       er niet tegenin;
     - de lijst is niet via de website te lezen;
     - in de opslag alleen vingerafdrukken en geen IP;
-    - twintig tegelijk (vier PHP-werkers) tellen precies twintig;
+    - twintig tegelijk (vier PHP-werkers, tien keer, op een lege server): elk
+      antwoord 200, en precies twintig erbij;
     - opslag in de webmap: 503.
   - **B. De voorpagina:** "Al 409 tellingen gedaan", "409 counts so far", de
     plek onder de titel; zonder teller (404) geen regel.

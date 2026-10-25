@@ -40,7 +40,9 @@ function antwoord(int $code, array $data): void
     exit;
 }
 
-if (!is_dir($map) && !@mkdir($map, 0750, true)) {
+// is_dir na een mislukte mkdir: komen de eerste verzoeken tegelijk, dan maakt
+// één de map en zien de andere hem alsnog (zonder die tweede blik: 503).
+if (!is_dir($map) && !@mkdir($map, 0750, true) && !is_dir($map)) {
     antwoord(503, ['fout' => 'de opslag van de teller is er niet']);
 }
 $echt = realpath($map);
