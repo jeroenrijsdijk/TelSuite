@@ -77,8 +77,9 @@ Alleen de teller (sinds v3.37): `teller/index.php`, PHP 8, geen database.
   SHA-256 van `telonline.org teller <ZIP-naam zonder .zip>`, bij het opslaan
   (`bewaarZip`; in pocket bij het tonen van de ZIP). Geen verbinding, of 429/5xx:
   hij wacht in `localStorage` (`telsuite_teller_wacht`, hooguit 50) en gaat mee
-  bij het volgende openen van een app. Global Privacy Control of
-  `telsuite_niet_tellen` (knop in de privacyverklaring): niets versturen.
+  bij het volgende openen van een app. Met `telsuite_niet_tellen` (knop in de
+  privacyverklaring) gaat er niets. Global Privacy Control doet bewust niets
+  (Jay: "GPC eruit, de knop blijft").
 - Opslag: `gezien.txt` (één regel van 64 tekens per telling, dus
   N = 409 + grootte / 65) en `recent.txt` (tijden van de laatste nieuwe, voor de
   rem: `TELLER_MAX_PER_UUR`, standaard 60). Geen IP-adressen.

@@ -19,12 +19,21 @@ We staan op 409 tellingen op dit moment."
      Jay zelf;
    - alleen een vingerafdruk (SHA-256) van de ZIP-naam gaat naar de server;
    - de server bewaart alleen die vingerafdrukken, buiten de webmap;
-   - Global Privacy Control telt als "niet meetellen", en de privacyverklaring
-     heeft een knop om het per toestel uit te zetten;
+   - de privacyverklaring heeft een knop om het per toestel uit te zetten;
    - zonder verbinding wacht de vingerafdruk en gaat hij later mee;
    - een rem van 60 nieuwe per uur;
    - op de voorpagina "Al 409 tellingen gedaan"; is de teller niet te lezen,
      dan staat er niets.
+4. **Global Privacy Control.** Ik had ook GPC laten gelden als "niet
+   meetellen". Jay vroeg: "Global Privacy Control - moeten we die echt
+   respecteren? er is toch niet zoveel aan de hand?"
+   - Het hoeft niet. GPC is alleen in een paar Amerikaanse staten bindend, en
+     daar gaat het over het verkopen of delen van persoonsgegevens. Dat gebeurt
+     hier niet.
+   - Het scheelt ook weinig: Firefox (als je het aanzet), Brave en DuckDuckGo
+     sturen het. Safari en Chrome doen het niet zonder extensie.
+   - Jay: "GPC eruit, de knop blijft". GPC doet dus niets, en de knop in de
+     privacyverklaring is de enige manier om niet mee te tellen.
 
 Aan de ZIP's, het schema en de KNIME-kant verandert niets.
 
@@ -45,8 +54,8 @@ het blok `vingerafdruk` (md5-groep `teller` in `valideer.py`).
 - **Niet versturen** (`tellerMag()`):
   - buiten http(s) (dus niet bij een bestand dat lokaal geopend is);
   - zonder WebCrypto of fetch;
-  - met Global Privacy Control aan;
   - als `localStorage` `telsuite_niet_tellen` gezet is.
+  - Global Privacy Control doet bewust niets (§0).
 - **De wachtrij** (`telsuite_teller_wacht` in `localStorage`, hooguit 50):
   - bij geen verbinding of een 429, 502, 503 of 504 wacht de vingerafdruk;
   - bij elk ander antwoord (ook 400, 404, 405) gaat hij uit de rij, zodat een
@@ -96,7 +105,7 @@ het blok `vingerafdruk` (md5-groep `teller` in `valideer.py`).
   zou kunnen: met rekenwerk dag en tijdstip van het begin van een telling
   achterhalen, maar niet de plek;
 - de knop *Op dit toestel niet meetellen* / *weer meetellen*, met de stand
-  erbij, ook bij Global Privacy Control;
+  erbij;
 - *Kort* noemt de teller;
 - datum 25 oktober 2026.
 
@@ -122,7 +131,7 @@ het opslaan gebeurt.
 - tellingen van vóór v3.37 (die zitten in de 409);
 - een app die lokaal of op een andere server draait (zonder `/teller/` gaat de
   vingerafdruk na een 404 uit de rij);
-- met Global Privacy Control, of met *niet meetellen*.
+- met *niet meetellen*.
 
 **Bewust niet:**
 - geen unieke bezoekers, geen sessies, geen tijden per telling;
@@ -158,7 +167,7 @@ het opslaan gebeurt.
   - de wachtrij bij geen verbinding, 429, 502, 503 en 504, en niet bij 400,
     404, 405 en 501;
   - geen dubbele in de rij, hooguit 50, inhalen hooguit vijf;
-  - niets bij Global Privacy Control, *niet meetellen* of `file:`;
+  - niets bij *niet meetellen* of `file:`; met Global Privacy Control wel;
   - het blok is gelijk in de vijf apps en de haken zitten op hun plek.
 - **`tellertest.py`** (nieuw, 33), met `teller/index.php` in de ingebouwde
   server van PHP (`php -S`, de suite als webmap, de opslag in een tijdelijke
@@ -183,10 +192,11 @@ het opslaan gebeurt.
   - **D. Niet meetellen:**
     - de knop in de privacyverklaring, NL en EN, aan en uit, en dan wordt er
       niets verstuurd;
-    - Global Privacy Control: niets verstuurd, en de verklaring zegt het.
+    - Global Privacy Control: wel verstuurd en geteld (411); de verklaring zegt
+      "Dit toestel telt mee." en noemt GPC niet.
   - **E. Zonder verbinding:**
     - de vingerafdruk wacht;
-    - weer online en de app opnieuw open: alsnog geteld (411), de rij leeg;
+    - weer online en de app opnieuw open: alsnog geteld (412), de rij leeg;
     - geen JS-fouten.
 
 Op GitHub draait `tellertest.py` vanzelf mee: ubuntu-24.04 heeft PHP 8.3 aan

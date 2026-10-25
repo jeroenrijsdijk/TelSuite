@@ -18,7 +18,8 @@ test overgeslagen (en dat staat erbij).
      zonder teller staat er niets.
   C. Een telapp (Static, via bewaarZip): de telling telt mee, één keer; de
      voorpagina volgt.
-  D. Niet meetellen: de knop in de privacyverklaring, en Global Privacy Control.
+  D. Niet meetellen: de knop in de privacyverklaring. Global Privacy Control telt
+     niet (Jay: "GPC eruit, de knop blijft").
   E. Zonder verbinding: de vingerafdruk wacht en gaat mee bij het volgende openen.
 
 Draaien vanuit de suite-root:  python3 _archief/overpass_rig/tellertest.py
@@ -199,23 +200,25 @@ try:
         g = ctx2.new_page(); gposts = []
         g.on('request', lambda r: gposts.append(r.url) if r.url == B + 'teller/' and r.method == 'POST' else None)
         g.goto(B + 'traffic_counter.html', wait_until='load'); g.wait_for_timeout(300)
-        bewaar(g, '20261025_140000_gpc_sta.zip'); g.wait_for_timeout(800)
-        eis('Global Privacy Control: niets verstuurd, niets geteld', gposts == [] and aantal() == 410, gposts)
+        with g.expect_response(lambda r: r.url == B + 'teller/' and r.request.method == 'POST'):
+            bewaar(g, '20261025_140000_gpc_sta.zip')
+        eis('Global Privacy Control telt niet (Jay: "GPC eruit, de knop blijft"): verstuurd en geteld (411)', len(gposts) == 1 and aantal() == 411, [gposts, aantal()])
         g.goto(B + 'privacy.html', wait_until='load')
-        eis('en de privacyverklaring zegt dat', 'Global Privacy Control' in g.inner_text('.teller-stand[data-taal="nl"]'))
+        eis('de privacyverklaring: "Dit toestel telt mee.", en over GPC geen woord',
+            g.inner_text('.teller-stand[data-taal="nl"]') == 'Dit toestel telt mee.' and 'Global Privacy Control' not in g.content())
         ctx2.close()
 
         print('\n== E. Zonder verbinding ==')
         ctx.set_offline(True)
         bewaar(app, '20261025_150000_off_sta.zip'); app.wait_for_timeout(800)
         wacht = json.loads(app.evaluate("localStorage.getItem('telsuite_teller_wacht')") or '[]')
-        eis('offline: de vingerafdruk wacht in deze browser', wacht == [vinger('20261025_150000_off_sta.zip')] and aantal() == 410, wacht)
+        eis('offline: de vingerafdruk wacht in deze browser', wacht == [vinger('20261025_150000_off_sta.zip')] and aantal() == 411, wacht)
         ctx.set_offline(False)
         with app.expect_response(lambda r: r.url == B + 'teller/' and r.request.method == 'POST', timeout=15000):
             app.reload(wait_until='load')
         app.wait_for_timeout(300)
-        eis('weer online, de app opnieuw open: alsnog geteld (411), en er wacht niets meer',
-            aantal() == 411 and app.evaluate("localStorage.getItem('telsuite_teller_wacht')") is None, [aantal(), app.evaluate("localStorage.getItem('telsuite_teller_wacht')")])
+        eis('weer online, de app opnieuw open: alsnog geteld (412), en er wacht niets meer',
+            aantal() == 412 and app.evaluate("localStorage.getItem('telsuite_teller_wacht')") is None, [aantal(), app.evaluate("localStorage.getItem('telsuite_teller_wacht')")])
         eis('geen JS-fouten', not fouten, fouten)
         ctx.close()
 
