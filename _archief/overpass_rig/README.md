@@ -60,7 +60,7 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/vingerafdruktest.py  # v3.30: de SHA-256 van de ZIP na het opslaan, 24 tests
     python3 _archief/overpass_rig/ordenentest.py       # v3.31: Ordenen op echte bestanden (OPFS), met en zonder move(), en alleen bekijken; v3.32: de voortgang en een logboek per ronde, 58 tests
     python3 _archief/overpass_rig/archieftest.py       # v3.33: het Overzicht van Archief: catalogus.csv, tellers, kaart, filters, route, na Uitvoeren, alleen bekijken, 42 tests
-    python3 _archief/overpass_rig/passantentest.py     # v3.34: Passanten per uur: inlezen, dag en uur, kaart en labels, popup, poolen, 390 px; v3.35: het weekoverzicht; v3.36: één richting × 2, 40 tests
+    python3 _archief/overpass_rig/passantentest.py     # v3.34: Passanten per uur: inlezen, dag en uur, kaart en labels, popup, poolen, 390 px; v3.35: het weekoverzicht; v3.36: één richting opgehoogd (verhouding uit de straat, anders × 2), 46 tests
                                                        # (playwright + leaflet/jszip/papaparse/fontsource in node_modules)
     python3 _archief/overpass_rig/tekstgelijk.py oud.html nieuw.html  # zelfde tekst, woord voor woord (bij opmaakwijzigingen)
 
