@@ -25,6 +25,10 @@ opgeteld; v = 1,1 m/s.
   D. Labels: overlappen nooit; bij inzoomen komen ze terug.
   E. Popup: straat, waarde, marge, hoe vaak en op welke dagen, richtingen,
      stilstaanders per 100 m.
+  v3.35:
+  W. Weekoverzicht: een klik op een stuk straat opent een tabel ma-zo x 0-23
+     met passanten per uur, gem. per dag en per uur (samen gerekend), de
+     details van een cel, en "Toon op de kaart". Ook een grijs stuk opent het.
   F. Twee zaterdagen worden één waarde (eerst optellen, dan delen).
   G. Op 390 px: niets breder dan het scherm.
 
@@ -156,8 +160,16 @@ def verwacht(gebruikt, v=V_VOET):
     for k, c in cel.items():
         q = sum(3600 * m / w for m, w in c['stromen'].values())
         uit[k] = dict(q=q, m=sum(m for m, _ in c['stromen'].values()), compleet=set(c['stromen']) == {'A', 'B'},
-                      stil100=100 * c['stil'] / c['L'], n=c['n'], datums=sorted(c['datums']))
+                      stil100=100 * c['stil'] / c['L'], n=c['n'], datums=sorted(c['datums']), stromen=c['stromen'])
     return uit
+
+def samen(cellen):
+    """Cellen samennemen zoals de kolom gem.: per richting optellen, dan delen. (q, compleet)"""
+    st = {}
+    for c in cellen:
+        for r_, (m, w) in c['stromen'].items():
+            a = st.setdefault(r_, [0, 0.0]); a[0] += m; a[1] += w
+    return sum(3600 * m / w for m, w in st.values()), set(st) == {'A', 'B'}
 
 if __name__ != '__main__':
     pass   # alleen de gegevens (zo leest een ander script ze in)
@@ -254,8 +266,55 @@ else:
         eis('de marge omsluit de waarde', mg[0] < v0['q'] < mg[1], mg)
         tk = pg.evaluate("(() => { const d = document.createElement('div'); d.innerHTML = popupHtml(SEGMENTEN['1002/0'], SEGMENTEN['1002/0'].cells['5:13']); return d.textContent; })()")
         eis('Kerkstraat: "* maar één looprichting gemeten", 1 keer op zaterdag 24-10-2026', '* maar één looprichting gemeten' in tk and '1 keer langsgelopen, op zaterdag 24-10-2026' in tk, tk)
-        pg.evaluate("lijnLaag.getLayers().find(l => l.options.color !== GRIJS).openPopup()"); pg.wait_for_timeout(200)
-        eis('een lijn aanklikken opent de popup', 'passanten per uur' in pg.inner_text('.leaflet-popup'))
+
+        print('\n== W. Weekoverzicht (v3.35) ==')
+        # Klik op de Voorstraat, stuk 1: op de kaart staat zaterdag 13 uur.
+        pg.evaluate("""lijnLaag.getLayers().find(l => { const ll = l.getLatLngs(), g = SEGMENTEN['1001/0'].geom;
+            return Math.abs(ll[0].lat - g[0][1]) < 1e-9 && Math.abs(ll[0].lng - g[0][0]) < 1e-9; }).fire('click')""")
+        pg.wait_for_timeout(200)
+        eis('een klik op een stuk straat opent het weekoverzicht, met de straat en de lengte',
+            pg.is_visible('#week') and pg.inner_text('#week-titel') == 'Voorstraat' and pg.inner_text('#week-sub').startswith('40 m \u00b7 6 keer langsgelopen, op 3 dagen'),
+            [pg.inner_text('#week-titel'), pg.inner_text('#week-sub')])
+        rijen = pg.evaluate("[...document.querySelectorAll('#week-tabel tbody tr')].map(tr => [...tr.children].map(x => x.textContent))")
+        eis('7 dagen (ma-zo), 24 uren, een kolom gem., en een rij gem.',
+            len(rijen) == 8 and [x[0] for x in rijen] == ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo', 'gem.'] and all(len(x) == 26 for x in rijen),
+            [len(rijen), [len(x) for x in rijen]])
+        cel = lambda d, h: rijen[d][1 + h]
+        eis('za 13 uur en do 11 uur: de afgeronde waarde; de rest leeg',
+            cel(5, 13) == str(round(V[(1001, 0, 5, 13)]['q'])) and cel(3, 11) == str(round(V[(1001, 0, 3, 11)]['q']))
+            and sum(1 for d in range(7) for h in range(24) if cel(d, h)) == 2, [cel(5, 13), cel(3, 11)])
+        za, do_ = V[(1001, 0, 5, 13)], V[(1001, 0, 3, 11)]
+        q_alles, _ = samen([za, do_])
+        eis('gem. per dag is die dag; gem. over alles: beide cellen samen gerekend (%.0f), niet het gemiddelde (%.0f)' % (q_alles, (za['q'] + do_['q']) / 2),
+            rijen[5][25] == str(round(za['q'])) and rijen[3][25] == str(round(do_['q'])) and rijen[7][25] == str(round(q_alles))
+            and rijen[7][14] == str(round(za['q'])) and rijen[7][12] == str(round(do_['q'])) and abs(q_alles - (za['q'] + do_['q']) / 2) > 1,
+            [rijen[5][25], rijen[3][25], rijen[7][25]])
+        eis('de cel van de kaart (za 13) is gekozen; eronder de details: waarde, 4 keer op 2 zaterdagen, beide richtingen, stilstaanders',
+            pg.evaluate("document.querySelector('#week-tabel td.sel').getAttribute('data-cel')") == '5:13'
+            and all(x in pg.inner_text('#week-detail') for x in ['\u2248 %d passanten per uur' % round(za['q']), 'zaterdag 13:00\u201314:00',
+                                                                 '4 keer langsgelopen, op 2 zaterdagen (17-10, 24-10)', 'in beide richtingen gemeten',
+                                                                 'stilstaand: %s per 100 m' % ('%.1f' % za['stil100']).replace('.', ',')]),
+            pg.inner_text('#week-detail'))
+        mg = pg.evaluate("marge(SEGMENTEN['1001/0'].cells['5:13'])")
+        eis('de marge omsluit de waarde', mg[0] < za['q'] < mg[1], mg)
+        pg.click('#week-tabel td[data-cel="3:11"]')
+        eis('klik op do 11: die cel gekozen, de details van donderdag', 'donderdag 11:00\u201312:00' in pg.inner_text('#week-detail')
+            and pg.evaluate("document.querySelector('#week-tabel td.sel').getAttribute('data-cel')") == '3:11')
+        pg.click('#week-detail button')
+        eis('"Toon donderdag 11:00 op de kaart": het weekoverzicht dicht, de kaart op donderdag 11 uur',
+            not pg.is_visible('#week') and pg.evaluate("[DAG, UUR]") == [3, 11]
+            and pg.evaluate("document.querySelector('#dagen button[aria-pressed=true]').textContent") == 'do')
+        # Op donderdag is de Kerkstraat grijs; ook die opent het weekoverzicht.
+        pg.evaluate("""lijnLaag.getLayers().find(l => { const ll = l.getLatLngs(), g = SEGMENTEN['1002/0'].geom;
+            return Math.abs(ll[0].lat - g[0][1]) < 1e-9 && Math.abs(ll[0].lng - g[0][0]) < 1e-9; }).fire('click')""")
+        pg.wait_for_timeout(200)
+        tk = pg.inner_text('#week-detail')
+        eis('een grijs stuk (Kerkstraat op donderdag): het weekoverzicht op het moment dat wel gemeten is, met het sterretje',
+            pg.inner_text('#week-titel') == 'Kerkstraat' and '* maar \u00e9\u00e9n looprichting gemeten' in tk and '1 keer langsgelopen, op zaterdag 24-10-2026' in tk
+            and pg.evaluate("document.querySelector('#week-tabel td.sel').textContent") == str(round(V[(1002, 0, 5, 13)]['q'])) + '*', tk)
+        pg.keyboard.press('Escape')
+        eis('Escape sluit het weekoverzicht', not pg.is_visible('#week'))
+        pg.click('#dagen button[data-dag="5"]'); pg.wait_for_timeout(200)
 
         print('\n== F. Twee zaterdagen worden één waarde ==')
         apart = [verwacht([g])[(1001, 2, 5, 13)]['q'] for g in GEBRUIKT if g[0] in ('2026-10-24', '2026-10-17')]
@@ -277,6 +336,13 @@ else:
         breed = pg.evaluate("document.documentElement.scrollWidth")
         eis('niets breder dan het scherm (%d px); de kaart en de knoppen zijn zichtbaar' % breed,
             breed <= 390 and pg.is_visible('#kaart') and pg.is_visible('#dagen button[data-dag="5"]'))
+        pg.evaluate("openWeek(SEGMENTEN['1001/0'])"); pg.wait_for_timeout(200)
+        breed = pg.evaluate("document.documentElement.scrollWidth")
+        eis('het weekoverzicht op 390 px: de tabel schuift in zijn kader, de pagina niet (%d px)' % breed,
+            breed <= 390 and pg.evaluate("document.querySelector('.week-tabel').scrollWidth > document.querySelector('.week-tabel').clientWidth"))
+        if os.environ.get('PASSANTEN_PNG'):
+            pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_week_390.png'))
+        pg.keyboard.press('Escape')
         if os.environ.get('PASSANTEN_PNG'):
             pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_390.png'))
         eis('geen JS-fouten', not fouten, fouten)
