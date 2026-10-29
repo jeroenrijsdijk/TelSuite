@@ -88,7 +88,7 @@ main{padding:12px 20px 30px;max-width:1300px}
     <div class="rij"><span class="kop">Uur</span><span id="uren"></span></div>
   </div>
   <div id="kaartvak"><div id="kaart"></div><div id="legenda" class="hide"></div></div>
-  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Liep je een stuk maar één kant op, dan is die ene stroom opgehoogd en staat er een sterretje bij: met de verhouding tussen de richtingen elders in dezelfde straat op hetzelfde moment, of anders × 2 (evenveel de andere kant op). Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
+  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Liep je een stuk maar één kant op, dan is die ene stroom opgehoogd en staat er een sterretje bij: met de verhouding tussen de richtingen elders in dezelfde straat op hetzelfde moment, of anders × 2 (evenveel de andere kant op). De uitkomst is daarna × 1,1 geijkt: een simulatie liet zien dat de telling zo'n 10% te laag uitkomt, door gemiste tikken en de gps (voorlopig, tot een ijking met een vaste telling). Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
 </main>
 <div id="week" class="week hide" onclick="if (event.target === this) sluitWeek()">
   <div class="week-vak" role="dialog" aria-modal="true" aria-labelledby="week-titel">
@@ -588,8 +588,24 @@ function tekenKaart() {
    Alleen als er in die vergelijking per richting minstens MIN_TEGEN
    tegenliggers zijn; anders × 2. Een stroom met onbekende richting: × 2.
    c: een cel, of de uitkomst van samen() (met cks); seg: het stuk straat.
-   Geeft { q, f, gemeten, bron: '' | 'straat' | 'twee', rho, stukken }.      */
+   Geeft { q, f, gemeten, bron: '' | 'straat' | 'twee', rho, stukken, ijk }.
+
+   IJking (v3.39). Een simulatie van de winkelstraattelling (okt 2026,
+   _archief/passantensim/, branch claude/passantensim) liet zien dat de methode
+   zoals Jay telt te laag uitkomt: tikken die in een gat tussen twee bezoeken
+   vallen tellen niet mee (gps om de paar seconden), en met een trefkans van 95%
+   (Jay: tegemoetkomers, ook aan de overkant, en stilstaanders) mis je mensen.
+   Samen F ≈ 1,14; in Jay's echte tellingen vallen minder tikken in gaten dan in
+   de simulatie, dus voorlopig 1,1. Jay kalibreert op de huidige telmethode
+   (er liggen al zo'n 100 tellingen): een factor, geen wijziging in de rekenkern.
+   Te vervangen door een ijking met een vaste telling (Static) op de route.
+   IJKFACTOR geldt voor wat getoond wordt (schat), niet voor de gemeten stromen.
+   MARGE_BREED: mensen lopen in groepjes, dus de tikken zijn geen puur toeval;
+   de spreiding is ongeveer twee keer die van Poisson (φ ≈ 2), en de
+   Garwood-marge dekte in de simulatie 86–91% in plaats van 95%. × √2 ≈ 1,4. */
 var OPHOGEN = 2, MIN_TEGEN = 10;
+var IJKFACTOR = 1.1;       // voorlopig, uit de simulatie (okt 2026); te vervangen door een Static-ijking
+var MARGE_BREED = 1.4;     // overdispersie door groepjes: φ ≈ 2, marge × √φ
 var SCHATTINGEN = {};      // geheugen per stuk en moment; herbereken() leegt het
 function straatNaam(seg) { var n = String(seg.straat || '').trim().toLowerCase(); return n && n !== '(naamloos)' ? n : ''; }
 // De richting van een stuk zoals het getekend is (A = oplopende segment_index), in meters.
@@ -628,13 +644,13 @@ function verhouding(seg, cks, r) {
 }
 function schat(c, seg) {
   var st = ['A', 'B', '?'].filter(function (r) { return c.stromen[r].n; });
-  if (c.compleet || st.length !== 1) return { q: c.q, f: 1, gemeten: c.q, bron: '' };
-  var twee = { q: c.q * OPHOGEN, f: OPHOGEN, gemeten: c.q, bron: 'twee' };
+  if (c.compleet || st.length !== 1) return { q: c.q * IJKFACTOR, f: 1, gemeten: c.q, bron: '', ijk: IJKFACTOR };
+  var twee = { q: c.q * OPHOGEN * IJKFACTOR, f: OPHOGEN, gemeten: c.q, bron: 'twee', ijk: IJKFACTOR };
   if (!seg || st[0] === '?') return twee;                  // zonder stuk of richting: geen vergelijking
   var cks = c.cks || [c.dag + ':' + c.uur], sleutel = seg.key + '|' + cks.join(',');
   if (SCHATTINGEN[sleutel]) return SCHATTINGEN[sleutel];
   var v = verhouding(seg, cks, st[0]);
-  return (SCHATTINGEN[sleutel] = v ? { q: c.q * (1 + v.rho), f: 1 + v.rho, gemeten: c.q, bron: 'straat', rho: v.rho, stukken: v.stukken } : twee);
+  return (SCHATTINGEN[sleutel] = v ? { q: c.q * (1 + v.rho) * IJKFACTOR, f: 1 + v.rho, gemeten: c.q, bron: 'straat', rho: v.rho, stukken: v.stukken, ijk: IJKFACTOR } : twee);
 }
 function labelTekst(c, seg) { return rond(schat(c, seg).q) + (c.compleet ? '' : '*'); }
 // Labels: de drukste eerst; een label dat een al geplaatst label zou raken, valt
@@ -661,20 +677,24 @@ function tekenLegenda() {
     '<div class="getallen"><span>0</span><span>' + rond(MAXQ) + '</span></div>' +
     '<div>* niet in beide richtingen gemeten: opgehoogd (zie de details)</div>' +
     '<div><span class="grijs"></span>niet gemeten op dit moment</div>' +
-    '<div class="dim">loopsnelheid voetgangers: ' + komma(PASSANTEN.V_VOET, 1) + ' m/s</div>';
+    '<div class="dim">loopsnelheid voetgangers: ' + komma(PASSANTEN.V_VOET, 1) + ' m/s</div>' +
+    '<div class="dim">geijkt: \u00d7 ' + komma(IJKFACTOR, 1) + ' (voorlopig, uit simulatie)</div>';
   el.classList.remove('hide');
 }
 
 /* ── Popup ───────────────────────────────────────────────────────────────── */
 // Marge: Garwood op het totaal aantal tegenliggers, geschaald met wat één
 // tegenligger hier in passanten per uur waard is. Zonder tegenliggers: met het
-// gemiddelde ontmoetingsvenster per gemeten stroom.
+// gemiddelde ontmoetingsvenster per gemeten stroom. Opgehoogd en geijkt: de
+// marge gaat mee. Sinds v3.39 ook MARGE_BREED keer zo ver van de schatting,
+// omdat mensen in groepjes lopen (zie IJKFACTOR).
 function marge(c, seg) {
   var st = ['A', 'B', '?'].map(function (r) { return c.stromen[r]; }).filter(function (s) { return s.n; });
   var w = st.reduce(function (a, s) { return a + s.w; }, 0);
   var waard = c.m > 0 ? c.q / c.m : 3600 * st.length / w;
-  var g = poissonMarge(c.m), f = schat(c, seg).f;   // opgehoogd: de marge gaat mee
-  return [g[0] * waard * f, g[1] * waard * f];
+  var g = poissonMarge(c.m), sc = schat(c, seg), s = sc.q;
+  var onder = g[0] * waard * sc.f * IJKFACTOR, boven = g[1] * waard * sc.f * IJKFACTOR;
+  return [Math.max(0, s - MARGE_BREED * (s - onder)), s + MARGE_BREED * (boven - s)];
 }
 // Wat er gemeten is en hoe het opgehoogd is, in woorden (v3.36).
 function ophoogTekst(c, seg, moment) {
@@ -702,6 +722,8 @@ function popupHtml(seg, c) {
     '<div class="dim">marge ' + rond(mg[0]) + '–' + rond(mg[1]) + ' (95%)</div>' +
     '<div>' + dag + ' ' + c.uur + ':00–' + (c.uur + 1) + ':00 · ' + c.n + ' keer langsgelopen, ' + dagen + '</div>' +
     '<div>' + richting + '</div>' +
+    '<div class="dim">geijkt: de berekende waarde \u00d7 ' + komma(IJKFACTOR, 1) + ' (voorlopig, uit een simulatie); de gemeten stromen hierboven niet. ' +
+    'De marge is ruimer dan bij puur toeval, omdat mensen in groepjes lopen.</div>' +
     '<div>stilstaand: ' + komma(c.kStil, 1) + ' per 100 m</div></div>';
 }
 /* ── Weekoverzicht van één stuk straat (v3.35) ───────────────────────────────
