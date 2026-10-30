@@ -19,10 +19,10 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.39'
-# v3.39: Passanten geijkt (× 1,1, voorlopig, uit de simulatie) en een bredere marge
-# (× 1,4, groepjes); de rekenkern PASSANTEN en het rekenrig blijven gelijk.
-VERWACHT_GEWIJZIGD = {'passanten.html', 'index.html', 'traffic_counter_help.html'}
+RELEASE = 'v3.40'
+# v3.40: Passanten, gaatjes tussen passages in het midden gedeeld (rekenkern
+# PASSANTEN, dus ook het rekenrig), en de ijkfactor 1,05 uit de simulatie.
+VERWACHT_GEWIJZIGD = {'passanten.html', 'winkelstraat_rekenrig.html', 'index.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
