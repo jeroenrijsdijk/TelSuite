@@ -88,7 +88,7 @@ main{padding:12px 20px 30px;max-width:1300px}
     <div class="rij"><span class="kop">Uur</span><span id="uren"></span></div>
   </div>
   <div id="kaartvak"><div id="kaart"></div><div id="legenda" class="hide"></div></div>
-  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Liep je een stuk maar één kant op, dan is die ene stroom opgehoogd en staat er een sterretje bij: met de verhouding tussen de richtingen elders in dezelfde straat op hetzelfde moment, of anders × 2 (evenveel de andere kant op). De uitkomst is daarna × 1,1 geijkt: een simulatie liet zien dat de telling zo'n 10% te laag uitkomt, door gemiste tikken en de gps (voorlopig, tot een ijking met een vaste telling). Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
+  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Liep je een stuk maar één kant op, dan is die ene stroom opgehoogd en staat er een sterretje bij: met de verhouding tussen de richtingen elders in dezelfde straat op hetzelfde moment, of anders × 2 (evenveel de andere kant op). Tikken die tussen twee stukken vallen (de gps meet om de paar seconden), tellen mee: elk gaatje wordt in het midden gedeeld. De uitkomst is daarna × 1,05 geijkt: een simulatie liet zien dat de telling zo'n 5% te laag uitkomt, omdat je af en toe iemand mist (voorlopig, tot een ijking met een vaste telling). Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
 </main>
 <div id="week" class="week hide" onclick="if (event.target === this) sluitWeek()">
   <div class="week-vak" role="dialog" aria-modal="true" aria-labelledby="week-titel">
@@ -130,10 +130,25 @@ main{padding:12px 20px 30px;max-width:1300px}
    stilstaand persoon in het segment precies één keer. Dus k = Σm_stil / ΣL,
    zonder enige snelheidsaanname.
 
+   Gaatjes tussen passages (v3.40; Jay: "Kunnen deze tikken niet gewoon
+   meetellen?"). _bezocht.csv komt uit de GPS-punten, en de GPS meet om de paar
+   seconden: tussen het laatste punt in het ene stuk en het eerste in het
+   volgende zit een gaatje. Waar je de grens overstak weet niemand; het midden
+   is de beste gok. Elk gaatje wordt daarom in het midden gedeeld: de eerste
+   helft hoort bij de passage ervoor, de tweede bij die erna, hooguit GAT_MAX
+   seconden per kant. In Jay's tellingen is een gaatje meestal 4 s en 9 op de
+   10 hooguit 9 s; die gaan dus helemaal mee. Een lang gat is iets anders: een
+   kort stuk zonder eigen passage, of even een winkel in. Tijd en tikken gaan samen mee: t wordt
+   langer, en een tik telt bij de passage waarin hij valt, op tijd, ook als de
+   reconstructie hem bij het buurstuk zette. Tot v3.40 telden tikken in een
+   gaatje niet mee (10–20% van de tikken), en was t te kort. t0 en t1 blijven
+   de GPS-tijden (voor de richting en het uur); van en tot is het venster.
+
    Puur: geen DOM en geen bibliotheken. Invoer: de CSV's van één ZIP als rijen
    (een object per regel, met de kop als sleutels).                           */
 var PASSANTEN = (function () {
   var V_VOET = 1.1;     // m/s; Jay, v3.34: "Zet de loopsnelheid maar op 1,1 m/s." (het rig had 1,3)
+  var GAT_MAX = 5;      // s; v3.40: hooguit zoveel van een gaatje per kant naar een passage
 
   /* ---------- geometrie ---------------------------------------------------- */
   function wktPunten(wkt) {
@@ -200,19 +215,32 @@ var PASSANTEN = (function () {
     var visits = d.bezocht.map(function (r) {
       var k = r.osm_way_id + '/' + r.segment_index;
       var t0 = tijdNaarSec(r.start_tijd), t1 = tijdNaarSec(r.eind_tijd);
-      var teg = 0, stil = 0;
-      tikken.forEach(function (x) {
-        if (x.k !== k || x.sec < t0 || x.sec > t1) return;
-        if (x.type === 'tegemoet') teg++; else if (x.type === 'stilstaand') stil++;
-      });
       return {
         key: k, way: r.osm_way_id, seg: parseInt(r.segment_index, 10),
         straat: r.straat || '(naamloos)',
         L: len[k] || 0, t: parseFloat(r.duur_sec) || 0,
-        t0: t0, t1: t1, teg: teg, stil: stil,
+        t0: t0, t1: t1, van: t0, tot: t1, teg: 0, stil: 0,
         datum: r.datum || ses.datum, richting: null, richtingBron: ''
       };
-    }).filter(function (v) { return v.L > 0 && v.t > 0; });
+    });
+    // v3.40: elk gaatje in het midden delen, hooguit GAT_MAX per kant (zie boven)
+    var opTijd = visits.slice().sort(function (a, b) { return a.t0 - b.t0; });
+    opTijd.forEach(function (v, i) {
+      var vorige = opTijd[i - 1], volgende = opTijd[i + 1];
+      if (vorige && vorige.t1 < v.t0) v.van = Math.max((vorige.t1 + v.t0) / 2, v.t0 - GAT_MAX);
+      if (volgende && volgende.t0 > v.t1) v.tot = Math.min((v.t1 + volgende.t0) / 2, v.t1 + GAT_MAX);
+    });
+    opTijd.forEach(function (v) { v.t += (v.t0 - v.van) + (v.tot - v.t1); });
+    // een tik telt bij de passage waarin hij valt; op een gedeelde grens: de eerste
+    tikken.forEach(function (x) {
+      for (var i = 0; i < opTijd.length; i++) {
+        var v = opTijd[i];
+        if (x.sec < v.van || x.sec > v.tot) continue;
+        if (x.type === 'tegemoet') v.teg++; else if (x.type === 'stilstaand') v.stil++;
+        return;
+      }
+    });
+    visits = visits.filter(function (v) { return v.L > 0 && v.t > 0; });
     bepaalRichtingen(visits, d.gps || [], geo);
     var gekoppeld = visits.reduce(function (s, v) { return s + v.teg + v.stil; }, 0);
     return {
@@ -326,7 +354,7 @@ var PASSANTEN = (function () {
     return segmenten;
   }
 
-  return { V_VOET: V_VOET, sessie: sessie, voegToe: voegToe, bereken: bereken, dagIndex: dagIndex,
+  return { V_VOET: V_VOET, GAT_MAX: GAT_MAX, sessie: sessie, voegToe: voegToe, bereken: bereken, dagIndex: dagIndex,
            wktPunten: wktPunten, haversine: haversine, polyLengte: polyLengte };
 })();
 /* ── einde gedeeld blok passanten ── */
@@ -590,21 +618,23 @@ function tekenKaart() {
    c: een cel, of de uitkomst van samen() (met cks); seg: het stuk straat.
    Geeft { q, f, gemeten, bron: '' | 'straat' | 'twee', rho, stukken, ijk }.
 
-   IJking (v3.39). Een simulatie van de winkelstraattelling (okt 2026,
-   _archief/passantensim/, branch claude/passantensim) liet zien dat de methode
-   zoals Jay telt te laag uitkomt: tikken die in een gat tussen twee bezoeken
-   vallen tellen niet mee (gps om de paar seconden), en met een trefkans van 95%
-   (Jay: tegemoetkomers, ook aan de overkant, en stilstaanders) mis je mensen.
-   Samen F ≈ 1,14; in Jay's echte tellingen vallen minder tikken in gaten dan in
-   de simulatie, dus voorlopig 1,1. Jay kalibreert op de huidige telmethode
-   (er liggen al zo'n 100 tellingen): een factor, geen wijziging in de rekenkern.
+   IJking (v3.39, bijgesteld in v3.40). Een simulatie van de winkelstraattelling
+   (okt 2026, _archief/passantensim/, branch claude/passantensim) liet zien dat
+   de methode zoals Jay telt te laag uitkomt. In v3.39: tikken in een gaatje
+   tussen twee passages telden niet mee, en met een trefkans van 95% (Jay:
+   tegemoetkomers, ook aan de overkant, en stilstaanders) mis je mensen; samen
+   F ≈ 1,14, voorlopig 1,1. Sinds v3.40 tellen de gaatjes mee (blok PASSANTEN);
+   de simulatie opnieuw met die kern (3000 rondes): zonder gemiste tikken
+   F = 0,98, met 95% trefkans F = 1,05. Jay kalibreert op de huidige
+   telmethode (er liggen al zo'n 100 tellingen): het veldwerk blijft gelijk.
    Te vervangen door een ijking met een vaste telling (Static) op de route.
    IJKFACTOR geldt voor wat getoond wordt (schat), niet voor de gemeten stromen.
    MARGE_BREED: mensen lopen in groepjes, dus de tikken zijn geen puur toeval;
    de spreiding is ongeveer twee keer die van Poisson (φ ≈ 2), en de
-   Garwood-marge dekte in de simulatie 86–91% in plaats van 95%. × √2 ≈ 1,4. */
+   Garwood-marge dekte in de simulatie 86–91% in plaats van 95%. × √2 ≈ 1,4.
+   (Met de kern van v3.40: φ ≈ 2,1, en met × 1,4 dekt de marge 97%.)         */
 var OPHOGEN = 2, MIN_TEGEN = 10;
-var IJKFACTOR = 1.1;       // voorlopig, uit de simulatie (okt 2026); te vervangen door een Static-ijking
+var IJKFACTOR = 1.05;      // voorlopig, uit de simulatie (okt 2026, kern v3.40); te vervangen door een Static-ijking
 var MARGE_BREED = 1.4;     // overdispersie door groepjes: φ ≈ 2, marge × √φ
 var SCHATTINGEN = {};      // geheugen per stuk en moment; herbereken() leegt het
 function straatNaam(seg) { var n = String(seg.straat || '').trim().toLowerCase(); return n && n !== '(naamloos)' ? n : ''; }
@@ -678,7 +708,7 @@ function tekenLegenda() {
     '<div>* niet in beide richtingen gemeten: opgehoogd (zie de details)</div>' +
     '<div><span class="grijs"></span>niet gemeten op dit moment</div>' +
     '<div class="dim">loopsnelheid voetgangers: ' + komma(PASSANTEN.V_VOET, 1) + ' m/s</div>' +
-    '<div class="dim">geijkt: \u00d7 ' + komma(IJKFACTOR, 1) + ' (voorlopig, uit simulatie)</div>';
+    '<div class="dim">geijkt: \u00d7 ' + komma(IJKFACTOR, 2) + ' (voorlopig, uit simulatie)</div>';
   el.classList.remove('hide');
 }
 
@@ -722,7 +752,7 @@ function popupHtml(seg, c) {
     '<div class="dim">marge ' + rond(mg[0]) + '–' + rond(mg[1]) + ' (95%)</div>' +
     '<div>' + dag + ' ' + c.uur + ':00–' + (c.uur + 1) + ':00 · ' + c.n + ' keer langsgelopen, ' + dagen + '</div>' +
     '<div>' + richting + '</div>' +
-    '<div class="dim">geijkt: de berekende waarde \u00d7 ' + komma(IJKFACTOR, 1) + ' (voorlopig, uit een simulatie); de gemeten stromen hierboven niet. ' +
+    '<div class="dim">geijkt: de berekende waarde \u00d7 ' + komma(IJKFACTOR, 2) + ' (voorlopig, uit een simulatie); de gemeten stromen hierboven niet. ' +
     'De marge is ruimer dan bij puur toeval, omdat mensen in groepjes lopen.</div>' +
     '<div>stilstaand: ' + komma(c.kStil, 1) + ' per 100 m</div></div>';
 }
