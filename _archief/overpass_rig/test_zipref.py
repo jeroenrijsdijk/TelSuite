@@ -15,7 +15,8 @@ SUITE = os.path.abspath(os.path.join(HIER, '..', '..'))
 
 APPS = ['traffic_counter.html', 'parkeertelling.html', 'fietsparkeren.html',
         'capaciteitstelling.html', 'pocket_count.html', 'telreconstructie.html',
-        'telarchief.html']   # v3.33: catalogus.csv van Archief
+        'telarchief.html',   # v3.33: catalogus.csv van Archief
+        'passanten.html']    # v3.43: passages.csv van Passanten
 REF = 'zip_format_reference.html'
 
 # Bewust niet beschreven: diagnostiek. De kolommen veranderen met de
