@@ -42,11 +42,13 @@ main{padding:12px 20px 30px;max-width:1300px}
 .leaflet-popup-content{margin:10px 13px;line-height:1.5}
 .pop .groot{font-size:20px;font-weight:400;margin:2px 0 0}
 .pop .dim{color:var(--muted)}
+.pop .kort-noot{margin:4px 0 2px;padding:4px 7px;background:#efeee9;border-left:3px solid #8d8d86;font-size:12px}
 .qlabel span{display:inline-block;background:#fff;border:1px solid #1b1b19;border-radius:9px;padding:0 5px;font:500 11.5px/15px Oswald,sans-serif;color:#1b1b19;white-space:nowrap;transform:translate(-50%,-50%)}
 #legenda{position:absolute;right:10px;top:10px;z-index:800;background:rgba(246,245,241,.94);border:1px solid var(--line);border-radius:3px;padding:7px 10px;font-size:11.5px;line-height:1.5;max-width:260px}
 #legenda .schaal{height:9px;border-radius:2px;margin:3px 0 1px}
 #legenda .getallen{display:flex;justify-content:space-between;color:var(--muted)}
 #legenda .grijs{display:inline-block;width:22px;height:3px;background:#8d8d86;vertical-align:middle;margin-right:5px}
+#legenda .kort{display:inline-block;width:22px;height:4px;background:repeating-linear-gradient(90deg,#8d8d86 0 2px,transparent 2px 8px);vertical-align:middle;margin-right:5px}
 .voet{margin-top:10px;max-width:100ch}
 /* weekoverzicht van één stuk straat (v3.35), zoals het weekprofiel in telrapport */
 .week{position:fixed;inset:0;z-index:1500;background:rgba(27,27,25,.45);overflow:auto;padding:4vh 12px}
@@ -60,6 +62,7 @@ main{padding:12px 20px 30px;max-width:1300px}
 #week-tabel tbody th{text-align:left;padding-right:6px}
 #week-tabel td{width:34px;min-width:34px;height:26px;padding:0;text-align:center;font-size:11px;border-radius:2px;white-space:nowrap}
 #week-tabel td.leeg{background:repeating-linear-gradient(45deg,#e8e7e1,#e8e7e1 3px,#f2f1ec 3px,#f2f1ec 6px)}
+#week-tabel td.kort{background:#e8e7e1;color:#8d8d86}
 #week-tabel td[data-cel]{cursor:pointer}
 #week-tabel td.sel{outline:2px solid var(--ink);outline-offset:-2px}
 #week-tabel td.gem,#week-tabel th.gem{background:#ebeae4;font-weight:500;color:var(--ink)}
@@ -88,7 +91,7 @@ main{padding:12px 20px 30px;max-width:1300px}
     <div class="rij"><span class="kop">Uur</span><span id="uren"></span></div>
   </div>
   <div id="kaartvak"><div id="kaart"></div><div id="legenda" class="hide"></div></div>
-  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Liep je een stuk maar één kant op, dan is die ene stroom opgehoogd en staat er een sterretje bij: met de verhouding tussen de richtingen elders in dezelfde straat op hetzelfde moment, of anders × 2 (evenveel de andere kant op). Tikken die tussen twee stukken vallen (de gps meet om de paar seconden), tellen mee: elk gaatje wordt in het midden gedeeld. De uitkomst is daarna × 1,05 geijkt: een simulatie liet zien dat de telling zo'n 5% te laag uitkomt, omdat je af en toe iemand mist (voorlopig, tot een ijking met een vaste telling). Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
+  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Liep je een stuk maar één kant op, dan is die ene stroom opgehoogd en staat er een sterretje bij: met de verhouding tussen de richtingen elders in dezelfde straat op hetzelfde moment, of anders × 2 (evenveel de andere kant op). Is het venster van een stuk op dat moment korter dan 30 s (een kort stukje, één keer gelopen), dan staat het grijs gestreept: te kort gemeten. Tikken die tussen twee stukken vallen (de gps meet om de paar seconden), tellen mee: elk gaatje wordt in het midden gedeeld. De uitkomst is daarna × 1,05 geijkt: een simulatie liet zien dat de telling zo'n 5% te laag uitkomt, omdat je af en toe iemand mist (voorlopig, tot een ijking met een vaste telling). Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
 </main>
 <div id="week" class="week hide" onclick="if (event.target === this) sluitWeek()">
   <div class="week-vak" role="dialog" aria-modal="true" aria-labelledby="week-titel">
@@ -460,7 +463,7 @@ function herbereken() {
   MAXQ = 0;
   Object.keys(SEGMENTEN).forEach(function (k) {
     var cells = SEGMENTEN[k].cells;
-    Object.keys(cells).forEach(function (ck) { MAXQ = Math.max(MAXQ, schat(cells[ck], SEGMENTEN[k]).q); });
+    Object.keys(cells).forEach(function (ck) { if (!teKort(cells[ck])) MAXQ = Math.max(MAXQ, schat(cells[ck], SEGMENTEN[k]).q); });
   });
   kiesStandaard();
   tekenAlles();
@@ -588,6 +591,11 @@ function tekenKaart() {
         .on('click', function () { openWeek(seg); }));
       return;
     }
+    if (teKort(c)) {      // v3.42: geen kleur en geen getal
+      lijnLaag.addLayer(L.polyline(ll, { color: GRIJS, weight: 4, opacity: 0.95, dashArray: '2 6' })
+        .on('click', function () { openWeek(seg); }));
+      return;
+    }
     lijnLaag.addLayer(L.polyline(ll, { color: kleur(schat(c, seg).q), weight: 7, opacity: 0.95 })
       .on('click', function () { openWeek(seg); }));
     GEMETEN.push({ seg: seg, c: c, mid: midden(ll) });
@@ -634,6 +642,18 @@ function tekenKaart() {
    Garwood-marge dekte in de simulatie 86–91% in plaats van 95%. × √2 ≈ 1,4.
    (Met de kern van v3.40: φ ≈ 2,1, en met × 1,4 dekt de marge 97%.)         */
 var OPHOGEN = 2, MIN_TEGEN = 10;
+/* Te kort gemeten (v3.42). Jay: "Nu de korte linkjes op de kaart staan verstoren
+   het beeld van het resultaat. 1 tik op een korte link is al gauw enorm druk."
+   Een kort stukje (sinds v3.41 een eigen passage) heeft een klein
+   ontmoetingsvenster: 19 m en 10 s geeft 27 s, en één tegemoetkomer is dan al
+   276 per uur, met een marge van 0 tot 2.000. Een stuk krijgt daarom pas een
+   kleur en een getal als het venster, alle passages in die cel samen, minstens
+   KORT_VENSTER seconden is (ongeveer een halve gewone passage). Daaronder: grijs
+   gestreept, "te kort gemeten"; de details tonen de cijfers wel. Ook gem. in het
+   weekoverzicht volgt die regel, met de vensters van die cellen samen.        */
+var KORT_VENSTER = 30;     // s
+function venster(c) { return ['A', 'B', '?'].reduce(function (a, r) { return a + (c.stromen[r].n ? c.stromen[r].w : 0); }, 0); }
+function teKort(c) { return venster(c) < KORT_VENSTER; }
 var IJKFACTOR = 1.05;      // voorlopig, uit de simulatie (okt 2026, kern v3.40); te vervangen door een Static-ijking
 var MARGE_BREED = 1.4;     // overdispersie door groepjes: φ ≈ 2, marge × √φ
 var SCHATTINGEN = {};      // geheugen per stuk en moment; herbereken() leegt het
@@ -707,6 +727,7 @@ function tekenLegenda() {
     '<div class="getallen"><span>0</span><span>' + rond(MAXQ) + '</span></div>' +
     '<div>* niet in beide richtingen gemeten: opgehoogd (zie de details)</div>' +
     '<div><span class="grijs"></span>niet gemeten op dit moment</div>' +
+    '<div><span class="kort"></span>te kort gemeten (venster onder ' + KORT_VENSTER + ' s)</div>' +
     '<div class="dim">loopsnelheid voetgangers: ' + komma(PASSANTEN.V_VOET, 1) + ' m/s</div>' +
     '<div class="dim">geijkt: \u00d7 ' + komma(IJKFACTOR, 2) + ' (voorlopig, uit simulatie)</div>';
   el.classList.remove('hide');
@@ -747,7 +768,9 @@ function popupHtml(seg, c) {
     : 'op ' + c.datums.length + ' ' + dag + 'en (' + c.datums.map(datumKort).join(', ') + ')';
   var stromen = ['A', 'B', '?'].filter(function (r) { return c.stromen[r].n; }).map(function (r) { return rond(c.stromen[r].q); });
   var richting = c.compleet ? 'in beide richtingen gemeten: ' + stromen.join(' + ') + ' per uur' : ophoogTekst(c, seg, dag + ' ' + c.uur + ':00');
-  return '<div class="pop"><b>' + esc(seg.straat) + '</b> <span class="dim">· ' + Math.round(seg.L) + ' m</span>' +
+  var kort = teKort(c) ? '<div class="kort-noot">Te kort gemeten: een ontmoetingsvenster van ' + komma(venster(c), 0) + ' s. Vanaf ' + KORT_VENSTER +
+    ' s krijgt een stuk een kleur en een getal op de kaart. Met zo weinig meting zegt één tik al veel; loop het stuk vaker om het te meten.</div>' : '';
+  return '<div class="pop"><b>' + esc(seg.straat) + '</b> <span class="dim">· ' + Math.round(seg.L) + ' m</span>' + kort +
     '<div class="groot">≈ ' + labelTekst(c, seg) + ' passanten per uur</div>' +
     '<div class="dim">marge ' + rond(mg[0]) + '–' + rond(mg[1]) + ' (95%)</div>' +
     '<div>' + dag + ' ' + c.uur + ':00–' + (c.uur + 1) + ':00 · ' + c.n + ' keer langsgelopen, ' + dagen + '</div>' +
@@ -791,7 +814,7 @@ function openWeek(seg) {
 }
 function sluitWeek() { document.getElementById('week').classList.add('hide'); WEEKSEG = null; }
 function tekstKleur(q) { return MAXQ > 0 && Math.pow(Math.min(1, q / MAXQ), 0.6) > 0.5 ? '#fff' : '#1b1b19'; }
-function weekWaarde(x) { return x ? rond(schat(x, WEEKSEG).q) + (x.compleet ? '' : '*') : ''; }
+function weekWaarde(x) { return !x ? '' : teKort(x) ? '\u00b7' : rond(schat(x, WEEKSEG).q) + (x.compleet ? '' : '*'); }
 function tekenWeek() {
   var seg = WEEKSEG, html = '<thead><tr><th></th>';
   for (var h = 0; h < 24; h++) html += '<th>' + h + '</th>';
@@ -803,6 +826,11 @@ function tekenWeek() {
       var ck = d + ':' + h, c = seg.cells[ck];
       if (!c) { html += '<td class="leeg" title="' + DAGNAAM[d] + ' ' + h + ':00 \u00b7 niet gemeten"></td>'; continue; }
       dag.push(c);
+      if (teKort(c)) {   // v3.42
+        html += '<td data-cel="' + ck + '" class="kort' + (ck === WEEKCEL ? ' sel' : '') + '" title="' + DAGNAAM[d] + ' ' + h + ':00\u2013' + (h + 1) +
+                ':00 \u00b7 te kort gemeten">\u00b7</td>';
+        continue;
+      }
       html += '<td data-cel="' + ck + '"' + (ck === WEEKCEL ? ' class="sel"' : '') + ' style="background:' + kleur(schat(c, seg).q) + ';color:' + tekstKleur(schat(c, seg).q) + '"' +
               ' title="' + DAGNAAM[d] + ' ' + h + ':00\u2013' + (h + 1) + ':00 \u00b7 ' + weekWaarde(c) + ' passanten per uur">' + weekWaarde(c) + '</td>';
     }
