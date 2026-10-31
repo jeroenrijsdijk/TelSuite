@@ -794,6 +794,7 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <li>Gat in tijd &gt; 30s breekt een bezoek</li>
 <li>Minimum 5 seconden én 3 GPS-punten om mee te tellen</li>
 <li>Uitzondering na een reconstructie (sinds v3.41): een kort stuk van hooguit 20 m waar je doorheen liep (de stukken ervoor en erna liggen op andere wegen) is ook met 2 punten een bezoek. Zo'n stukje loop je in een paar seconden door. Een kort bezoek aan een lang stuk telt niet: dan sneed je een hoek af.</li>
+<li>Uitzondering na een reconstructie (sinds v3.45): je kwam erdoorheen. Een stuk is ook een bezoek als je er minstens de helft van zag: van waar je erop kwam tot waar je eraf ging, gemeten langs het stuk (de gps-punten, en het midden van het gaatje naar het punt ervoor en erna, als dat hooguit 5 s is). Zo telt een stuk mee dat je met de auto of de fiets in 3&ndash;4 s doorreed; met alleen de 5 seconden bleef dat grijs. Een afgesneden hoek of een gps-sprong opzij beslaat maar een paar meter van het stuk en telt niet. Een bezoek duurt altijd minstens 1 s: soms vallen twee gps-punten in dezelfde seconde, en in v3.41 gaf dat dan een duur van 0.</li>
 </ul>
 <p>Flux uitrekenen in KNIME: <code>n_tellingen × 60 / duur_sec = passages/min</code></p>
 <p>Laad de ZIP in telrapport.html voor directe kaartvisualisatie, of in telplanning.html (Dekkings-modus) voor dagdeel-dekking.</p>

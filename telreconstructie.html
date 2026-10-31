@@ -753,7 +753,7 @@ function ovpBackoffMs(n) { return Math.min(500 * Math.pow(2, Math.max(0, n - 1))
 // _reconstructie_log.csv. valideer.py dwingt af: verandert dit bestand in een
 // release, dan moet dit gelijk zijn aan die release. Vervangt de bevroren
 // stempels v2.24 (sessie) en v2.18 (log), die elkaar tegenspraken.
-var RECON_VERSIE = 'v3.41';
+var RECON_VERSIE = 'v3.45';
 var OFFSET_M = 4;          // meters uit de wegas. zijde-offset: zelfde waarde in 5 bestanden, bewaakt door valideer.py
 var SNAP_MAX_M = 50;       // max afstand tik→way bij hersnap. Ruim, want tik-GPS valt
                            // in stadskloven tientallen meters naast de weg (multipath).
@@ -1607,6 +1607,19 @@ function hhmmss(iso) {
 function herbouwBezocht(events, netMatch, segCounterFn) {
   var MAX_GAP = 30, MIN_DUR = 5, MIN_PTS = 3;   // seconden / punten
   var KORT_MAX = 20;                            // m; v3.41: korter stuk met doorgang altijd een passage
+  // v3.45: erdoorheen. Jay, over een autorit waarop hij fietsen telde: "Waarom zijn er
+  // heel veel linkjes die niet als bezocht zijn gemarkeerd?" 5 s en 3 punten is voor
+  // lopen gemaakt (zo'n 30 s op een stuk van 40 m); in de auto ben je er in 3-4 s
+  // doorheen, en van de 117 stukken in die rit haalden er 16 de drempel. Een stuk telt
+  // daarom ook als je er minstens de helft van zag (DOOR_DEEL): het deel van het stuk
+  // tussen waar je erop kwam en eraf ging. Dat zijn de punten van de reeks, en het
+  // midden van het gaatje naar het punt ervoor en erna (als dat hooguit DOOR_GAT s
+  // ervan ligt, zoals de gaatjes in Passanten, v3.40), op het stuk gelegd. Een
+  // afgesneden hoek, of een gps-sprong opzij, beslaat zo maar een paar meter van het
+  // stuk en blijft erbuiten. Altijd minstens 1 s: twee
+  // punten kunnen in dezelfde seconde vallen, en KNIME deelt door duur_sec (de regel
+  // van v3.41 gaf zo in die rit drie keer duur 0).
+  var DOOR_DEEL = 0.5, DOOR_GAT = 5;
   // naam per way uit de originele snap (het netwerk zelf draagt geen straatnaam)
   var naam = {};
   [S.gps, S.telregels].forEach(function (bron) {
@@ -1615,18 +1628,18 @@ function herbouwBezocht(events, netMatch, segCounterFn) {
       if (w && !naam[w] && r.straat) naam[w] = r.straat;
     });
   });
-  // aaneengesloten runs over de gematchte GPS-fixes
+  // aaneengesloten runs over de gematchte GPS-fixes (i0..i1: hun plaats in gpsEv, v3.45)
   var visits = [], cur = null;
-  events.forEach(function (ev) {
-    if (ev.kind !== 'gps') return;
+  var gpsEv = events.filter(function (ev) { return ev.kind === 'gps'; });
+  gpsEv.forEach(function (ev, i) {
     var m = ev._match;
     if (!m) { if (cur) { visits.push(cur); cur = null; } return; }   // geen match: sluit run
     var seg = +m.segIdx || 0;
     var same = cur && cur.wayId === m.wayId && cur.segIdx === seg;
     if (!same || (ev.t - cur.tEnd) > MAX_GAP) {
       if (cur) visits.push(cur);
-      cur = { wayId: m.wayId, segIdx: seg, tStart: ev.t, tEnd: ev.t, tsStart: ev.ts, tsEnd: ev.ts, nGps: 1 };
-    } else { cur.tEnd = ev.t; cur.tsEnd = ev.ts; cur.nGps++; }
+      cur = { wayId: m.wayId, segIdx: seg, tStart: ev.t, tEnd: ev.t, tsStart: ev.ts, tsEnd: ev.ts, nGps: 1, i0: i, i1: i };
+    } else { cur.tEnd = ev.t; cur.tsEnd = ev.ts; cur.nGps++; cur.i1 = i; }
   });
   if (cur) visits.push(cur);
   // v3.41: de lengte van een stuk, zoals de knip hem maakt (zie boven)
@@ -1640,11 +1653,36 @@ function herbouwBezocht(events, netMatch, segCounterFn) {
     }
     return L || Infinity;
   }
+  // v3.45: hoeveel meter van het stuk je zag (zie DOOR_DEEL)
+  function langs(p, q) {               // q op de lijn p ([[lat, lon], …]) gelegd: meters vanaf het begin
+    var best = Infinity, uit = 0, a = 0, cos = Math.cos(q.lat * Math.PI / 180), qx = q.lon * 111320 * cos, qy = q.lat * 111320;
+    for (var i = 1; i < p.length; i++) {
+      var ax = p[i - 1][1] * 111320 * cos, ay = p[i - 1][0] * 111320, dx = p[i][1] * 111320 * cos - ax, dy = p[i][0] * 111320 - ay;
+      var l2 = dx * dx + dy * dy, f = l2 ? Math.max(0, Math.min(1, ((qx - ax) * dx + (qy - ay) * dy) / l2)) : 0;
+      var d = Math.hypot(qx - ax - f * dx, qy - ay - f * dy);
+      if (d < best) { best = d; uit = a + f * Math.sqrt(l2); }
+      a += Math.sqrt(l2);
+    }
+    return uit;
+  }
+  function gezien(v) {
+    var g = netMatch[v.wayId];
+    var p = g && g.geometry ? (splitWayIntoSegments(g.geometry)[v.segIdx] || []).map(_normPt) : [];
+    if (p.length < 2) return 0;
+    var punten = gpsEv.slice(v.i0, v.i1 + 1), voor = gpsEv[v.i0 - 1], na = gpsEv[v.i1 + 1];
+    var midden = function (a, b) { return { lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2 }; };
+    if (voor && punten[0].t - voor.t <= DOOR_GAT) punten.push(midden(voor, punten[0]));
+    if (na && na.t - gpsEv[v.i1].t <= DOOR_GAT) punten.push(midden(gpsEv[v.i1], na));
+    var a = punten.map(function (q) { return langs(p, q); }).filter(isFinite);
+    return a.length ? Math.max.apply(null, a) - Math.min.apply(null, a) : 0;
+  }
   var ruw = visits;
   visits = ruw.filter(function (v, i) {
     if ((v.tEnd - v.tStart) >= MIN_DUR && v.nGps >= MIN_PTS) return true;
+    if ((v.tEnd - v.tStart) < 1) return false;                         // v3.45: nooit duur 0
+    if (gezien(v) >= DOOR_DEEL * stukLengte(v)) return true;           // v3.45: erdoorheen
     var voor = ruw[i - 1], na = ruw[i + 1];
-    return !!(voor && na && v.nGps >= 2 && voor.wayId !== na.wayId && voor.wayId !== v.wayId && na.wayId !== v.wayId
+    return !!(voor && na && voor.wayId !== na.wayId && voor.wayId !== v.wayId && na.wayId !== v.wayId
               && stukLengte(v) <= KORT_MAX);
   });
   // tikken per venster tellen uit de gereconstrueerde toewijzing
