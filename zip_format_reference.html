@@ -870,6 +870,7 @@ sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_m
 <div class="summary-section" id="passanten-csv">
   <h2>Passanten exports (dagcurve.csv, passages.csv)</h2>
   <p style="color:var(--dim);max-width:72ch">Since v3.43, the <em>Dagcurve</em> tab of <code>passanten.html</code> saves two files as a download: the hourly profile and the passages it is computed from. They are outputs only: no tool reads them back, and the ZIPs, and the KNIME pipeline, are unchanged. Both are semicolon-separated, dot as decimal separator, UTF-8, one header line.</p>
+  <p style="color:var(--dim);max-width:72ch">Since v3.44, segments can be chosen on the map (<em>Kies stukken</em>, or Ctrl+click). The tab then also offers <code>dagcurve_keuze.csv</code> and <code>passages_keuze.csv</code>: the same columns, for the chosen segments only (the curve computed on their passages alone, with its own index 100).</p>
   <div class="csv-block">
     <div class="csv-title">passages.csv &mdash; the base data</div>
     <div class="csv-sample">sessie_id;datum;weekdag;uur;osm_way_id;segment_index;straat;richting;lengte_m;tijd_s;venster_s;tegemoet;stilstaand
