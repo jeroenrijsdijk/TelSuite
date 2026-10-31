@@ -19,10 +19,10 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.42'
-# v3.42: te kort gemeten: geen kleur voor een stuk met te weinig meting
-# (telrapport: lengte × aanwezigheid < 300 m·s; Passanten: venster < 30 s).
-VERWACHT_GEWIJZIGD = {'telrapport.html', 'passanten.html', 'index.html', 'traffic_counter_help.html', 'zip_format_reference.html'}
+RELEASE = 'v3.43'
+# v3.43: Passanten krijgt een tabblad Dagcurve (index per uur en dagtype,
+# weekdagfactoren, dagcurve.csv en passages.csv).
+VERWACHT_GEWIJZIGD = {'passanten.html', 'index.html', 'traffic_counter_help.html', 'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description

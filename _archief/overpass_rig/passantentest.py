@@ -40,6 +40,11 @@ opgeteld; v = 1,1 m/s.
   T. (v3.42) Te kort gemeten: een stuk met een ontmoetingsvenster onder
      KORT_VENSTER (30 s) krijgt geen kleur en geen getal; de testgegevens halen
      dat allemaal, dus de test zet de drempel even net boven het kleinste venster.
+  DC. (v3.43) Dagcurve: een tweede tabblad met de index per uur en dagtype, de
+     weekdagfactoren, waar gemeten is, en twee CSV's. De index wordt hier los
+     nagerekend met hetzelfde model (iterative proportional fitting), uit de
+     testgegevens en uit passages.csv; dat laatste laat zien dat de basisdata
+     genoeg is om de factoren na te rekenen.
   v3.40: de gaatjes van 1 s tussen de passages worden in het midden gedeeld,
      dus elke passage is een halve seconde per buur langer (verwacht() rekent
      dat zelf uit, met hooguit 5 s per kant).
@@ -221,6 +226,28 @@ def schat_slim(V, k):
     if zelf[0] < MIN_TEGEN or ander[0] < MIN_TEGEN: return 2 * c['q'], 'twee', None
     rho = (ander[0] / ander[1]) / (zelf[0] / zelf[1])
     return c['q'] * (1 + rho), 'straat', rho
+
+def dagcurve_ipf(rijen):
+    """v3.43: het model van de dagcurve, los van de pagina. rijen: (eenheid, weekdag 0-6, uur, venster, tegemoet).
+    Tegemoet ~ Poisson(venster/3600 * A[eenheid] * F[dagtype, uur] * D[weekdag]), D alleen op werkdagen.
+    Geeft (F, D), nog zonder schaal."""
+    TYPE = ['werkdag'] * 5 + ['zaterdag', 'zondag']
+    agg = {}
+    for u, d, h, w, m in rijen:
+        a = agg.setdefault((u, d, h), [0.0, 0.0]); a[0] += w; a[1] += m
+    obs = [(u, d, (TYPE[d], h), w / 3600, m) for (u, d, h), (w, m) in agg.items()]
+    A = {o[0]: 1.0 for o in obs}; F = {o[2]: 1.0 for o in obs}; D = [1.0] * 7
+    for _ in range(5000):
+        for u in A:
+            A[u] = sum(m for uu, d, k, w, m in obs if uu == u) / sum(w * F[k] * D[d] for uu, d, k, w, m in obs if uu == u)
+        oud = dict(F)
+        for k in F:
+            F[k] = sum(m for u, d, kk, w, m in obs if kk == k) / sum(w * A[u] * D[d] for u, d, kk, w, m in obs if kk == k)
+        for dd in range(5):
+            noemer = sum(w * A[u] * F[k] for u, d, k, w, m in obs if d == dd)
+            if noemer: D[dd] = sum(m for u, d, k, w, m in obs if d == dd) / noemer
+        if max(abs(F[k] / oud[k] - 1) for k in F) < 1e-12: break
+    return F, D
 
 def samen(cellen):
     """Cellen samennemen zoals de kolom gem.: per richting optellen, dan delen. (q, compleet)"""
@@ -475,6 +502,62 @@ else:
         pg.keyboard.press('Escape')
         pg.evaluate("() => { KORT_VENSTER = 30; herbereken(); }"); pg.wait_for_timeout(200)
         eis('drempel terug op 30 s: alles weer gekleurd', not pg.evaluate("Object.values(SEGMENTEN).some(s => s.cells['5:13'] && teKort(s.cells['5:13']))") and len(pg.evaluate(GEMETEN)) == 12)
+
+        print('\n== DC. Dagcurve (v3.43) ==')
+        eis('twee tabbladen, Kaart staat aan', pg.is_visible('#tabs') and pg.get_attribute('#tabs button[data-tab="kaart"]', 'aria-pressed') == 'true'
+            and pg.is_visible('#kaart') and not pg.is_visible('#tab-dagcurve'))
+        pg.click('#tabs button[data-tab="dagcurve"]')
+        pg.wait_for_selector('#dc-uren', timeout=20000)
+        eis('Dagcurve: de kaart weg, de grafiek en de tabellen erbij', not pg.is_visible('#kaart') and pg.is_visible('#dagcurve svg') and pg.is_visible('#dc-dagen')
+            and pg.get_attribute('#tabs button[data-tab="dagcurve"]', 'aria-pressed') == 'true')
+        dc = pg.evaluate("(() => { const d = DAGCURVE; return { ref: d.ref, refK: d.refK, tellingen: d.tellingen, cel: Object.fromEntries(Object.entries(d.cel).map(([k, c]) => [k, [c.index, c.n, c.genoeg, c.los, c.onder]])), dagen: d.dagen.map(x => [x.factor, x.n, x.genoeg]) }; })()")
+        eis('de vakjes: zaterdag 13 (twee tellingen) en werkdag 11 (een)', sorted(dc['cel']) == ['werkdag:11', 'zaterdag:13'] and dc['cel']['zaterdag:13'][1] == 2
+            and dc['cel']['zaterdag:13'][2] and dc['cel']['werkdag:11'][1] == 1 and not dc['cel']['werkdag:11'][2] and dc['tellingen'] == 3, dc)
+        eis('op werkdagen te weinig, dus index 100 = zaterdag 13, en donderdag is de enige werkdag (factor 1)', dc['ref'] == 'alles' and dc['refK'] == ['zaterdag:13']
+            and abs(dc['cel']['zaterdag:13'][0] - 100) < 1e-9 and dc['dagen'][3][:2] == [1, 1] and 'het gemiddelde van de gemeten uren' in pg.inner_text('#dagcurve'), dc)
+        # los nagerekend: dezelfde passages, hetzelfde model
+        rijen = []
+        for datum, start, pas in GEBRUIKT:
+            t, tijden = start, []
+            for p in pas: tijden.append((t, t + p[3])); t = t + p[3] + 1
+            for i, (way, sg, kant, duur, nteg, nstil) in enumerate(pas):
+                t0, t1 = tijden[i]
+                van = max((tijden[i - 1][1] + t0) / 2, t0 - 5) if i > 0 and tijden[i - 1][1] < t0 else t0
+                tot = min((t1 + tijden[i + 1][0]) / 2, t1 + 5) if i < len(pas) - 1 and tijden[i + 1][0] > t1 else t1
+                # het Steegje (richting uit de GPS) is alleen op zaterdag om 13 uur gelopen: het valt weg, wat zijn richting ook is
+                r_ = {'heen': 'A', 'terug': 'B'}.get(kant, '?')
+                rijen.append(((way, sg, r_), DAG[datum], ((t0 + t1) // 2) // 3600, lengte(way, sg) / V_VOET + duur + (t0 - van) + (tot - t1), nteg))
+        Fp, Dp = dagcurve_ipf(rijen)
+        verw = 100 * Fp[('werkdag', 11)] * Dp[3] / Fp[('zaterdag', 13)]
+        eis('werkdag 11 = %.2f: los nagerekend met hetzelfde model (zaterdag 13 = 100)' % verw, abs(dc['cel']['werkdag:11'][0] - verw) < 1e-6, [dc['cel']['werkdag:11'][0], verw])
+        tab = pg.evaluate("[...document.querySelectorAll('#dc-uren td[data-cel]')].map(td => [td.dataset.cel, td.textContent, td.className, td.title])")
+        eis('de tabel: zaterdag 13 toont 100, werkdag 11 een streepje (te weinig gemeten)',
+            any(c == 'zaterdag:13' and t_.startswith('100') for c, t_, k, ti in tab) and any(c == 'werkdag:11' and t_ == '\u2013' and 'weinig' in k and 'te weinig gemeten' in ti for c, t_, k, ti in tab), tab)
+        dek = pg.evaluate("[...document.querySelectorAll('#dc-dekking tbody tr')].map(tr => [...tr.children].map(td => td.textContent))")
+        eis('waar gemeten is: do 11 uur 1 telling, za 13 uur 2', [r_ for r_ in dek if r_[0] == 'do'][0][1] == '1' and [r_ for r_ in dek if r_[0] == 'za'][0][3] == '2', dek)
+        with pg.expect_download() as dl:
+            pg.click('#dagcurve button:has-text("dagcurve.csv")')
+        regels = open(dl.value.path(), encoding='utf-8').read().strip().split('\n')
+        eis('dagcurve.csv: kolommen en rijen (uur per dagtype, weekdag)', dl.value.suggested_filename == 'dagcurve.csv' and regels[0] == 'soort;dag;uur;index;onder;boven;tellingen;tegemoet;genoeg'
+            and [r_.split(';')[:3] for r_ in regels[1:]] == [['uur', 'werkdag', '11'], ['uur', 'zaterdag', '13'], ['weekdag', 'do', '']]
+            and regels[2].split(';')[3] == '100.0' and regels[2].endswith(';2;%d;ja' % sum(p[4] for g in GEBRUIKT[:2] for p in g[2])), regels)
+        with pg.expect_download() as dl:
+            pg.click('#dagcurve button:has-text("passages.csv")')
+        pas = [r_.split(';') for r_ in open(dl.value.path(), encoding='utf-8').read().strip().split('\n')]
+        eis('passages.csv: de kolommen, een rij per passage (%d)' % len(rijen), pas[0] == 'sessie_id;datum;weekdag;uur;osm_way_id;segment_index;straat;richting;lengte_m;tijd_s;venster_s;tegemoet;stilstaand'.split(';')
+            and len(pas) - 1 == len(rijen) == sum(len(g[2]) for g in GEBRUIKT), [len(pas), len(rijen)])
+        eis('de vensters in passages.csv zijn die van de pagina (lengte / 1,1 + tijd met de gaatjes)',
+            all(abs(a_ - b_) < 0.051 for a_, b_ in zip(sorted(float(r_[10]) for r_ in pas[1:]), sorted(r_[3] for r_ in rijen)))
+            and all(abs(float(r_[10]) - (float(r_[8]) / V_VOET + float(r_[9]))) < 0.1 for r_ in pas[1:]),
+            [(a_, round(b_, 2)) for a_, b_ in zip(sorted(float(r_[10]) for r_ in pas[1:]), sorted(r_[3] for r_ in rijen)) if abs(a_ - b_) >= 0.051][:5])
+        Fc, Dc = dagcurve_ipf([((r_[4], r_[5], r_[7]), ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'].index(r_[2]), int(r_[3]), float(r_[10]), int(r_[11])) for r_ in pas[1:]])
+        uitCsv = 100 * Fc[('werkdag', 11)] * Dc[3] / Fc[('zaterdag', 13)]
+        eis('uit passages.csv alleen is de index na te rekenen (%.2f; de pagina %.2f)' % (uitCsv, dc['cel']['werkdag:11'][0]), abs(uitCsv - dc['cel']['werkdag:11'][0]) < 0.05)
+        pg.click('#tabs button[data-tab="kaart"]'); pg.wait_for_timeout(300)
+        eis('terug naar Kaart: de kaart en de labels zijn er weer', pg.is_visible('#kaart') and not pg.is_visible('#tab-dagcurve') and len(pg.evaluate(LABELS)) > 0
+            and pg.evaluate("kaart.getSize().x > 0"))
+        pg.evaluate("() => { herbereken(); }"); pg.wait_for_timeout(100)
+        eis('herbereken() leegt de dagcurve (nieuwe bestanden: opnieuw rekenen)', pg.evaluate("DAGCURVE === null"))
         eis('geen JS-fouten', not fouten, fouten)
         if os.environ.get('PASSANTEN_PNG'):
             pg.screenshot(path=os.environ['PASSANTEN_PNG'])
@@ -499,6 +582,12 @@ else:
         pg.keyboard.press('Escape')
         if os.environ.get('PASSANTEN_PNG'):
             pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_390.png'))
+        pg.click('#tabs button[data-tab="dagcurve"]'); pg.wait_for_selector('#dc-uren', timeout=20000)
+        breed = pg.evaluate("document.documentElement.scrollWidth")
+        eis('v3.43: de dagcurve op 390 px: niets breder dan het scherm (%d px), de grafiek past' % breed,
+            breed <= 390 and pg.evaluate("document.querySelector('#dagcurve svg').getBoundingClientRect().right <= 390"))
+        if os.environ.get('PASSANTEN_PNG'):
+            pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_dagcurve_390.png'), full_page=True)
         eis('geen JS-fouten', not fouten, fouten)
         ctx.close(); b.close()
     shutil.rmtree(tmp, ignore_errors=True)

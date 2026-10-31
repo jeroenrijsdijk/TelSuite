@@ -866,6 +866,37 @@ sessie_id;nr;tijdstip;type;lat_gps;lon_gps;osm_way_id;segment_index;straat;lat_m
   </div>
 </div>
 
+<!-- ── Passanten exports (v3.43) ── -->
+<div class="summary-section" id="passanten-csv">
+  <h2>Passanten exports (dagcurve.csv, passages.csv)</h2>
+  <p style="color:var(--dim);max-width:72ch">Since v3.43, the <em>Dagcurve</em> tab of <code>passanten.html</code> saves two files as a download: the hourly profile and the passages it is computed from. They are outputs only: no tool reads them back, and the ZIPs, and the KNIME pipeline, are unchanged. Both are semicolon-separated, dot as decimal separator, UTF-8, one header line.</p>
+  <div class="csv-block">
+    <div class="csv-title">passages.csv &mdash; the base data</div>
+    <div class="csv-sample">sessie_id;datum;weekdag;uur;osm_way_id;segment_index;straat;richting;lengte_m;tijd_s;venster_s;tegemoet;stilstaand
+20261001_100000_abc_pkt_w;2026-10-01;do;10;123456789;2;Voorstraat;A;36.3;40.5;73.5;3;1</div>
+    <div class="csv-notes">
+      <div class="csv-note">One row per passage: a row of <code>_bezocht.csv</code> in every winkelstraat ZIP that Passanten uses (the reconstruction where there is one), in order of <code>sessie_id</code> and time.</div>
+      <div class="csv-note"><code>weekdag</code>: <code>ma</code> &hellip; <code>zo</code>. <code>uur</code>: the hour of the passage&rsquo;s midpoint, as everywhere in Passanten.</div>
+      <div class="csv-note"><code>richting</code>: <code>A</code> (walking towards a higher <code>segment_index</code>), <code>B</code>, or empty when it cannot be told. <code>straat</code>: empty for an unnamed way.</div>
+      <div class="csv-note"><code>lengte_m</code>: from the geometry in <code>_netwerk.csv</code>. <code>tijd_s</code>: <code>duur_sec</code> plus the passage&rsquo;s share of the gaps to its neighbours (each gap split in the middle, at most 5&nbsp;s per side; since v3.40). <code>venster_s</code> = <code>lengte_m</code> / 1.1 + <code>tijd_s</code>, the encounter window. <code>tegemoet</code> and <code>stilstaand</code>: the taps that fall in the passage by time. Passers-by per hour for one direction: 3600 &middot; &Sigma;<code>tegemoet</code> / &Sigma;<code>venster_s</code>.</div>
+    </div>
+  </div>
+  <div class="csv-block">
+    <div class="csv-title">dagcurve.csv &mdash; the factors</div>
+    <div class="csv-sample">soort;dag;uur;index;onder;boven;tellingen;tegemoet;genoeg
+uur;werkdag;14;101.3;93.6;108.3;7;870;ja
+uur;zaterdag;12;154.6;146.4;165.6;1;197;nee
+weekdag;ma;;88.6;82.6;94.9;14;1146;ja</div>
+    <div class="csv-notes">
+      <div class="csv-note"><strong>Model.</strong> <code>tegemoet</code> per passage ~ Poisson(<code>venster_s</code>/3600 &middot; A[segment, direction] &middot; F[day type, hour] &middot; D[weekday]), with day types <code>werkdag</code> (Mon&ndash;Fri), <code>zaterdag</code>, <code>zondag</code>, and D for Mon&ndash;Fri only. Maximum likelihood by iterative proportional fitting. The level of each segment absorbs which streets were walked when, so only segments counted at more than one moment shape the curve.</div>
+      <div class="csv-note"><code>soort</code> = <code>uur</code>: one row per day type and hour with passages. <code>index</code> = 100 &middot; F relative to the mean working-day hour from 11 to 16 h (the hours there with enough data; without those: the working-day hours with enough data, then all hours). Empty when it cannot be separated from the street level: a moment that shares no segments with the rest, or a working-day hour that cannot be told apart from its weekday.</div>
+      <div class="csv-note"><code>soort</code> = <code>weekdag</code>: <code>dag</code> <code>ma</code> &hellip; <code>vr</code>, <code>index</code> = 100 &middot; D. The weekdays with enough data average 100.</div>
+      <div class="csv-note"><code>onder</code>, <code>boven</code>: the 2.5th and 97.5th percentile over 200 bootstrap draws of whole counts (fixed seed, so the same data gives the same margins); empty with fewer than 20 usable draws. <code>tellingen</code>, <code>tegemoet</code>: the counts and taps behind the value. <code>genoeg</code>: <code>ja</code> when separable, with at least 2 counts and 10 taps; the tab shows a dash otherwise.</div>
+      <div class="csv-note">Use: a count on a working day at hour h with Q passengers per hour gives Q &middot; 100 / index(werkdag, h) / (D/100) for the mean working-day hour; on a Saturday, Q &middot; 100 / index(zaterdag, h). Calibration (&times;&nbsp;1.05) and the one-direction scaling of the map do not enter: these are ratios, per measured stream.</div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Planning link (v3.14) ── -->
 <div class="summary-section">
   <h2>Planning link (telplanning &rarr; field apps)</h2>
