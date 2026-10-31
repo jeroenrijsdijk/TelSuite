@@ -30,7 +30,7 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_ordenen.js     # v3.31: de indeling van Ordenen (soort, originelen, dubbel, conflict), de naam van het logboek (v3.32) en de catalogus (v3.33), 50 tests
     node _archief/overpass_rig/functest_passanten.js   # v3.34: de rekenkern van Passanten per uur (formule, poolen, richting, stilstaanders); v3.40: gaatjes tussen passages gedeeld, 26 tests
     node _archief/overpass_rig/functest_teller.js      # v3.37: het blok teller in de vijf veld-apps (vingerafdruk, wachtrij, GPC, niet meetellen), 25 tests
-    node _archief/overpass_rig/functest_bezocht.js     # v3.41: _bezocht.csv na een reconstructie (herbouwBezocht): korte stukjes met een doorgang, 16 tests
+    node _archief/overpass_rig/functest_bezocht.js     # v3.41: _bezocht.csv na een reconstructie (herbouwBezocht): korte stukjes met een doorgang; v3.45: erdoorheen (minstens de helft gezien), nooit duur 0, 24 tests
     node _archief/overpass_rig/functest_kort.js        # v3.42: telrapport, te kort gemeten (lengte × aanwezigheid < 300 m·s: geen kleur), 12 tests
     node _archief/overpass_rig/functest_dagcurve.js    # v3.43: Passanten, de dagcurve (model, wat te scheiden is, trekkingen, CSV's); v3.44: de dagcurve van gekozen stukken, hele straat, 39 tests
     node _archief/overpass_rig/functest_shiftsolo.js   # shift-klik isoleert telling, 27 tests

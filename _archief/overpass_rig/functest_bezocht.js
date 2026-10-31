@@ -7,6 +7,12 @@
    wegen, en geen van beide op de weg van dit stuk), het stuk hooguit 20 m is,
    en er minstens 2 punten zijn (anders duur 0, en KNIME deelt door duur_sec).
 
+   v3.45: erdoorheen. Jay, over een autorit: "Waarom zijn er heel veel linkjes
+   die niet als bezocht zijn gemarkeerd?" Een reeks telt ook als je minstens de
+   helft van het stuk zag (de punten, en het midden van het gaatje naar de buren
+   als dat hooguit 5 s is, op het stuk gelegd), en de duur minstens 1 s.
+   En nooit duur 0: twee punten kunnen in dezelfde seconde vallen.
+
    Draaien vanuit de suite-root:  node _archief/overpass_rig/functest_bezocht.js */
 const fs = require('fs');
 const vm = require('vm');
@@ -59,7 +65,7 @@ const sleutels = rijen => rijen.map(r => r.osm_way_id + '/' + r.segment_index).j
 console.log('== de knip ==');
 eis('A is 3 stukken van 40 m, X één stuk van 15 m, Y één stuk van 30 m',
     ctx.split(NET.A.geometry).length === 3 && ctx.split(NET.X.geometry).length === 1 && ctx.split(NET.Y.geometry).length === 1);
-eis('versiestempel van de reconstructor: v3.41', ctx.RECON_VERSIE === 'v3.41');
+eis('versiestempel van de reconstructor: v3.45', ctx.RECON_VERSIE === 'v3.45');
 
 console.log('\n== zoals altijd ==');
 let r = maak([['A', 0, [0, 4, 8, 12]], ['A', 1, [16, 20, 24, 28, 32]], ['A', 2, [36, 40, 44, 48]]]);
@@ -90,6 +96,38 @@ r = maak([['A', 2, [0, 4, 8, 12]], ['X', 0, [16, 19]]]);
 eis('aan het eind (niets erna): geen passage', sleutels(r) === 'A/2', sleutels(r));
 r = maak([['A', 2, [0, 4, 8, 12]], ['X', 0, [16, 19]], ['Z', 0, [22, 24]], ['B', 0, [28, 32, 36, 40]]]);
 eis('twee korte stukjes achter elkaar (A → X → Z → B): allebei een passage', sleutels(r) === 'A/2 X/0 Z/0 B/0', sleutels(r));
+
+console.log('\n== erdoorheen (v3.45) ==');
+// punten met een plek: [weg, stuk, seconde, meter langs de weg naar het noorden, meter naar het oosten]
+function rijd(punten, tikken) {
+  const events = punten.map(([w, st, t, y, x = 0]) => ({ kind: 'gps', t: 43200 + t, ts: ts(t), lat: y * M, lon: x * M, _match: w ? { wayId: w, segIdx: st } : null }));
+  ctx.S = { sid: 's', sessieRow: { datum: '2026-10-31' }, gps: [], telregels: [],
+            taps: (tikken || []).map(([w, st, t]) => ({ wayId: w, segIdx: st, status: 'ok', src: { tijdstip: ts(t) } })) };
+  return ctx.herbouwBezocht(events, NET, segCount);
+}
+// de auto over weg A (3 stukken van 40 m) en B, 10 m/s, elke seconde een punt
+const auto = []; for (let t = 0; t <= 20; t++) { const y = 10 * t; auto.push(y < 120 ? ['A', Math.floor(y / 40), t, y] : y < 135 ? ['X', 0, t, y] : ['B', Math.floor((y - 135) / 40), t, y]); }
+r = rijd(auto, [['A', 1, 5]]);
+eis('auto, 10 m/s: elk stuk van 40 m 3-4 s en 4 punten, toch bezocht (A/0, A/1, A/2, B/0)', ['A/0', 'A/1', 'A/2', 'B/0'].every(k => sleutels(r).split(' ').includes(k)), sleutels(r));
+const a1 = r.find(x => x.osm_way_id === 'A' && x.segment_index === 1);
+eis('met de tijden van de punten (12:00:04-12:00:07, 3 s) en de tik', a1 && a1.start_tijd === '12:00:04' && a1.eind_tijd === '12:00:07' && a1.duur_sec === 3 && a1.n_gps === 4 && a1.n_tellingen === 1, a1);
+eis('het korte stukje X ertussen (15 m, 2 punten, 1 s): ook bezocht', sleutels(r).includes('X/0') && r.find(x => x.osm_way_id === 'X').duur_sec === 1, sleutels(r));
+r = rijd([['A', 1, 0, 50], ['A', 1, 1, 51], ['A', 1, 2, 52], ['A', 1, 3, 53], ['A', 1, 4, 54], ['A', 1, 5, 55], ['A', 1, 6, 56],
+          ['Y', 0, 7, 120, 50], ['Y', 0, 8, 121, 50], ['A', 1, 9, 57], ['A', 1, 10, 58], ['A', 1, 11, 59], ['A', 1, 12, 60], ['A', 1, 13, 61], ['A', 1, 14, 62]]);
+eis('een gps-sprong opzij (2 punten op Y, 1 m van de 30 m, een sprong van 80 m erheen): niet bezocht', sleutels(r) === 'A/1 A/1', sleutels(r));
+r = rijd([['A', 1, 0, 50], ['A', 1, 1, 60], ['A', 1, 2, 70], ['A', 1, 3, 78], ['Y', 0, 4, 121, 50], ['Y', 0, 5, 123, 50], ['B', 0, 6, 140], ['B', 0, 7, 150], ['B', 0, 8, 160]]);
+eis('de hoek van Y afgesneden (2 punten, 2 m van de 30 m, eraf naar B): niet bezocht', !sleutels(r).includes('Y/0'), sleutels(r));
+r = rijd([['A', 1, 0, 42], ['A', 1, 1, 43], ['A', 1, 2, 44], ['A', 1, 3, 45], ['A', 1, 4, 46], ['A', 1, 5, 47],
+          ['A', 2, 6, 81], ['A', 2, 7, 82],
+          ['B', 0, 30, 140], ['B', 0, 31, 141], ['B', 0, 32, 142], ['B', 0, 33, 143], ['B', 0, 34, 144], ['B', 0, 35, 145]]);
+eis('een gaatje van meer dan 5 s telt niet mee: A/2 met 1 m afgelegd en een sprong van 23 s erna, niet bezocht', !sleutels(r).includes('A/2'), sleutels(r));
+r = rijd([['A', 2, 0, 81], ['A', 2, 1, 86], ['A', 2, 2, 91], ['A', 2, 3, 96], ['A', 2, 4, 101], ['A', 2, 5, 106],
+          ['X', 0, 6, 122], ['X', 0, 6, 126],
+          ['B', 0, 7, 140], ['B', 0, 8, 145], ['B', 0, 9, 150], ['B', 0, 10, 155], ['B', 0, 11, 160], ['B', 0, 12, 165]]);
+eis('twee punten in dezelfde seconde op X (15 m, een doorgang): geen bezoek meer (v3.41 gaf duur 0)', !sleutels(r).includes('X/0') && r.every(x => x.duur_sec > 0), r.map(x => [sleutels([x]), x.duur_sec]));
+r = rijd([['A', 0, 0, 0], ['A', 0, 4, 5], ['A', 0, 8, 10], ['A', 0, 12, 15], ['A', 0, 16, 20], ['A', 0, 20, 25], ['A', 0, 24, 30], ['A', 0, 28, 35],
+          ['A', 1, 32, 40], ['A', 1, 36, 45], ['A', 1, 40, 50]]);
+eis('lopend zoals altijd: een reeks van 5 s en 3 punten', sleutels(r) === 'A/0 A/1', sleutels(r));
 
 console.log('\n' + (fout === 0 ? 'ALLE ' + ok + ' TESTS OK' : ok + ' ok, ' + fout + ' FOUT'));
 process.exit(fout ? 1 : 0);
