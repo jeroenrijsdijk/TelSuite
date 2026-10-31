@@ -19,9 +19,9 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.43'
-# v3.43: Passanten krijgt een tabblad Dagcurve (index per uur en dagtype,
-# weekdagfactoren, dagcurve.csv en passages.csv).
+RELEASE = 'v3.44'
+# v3.44: Passanten: stukken kiezen op de kaart (Kies stukken, Ctrl+klik, hele
+# straat) en de dagcurve van de keuze naast die van alle stukken.
 VERWACHT_GEWIJZIGD = {'passanten.html', 'index.html', 'traffic_counter_help.html', 'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 

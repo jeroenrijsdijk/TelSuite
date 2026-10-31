@@ -45,6 +45,8 @@ opgeteld; v = 1,1 m/s.
      nagerekend met hetzelfde model (iterative proportional fitting), uit de
      testgegevens en uit passages.csv; dat laatste laat zien dat de basisdata
      genoeg is om de factoren na te rekenen.
+     (v3.44) Kiezen: met de knop Kies stukken of Ctrl+klik op de kaart, hele
+     straat, en de dagcurve van de keuze naast die van alle stukken.
   v3.40: de gaatjes van 1 s tussen de passages worden in het midden gedeeld,
      dus elke passage is een halve seconde per buur langer (verwacht() rekent
      dat zelf uit, met hooguit 5 s per kant).
@@ -558,6 +560,60 @@ else:
             and pg.evaluate("kaart.getSize().x > 0"))
         pg.evaluate("() => { herbereken(); }"); pg.wait_for_timeout(100)
         eis('herbereken() leegt de dagcurve (nieuwe bestanden: opnieuw rekenen)', pg.evaluate("DAGCURVE === null"))
+
+        print('\n== DC. Kiezen (v3.44) ==')
+        def klik_op(k, ctrl=False):
+            xy = pg.evaluate("""k => { const m = midden(lijnVan(SEGMENTEN[k])), p = kaart.latLngToContainerPoint(m), r = document.getElementById('kaart').getBoundingClientRect();
+                return [r.left + p.x, r.top + p.y]; }""", k)
+            if ctrl: pg.keyboard.down('Control')
+            pg.mouse.click(xy[0], xy[1])
+            if ctrl: pg.keyboard.up('Control')
+            pg.wait_for_timeout(150)
+        keuze = lambda: sorted(pg.evaluate("Object.keys(KEUZE)"))
+        eis('de rij Kies onder dag en uur: de knop staat uit, niets gekozen', pg.is_visible('#kiesknop') and pg.get_attribute('#kiesknop', 'aria-pressed') == 'false' and keuze() == [])
+        pg.click('#kiesknop'); klik_op('1001/2')
+        eis('knop aan, klik op een stuk: gekozen (blauwe rand), het weekoverzicht blijft dicht', pg.get_attribute('#kiesknop', 'aria-pressed') == 'true' and keuze() == ['1001/2']
+            and not pg.is_visible('#week') and pg.evaluate("document.querySelectorAll('#kaart path.gekozen').length") == 1 and 'gekozen voor de dagcurve' in pg.inner_text('#legenda'), [keuze(), pg.is_visible('#week')])
+        eis('de rij noemt het stuk en biedt de hele straat aan', '1 stuk: Voorstraat (1)' in pg.inner_text('#keuzetekst') and pg.inner_text('#helestraat') == 'hele Voorstraat (+8)', pg.inner_text('#keuzetekst'))
+        pg.click('#helestraat'); pg.wait_for_timeout(150)
+        eis('hele straat: de vijf stukken van 1001 en de stukken van 1004 en 1005 (ook de andersom getekende), niet de Kerkstraat',
+            keuze() == ['1001/0', '1001/1', '1001/2', '1001/3', '1001/4', '1004/0', '1004/1', '1005/0', '1005/1'] and not pg.is_visible('#helestraat'), keuze())
+        klik_op('1001/2')
+        eis('nog eens klikken: weer uit', '1001/2' not in keuze() and len(keuze()) == 8)
+        pg.click('#keuzetekst button:has-text("wis")'); pg.click('#kiesknop'); pg.wait_for_timeout(100)
+        eis('wis en de knop uit: niets gekozen', keuze() == [] and pg.get_attribute('#kiesknop', 'aria-pressed') == 'false' and pg.evaluate("document.querySelectorAll('#kaart path.gekozen').length") == 0)
+        klik_op('1001/0', ctrl=True); klik_op('1001/1', ctrl=True)
+        eis('Ctrl+klik zonder de knop: kiest ook', keuze() == ['1001/0', '1001/1'] and not pg.is_visible('#week'), keuze())
+        klik_op('1002/0')
+        eis('een gewone klik opent nog steeds het weekoverzicht, en kiest niets', pg.is_visible('#week') and keuze() == ['1001/0', '1001/1'])
+        pg.keyboard.press('Escape')
+        pg.evaluate("herbereken()"); pg.wait_for_timeout(150)
+        eis('herbereken() houdt de keuze', keuze() == ['1001/0', '1001/1'] and pg.evaluate("document.querySelectorAll('#kaart path.gekozen').length") == 2)
+        pg.click('#keuzetekst button:has-text("dagcurve")')
+        pg.wait_for_selector('.dc-keuze button', timeout=20000)
+        eis('naar de dagcurve: je keuze bovenaan, de tabel met keuze en alle, waar gemeten is: je keuze', '2 stukken: Voorstraat (2)' in pg.inner_text('.dc-keuze')
+            and pg.is_visible('#dc-uren th.alle') and 'waar gemeten is: je keuze' in pg.inner_text('#dagcurve').lower(), pg.inner_text('.dc-keuze'))
+        kz = pg.evaluate("(() => { const k = DCKEUZE.dc, a = DAGCURVE; return [k.cel['werkdag:11'].index, a.cel['werkdag:11'].index, k.ref, k.passages, k.tellingen]; })()")
+        Fk, Dk = dagcurve_ipf([r_ for r_ in rijen if r_[0][:2] in ((1001, 0), (1001, 1))])
+        verwk = 100 * Fk[('werkdag', 11)] * Dk[3] / Fk[('zaterdag', 13)]
+        eis('werkdag 11 van de keuze = %.2f: los nagerekend op alleen die passages (alle stukken: %.2f)' % (verwk, kz[1]),
+            abs(kz[0] - verwk) < 1e-6 and abs(kz[0] - kz[1]) > 0.5 and kz[2] == 'alles' and kz[3] == 12 and kz[4] == 3, kz)
+        eis('de tabel: keuze en alle naast elkaar', pg.inner_text('#dc-uren td[data-alle="werkdag:11"]') == '\u2013'
+            and pg.inner_text('#dc-uren td[data-cel="zaterdag:13"]').startswith('100') and pg.inner_text('#dc-uren td[data-alle="zaterdag:13"]') == '100')
+        with pg.expect_download() as dl:
+            pg.click('#dagcurve button:has-text("passages_keuze.csv")')
+        pk = open(dl.value.path(), encoding='utf-8').read().strip().split('\n')
+        eis('passages_keuze.csv: dezelfde kolommen, alleen de passages van de keuze (12)', dl.value.suggested_filename == 'passages_keuze.csv' and pk[0] == ';'.join(pas[0])
+            and len(pk) == 13 and all(r_.split(';')[4:6] in (['1001', '0'], ['1001', '1']) for r_ in pk[1:]), len(pk))
+        with pg.expect_download() as dl:
+            pg.click('#dagcurve button:has-text("dagcurve_keuze.csv")')
+        dk = open(dl.value.path(), encoding='utf-8').read().strip().split('\n')
+        eis('dagcurve_keuze.csv: dezelfde kolommen, de cijfers van de keuze', dl.value.suggested_filename == 'dagcurve_keuze.csv' and dk[0] == regels[0]
+            and abs(float(dk[1].split(';')[3]) - kz[0]) < 0.051, dk)
+        pg.click('.dc-keuze button'); pg.wait_for_selector('#dc-uren', timeout=20000)
+        eis('wis keuze: weer alleen alle stukken', keuze() == [] and not pg.is_visible('#dc-uren th.alle') and 'Alle stukken.' in pg.inner_text('.dc-keuze')
+            and not pg.is_visible('#dagcurve button:has-text("dagcurve_keuze.csv")'))
+        pg.click('#tabs button[data-tab="kaart"]'); pg.wait_for_timeout(200)
         eis('geen JS-fouten', not fouten, fouten)
         if os.environ.get('PASSANTEN_PNG'):
             pg.screenshot(path=os.environ['PASSANTEN_PNG'])
@@ -588,6 +644,16 @@ else:
             breed <= 390 and pg.evaluate("document.querySelector('#dagcurve svg').getBoundingClientRect().right <= 390"))
         if os.environ.get('PASSANTEN_PNG'):
             pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_dagcurve_390.png'), full_page=True)
+        pg.click('#tabs button[data-tab="kaart"]'); pg.wait_for_timeout(200)
+        pg.click('#kiesknop'); pg.evaluate("() => { wisselKeuze(SEGMENTEN['1001/0']); kiesHeleStraat(); }"); pg.wait_for_timeout(150)
+        breed = pg.evaluate("document.documentElement.scrollWidth")
+        eis('v3.44: met een keuze op 390 px: de rij Kies past (%d px)' % breed, breed <= 390 and pg.is_visible('#keuzetekst button:has-text("wis")'))
+        pg.click('#keuzetekst button:has-text("dagcurve")'); pg.wait_for_selector('.dc-keuze button', timeout=20000)
+        breed = pg.evaluate("document.documentElement.scrollWidth")
+        eis('v3.44: de dagcurve van de keuze op 390 px: de pagina niet breder (%d px), de tabel schuift in zijn kader' % breed,
+            breed <= 390 and pg.evaluate("document.querySelector('#dc-uren').parentElement.scrollWidth >= document.querySelector('#dc-uren').parentElement.clientWidth"))
+        if os.environ.get('PASSANTEN_PNG'):
+            pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_keuze_390.png'), full_page=True)
         eis('geen JS-fouten', not fouten, fouten)
         ctx.close(); b.close()
     shutil.rmtree(tmp, ignore_errors=True)

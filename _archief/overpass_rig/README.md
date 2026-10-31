@@ -32,7 +32,7 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_teller.js      # v3.37: het blok teller in de vijf veld-apps (vingerafdruk, wachtrij, GPC, niet meetellen), 25 tests
     node _archief/overpass_rig/functest_bezocht.js     # v3.41: _bezocht.csv na een reconstructie (herbouwBezocht): korte stukjes met een doorgang, 16 tests
     node _archief/overpass_rig/functest_kort.js        # v3.42: telrapport, te kort gemeten (lengte × aanwezigheid < 300 m·s: geen kleur), 12 tests
-    node _archief/overpass_rig/functest_dagcurve.js    # v3.43: Passanten, de dagcurve (model, wat te scheiden is, trekkingen, CSV's), 27 tests
+    node _archief/overpass_rig/functest_dagcurve.js    # v3.43: Passanten, de dagcurve (model, wat te scheiden is, trekkingen, CSV's); v3.44: de dagcurve van gekozen stukken, hele straat, 39 tests
     node _archief/overpass_rig/functest_shiftsolo.js   # shift-klik isoleert telling, 27 tests
     node _archief/overpass_rig/functest_hwvoorkeur.js  # highway-voorkeur in de matcher + versiestempel, 22 tests
     node _archief/overpass_rig/functest_gpxtijd.js     # GPX-tijden in echte UTC, drie parkeer-apps, 31 tests
@@ -64,7 +64,7 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/vingerafdruktest.py  # v3.30: de SHA-256 van de ZIP na het opslaan, 24 tests
     python3 _archief/overpass_rig/ordenentest.py       # v3.31: Ordenen op echte bestanden (OPFS), met en zonder move(), en alleen bekijken; v3.32: de voortgang en een logboek per ronde, 58 tests
     python3 _archief/overpass_rig/archieftest.py       # v3.33: het Overzicht van Archief: catalogus.csv, tellers, kaart, filters, route, na Uitvoeren, alleen bekijken, 42 tests
-    python3 _archief/overpass_rig/passantentest.py     # v3.34: Passanten per uur: inlezen, dag en uur, kaart en labels, popup, poolen, 390 px; v3.35: het weekoverzicht; v3.36: één richting opgehoogd (verhouding uit de straat, anders × 2); v3.39: ijkfactor en een bredere marge (× 1,4); v3.40: ijkfactor × 1,05, gaatjes gedeeld; v3.42: te kort gemeten (venster < 30 s); v3.43: tabblad Dagcurve, los nagerekend, 76 tests
+    python3 _archief/overpass_rig/passantentest.py     # v3.34: Passanten per uur: inlezen, dag en uur, kaart en labels, popup, poolen, 390 px; v3.35: het weekoverzicht; v3.36: één richting opgehoogd (verhouding uit de straat, anders × 2); v3.39: ijkfactor en een bredere marge (× 1,4); v3.40: ijkfactor × 1,05, gaatjes gedeeld; v3.42: te kort gemeten (venster < 30 s); v3.43: tabblad Dagcurve, los nagerekend; v3.44: stukken kiezen (knop, Ctrl+klik, hele straat) en de dagcurve van de keuze, 93 tests
     python3 _archief/overpass_rig/tellertest.py        # v3.37: teller/index.php in php -S (begin 409, één keer, rem, tegelijk, opslag buiten de webmap) en de voorpagina, niet meetellen, offline, 33 tests (zonder php: overgeslagen)
                                                        # (playwright + leaflet/jszip/papaparse/fontsource in node_modules)
     python3 _archief/overpass_rig/tekstgelijk.py oud.html nieuw.html  # zelfde tekst, woord voor woord (bij opmaakwijzigingen)

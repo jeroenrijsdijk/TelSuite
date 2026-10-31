@@ -1,4 +1,7 @@
 /* v3.43 functionele test — de dagcurve in passanten.html, los van de browser.
+   v3.44: de dagcurve van gekozen stukken (Jay: "linkjes kunnen selecteren om
+   daarvan dagcurves te zien"; "kiezen per klik plus hele straat is goed"), en
+   heleStraat: welke stukken bij een straat horen.
 
    Jay: "zou je uit een grote set winkelstraat tellingen ook algemenere
    dagcurves kunnen maken? wat basisdata om factoren uit te halen."
@@ -13,18 +16,19 @@ const vm = require('vm');
 const html = fs.readFileSync('passanten.html', 'utf8');
 const a = html.indexOf('/* ── Dagcurve (v3.43)'), z = html.indexOf('function dcGrafiek(');
 if (a < 0 || z < 0) throw new Error('blok Dagcurve niet gevonden');
-const csv = ['function dcCsvGetal(', 'function dagcurveCsv(', 'function passagesCsv('].map(n => {
+const csv = ['function dcCsvGetal(', 'function dagcurveCsv(', 'function passagesCsv(', 'function straatNaam(', 'function heleStraat('].map(n => {
   const i = html.indexOf(n); let j = html.indexOf('{', i), diep = 0;
   for (; j < html.length; j++) { if (html[j] === '{') diep++; else if (html[j] === '}' && --diep === 0) return html.slice(i, j + 1); }
 });
 const ctx = { console };
 vm.createContext(ctx);
 vm.runInContext([
-  'var SESSIES = {};',
+  'var SESSIES = {}, KEUZE = {};',
   "var PASSANTEN = { V_VOET: 1.1, dagIndex: function (d) { var t = new Date(d + 'T12:00:00Z'); return isNaN(t) ? null : (t.getUTCDay() + 6) % 7; } };",
   "var DAGKORT = ['ma','di','wo','do','vr','za','zo'], DAGNAAM = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];",
-  html.slice(a, z), csv.join('\n'),
-  'this.f = { dcSchat, dcNormeer, dcGroepen, dcWaarnemingen, dagcurve, dagcurveCsv, passagesCsv, zet: function (s) { SESSIES = s; DAGCURVE = null; }, ' +
+  html.slice(a, z), csv.join('\n'), /var STRAAT_GAT = [^;]+;/.exec(html)[0],
+  'this.f = { dcSchat, dcNormeer, dcGroepen, dcWaarnemingen, dagcurve, dagcurveVan, dagcurveKeuze, dagcurveCsv, passagesCsv, heleStraat, ' +
+  'zet: function (s) { SESSIES = s; DAGCURVE = null; DCKEUZE = null; }, kies: function (k) { KEUZE = k; }, ' +
   'DC_REF: DC_REF, DC_TREKKINGEN: DC_TREKKINGEN };'
 ].join('\n'), ctx);
 const F = ctx.f;
@@ -170,6 +174,49 @@ eis('passages.csv: de kolommen', regels[0] === 'sessie_id;datum;weekdag;uur;osm_
 eis('één rij per passage', regels.length - 1 === plan5.reduce((n, ps) => n + ps.length, 0));
 const p1 = regels[1].split(';');
 eis('een rij: sessie, datum, weekdag, uur, stuk, venster = lengte ÷ 1,1 + tijd', p1[0] === 'S000' && /^2026-11-0\d$/.test(p1[1]) && Math.abs(+p1[10] - (+p1[8] / 1.1 + +p1[9])) < 0.06, p1);
+
+console.log('\n== v3.44: de dagcurve van gekozen stukken ==');
+// Twee groepen straten met een eigen verloop: X (21–23) piekt om 12 uur, Y (31–33) om 15 uur.
+const FX = { 11: 0.9, 12: 1.4, 13: 1.1, 14: 0.8, 15: 0.7 }, FY = { 11: 0.6, 12: 0.8, 13: 1.0, 14: 1.2, 15: 1.5 };
+const AXY = { 21: 800, 22: 500, 23: 1200, 31: 700, 32: 400, 33: 900 }, DXY = [0.95, 1.1];
+const plan6 = [];
+for (let h = 11; h <= 15; h++) for (let d = 0; d < 2; d++)
+  plan6.push([21, 22, 23, 31, 32, 33].map(st => [d, h, st, 'A', 60, 60 / 3600 * AXY[st] * (st < 30 ? FX[h] : FY[h]) * DXY[d]]));
+F.zet(sessies(plan6));
+const X = { '21/0': true, '22/0': true, '23/0': true };
+const dx = F.dagcurveVan(X), da = F.dagcurve();
+const gemX = (FX[11] + FX[12] + FX[13] + FX[14] + FX[15]) / 5;
+eis('alleen de stukken van X: hun eigen verloop terug (piek om 12 uur)', [11, 12, 13, 14, 15].every(h => bijna(dx.cel['werkdag:' + h].index, 100 * FX[h] / gemX, 1e-6)),
+    [11, 12, 13, 14, 15].map(h => dx.cel['werkdag:' + h].index));
+eis('en hun eigen aantallen: 2 tellingen per uur, alleen hun passages', dx.cel['werkdag:12'].n === 2 && dx.passages === 30 && da.passages === 60, [dx.cel['werkdag:12'].n, dx.passages, da.passages]);
+eis('de weekdagfactoren van X: maandag en dinsdag zoals ze erin gingen', bijna(dx.dagen[1].factor / dx.dagen[0].factor, DXY[1] / DXY[0], 1e-6), dx.dagen.map(x => x.factor));
+eis('alle stukken samen: daartussenin (om 12 uur lager dan X, om 15 uur hoger)', da.cel['werkdag:12'].index < dx.cel['werkdag:12'].index && da.cel['werkdag:15'].index > dx.cel['werkdag:15'].index);
+F.kies({}); eis('zonder keuze: geen dagcurve van de keuze', F.dagcurveKeuze() === null);
+F.kies(Object.assign({}, X));
+const k1 = F.dagcurveKeuze();
+eis('met keuze: de dagcurve van de keuze, en één keer gerekend (hetzelfde antwoord)', k1 && k1 === F.dagcurveKeuze() && bijna(k1.cel['werkdag:12'].index, dx.cel['werkdag:12'].index, 1e-12));
+F.kies({ '31/0': true });
+eis('een andere keuze: opnieuw gerekend', F.dagcurveKeuze() !== k1 && F.dagcurveKeuze().passages === 10);
+let rk = F.passagesCsv(X).trim().split('\n');
+eis('passages_keuze.csv: dezelfde kolommen, alleen de gekozen stukken', rk[0].startsWith('sessie_id;datum;') && rk.length - 1 === 30 && rk.slice(1).every(r => ['21', '22', '23'].includes(r.split(';')[4])), rk.length);
+rk = F.dagcurveCsv(dx).trim().split('\n');
+eis('dagcurve_keuze.csv: dezelfde kolommen, de cijfers van de keuze', rk[0] === 'soort;dag;uur;index;onder;boven;tellingen;tegemoet;genoeg' &&
+    Math.abs(+rk.find(r => r.startsWith('uur;werkdag;12;')).split(';')[3] - dx.cel['werkdag:12'].index) < 0.051, rk.slice(0, 3));
+
+console.log('\n== v3.44: hele straat ==');
+// rechte stukken naar het oosten: [lon, lat], 1 m oost ≈ 1/(111320·cos 51,85°) graad
+const MO = 1 / (111320 * Math.cos(51.85 * Math.PI / 180)), LAT = 51.85;
+const stk = (key, straat, x0, x1, dy = 0) => ({ key, straat, geom: [[4.3 + x0 * MO, LAT + dy / 111320], [4.3 + x1 * MO, LAT + dy / 111320]] });
+const SEG = {};
+[stk('1/0', 'Hoofdstraat', 0, 40), stk('1/1', 'Hoofdstraat', 40, 80), stk('2/0', 'hoofdstraat', 80, 120),       // aaneen (ook met een kleine letter)
+ stk('3/0', 'Hoofdstraat', 160, 200),                                                                             // 40 m verder: een ongelopen stuk ertussen
+ stk('4/0', 'Hoofdstraat', 300, 340),                                                                             // 100 m verder: niet meer
+ stk('5/0', 'Hoofdstraat', 0, 40, 5000),                                                                          // 5 km verderop, een ander dorp
+ stk('6/0', 'Kerkstraat', 120, 160), stk('7/0', '(naamloos)', 200, 240)].forEach(x => { SEG[x.key] = x; });
+const hs = F.heleStraat(SEG['1/1'], SEG);
+eis('vanaf een stuk in het midden: de stukken die aaneen liggen, beide kanten op, ook over een gat van 40 m', hs[0] === '1/1' && hs.slice().sort().join() === '1/0,1/1,2/0,3/0', hs);
+eis('niet: 100 m verder, een Hoofdstraat in een ander dorp, of een andere straat ertussen', !hs.includes('4/0') && !hs.includes('5/0') && !hs.includes('6/0'));
+eis('een stuk zonder naam: alleen dat stuk', F.heleStraat(SEG['7/0'], SEG).join() === '7/0');
 
 console.log('\n' + (fout === 0 ? 'ALLE ' + ok + ' TESTS OK' : ok + ' ok, ' + fout + ' FOUT'));
 process.exit(fout ? 1 : 0);
