@@ -792,7 +792,8 @@ figure{margin:1em 0}figure svg{display:block;width:100%;max-width:36em;height:au
 <p>Drempels (vluchtige snap-flips bij kruisingen worden uitgefilterd):</p>
 <ul>
 <li>Gat in tijd &gt; 30s breekt een bezoek</li>
-<li>Minimum 5 seconden of 3 GPS-punten om mee te tellen</li>
+<li>Minimum 5 seconden én 3 GPS-punten om mee te tellen</li>
+<li>Uitzondering na een reconstructie (sinds v3.41): een kort stuk van hooguit 20 m waar je doorheen liep (de stukken ervoor en erna liggen op andere wegen) is ook met 2 punten een bezoek. Zo'n stukje loop je in een paar seconden door. Een kort bezoek aan een lang stuk telt niet: dan sneed je een hoek af.</li>
 </ul>
 <p>Flux uitrekenen in KNIME: <code>n_tellingen × 60 / duur_sec = passages/min</code></p>
 <p>Laad de ZIP in telrapport.html voor directe kaartvisualisatie, of in telplanning.html (Dekkings-modus) voor dagdeel-dekking.</p>
