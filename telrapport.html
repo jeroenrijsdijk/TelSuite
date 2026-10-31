@@ -2224,10 +2224,12 @@ function attachPocketSegmentInteraction(k) {
     const totaal  = visSess.reduce((a,s) => a + (s.totaal||0), 0);
     const pmu     = pmuForKey(k);
     const cls     = pmu !== null ? intensityClass(pmu) : null;
+    const meting  = pmuMeting(k);
     let tip = `<strong>${naam}</strong>`;
     if (totaal) tip += `<br>${totaal} tikken`;
     if (cls)    tip += `<br><span style="color:${cls.kleur};font-weight:600">${cls.label}</span>`
                      + ` (${pmu.toFixed(1)} p/m·u)`;
+    else if (meting && meting.kort) tip += `<br>${kortTekst(meting)}`;
     this.bindTooltip(tip, {sticky:true, direction:'top', className:'way-hover-tip'}).openTooltip(e.latlng);
   });
   hit.on('mouseout', function() {
@@ -2292,7 +2294,25 @@ function intensityClass(pmu) {
 
 // Berekent de p/m·u voor een pocket-segment over alle zichtbare sessies.
 // Gebruikt dezelfde formule als het weekprofiel en de sessietabel.
+/* Te kort gemeten (v3.42). Jay: "Nu de korte linkjes op de kaart staan verstoren
+   het beeld van het resultaat. 1 tik op een korte link is al gauw enorm druk."
+   Sinds v3.41 krijgt een kort stukje waar je doorheen liep een eigen passage,
+   met soms maar 2 s aanwezigheid: 1 tik op 6,6 m in 2 s is 274 p/m·u, Extreem
+   druk, terwijl de straat ernaast op 50 zit. Een kleur krijgt een stuk daarom
+   pas als de meting samen (alle zichtbare tellingen) groot genoeg is: lengte ×
+   aanwezigheid minstens PMU_MIN_MS meter·seconde (ongeveer 15 m × 20 s, een
+   derde van een gewone passage; in Jay's tellingen is de mediaan 890).
+   Daaronder: dun grijs gestreept, "te kort gemeten"; het weekprofiel toont de
+   cijfers wel. Loop je een stuk vaker, dan telt het op en krijgt het een kleur. */
+const PMU_MIN_MS = 300;
+// { pmu, ms, kort } voor een pocket-segment over alle zichtbare sessies, of null
+// (geen tikken of geen aanwezigheid). pmuForKey geeft alleen een waarde als hij
+// niet te kort gemeten is.
 function pmuForKey(key) {
+  const m = pmuMeting(key);
+  return m && !m.kort ? m.pmu : null;
+}
+function pmuMeting(key) {
   const wd = wayData[key]; if (!wd) return null;
   const pk = parseKey(key);
   const wid = pk.wid, segIdx = pk.segIdx || 0;
@@ -2317,7 +2337,12 @@ function pmuForKey(key) {
     totTel = visSess.reduce((a,s) => a + (s.totaal||0), 0);
   }
   if (totTel === 0 || totSec === 0) return null;
-  return totTel / (lenM * (totSec / 3600));
+  const ms = lenM * totSec;
+  return { pmu: totTel / (lenM * (totSec / 3600)), ms: ms, kort: ms < PMU_MIN_MS };
+}
+const KORT_KLEUR = '#8d8d86';
+function kortTekst(m) {
+  return 'te kort gemeten: ' + Math.round(m.ms) + ' meter·seconde (lengte × aanwezigheid; een kleur vanaf ' + PMU_MIN_MS + ')';
 }
 
 // Kleurcode voor een t-waarde [0..1] — gebruikt door auto/fiets die nog op t werken.
@@ -2414,6 +2439,12 @@ function recolorOne(key) {
   if (heat) {
     const kleur = heat.kleur || heatColor(heat.t);
     line.setStyle({ color: kleur, opacity:0.9, weight:4, dashArray: null });
+    return;
+  }
+  // v3.42: getikt, maar te kort gemeten voor een kleur
+  const meting = pmuMeting(key);
+  if (meting && meting.kort) {
+    line.setStyle({ color: KORT_KLEUR, opacity: 0.85, weight: 2.5, dashArray: '2 5' });
     return;
   }
   // Geen heat — check voor zichtbare zero-visited sessies
@@ -3177,6 +3208,9 @@ function openWeekprofile(key) {
     'Visits over uurgrenzen worden proportioneel gesplitst. ' +
     'Lege cel = niet gemeten. Alleen zichtbare modi/sessies tellen mee.' +
     '</div>';
+  const meting = pmuMeting(key);
+  if (meting && meting.kort) body += '<div class="hm-noot">Op de kaart grijs: ' + kortTekst(meting) + '. ' +
+    'Met zo weinig meting zegt één tik al veel; loop het stuk vaker om het te meten.</div>';
   body += renderWeeklyHeatmap(hm);
   body += renderSegmentSessionTable(wd, wid, segIdx, hm.lenM);
   body += renderSegmentBreakdown(key, hm.lenM);   // wandel-recon: categorie × richting
@@ -4947,6 +4981,9 @@ function updateUI() {
           `<span class="hm-leg-sw" style="background:${cls.kleur}"></span>` +
           `<span class="hm-leg-lbl">${cls.label} (${lo}–${hi})</span>`);
       });
+      box.insertAdjacentHTML('beforeend',   // v3.42
+        `<span class="hm-leg-sw" style="background:repeating-linear-gradient(90deg,${KORT_KLEUR} 0 2px,transparent 2px 5px)"></span>` +
+        `<span class="hm-leg-lbl">te kort gemeten</span>`);
     }
   }
   document.getElementById('pill-fiets').style.display    = hasFiets?'block':'none';
@@ -6352,7 +6389,7 @@ function gpkgLagen() {
     if (!wd || !map.hasLayer(line)) return;
     var g = wd.geometry || [];
     if (g.length < 2 || (g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) return;
-    var heat = wayHeat(k), w = {
+    var heat = wayHeat(k), mk = null, w = {
       way_id: String(wd.wayId || parseKey(k).wid), seg_idx: wd.segIdx || 0, highway: wd.highway || '',
       naam: cleanNaam(wd.osmName || (wd.sessions[0] && wd.sessions[0].naam) || '').replace(/^—$/, ''),
       lengte_m: Math.round(segmentLengthM(g) * 10) / 10
@@ -6376,6 +6413,11 @@ function gpkgLagen() {
       w.klasse = soort + '|' + idx; w.klasse_label = label;
       w.kleur = heat.kleur || heatColor(heat.t);
       cat = { waarde: w.klasse, label: label, kleur: INTENSITEIT[idx].kleur, mm: '1.06', orde: idx + 10 * ['pmu', 'bezet', 'dichtheid'].indexOf(soort) };
+    } else if ((mk = pmuMeting(k)) && mk.kort) {
+      // v3.42: getikt, maar te kort gemeten voor een kleur
+      w.status = 'te kort gemeten'; w.app_type = 'pocket'; w.waarde = Math.round(mk.pmu * 100) / 100; w.eenheid = 'p/m·u';
+      w.klasse = 'kort'; w.klasse_label = 'te kort gemeten (minder dan ' + PMU_MIN_MS + ' m·s)'; w.kleur = KORT_KLEUR;
+      cat = { waarde: 'kort', label: w.klasse_label, kleur: KORT_KLEUR, mm: '0.53', streep: true, alfa: 0.85, orde: 89 };
     } else if (wd.sessions.some(function (s) { return s.zeroVisited && sessions[s.sid] && sessions[s.sid].visible; })) {
       w.status = 'bezocht, geen waarnemingen'; w.klasse = 'bezocht'; w.klasse_label = w.status; w.kleur = '#6b7280';
       cat = { waarde: 'bezocht', label: w.status, kleur: '#6b7280', mm: '0.53', streep: true, alfa: 0.8, orde: 90 };

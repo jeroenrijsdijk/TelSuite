@@ -37,6 +37,9 @@ opgeteld; v = 1,1 m/s.
   K. (v3.39) IJking: wat getoond wordt is × IJKFACTOR (sinds v3.40 1,05), de
      gemeten stromen en c.q niet; de marge ligt MARGE_BREED (1,4) keer zo ver van
      de schatting. De verwachte labels, kleuren en weekwaarden zijn daarom × IJK.
+  T. (v3.42) Te kort gemeten: een stuk met een ontmoetingsvenster onder
+     KORT_VENSTER (30 s) krijgt geen kleur en geen getal; de testgegevens halen
+     dat allemaal, dus de test zet de drempel even net boven het kleinste venster.
   v3.40: de gaatjes van 1 s tussen de passages worden in het midden gedeeld,
      dus elke passage is een halve seconde per buur langer (verwacht() rekent
      dat zelf uit, met hooguit 5 s per kant).
@@ -448,6 +451,30 @@ else:
         eis('v3.40: de gaatjes van 1 s zijn gedeeld: de eerste en laatste passage een halve seconde langer, de rest een hele',
             [x[0] for x in ext] == [0.5] + [1] * 8 + [0.5] and ext[0][1] == 0 and ext[-1][2] == 0, ext)
         eis('de uitleg onder de kaart noemt de ijking', ('\u00d7 %s geijkt' % IJK_TEKST) in pg.inner_text('#voet') and 'elk gaatje wordt in het midden gedeeld' in pg.inner_text('#voet'))
+
+        print('\n== T. Te kort gemeten (v3.42) ==')
+        vensters = pg.evaluate("Object.values(SEGMENTEN).filter(s => s.cells['5:13']).map(s => [s.key, venster(s.cells['5:13'])]).sort((a, b) => a[1] - b[1])")
+        eis('drempel 30 s; in de testgegevens is niets te kort (kleinste venster %.0f s)' % vensters[0][1],
+            pg.evaluate("KORT_VENSTER") == 30 and vensters[0][1] >= 30 and not pg.evaluate("GEMETEN.some(x => teKort(x.c))"), vensters[:3])
+        kort_k = vensters[0][0]; grens = (vensters[0][1] + vensters[1][1]) / 2
+        pg.evaluate("g => { KORT_VENSTER = g; herbereken(); }", grens)
+        pg.wait_for_timeout(200)
+        eis('drempel even op %.0f s: %s is te kort, de rest niet' % (grens, kort_k),
+            pg.evaluate("k => teKort(SEGMENTEN[k].cells['5:13'])", kort_k) and pg.evaluate("Object.values(SEGMENTEN).filter(s => s.cells['5:13'] && teKort(s.cells['5:13'])).length") == 1)
+        eis('op de kaart: grijs gestreept, geen label, en niet in de kleurschaal',
+            pg.evaluate("""k => { const g = SEGMENTEN[k].geom; return lijnLaag.getLayers().some(l => { const ll = l.getLatLngs();
+                return Math.abs(ll[0].lat - g[0][1]) < 1e-9 && Math.abs(ll[0].lng - g[0][0]) < 1e-9 && l.options.dashArray === '2 6' && l.options.color === GRIJS; }); }""", kort_k)
+            and not pg.evaluate("k => GEMETEN.some(x => x.seg.key === k)", kort_k)
+            and pg.evaluate("k => MAXQ >= Math.max(...Object.values(SEGMENTEN).flatMap(s => Object.values(s.cells).filter(c => !teKort(c)).map(c => schat(c, s).q))) - 1e-9 && MAXQ === Math.max(...Object.values(SEGMENTEN).flatMap(s => Object.values(s.cells).filter(c => !teKort(c)).map(c => schat(c, s).q)))", kort_k))
+        eis('de legenda noemt het', 'te kort gemeten (venster onder %d s)' % round(grens) in pg.inner_text('#legenda') or 'te kort gemeten' in pg.inner_text('#legenda'), pg.inner_text('#legenda'))
+        tk = pg.evaluate("k => { const d = document.createElement('div'); d.innerHTML = popupHtml(SEGMENTEN[k], SEGMENTEN[k].cells['5:13']); return d.textContent; }", kort_k)
+        eis('de details: de cijfers staan er, met "Te kort gemeten" en het venster', 'Te kort gemeten: een ontmoetingsvenster van' in tk and 'passanten per uur' in tk, tk)
+        pg.evaluate("k => openWeek(SEGMENTEN[k])", kort_k); pg.wait_for_timeout(200)
+        cel = pg.evaluate("[...document.querySelectorAll('#week-tabel td[data-cel=\"5:13\"]')].map(td => [td.className, td.textContent])")
+        eis('het weekoverzicht: de cel grijs met een punt, en nog aan te klikken', cel and 'kort' in cel[0][0] and cel[0][1] == '\u00b7', cel)
+        pg.keyboard.press('Escape')
+        pg.evaluate("() => { KORT_VENSTER = 30; herbereken(); }"); pg.wait_for_timeout(200)
+        eis('drempel terug op 30 s: alles weer gekleurd', not pg.evaluate("Object.values(SEGMENTEN).some(s => s.cells['5:13'] && teKort(s.cells['5:13']))") and len(pg.evaluate(GEMETEN)) == 12)
         eis('geen JS-fouten', not fouten, fouten)
         if os.environ.get('PASSANTEN_PNG'):
             pg.screenshot(path=os.environ['PASSANTEN_PNG'])
