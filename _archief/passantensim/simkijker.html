@@ -48,6 +48,12 @@ button{padding:5px 12px;background:var(--paper);border:1px solid var(--line);bor
 button.hoofd{background:var(--accent);border-color:var(--accent);color:var(--paper)}
 button:focus-visible,input:focus-visible,select:focus-visible,tr:focus-visible{outline:2px solid var(--oker);outline-offset:1px}
 select{padding:4px 6px;background:var(--paper);border:1px solid var(--line);border-radius:3px}
+.schakel{display:inline-flex;align-items:center;gap:0}
+.schakel>span{font-size:12px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-right:8px}
+.schakel button{border-radius:0;margin-left:-1px}
+.schakel button:nth-of-type(1){border-radius:3px 0 0 3px;margin-left:0}
+.schakel button:last-child{border-radius:0 3px 3px 0}
+.schakel button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--paper);position:relative}
 .chips{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 12px;font-size:13px}
 .chip{display:flex;flex-direction:column;min-width:0}
 .chip span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -111,6 +117,9 @@ td.f{color:var(--accent)}
   <input type="number" id="zaad" min="1" step="1" value="21">
   <button id="vorige" aria-label="vorige ronde">‹ vorige</button>
   <button id="volgende" class="hoofd">volgende ronde ›</button>
+  <span class="schakel" role="group" aria-labelledby="druktelabel"><span id="druktelabel">Drukte</span>
+    <button type="button" data-drukte="weinig" aria-pressed="false">weinig</button><button type="button" data-drukte="alles" aria-pressed="true">gemengd</button><button type="button" data-drukte="veel" aria-pressed="false">veel</button></span>
+  <span class="sub" id="druktetekst"></span>
   <label for="schaal">Tijdschaal</label>
   <select id="schaal"><option value="1.4">1,4 px/s</option><option value="2.2" selected>2,2 px/s</option><option value="3.5">3,5 px/s</option><option value="5">5 px/s</option></select>
 </div>
@@ -145,7 +154,7 @@ td.f{color:var(--accent)}
   <p>Horizontaal de straat in meters, verticaal de tijd, van boven naar onder. Elke dunne lijn is een voetganger: hoe schuiner, hoe sneller; recht naar beneden is stilstaan. Waar een lijn de dikke lijn van de teller kruist, komen ze elkaar tegen. Loopt de voetganger de andere kant op, dan is het een tegemoetkomer: gezien (groen) of gemist (rood). Inhalen en ingehaald worden telt niet.</p>
   <p>De tik komt iets na de ontmoeting (reactietijd, salvo's) en schuift dan langs de tellerlijn. Passanten weet niet waar je was, alleen wanneer: een tik telt bij de passage waarin hij valt, en de passages komen uit de gps-punten (5 s en 3 punten, zoals Pocket live). De gaatjes ertussen worden in het midden gedeeld, hooguit 5 s per kant.</p>
   <p>De waarheid is de stroom door het midden van elk vak, beide richtingen samen: het aantal lijnen dat de stippellijn kruist. Het model kent die stroom precies (kolom <i>waarheid</i>); tijdens de ronde zelf liepen er toevallig iets meer of minder door (kolom <i>door het midden</i>, met een streepje per persoon op de stippellijn).</p>
-  <p>Passanten rekent per vak 3600 × tegemoet ÷ venster, met venster = lengte ÷ 1,1 + tijd, en verdubbelt dat omdat je maar één richting liep. <b>F = waarheid ÷ Passanten</b>: de factor waarmee Passanten vermenigvuldigd moet worden. Eén ronde, en zeker één vak, is ruw; de ijkfactor komt uit het totaal over veel rondes (bovenaan: de zaadjes 1 tot 400, zelfde instellingen). Passanten gebruikt nu 1,05. Trefkans: 95% voor iedereen, aan beide kanten (Jay).</p>
+  <p>Passanten rekent per vak 3600 × tegemoet ÷ venster, met venster = lengte ÷ 1,1 + tijd, en verdubbelt dat omdat je maar één richting liep. <b>F = waarheid ÷ Passanten</b>: de factor waarmee Passanten vermenigvuldigd moet worden. Eén ronde, en zeker één vak, is ruw; de ijkfactor komt uit het totaal over veel rondes (bovenaan: de zaadjes 1 tot 400, zelfde instellingen). Passanten gebruikt nu 1,05. Trefkans: 95% voor iedereen, aan beide kanten (Jay). Met de schakelaar <i>drukte</i> kies je hoeveel passanten er in de straat lopen: weinig (300–600 per uur in het midden), veel (1.200–1.600) of gemengd (300–1.600, zoals de simulatie); het zaadje kiest de rest van de straat. F over 400 rondes rekent dan opnieuw, met dezelfde drukte.</p>
 </div>
 
 <script>
@@ -780,9 +789,19 @@ var PASSANTEN = (function () {
 <script>
 (function () {
   'use strict';
-  var PARAM = { pZelf: 0.95, pOver: 0.95, pGroep: 1, qZicht: Infinity };   // Jay: "95% voor alles"
+  var BASIS = { pZelf: 0.95, pOver: 0.95, pGroep: 1, qZicht: Infinity };   // Jay: "95% voor alles"
+  // Jay: "maak ook even een schakelaar waarmee je veel of weinig passanten kunt kiezen".
+  // De drukte in het midden van de straat (beide richtingen, per uur) wordt per ronde getrokken
+  // uit dit bereik; gemengd is het bereik van de simulatie zelf (SIMKERN.STANDAARD).
+  var DRUKTE = { weinig: [300, 600], alles: [300, 1600], veel: [1200, 1600] }, drukte = 'alles', PARAM;
+  function zetDrukte(d) {
+    drukte = d;
+    PARAM = Object.assign({}, BASIS, { qMin: DRUKTE[d][0], qMax: DRUKTE[d][1] });
+    document.querySelectorAll('.schakel button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-drukte') === d)); });
+    el('druktetekst').textContent = heel(DRUKTE[d][0]) + '–' + heel(DRUKTE[d][1]) + ' passanten per uur in het midden';
+  }
   var OPHOGEN = 2;                     // passanten.html: één richting gemeten, dus × 2
-  var R, A, sel = { soort: 'geen' }, hover = null, schaal = 2.2, G = null, REF = null, N_REF = 400;
+  var R, A, sel = { soort: 'geen' }, hover = null, schaal = 2.2, G = null, REF = null, N_REF = 400, refBeurt = 0;
 
   /* ---------- hulpjes ---------------------------------------------------- */
   function komma(x, d) { return Number(x).toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d }); }
@@ -869,9 +888,11 @@ var PASSANTEN = (function () {
     });
     return s > 0 ? { w: w, s: s } : null;
   }
-  function referentie() {
-    var lijst = [], sw = 0, ss = 0, z = 1;
+  function referentie() {              // opnieuw bij een andere drukte; een oude berekening stopt dan
+    var lijst = [], sw = 0, ss = 0, z = 1, beurt = ++refBeurt;
+    REF = null;
     (function stap() {
+      if (beurt !== refBeurt) return;
       for (var eind = Math.min(N_REF, z + 19); z <= eind; z++) { var r = rondeF(z); if (r) { lijst.push(r.w / r.s); sw += r.w; ss += r.s; } }
       if (z <= N_REF) { REF = { bezig: Math.round(100 * (z - 1) / N_REF) }; tekenChips(); setTimeout(stap, 0); return; }
       lijst.sort(function (a, b) { return a - b; });
@@ -893,7 +914,7 @@ var PASSANTEN = (function () {
       ['tegemoet', teg.length + ' ontmoet · ' + gez + ' gezien'],
       ['tikken', A.tikken.length + ' · ' + A.buur + ' in een buurvak · ' + A.wees + ' in een gat'],
       ['F van deze ronde', A.F === null ? '–' : komma(A.F, 2) + (REF && REF.lijst ? ' · hoger dan ' + Math.round(100 * REF.lijst.filter(function (f) { return f < A.F; }).length / REF.lijst.length) + '% van de rondes' : '')],
-      ['F over ' + N_REF + ' rondes', !REF || REF.bezig !== undefined ? 'rekent … ' + (REF ? REF.bezig : 0) + '%' : komma(REF.F, 2) + ' · 8 op de 10 tussen ' + komma(REF.p10, 2) + ' en ' + komma(REF.p90, 2)]
+      ['F over ' + N_REF + ' rondes, ' + (drukte === 'alles' ? 'gemengd' : drukte), !REF || REF.bezig !== undefined ? 'rekent … ' + (REF ? REF.bezig : 0) + '%' : komma(REF.F, 2) + ' · 8 op de 10 tussen ' + komma(REF.p10, 2) + ' en ' + komma(REF.p90, 2)]
     ];
     el('chips').innerHTML = c.map(function (x, i) { return '<div class="chip' + (i >= c.length - 2 ? ' f' : '') + '"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
   }
@@ -1115,9 +1136,13 @@ var PASSANTEN = (function () {
     sel = p !== null ? { soort: 'voet', p: p } : { soort: 'geen' };
     hover = null; licht(p); tekenInfo();
   });
+  document.querySelectorAll('.schakel button').forEach(function (b) {
+    b.addEventListener('click', function () { if (b.getAttribute('data-drukte') === drukte) return; zetDrukte(b.getAttribute('data-drukte')); alles(); referentie(); });
+  });
   var wacht;
   setTimeout(referentie, 80);
   window.addEventListener('resize', function () { clearTimeout(wacht); wacht = setTimeout(function () { tekenDiagram(); if (sel.soort === 'voet') licht(sel.p); }, 150); });
+  zetDrukte('alles');
   alles();
 })();
 </script>

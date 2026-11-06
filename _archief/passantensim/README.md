@@ -17,7 +17,9 @@ waarheid bekend is. Gaat niet online (`_archief` heeft `export-ignore`).
   Elke lijn een voetganger, elke ontmoeting gezien of gemist (met kans en
   worp), elke tik naar het vak waar hij telt; per vak de rekensom van
   Passanten naast de waarheid, en F over de zaadjes 1 tot 400 ter
-  vergelijking. Trefkans 95% voor iedereen. Eén zelfstandige pagina (ook als
+  vergelijking. Trefkans 95% voor iedereen. Schakelaar drukte (Jay: "veel of
+  weinig passanten"): weinig 300–600, gemengd 300–1.600, veel 1.200–1.600
+  per uur in het midden; F over 400 rondes rekent dan opnieuw. Eén zelfstandige pagina (ook als
   artifact), met een kopie van `sim_kern.js` en van het blok `PASSANTEN`:
   `node _archief/passantensim/kijkercheck.js [--bijwerken]` controleert of die
   kopieën nog gelijk zijn (en vervangt ze). `run()` geeft daarvoor ook de
