@@ -1,6 +1,7 @@
 /* v3.34 functionele test — de rekenkern van Passanten per uur (gedeeld blok
    PASSANTEN in passanten.html en winkelstraat_rekenrig.html), los van de browser.
-   q = 3600 · Σm / Σ(L/v + t), per looprichting gepoold en dan opgeteld; v = 1,1 m/s. */
+   q = 3600 · Σm / Σ(L/v + t), per looprichting gepoold en dan opgeteld; v = 1,1 m/s.
+   v3.40: gaatjes tussen passages in het midden gedeeld (hooguit 5 s per kant). */
 const fs = require('fs');
 const vm = require('vm');
 function blok(bestand) {
@@ -65,7 +66,8 @@ const heenTerug = { sessie: [{ sessie_id: 's3', datum: '2026-10-22' }], netwerk:
 const s3 = P.sessie(heenTerug, 'x.zip');
 eis('richting uit de volgorde: 0→1 is A, 1→0 is B', s3.visits.map(v => v.richting).join('') === 'AABB', s3.visits.map(v => v.richting + ':' + v.richtingBron));
 c = reken([heenTerug])['2/0'].cells['3:11'];
-eis('heen en terug: twee stromen opgeteld, compleet', c.compleet && bijna(c.q, 3600 * 4 / (40 / 1.1 + 40) + 3600 * 6 / (40 / 1.1 + 39)) && c.labels.join() === 'B→A,A→B', [c.q, c.labels]);
+// v3.40: tussen de passages zit steeds 1 s; elke kant krijgt een halve seconde erbij
+eis('heen en terug: twee stromen opgeteld, compleet', c.compleet && bijna(c.q, 3600 * 4 / (40 / 1.1 + 40.5) + 3600 * 6 / (40 / 1.1 + 39.5)) && c.labels.join() === 'B→A,A→B', [c.q, c.labels]);
 const enkel = (gps) => ({ sessie: [{ sessie_id: 's4', datum: '2026-10-22' }], netwerk: net(3, 1), gps,
   bezocht: [bez('2026-10-22', 3, 0, '11:00:00', '11:00:40')], telregels: tel('2026-10-22', 3, 0, '11:00:00', 3, 'tegemoet') });
 const fix = (t, x) => ({ tijdstip: '2026-10-22T' + t, lat: '0', lon: String(x / GRAAD) });
@@ -92,6 +94,28 @@ eis('het uur van het midden van de passage: 12:59:40–13:00:40 is uur 13', Obje
 const leeg = { sessie: [{ sessie_id: 's7', datum: '2026-10-24' }], netwerk: [], gps: [],
   bezocht: [bez('2026-10-24', 6, 0, '13:00:00', '13:00:30')], telregels: [] };
 eis('een passage zonder geometrie (L = 0) valt weg', P.sessie(leeg, 'x').visits.length === 0);
+
+console.log('\n== gaatjes tussen passages (v3.40) ==');
+eis('hooguit 5 s per kant', P.GAT_MAX === 5);
+const gat = (tussen, tikken) => ({ sessie: [{ sessie_id: 's8', datum: '2026-10-24' }], netwerk: net(7, 2), gps: [],
+  bezocht: [bez('2026-10-24', 7, 0, '13:00:00', '13:00:30'), bez('2026-10-24', 7, 1, tussen, '13:01:30')],
+  telregels: tikken.map(([tijd, seg, type]) => tik('2026-10-24', 7, seg, tijd, type || 'tegemoet')) });
+let s8 = P.sessie(gat('13:00:34', [['13:00:31', 1], ['13:00:33', 1], ['13:00:32', 0, 'stilstaand']]), 'x');
+eis('een gaatje van 4 s: elke passage krijgt 2 s erbij (t 32 en 58), de GPS-tijden blijven',
+    s8.visits[0].t === 32 && s8.visits[1].t === 58 && s8.visits[0].tot === sec('13:00:32') && s8.visits[1].van === sec('13:00:32')
+    && s8.visits[0].t1 === sec('13:00:30') && s8.visits[1].t0 === sec('13:00:34'), s8.visits.map(v => [v.t, v.van, v.tot]));
+eis('de tikken in het gaatje tellen mee, op tijd: 13:00:31 bij de eerste (ook al zette de reconstructie hem bij het buurstuk), 13:00:33 bij de tweede',
+    s8.visits[0].teg === 1 && s8.visits[1].teg === 1 && s8.nWees === 0, s8.visits.map(v => v.teg));
+eis('op de grens (13:00:32, het midden) telt een tik bij de eerste passage', s8.visits[0].stil === 1 && s8.visits[1].stil === 0);
+s8 = P.sessie(gat('13:01:00', [['13:00:34', 0], ['13:00:45', 1], ['13:00:56', 1]]), 'x');
+eis('een gat van 30 s: 5 s per kant (t 35 en 35); het midden blijft leeg, een tik daar is een wees',
+    s8.visits[0].t === 35 && s8.visits[1].t === 35 && s8.visits[0].teg === 1 && s8.visits[1].teg === 1 && s8.nWees === 1,
+    [s8.visits.map(v => [v.t, v.teg]), s8.nWees]);
+c = reken([gat('13:00:34', [['13:00:31', 1], ['13:00:33', 1]])])['7/0'].cells['5:13'];
+eis('en dat zit in de formule: 3600 · 1 / (40/1,1 + 32)', bijna(c.q, 3600 * 1 / (40 / 1.1 + 32)), c.q);
+eis('het uur volgt de GPS-tijden: een passage van 12:59:50 tot 13:00:30 met een gaatje ervoor blijft uur 13',
+    Object.keys(reken([{ sessie: [{ sessie_id: 's9', datum: '2026-10-24' }], netwerk: net(8, 2), gps: [],
+      bezocht: [bez('2026-10-24', 8, 0, '12:59:00', '12:59:30'), bez('2026-10-24', 8, 1, '12:59:50', '13:00:30')], telregels: [] }])['8/1'].cells).join() === '5:13');
 
 console.log('\n== hetzelfde blok in het rekenrig ==');
 eis('winkelstraat_rekenrig.html heeft precies dezelfde rekenkern', blok('winkelstraat_rekenrig.html') === tekst);

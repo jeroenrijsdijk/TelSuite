@@ -221,10 +221,25 @@ function parseCsv(txt){
    stilstaand persoon in het segment precies één keer. Dus k = Σm_stil / ΣL,
    zonder enige snelheidsaanname.
 
+   Gaatjes tussen passages (v3.40; Jay: "Kunnen deze tikken niet gewoon
+   meetellen?"). _bezocht.csv komt uit de GPS-punten, en de GPS meet om de paar
+   seconden: tussen het laatste punt in het ene stuk en het eerste in het
+   volgende zit een gaatje. Waar je de grens overstak weet niemand; het midden
+   is de beste gok. Elk gaatje wordt daarom in het midden gedeeld: de eerste
+   helft hoort bij de passage ervoor, de tweede bij die erna, hooguit GAT_MAX
+   seconden per kant. In Jay's tellingen is een gaatje meestal 4 s en 9 op de
+   10 hooguit 9 s; die gaan dus helemaal mee. Een lang gat is iets anders: een
+   kort stuk zonder eigen passage, of even een winkel in. Tijd en tikken gaan samen mee: t wordt
+   langer, en een tik telt bij de passage waarin hij valt, op tijd, ook als de
+   reconstructie hem bij het buurstuk zette. Tot v3.40 telden tikken in een
+   gaatje niet mee (10–20% van de tikken), en was t te kort. t0 en t1 blijven
+   de GPS-tijden (voor de richting en het uur); van en tot is het venster.
+
    Puur: geen DOM en geen bibliotheken. Invoer: de CSV's van één ZIP als rijen
    (een object per regel, met de kop als sleutels).                           */
 var PASSANTEN = (function () {
   var V_VOET = 1.1;     // m/s; Jay, v3.34: "Zet de loopsnelheid maar op 1,1 m/s." (het rig had 1,3)
+  var GAT_MAX = 5;      // s; v3.40: hooguit zoveel van een gaatje per kant naar een passage
 
   /* ---------- geometrie ---------------------------------------------------- */
   function wktPunten(wkt) {
@@ -291,19 +306,32 @@ var PASSANTEN = (function () {
     var visits = d.bezocht.map(function (r) {
       var k = r.osm_way_id + '/' + r.segment_index;
       var t0 = tijdNaarSec(r.start_tijd), t1 = tijdNaarSec(r.eind_tijd);
-      var teg = 0, stil = 0;
-      tikken.forEach(function (x) {
-        if (x.k !== k || x.sec < t0 || x.sec > t1) return;
-        if (x.type === 'tegemoet') teg++; else if (x.type === 'stilstaand') stil++;
-      });
       return {
         key: k, way: r.osm_way_id, seg: parseInt(r.segment_index, 10),
         straat: r.straat || '(naamloos)',
         L: len[k] || 0, t: parseFloat(r.duur_sec) || 0,
-        t0: t0, t1: t1, teg: teg, stil: stil,
+        t0: t0, t1: t1, van: t0, tot: t1, teg: 0, stil: 0,
         datum: r.datum || ses.datum, richting: null, richtingBron: ''
       };
-    }).filter(function (v) { return v.L > 0 && v.t > 0; });
+    });
+    // v3.40: elk gaatje in het midden delen, hooguit GAT_MAX per kant (zie boven)
+    var opTijd = visits.slice().sort(function (a, b) { return a.t0 - b.t0; });
+    opTijd.forEach(function (v, i) {
+      var vorige = opTijd[i - 1], volgende = opTijd[i + 1];
+      if (vorige && vorige.t1 < v.t0) v.van = Math.max((vorige.t1 + v.t0) / 2, v.t0 - GAT_MAX);
+      if (volgende && volgende.t0 > v.t1) v.tot = Math.min((v.t1 + volgende.t0) / 2, v.t1 + GAT_MAX);
+    });
+    opTijd.forEach(function (v) { v.t += (v.t0 - v.van) + (v.tot - v.t1); });
+    // een tik telt bij de passage waarin hij valt; op een gedeelde grens: de eerste
+    tikken.forEach(function (x) {
+      for (var i = 0; i < opTijd.length; i++) {
+        var v = opTijd[i];
+        if (x.sec < v.van || x.sec > v.tot) continue;
+        if (x.type === 'tegemoet') v.teg++; else if (x.type === 'stilstaand') v.stil++;
+        return;
+      }
+    });
+    visits = visits.filter(function (v) { return v.L > 0 && v.t > 0; });
     bepaalRichtingen(visits, d.gps || [], geo);
     var gekoppeld = visits.reduce(function (s, v) { return s + v.teg + v.stil; }, 0);
     return {
@@ -417,7 +445,7 @@ var PASSANTEN = (function () {
     return segmenten;
   }
 
-  return { V_VOET: V_VOET, sessie: sessie, voegToe: voegToe, bereken: bereken, dagIndex: dagIndex,
+  return { V_VOET: V_VOET, GAT_MAX: GAT_MAX, sessie: sessie, voegToe: voegToe, bereken: bereken, dagIndex: dagIndex,
            wktPunten: wktPunten, haversine: haversine, polyLengte: polyLengte };
 })();
 /* ── einde gedeeld blok passanten ── */

@@ -34,6 +34,22 @@ opgeteld; v = 1,1 m/s.
      details van een cel, en "Toon op de kaart". Ook een grijs stuk opent het.
   F. Twee zaterdagen worden één waarde (eerst optellen, dan delen).
   G. Op 390 px: niets breder dan het scherm.
+  K. (v3.39) IJking: wat getoond wordt is × IJKFACTOR (sinds v3.40 1,05), de
+     gemeten stromen en c.q niet; de marge ligt MARGE_BREED (1,4) keer zo ver van
+     de schatting. De verwachte labels, kleuren en weekwaarden zijn daarom × IJK.
+  T. (v3.42) Te kort gemeten: een stuk met een ontmoetingsvenster onder
+     KORT_VENSTER (30 s) krijgt geen kleur en geen getal; de testgegevens halen
+     dat allemaal, dus de test zet de drempel even net boven het kleinste venster.
+  DC. (v3.43) Dagcurve: een tweede tabblad met de index per uur en dagtype, de
+     weekdagfactoren, waar gemeten is, en twee CSV's. De index wordt hier los
+     nagerekend met hetzelfde model (iterative proportional fitting), uit de
+     testgegevens en uit passages.csv; dat laatste laat zien dat de basisdata
+     genoeg is om de factoren na te rekenen.
+     (v3.44) Kiezen: met de knop Kies stukken of Ctrl+klik op de kaart, hele
+     straat, en de dagcurve van de keuze naast die van alle stukken.
+  v3.40: de gaatjes van 1 s tussen de passages worden in het midden gedeeld,
+     dus elke passage is een halve seconde per buur langer (verwacht() rekent
+     dat zelf uit, met hooguit 5 s per kant).
 
 Hulp (server, CDN-omleiding) komt uit hersteltest.py ernaast.
 Draaien vanuit de suite-root:  python3 _archief/overpass_rig/passantentest.py
@@ -157,9 +173,14 @@ def verwacht(gebruikt, v=V_VOET):
     """{(way, seg, dag, uur): dict(q, m, compleet, stil100, n, datums)} met de formule van het rig."""
     cel = {}
     for datum, start, pas in gebruikt:
-        t = start
-        for way, seg, kant, duur, nteg, nstil in pas:
-            t0, t1 = t, t + duur; t = t1 + 1
+        t, tijden = start, []
+        for p in pas:
+            tijden.append((t, t + p[3])); t = t + p[3] + 1
+        for i, (way, seg, kant, duur, nteg, nstil) in enumerate(pas):
+            t0, t1 = tijden[i]
+            # v3.40: elk gaatje in het midden gedeeld, hooguit 5 s per kant
+            van = max((tijden[i - 1][1] + t0) / 2, t0 - 5) if i > 0 and tijden[i - 1][1] < t0 else t0
+            tot = min((t1 + tijden[i + 1][0]) / 2, t1 + 5) if i < len(pas) - 1 and tijden[i + 1][0] > t1 else t1
             uur = ((t0 + t1) // 2) // 3600
             k = (way, seg, DAG[datum], uur)
             c = cel.setdefault(k, {'stromen': {}, 'stil': 0, 'L': 0.0, 'n': 0, 'datums': set()})
@@ -167,7 +188,7 @@ def verwacht(gebruikt, v=V_VOET):
             r = {'heen': 'A', 'terug': 'B'}.get(kant, '?')
             s = c['stromen'].setdefault(r, [0, 0.0])
             L = lengte(way, seg)
-            s[0] += nteg; s[1] += L / v + duur
+            s[0] += nteg; s[1] += L / v + duur + (t0 - van) + (tot - t1)
             c['stil'] += nstil; c['L'] += L; c['n'] += 1; c['datums'].add(datum)
     uit = {}
     for k, c in cel.items():
@@ -181,6 +202,8 @@ def schat(c):
     return c['q'] * (2 if not c['compleet'] and len(c['stromen']) == 1 else 1)
 
 MIN_TEGEN = 10
+IJK, BREED = 1.05, 1.4     # IJKFACTOR (v3.40) en MARGE_BREED (v3.39) in passanten.html
+IJK_TEKST = '1,05'
 def richting_weg(way):
     _, a, b, _ = WEGEN[way]
     dx, dy = b[0] - a[0], b[1] - a[1]; n = math.hypot(dx, dy)
@@ -205,6 +228,28 @@ def schat_slim(V, k):
     if zelf[0] < MIN_TEGEN or ander[0] < MIN_TEGEN: return 2 * c['q'], 'twee', None
     rho = (ander[0] / ander[1]) / (zelf[0] / zelf[1])
     return c['q'] * (1 + rho), 'straat', rho
+
+def dagcurve_ipf(rijen):
+    """v3.43: het model van de dagcurve, los van de pagina. rijen: (eenheid, weekdag 0-6, uur, venster, tegemoet).
+    Tegemoet ~ Poisson(venster/3600 * A[eenheid] * F[dagtype, uur] * D[weekdag]), D alleen op werkdagen.
+    Geeft (F, D), nog zonder schaal."""
+    TYPE = ['werkdag'] * 5 + ['zaterdag', 'zondag']
+    agg = {}
+    for u, d, h, w, m in rijen:
+        a = agg.setdefault((u, d, h), [0.0, 0.0]); a[0] += w; a[1] += m
+    obs = [(u, d, (TYPE[d], h), w / 3600, m) for (u, d, h), (w, m) in agg.items()]
+    A = {o[0]: 1.0 for o in obs}; F = {o[2]: 1.0 for o in obs}; D = [1.0] * 7
+    for _ in range(5000):
+        for u in A:
+            A[u] = sum(m for uu, d, k, w, m in obs if uu == u) / sum(w * F[k] * D[d] for uu, d, k, w, m in obs if uu == u)
+        oud = dict(F)
+        for k in F:
+            F[k] = sum(m for u, d, kk, w, m in obs if kk == k) / sum(w * A[u] * D[d] for u, d, kk, w, m in obs if kk == k)
+        for dd in range(5):
+            noemer = sum(w * A[u] * F[k] for u, d, k, w, m in obs if d == dd)
+            if noemer: D[dd] = sum(m for u, d, k, w, m in obs if d == dd) / noemer
+        if max(abs(F[k] / oud[k] - 1) for k in F) < 1e-12: break
+    return F, D
 
 def samen(cellen):
     """Cellen samennemen zoals de kolom gem.: per richting optellen, dan delen. (q, compleet)"""
@@ -275,11 +320,11 @@ else:
         eis('12 stukken straat gemeten op zaterdag 13 uur', len(gem) == 12, [g['k'] for g in gem])
         fout_q = [(g['k'], g['q'], V[sleutel(g['k']) + (5, 13)]['q']) for g in gem if abs(g['q'] - V[sleutel(g['k']) + (5, 13)]['q']) > 1e-6]
         eis('elke waarde volgens de formule: 3600 · Σm / Σ(L/1,1 + t), per looprichting, opgeteld', not fout_q, fout_q)
-        eis('het label is de afgeronde waarde (v3.36: één richting \u00d7 2)', all(g['tekst'].rstrip('*') == str(round(schat_slim(V, sleutel(g['k']) + (5, 13))[0])) for g in gem), [g['tekst'] for g in gem])
-        eis('Kerkstraat (alleen heen): het label is tweemaal de gemeten stroom, met een sterretje',
-            [g['tekst'] for g in gem if g['k'] == '1002/1'] == [str(round(2 * V[(1002, 1, 5, 13)]['q'])) + '*'], [g['tekst'] for g in gem if g['k'] == '1002/1'])
+        eis('het label is de afgeronde waarde (v3.36: één richting \u00d7 2; v3.39: geijkt)', all(g['tekst'].rstrip('*') == str(round(IJK * schat_slim(V, sleutel(g['k']) + (5, 13))[0])) for g in gem), [g['tekst'] for g in gem])
+        eis('Kerkstraat (alleen heen): het label is tweemaal de gemeten stroom (en geijkt), met een sterretje',
+            [g['tekst'] for g in gem if g['k'] == '1002/1'] == [str(round(IJK * 2 * V[(1002, 1, 5, 13)]['q'])) + '*'], [g['tekst'] for g in gem if g['k'] == '1002/1'])
         eis('Steegje (een keer heen, een keer ter plekke: richting deels onbekend): het gemeten totaal, niet \u00d7 2, wel een sterretje',
-            [g['tekst'] for g in gem if g['k'] == '1003/0'] == [str(round(V[(1003, 0, 5, 13)]['q'])) + '*'] and len(V[(1003, 0, 5, 13)]['stromen']) == 2,
+            [g['tekst'] for g in gem if g['k'] == '1003/0'] == [str(round(IJK * V[(1003, 0, 5, 13)]['q'])) + '*'] and len(V[(1003, 0, 5, 13)]['stromen']) == 2,
             [g['tekst'] for g in gem if g['k'] == '1003/0'])
         ster = sorted(g['k'] for g in gem if g['tekst'].endswith('*'))
         eis('een sterretje alleen waar niet in beide richtingen gelopen is: Kerkstraat, Steegje, Voorstraat-oost (4 stukken)', ster == ['1002/0', '1002/1', '1003/0', '1004/0', '1004/1', '1005/0', '1005/1'], ster)
@@ -289,17 +334,17 @@ else:
             pg.evaluate("UUR") == 11 and grijs == 7 and len(pg.evaluate(GEMETEN)) == 5, [pg.evaluate("UUR"), grijs])
         eis('donderdag 11 uur: ook volgens de formule', all(abs(g['q'] - V[sleutel(g['k']) + (3, 11)]['q']) < 1e-6 for g in pg.evaluate(GEMETEN)))
         eis('de kleurschaal loopt over alle dagen (zelfde maximum op donderdag als op zaterdag)',
-            abs(pg.evaluate("MAXQ") - max(schat_slim(V, k)[0] for k in V)) < 1e-6)
+            abs(pg.evaluate("MAXQ") - IJK * max(schat_slim(V, k)[0] for k in V)) < 1e-6)
         pg.click('#dagen button[data-dag="5"]'); pg.wait_for_timeout(200)
 
         print('\n== S. Slimmer ophogen (v3.36) ==')
         q4, b4, rho4 = schat_slim(V, (1004, 0, 5, 13)); q5, b5, rho5 = schat_slim(V, (1005, 0, 5, 13))
         tekst = lambda k: [g['tekst'] for g in gem if g['k'] == k]
         eis('Voorstraat-oost (dezelfde kant op getekend): opgehoogd met de verhouding uit de rest van de Voorstraat (× %.2f), niet × 2' % (1 + rho4),
-            b4 == 'straat' and abs(rho4 - 1) > 0.05 and tekst('1004/0') == [str(round(q4)) + '*'] and tekst('1004/1') == [str(round(schat_slim(V, (1004, 1, 5, 13))[0])) + '*'],
+            b4 == 'straat' and abs(rho4 - 1) > 0.05 and tekst('1004/0') == [str(round(IJK * q4)) + '*'] and tekst('1004/1') == [str(round(IJK * schat_slim(V, (1004, 1, 5, 13))[0])) + '*'],
             [rho4, tekst('1004/0'), tekst('1004/1')])
         eis('het andersom getekende stuk: de verhouding omgedraaid (× %.2f = 1 + 1/%.2f)' % (1 + rho5, rho4),
-            b5 == 'straat' and abs(rho5 - 1 / rho4) < 1e-9 and tekst('1005/0') == [str(round(q5)) + '*'], [rho4, rho5, tekst('1005/0')])
+            b5 == 'straat' and abs(rho5 - 1 / rho4) < 1e-9 and tekst('1005/0') == [str(round(IJK * q5)) + '*'], [rho4, rho5, tekst('1005/0')])
         pagina = pg.evaluate("[schat(SEGMENTEN['1004/0'].cells['5:13'], SEGMENTEN['1004/0']), schat(SEGMENTEN['1005/0'].cells['5:13'], SEGMENTEN['1005/0'])]")
         eis('de pagina rekent dezelfde verhouding, over de 5 stukken Voorstraat die heen en terug gelopen zijn',
             abs(pagina[0]['rho'] - rho4) < 1e-9 and abs(pagina[1]['rho'] - rho5) < 1e-9 and pagina[0]['stukken'] == 5, pagina)
@@ -310,8 +355,8 @@ else:
         tk2 = pg.evaluate("(() => { const d = document.createElement('div'); d.innerHTML = popupHtml(SEGMENTEN['1002/0'], SEGMENTEN['1002/0'].cells['5:13']); return d.textContent; })()")
         eis('Kerkstraat: geen andere Kerkstraat in beide richtingen, dus × 2, en dat staat erbij',
             'In deze straat is op zaterdag 13:00 niet genoeg in beide richtingen geteld' in tk2 and '× 2' in tk2, tk2)
-        terug = pg.evaluate("() => { MIN_TEGEN = 1000; SCHATTINGEN = {}; const c = SEGMENTEN['1004/0'].cells['5:13'], x = schat(c, SEGMENTEN['1004/0']); MIN_TEGEN = 10; SCHATTINGEN = {}; return [x.bron, x.q / c.q]; }")
-        eis('te weinig tegenliggers in de vergelijking (drempel even op 1000): terug naar × 2', terug == ['twee', 2], terug)
+        terug = pg.evaluate("() => { MIN_TEGEN = 1000; SCHATTINGEN = {}; const c = SEGMENTEN['1004/0'].cells['5:13'], x = schat(c, SEGMENTEN['1004/0']); MIN_TEGEN = 10; SCHATTINGEN = {}; return [x.bron, x.f, x.q / c.q]; }")
+        eis('te weinig tegenliggers in de vergelijking (drempel even op 1000): terug naar × 2', terug[:2] == ['twee', 2] and abs(terug[2] - 2 * IJK) < 1e-9, terug)
 
         print('\n== D. Labels ==')
         lab = pg.evaluate(LABELS)
@@ -319,7 +364,7 @@ else:
         pg.evaluate("kaart.setZoom(15, { animate: false })"); pg.wait_for_timeout(300)
         lab15 = pg.evaluate(LABELS)
         eis('uitgezoomd: minder labels (%d), nog steeds zonder overlap, de drukste blijft' % len(lab15),
-            0 < len(lab15) < 12 and not overlap(lab15) and str(round(max(schat_slim(V, sleutel(g['k']) + (5, 13))[0] for g in gem))) in [x[0].rstrip('*') for x in lab15], [x[0] for x in lab15])
+            0 < len(lab15) < 12 and not overlap(lab15) and str(round(IJK * max(schat_slim(V, sleutel(g['k']) + (5, 13))[0] for g in gem))) in [x[0].rstrip('*') for x in lab15], [x[0] for x in lab15])
         pg.evaluate("kaart.setZoom(19, { animate: false })"); pg.wait_for_timeout(300)
         lab19 = pg.evaluate(LABELS)
         eis('ingezoomd: alle 12 labels terug', len(lab19) == 12 and not overlap(lab19), len(lab19))
@@ -329,10 +374,10 @@ else:
         v0 = V[(1001, 0, 5, 13)]
         t = pg.evaluate("(() => { const d = document.createElement('div'); d.innerHTML = popupHtml(SEGMENTEN['1001/0'], SEGMENTEN['1001/0'].cells['5:13']); return d.textContent; })()")
         eis('Voorstraat: de waarde, "zaterdag 13:00–14:00", 4 keer langs op 2 zaterdagen, beide richtingen, stilstaanders',
-            'Voorstraat' in t and '≈ %d passanten per uur' % round(v0['q']) in t and 'zaterdag 13:00–14:00' in t and '4 keer langsgelopen, op 2 zaterdagen (17-10, 24-10)' in t
+            'Voorstraat' in t and '≈ %d passanten per uur' % round(IJK * v0['q']) in t and 'zaterdag 13:00–14:00' in t and '4 keer langsgelopen, op 2 zaterdagen (17-10, 24-10)' in t
             and 'in beide richtingen gemeten' in t and ('stilstaand: %s per 100 m' % ('%.1f' % v0['stil100']).replace('.', ',')) in t, t)
         mg = pg.evaluate("marge(SEGMENTEN['1001/0'].cells['5:13'])")
-        eis('de marge omsluit de waarde', mg[0] < v0['q'] < mg[1], mg)
+        eis('de marge omsluit de (geijkte) waarde', mg[0] < IJK * v0['q'] < mg[1], mg)
         tk = pg.evaluate("(() => { const d = document.createElement('div'); d.innerHTML = popupHtml(SEGMENTEN['1002/0'], SEGMENTEN['1002/0'].cells['5:13']); return d.textContent; })()")
         eis('Kerkstraat: "* maar één looprichting gemeten", 1 keer op zaterdag 24-10-2026', '* maar één looprichting gemeten' in tk and '1 keer langsgelopen, op zaterdag 24-10-2026' in tk, tk)
 
@@ -350,22 +395,22 @@ else:
             [len(rijen), [len(x) for x in rijen]])
         cel = lambda d, h: rijen[d][1 + h]
         eis('za 13 uur en do 11 uur: de afgeronde waarde; de rest leeg',
-            cel(5, 13) == str(round(V[(1001, 0, 5, 13)]['q'])) and cel(3, 11) == str(round(V[(1001, 0, 3, 11)]['q']))
+            cel(5, 13) == str(round(IJK * V[(1001, 0, 5, 13)]['q'])) and cel(3, 11) == str(round(IJK * V[(1001, 0, 3, 11)]['q']))
             and sum(1 for d in range(7) for h in range(24) if cel(d, h)) == 2, [cel(5, 13), cel(3, 11)])
         za, do_ = V[(1001, 0, 5, 13)], V[(1001, 0, 3, 11)]
         q_alles, _ = samen([za, do_])
         eis('gem. per dag is die dag; gem. over alles: beide cellen samen gerekend (%.0f), niet het gemiddelde (%.0f)' % (q_alles, (za['q'] + do_['q']) / 2),
-            rijen[5][25] == str(round(za['q'])) and rijen[3][25] == str(round(do_['q'])) and rijen[7][25] == str(round(q_alles))
-            and rijen[7][14] == str(round(za['q'])) and rijen[7][12] == str(round(do_['q'])) and abs(q_alles - (za['q'] + do_['q']) / 2) > 1,
+            rijen[5][25] == str(round(IJK * za['q'])) and rijen[3][25] == str(round(IJK * do_['q'])) and rijen[7][25] == str(round(IJK * q_alles))
+            and rijen[7][14] == str(round(IJK * za['q'])) and rijen[7][12] == str(round(IJK * do_['q'])) and abs(q_alles - (za['q'] + do_['q']) / 2) > 1,
             [rijen[5][25], rijen[3][25], rijen[7][25]])
         eis('de cel van de kaart (za 13) is gekozen; eronder de details: waarde, 4 keer op 2 zaterdagen, beide richtingen, stilstaanders',
             pg.evaluate("document.querySelector('#week-tabel td.sel').getAttribute('data-cel')") == '5:13'
-            and all(x in pg.inner_text('#week-detail') for x in ['\u2248 %d passanten per uur' % round(za['q']), 'zaterdag 13:00\u201314:00',
+            and all(x in pg.inner_text('#week-detail') for x in ['\u2248 %d passanten per uur' % round(IJK * za['q']), 'zaterdag 13:00\u201314:00',
                                                                  '4 keer langsgelopen, op 2 zaterdagen (17-10, 24-10)', 'in beide richtingen gemeten',
                                                                  'stilstaand: %s per 100 m' % ('%.1f' % za['stil100']).replace('.', ',')]),
             pg.inner_text('#week-detail'))
         mg = pg.evaluate("marge(SEGMENTEN['1001/0'].cells['5:13'])")
-        eis('de marge omsluit de waarde', mg[0] < za['q'] < mg[1], mg)
+        eis('de marge omsluit de (geijkte) waarde', mg[0] < IJK * za['q'] < mg[1], mg)
         pg.click('#week-tabel td[data-cel="3:11"]')
         eis('klik op do 11: die cel gekozen, de details van donderdag', 'donderdag 11:00\u201312:00' in pg.inner_text('#week-detail')
             and pg.evaluate("document.querySelector('#week-tabel td.sel').getAttribute('data-cel')") == '3:11')
@@ -380,16 +425,18 @@ else:
         tk = pg.inner_text('#week-detail')
         eis('een grijs stuk (Kerkstraat op donderdag): het weekoverzicht op het moment dat wel gemeten is, met het sterretje',
             pg.inner_text('#week-titel') == 'Kerkstraat' and '* maar \u00e9\u00e9n looprichting gemeten' in tk and '1 keer langsgelopen, op zaterdag 24-10-2026' in tk
-            and pg.evaluate("document.querySelector('#week-tabel td.sel').textContent") == str(round(2 * V[(1002, 0, 5, 13)]['q'])) + '*', tk)
+            and pg.evaluate("document.querySelector('#week-tabel td.sel').textContent") == str(round(IJK * 2 * V[(1002, 0, 5, 13)]['q'])) + '*', tk)
         k0 = V[(1002, 0, 5, 13)]
         eis('de details: wat gemeten is, en \u00d7 2 met de aanname', ('* maar \u00e9\u00e9n looprichting gemeten: %d per uur' % round(k0['q'])) in tk
-            and 'evenveel mensen de andere kant op lopen: \u00d7 2' in tk and ('\u2248 %d* passanten per uur' % round(2 * k0['q'])) in tk, tk)
+            and 'evenveel mensen de andere kant op lopen: \u00d7 2' in tk and ('\u2248 %d* passanten per uur' % round(IJK * 2 * k0['q'])) in tk, tk)
         mg2 = pg.evaluate("marge(SEGMENTEN['1002/0'].cells['5:13'])")
         mg1 = pg.evaluate("(() => { const c = SEGMENTEN['1002/0'].cells['5:13'], g = poissonMarge(c.m); return [g[0] * c.q / c.m, g[1] * c.q / c.m]; })()")
-        eis('de marge gaat \u00d7 2 mee, en omsluit de opgehoogde waarde', abs(mg2[0] - 2 * mg1[0]) < 1e-9 and abs(mg2[1] - 2 * mg1[1]) < 1e-9 and mg2[0] < 2 * k0['q'] < mg2[1], [mg1, mg2])
+        s2 = IJK * 2 * k0['q']; verw2 = [max(0, s2 - BREED * (s2 - IJK * 2 * mg1[0])), s2 + BREED * (IJK * 2 * mg1[1] - s2)]
+        eis('de marge gaat \u00d7 2 en \u00d7 ' + IJK_TEKST + ' mee, 1,4 keer zo ver van de schatting, en omsluit de opgehoogde waarde',
+            abs(mg2[0] - verw2[0]) < 1e-9 and abs(mg2[1] - verw2[1]) < 1e-9 and mg2[0] < s2 < mg2[1], [mg1, mg2, verw2])
         rijen_k = pg.evaluate("[...document.querySelectorAll('#week-tabel tbody tr')].map(tr => [...tr.children].map(x => x.textContent))")
         eis('ook gem. (za, en alles samen) is \u00d7 2: er is maar één richting gemeten',
-            rijen_k[5][25] == rijen_k[7][25] == str(round(2 * k0['q'])) + '*', [rijen_k[5][25], rijen_k[7][25]])
+            rijen_k[5][25] == rijen_k[7][25] == str(round(IJK * 2 * k0['q'])) + '*', [rijen_k[5][25], rijen_k[7][25]])
         pg.keyboard.press('Escape')
         eis('Escape sluit het weekoverzicht', not pg.is_visible('#week'))
         pg.click('#dagen button[data-dag="5"]'); pg.wait_for_timeout(200)
@@ -399,6 +446,174 @@ else:
         samen = V[(1001, 2, 5, 13)]['q']
         eis('Voorstraat stuk 3 op zaterdag: eerst optellen, dan delen (%.0f), niet het gemiddelde van de twee zaterdagen (%.0f)' % (samen, sum(apart) / 2),
             abs(pg.evaluate("SEGMENTEN['1001/2'].cells['5:13'].q") - samen) < 1e-6 and abs(samen - sum(apart) / 2) > 1, apart)
+
+        print('\n== K. IJking en marge (v3.39) ==')
+        drie = pg.evaluate("""['1001/0', '1002/0', '1004/0'].map(k => { const s = SEGMENTEN[k], c = s.cells['5:13'], x = schat(c, s);
+            return [x.bron, x.ijk, x.q / (c.q * x.f), x.gemeten === c.q, x.f]; })""")
+        eis('schat() in alle drie de takken (beide richtingen, \u00d7 2, verhouding uit de straat): q = gemeten \u00d7 ophoging \u00d7 ' + IJK_TEKST + '; ijk = ' + IJK_TEKST + '; gemeten en f ongeijkt',
+            [x[0] for x in drie] == ['', 'twee', 'straat'] and all(x[1] == IJK and abs(x[2] - IJK) < 1e-12 and x[3] for x in drie)
+            and drie[0][4] == 1 and drie[1][4] == 2 and abs(drie[2][4] - (1 + rho4)) < 1e-9, drie)
+        eis('de rekenkern zelf rekent ongeijkt: c.q is de formule (zie C), en het rekenrig kent geen IJKFACTOR',
+            abs(pg.evaluate("SEGMENTEN['1001/0'].cells['5:13'].q") - V[(1001, 0, 5, 13)]['q']) < 1e-6
+            and 'IJKFACTOR' not in open(os.path.join(ROOT, 'winkelstraat_rekenrig.html'), encoding='utf-8').read())
+        leg = pg.inner_text('#legenda')
+        eis('legenda: onder de loopsnelheid "geijkt: \u00d7 ' + IJK_TEKST + ' (voorlopig, uit simulatie)"',
+            ('geijkt: \u00d7 %s (voorlopig, uit simulatie)' % IJK_TEKST) in leg and leg.index('loopsnelheid voetgangers') < leg.index('geijkt:'), leg)
+        nl = lambda x: '{:,}'.format(round(x)).replace(',', '.')
+        st0 = V[(1001, 0, 5, 13)]['stromen']
+        ruw = ' + '.join(nl(3600 * st0[r][0] / st0[r][1]) for r in ('A', 'B'))
+        t = pg.evaluate("(() => { const d = document.createElement('div'); d.innerHTML = popupHtml(SEGMENTEN['1001/0'], SEGMENTEN['1001/0'].cells['5:13']); return d.textContent; })()")
+        eis('popup: de gemeten stromen ruw (%s per uur), de waarde geijkt, en een zin over de ijking en de groepjes' % ruw,
+            ('in beide richtingen gemeten: %s per uur' % ruw) in t and ('\u2248 %s passanten per uur' % nl(IJK * V[(1001, 0, 5, 13)]['q'])) in t
+            and ('geijkt: de berekende waarde \u00d7 %s (voorlopig, uit een simulatie)' % IJK_TEKST) in t and 'omdat mensen in groepjes lopen' in t, t)
+        c0 = pg.evaluate("(() => { const c = SEGMENTEN['1001/0'].cells['5:13'], g = poissonMarge(c.m); return [g[0] * c.q / c.m, g[1] * c.q / c.m, c.q]; })()")
+        s0 = IJK * c0[2]; verw = [max(0, s0 - BREED * (s0 - IJK * c0[0])), s0 + BREED * (IJK * c0[1] - s0)]
+        mg = pg.evaluate("marge(SEGMENTEN['1001/0'].cells['5:13'], SEGMENTEN['1001/0'])")
+        eis('marge (beide richtingen): Garwood \u00d7 ' + IJK_TEKST + ', dan 1,4 keer zo ver van de schatting (%s\u2013%s)' % (nl(verw[0]), nl(verw[1])),
+            abs(mg[0] - verw[0]) < 1e-9 and abs(mg[1] - verw[1]) < 1e-9, [mg, verw])
+        eis('de marge is breder dan Garwood alleen, aan beide kanten', mg[0] < IJK * c0[0] and mg[1] > IJK * c0[1], [mg, IJK * c0[0], IJK * c0[1]])
+        alle_mg = pg.evaluate("""Object.values(SEGMENTEN).flatMap(s => Object.values(s.cells).map(c => { const m = marge(c, s), q = schat(c, s).q;
+            return m[0] >= 0 && m[0] <= q + 1e-9 && q <= m[1] + 1e-9; }))""")
+        eis('in elke cel (%d): de ondergrens niet onder 0, en de schatting binnen de marge' % len(alle_mg), alle_mg and all(alle_mg))
+        ext = pg.evaluate("""(() => { const s = Object.values(SESSIES).find(x => x.s.id === '20261022_110000_ghi_pkt_w').s;
+            return s.visits.map(v => [v.t - (v.t1 - v.t0), v.van - v.t0, v.tot - v.t1]); })()""")
+        eis('v3.40: de gaatjes van 1 s zijn gedeeld: de eerste en laatste passage een halve seconde langer, de rest een hele',
+            [x[0] for x in ext] == [0.5] + [1] * 8 + [0.5] and ext[0][1] == 0 and ext[-1][2] == 0, ext)
+        eis('de uitleg onder de kaart noemt de ijking', ('\u00d7 %s geijkt' % IJK_TEKST) in pg.inner_text('#voet') and 'elk gaatje wordt in het midden gedeeld' in pg.inner_text('#voet'))
+
+        print('\n== T. Te kort gemeten (v3.42) ==')
+        vensters = pg.evaluate("Object.values(SEGMENTEN).filter(s => s.cells['5:13']).map(s => [s.key, venster(s.cells['5:13'])]).sort((a, b) => a[1] - b[1])")
+        eis('drempel 30 s; in de testgegevens is niets te kort (kleinste venster %.0f s)' % vensters[0][1],
+            pg.evaluate("KORT_VENSTER") == 30 and vensters[0][1] >= 30 and not pg.evaluate("GEMETEN.some(x => teKort(x.c))"), vensters[:3])
+        kort_k = vensters[0][0]; grens = (vensters[0][1] + vensters[1][1]) / 2
+        pg.evaluate("g => { KORT_VENSTER = g; herbereken(); }", grens)
+        pg.wait_for_timeout(200)
+        eis('drempel even op %.0f s: %s is te kort, de rest niet' % (grens, kort_k),
+            pg.evaluate("k => teKort(SEGMENTEN[k].cells['5:13'])", kort_k) and pg.evaluate("Object.values(SEGMENTEN).filter(s => s.cells['5:13'] && teKort(s.cells['5:13'])).length") == 1)
+        eis('op de kaart: grijs gestreept, geen label, en niet in de kleurschaal',
+            pg.evaluate("""k => { const g = SEGMENTEN[k].geom; return lijnLaag.getLayers().some(l => { const ll = l.getLatLngs();
+                return Math.abs(ll[0].lat - g[0][1]) < 1e-9 && Math.abs(ll[0].lng - g[0][0]) < 1e-9 && l.options.dashArray === '2 6' && l.options.color === GRIJS; }); }""", kort_k)
+            and not pg.evaluate("k => GEMETEN.some(x => x.seg.key === k)", kort_k)
+            and pg.evaluate("k => MAXQ >= Math.max(...Object.values(SEGMENTEN).flatMap(s => Object.values(s.cells).filter(c => !teKort(c)).map(c => schat(c, s).q))) - 1e-9 && MAXQ === Math.max(...Object.values(SEGMENTEN).flatMap(s => Object.values(s.cells).filter(c => !teKort(c)).map(c => schat(c, s).q)))", kort_k))
+        eis('de legenda noemt het', 'te kort gemeten (venster onder %d s)' % round(grens) in pg.inner_text('#legenda') or 'te kort gemeten' in pg.inner_text('#legenda'), pg.inner_text('#legenda'))
+        tk = pg.evaluate("k => { const d = document.createElement('div'); d.innerHTML = popupHtml(SEGMENTEN[k], SEGMENTEN[k].cells['5:13']); return d.textContent; }", kort_k)
+        eis('de details: de cijfers staan er, met "Te kort gemeten" en het venster', 'Te kort gemeten: een ontmoetingsvenster van' in tk and 'passanten per uur' in tk, tk)
+        pg.evaluate("k => openWeek(SEGMENTEN[k])", kort_k); pg.wait_for_timeout(200)
+        cel = pg.evaluate("[...document.querySelectorAll('#week-tabel td[data-cel=\"5:13\"]')].map(td => [td.className, td.textContent])")
+        eis('het weekoverzicht: de cel grijs met een punt, en nog aan te klikken', cel and 'kort' in cel[0][0] and cel[0][1] == '\u00b7', cel)
+        pg.keyboard.press('Escape')
+        pg.evaluate("() => { KORT_VENSTER = 30; herbereken(); }"); pg.wait_for_timeout(200)
+        eis('drempel terug op 30 s: alles weer gekleurd', not pg.evaluate("Object.values(SEGMENTEN).some(s => s.cells['5:13'] && teKort(s.cells['5:13']))") and len(pg.evaluate(GEMETEN)) == 12)
+
+        print('\n== DC. Dagcurve (v3.43) ==')
+        eis('twee tabbladen, Kaart staat aan', pg.is_visible('#tabs') and pg.get_attribute('#tabs button[data-tab="kaart"]', 'aria-pressed') == 'true'
+            and pg.is_visible('#kaart') and not pg.is_visible('#tab-dagcurve'))
+        pg.click('#tabs button[data-tab="dagcurve"]')
+        pg.wait_for_selector('#dc-uren', timeout=20000)
+        eis('Dagcurve: de kaart weg, de grafiek en de tabellen erbij', not pg.is_visible('#kaart') and pg.is_visible('#dagcurve svg') and pg.is_visible('#dc-dagen')
+            and pg.get_attribute('#tabs button[data-tab="dagcurve"]', 'aria-pressed') == 'true')
+        dc = pg.evaluate("(() => { const d = DAGCURVE; return { ref: d.ref, refK: d.refK, tellingen: d.tellingen, cel: Object.fromEntries(Object.entries(d.cel).map(([k, c]) => [k, [c.index, c.n, c.genoeg, c.los, c.onder]])), dagen: d.dagen.map(x => [x.factor, x.n, x.genoeg]) }; })()")
+        eis('de vakjes: zaterdag 13 (twee tellingen) en werkdag 11 (een)', sorted(dc['cel']) == ['werkdag:11', 'zaterdag:13'] and dc['cel']['zaterdag:13'][1] == 2
+            and dc['cel']['zaterdag:13'][2] and dc['cel']['werkdag:11'][1] == 1 and not dc['cel']['werkdag:11'][2] and dc['tellingen'] == 3, dc)
+        eis('op werkdagen te weinig, dus index 100 = zaterdag 13, en donderdag is de enige werkdag (factor 1)', dc['ref'] == 'alles' and dc['refK'] == ['zaterdag:13']
+            and abs(dc['cel']['zaterdag:13'][0] - 100) < 1e-9 and dc['dagen'][3][:2] == [1, 1] and 'het gemiddelde van de gemeten uren' in pg.inner_text('#dagcurve'), dc)
+        # los nagerekend: dezelfde passages, hetzelfde model
+        rijen = []
+        for datum, start, pas in GEBRUIKT:
+            t, tijden = start, []
+            for p in pas: tijden.append((t, t + p[3])); t = t + p[3] + 1
+            for i, (way, sg, kant, duur, nteg, nstil) in enumerate(pas):
+                t0, t1 = tijden[i]
+                van = max((tijden[i - 1][1] + t0) / 2, t0 - 5) if i > 0 and tijden[i - 1][1] < t0 else t0
+                tot = min((t1 + tijden[i + 1][0]) / 2, t1 + 5) if i < len(pas) - 1 and tijden[i + 1][0] > t1 else t1
+                # het Steegje (richting uit de GPS) is alleen op zaterdag om 13 uur gelopen: het valt weg, wat zijn richting ook is
+                r_ = {'heen': 'A', 'terug': 'B'}.get(kant, '?')
+                rijen.append(((way, sg, r_), DAG[datum], ((t0 + t1) // 2) // 3600, lengte(way, sg) / V_VOET + duur + (t0 - van) + (tot - t1), nteg))
+        Fp, Dp = dagcurve_ipf(rijen)
+        verw = 100 * Fp[('werkdag', 11)] * Dp[3] / Fp[('zaterdag', 13)]
+        eis('werkdag 11 = %.2f: los nagerekend met hetzelfde model (zaterdag 13 = 100)' % verw, abs(dc['cel']['werkdag:11'][0] - verw) < 1e-6, [dc['cel']['werkdag:11'][0], verw])
+        tab = pg.evaluate("[...document.querySelectorAll('#dc-uren td[data-cel]')].map(td => [td.dataset.cel, td.textContent, td.className, td.title])")
+        eis('de tabel: zaterdag 13 toont 100, werkdag 11 een streepje (te weinig gemeten)',
+            any(c == 'zaterdag:13' and t_.startswith('100') for c, t_, k, ti in tab) and any(c == 'werkdag:11' and t_ == '\u2013' and 'weinig' in k and 'te weinig gemeten' in ti for c, t_, k, ti in tab), tab)
+        dek = pg.evaluate("[...document.querySelectorAll('#dc-dekking tbody tr')].map(tr => [...tr.children].map(td => td.textContent))")
+        eis('waar gemeten is: do 11 uur 1 telling, za 13 uur 2', [r_ for r_ in dek if r_[0] == 'do'][0][1] == '1' and [r_ for r_ in dek if r_[0] == 'za'][0][3] == '2', dek)
+        with pg.expect_download() as dl:
+            pg.click('#dagcurve button:has-text("dagcurve.csv")')
+        regels = open(dl.value.path(), encoding='utf-8').read().strip().split('\n')
+        eis('dagcurve.csv: kolommen en rijen (uur per dagtype, weekdag)', dl.value.suggested_filename == 'dagcurve.csv' and regels[0] == 'soort;dag;uur;index;onder;boven;tellingen;tegemoet;genoeg'
+            and [r_.split(';')[:3] for r_ in regels[1:]] == [['uur', 'werkdag', '11'], ['uur', 'zaterdag', '13'], ['weekdag', 'do', '']]
+            and regels[2].split(';')[3] == '100.0' and regels[2].endswith(';2;%d;ja' % sum(p[4] for g in GEBRUIKT[:2] for p in g[2])), regels)
+        with pg.expect_download() as dl:
+            pg.click('#dagcurve button:has-text("passages.csv")')
+        pas = [r_.split(';') for r_ in open(dl.value.path(), encoding='utf-8').read().strip().split('\n')]
+        eis('passages.csv: de kolommen, een rij per passage (%d)' % len(rijen), pas[0] == 'sessie_id;datum;weekdag;uur;osm_way_id;segment_index;straat;richting;lengte_m;tijd_s;venster_s;tegemoet;stilstaand'.split(';')
+            and len(pas) - 1 == len(rijen) == sum(len(g[2]) for g in GEBRUIKT), [len(pas), len(rijen)])
+        eis('de vensters in passages.csv zijn die van de pagina (lengte / 1,1 + tijd met de gaatjes)',
+            all(abs(a_ - b_) < 0.051 for a_, b_ in zip(sorted(float(r_[10]) for r_ in pas[1:]), sorted(r_[3] for r_ in rijen)))
+            and all(abs(float(r_[10]) - (float(r_[8]) / V_VOET + float(r_[9]))) < 0.1 for r_ in pas[1:]),
+            [(a_, round(b_, 2)) for a_, b_ in zip(sorted(float(r_[10]) for r_ in pas[1:]), sorted(r_[3] for r_ in rijen)) if abs(a_ - b_) >= 0.051][:5])
+        Fc, Dc = dagcurve_ipf([((r_[4], r_[5], r_[7]), ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'].index(r_[2]), int(r_[3]), float(r_[10]), int(r_[11])) for r_ in pas[1:]])
+        uitCsv = 100 * Fc[('werkdag', 11)] * Dc[3] / Fc[('zaterdag', 13)]
+        eis('uit passages.csv alleen is de index na te rekenen (%.2f; de pagina %.2f)' % (uitCsv, dc['cel']['werkdag:11'][0]), abs(uitCsv - dc['cel']['werkdag:11'][0]) < 0.05)
+        pg.click('#tabs button[data-tab="kaart"]'); pg.wait_for_timeout(300)
+        eis('terug naar Kaart: de kaart en de labels zijn er weer', pg.is_visible('#kaart') and not pg.is_visible('#tab-dagcurve') and len(pg.evaluate(LABELS)) > 0
+            and pg.evaluate("kaart.getSize().x > 0"))
+        pg.evaluate("() => { herbereken(); }"); pg.wait_for_timeout(100)
+        eis('herbereken() leegt de dagcurve (nieuwe bestanden: opnieuw rekenen)', pg.evaluate("DAGCURVE === null"))
+
+        print('\n== DC. Kiezen (v3.44) ==')
+        def klik_op(k, ctrl=False):
+            xy = pg.evaluate("""k => { const m = midden(lijnVan(SEGMENTEN[k])), p = kaart.latLngToContainerPoint(m), r = document.getElementById('kaart').getBoundingClientRect();
+                return [r.left + p.x, r.top + p.y]; }""", k)
+            if ctrl: pg.keyboard.down('Control')
+            pg.mouse.click(xy[0], xy[1])
+            if ctrl: pg.keyboard.up('Control')
+            pg.wait_for_timeout(150)
+        keuze = lambda: sorted(pg.evaluate("Object.keys(KEUZE)"))
+        eis('de rij Kies onder dag en uur: de knop staat uit, niets gekozen', pg.is_visible('#kiesknop') and pg.get_attribute('#kiesknop', 'aria-pressed') == 'false' and keuze() == [])
+        pg.click('#kiesknop'); klik_op('1001/2')
+        eis('knop aan, klik op een stuk: gekozen (blauwe rand), het weekoverzicht blijft dicht', pg.get_attribute('#kiesknop', 'aria-pressed') == 'true' and keuze() == ['1001/2']
+            and not pg.is_visible('#week') and pg.evaluate("document.querySelectorAll('#kaart path.gekozen').length") == 1 and 'gekozen voor de dagcurve' in pg.inner_text('#legenda'), [keuze(), pg.is_visible('#week')])
+        eis('de rij noemt het stuk en biedt de hele straat aan', '1 stuk: Voorstraat (1)' in pg.inner_text('#keuzetekst') and pg.inner_text('#helestraat') == 'hele Voorstraat (+8)', pg.inner_text('#keuzetekst'))
+        pg.click('#helestraat'); pg.wait_for_timeout(150)
+        eis('hele straat: de vijf stukken van 1001 en de stukken van 1004 en 1005 (ook de andersom getekende), niet de Kerkstraat',
+            keuze() == ['1001/0', '1001/1', '1001/2', '1001/3', '1001/4', '1004/0', '1004/1', '1005/0', '1005/1'] and not pg.is_visible('#helestraat'), keuze())
+        klik_op('1001/2')
+        eis('nog eens klikken: weer uit', '1001/2' not in keuze() and len(keuze()) == 8)
+        pg.click('#keuzetekst button:has-text("wis")'); pg.click('#kiesknop'); pg.wait_for_timeout(100)
+        eis('wis en de knop uit: niets gekozen', keuze() == [] and pg.get_attribute('#kiesknop', 'aria-pressed') == 'false' and pg.evaluate("document.querySelectorAll('#kaart path.gekozen').length") == 0)
+        klik_op('1001/0', ctrl=True); klik_op('1001/1', ctrl=True)
+        eis('Ctrl+klik zonder de knop: kiest ook', keuze() == ['1001/0', '1001/1'] and not pg.is_visible('#week'), keuze())
+        klik_op('1002/0')
+        eis('een gewone klik opent nog steeds het weekoverzicht, en kiest niets', pg.is_visible('#week') and keuze() == ['1001/0', '1001/1'])
+        pg.keyboard.press('Escape')
+        pg.evaluate("herbereken()"); pg.wait_for_timeout(150)
+        eis('herbereken() houdt de keuze', keuze() == ['1001/0', '1001/1'] and pg.evaluate("document.querySelectorAll('#kaart path.gekozen').length") == 2)
+        pg.click('#keuzetekst button:has-text("dagcurve")')
+        pg.wait_for_selector('.dc-keuze button', timeout=20000)
+        eis('naar de dagcurve: je keuze bovenaan, de tabel met keuze en alle, waar gemeten is: je keuze', '2 stukken: Voorstraat (2)' in pg.inner_text('.dc-keuze')
+            and pg.is_visible('#dc-uren th.alle') and 'waar gemeten is: je keuze' in pg.inner_text('#dagcurve').lower(), pg.inner_text('.dc-keuze'))
+        kz = pg.evaluate("(() => { const k = DCKEUZE.dc, a = DAGCURVE; return [k.cel['werkdag:11'].index, a.cel['werkdag:11'].index, k.ref, k.passages, k.tellingen]; })()")
+        Fk, Dk = dagcurve_ipf([r_ for r_ in rijen if r_[0][:2] in ((1001, 0), (1001, 1))])
+        verwk = 100 * Fk[('werkdag', 11)] * Dk[3] / Fk[('zaterdag', 13)]
+        eis('werkdag 11 van de keuze = %.2f: los nagerekend op alleen die passages (alle stukken: %.2f)' % (verwk, kz[1]),
+            abs(kz[0] - verwk) < 1e-6 and abs(kz[0] - kz[1]) > 0.5 and kz[2] == 'alles' and kz[3] == 12 and kz[4] == 3, kz)
+        eis('de tabel: keuze en alle naast elkaar', pg.inner_text('#dc-uren td[data-alle="werkdag:11"]') == '\u2013'
+            and pg.inner_text('#dc-uren td[data-cel="zaterdag:13"]').startswith('100') and pg.inner_text('#dc-uren td[data-alle="zaterdag:13"]') == '100')
+        with pg.expect_download() as dl:
+            pg.click('#dagcurve button:has-text("passages_keuze.csv")')
+        pk = open(dl.value.path(), encoding='utf-8').read().strip().split('\n')
+        eis('passages_keuze.csv: dezelfde kolommen, alleen de passages van de keuze (12)', dl.value.suggested_filename == 'passages_keuze.csv' and pk[0] == ';'.join(pas[0])
+            and len(pk) == 13 and all(r_.split(';')[4:6] in (['1001', '0'], ['1001', '1']) for r_ in pk[1:]), len(pk))
+        with pg.expect_download() as dl:
+            pg.click('#dagcurve button:has-text("dagcurve_keuze.csv")')
+        dk = open(dl.value.path(), encoding='utf-8').read().strip().split('\n')
+        eis('dagcurve_keuze.csv: dezelfde kolommen, de cijfers van de keuze', dl.value.suggested_filename == 'dagcurve_keuze.csv' and dk[0] == regels[0]
+            and abs(float(dk[1].split(';')[3]) - kz[0]) < 0.051, dk)
+        pg.click('.dc-keuze button'); pg.wait_for_selector('#dc-uren', timeout=20000)
+        eis('wis keuze: weer alleen alle stukken', keuze() == [] and not pg.is_visible('#dc-uren th.alle') and 'Alle stukken.' in pg.inner_text('.dc-keuze')
+            and not pg.is_visible('#dagcurve button:has-text("dagcurve_keuze.csv")'))
+        pg.click('#tabs button[data-tab="kaart"]'); pg.wait_for_timeout(200)
         eis('geen JS-fouten', not fouten, fouten)
         if os.environ.get('PASSANTEN_PNG'):
             pg.screenshot(path=os.environ['PASSANTEN_PNG'])
@@ -423,6 +638,22 @@ else:
         pg.keyboard.press('Escape')
         if os.environ.get('PASSANTEN_PNG'):
             pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_390.png'))
+        pg.click('#tabs button[data-tab="dagcurve"]'); pg.wait_for_selector('#dc-uren', timeout=20000)
+        breed = pg.evaluate("document.documentElement.scrollWidth")
+        eis('v3.43: de dagcurve op 390 px: niets breder dan het scherm (%d px), de grafiek past' % breed,
+            breed <= 390 and pg.evaluate("document.querySelector('#dagcurve svg').getBoundingClientRect().right <= 390"))
+        if os.environ.get('PASSANTEN_PNG'):
+            pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_dagcurve_390.png'), full_page=True)
+        pg.click('#tabs button[data-tab="kaart"]'); pg.wait_for_timeout(200)
+        pg.click('#kiesknop'); pg.evaluate("() => { wisselKeuze(SEGMENTEN['1001/0']); kiesHeleStraat(); }"); pg.wait_for_timeout(150)
+        breed = pg.evaluate("document.documentElement.scrollWidth")
+        eis('v3.44: met een keuze op 390 px: de rij Kies past (%d px)' % breed, breed <= 390 and pg.is_visible('#keuzetekst button:has-text("wis")'))
+        pg.click('#keuzetekst button:has-text("dagcurve")'); pg.wait_for_selector('.dc-keuze button', timeout=20000)
+        breed = pg.evaluate("document.documentElement.scrollWidth")
+        eis('v3.44: de dagcurve van de keuze op 390 px: de pagina niet breder (%d px), de tabel schuift in zijn kader' % breed,
+            breed <= 390 and pg.evaluate("document.querySelector('#dc-uren').parentElement.scrollWidth >= document.querySelector('#dc-uren').parentElement.clientWidth"))
+        if os.environ.get('PASSANTEN_PNG'):
+            pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_keuze_390.png'), full_page=True)
         eis('geen JS-fouten', not fouten, fouten)
         ctx.close(); b.close()
     shutil.rmtree(tmp, ignore_errors=True)
