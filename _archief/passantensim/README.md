@@ -12,6 +12,19 @@ waarheid bekend is. Gaat niet online (`_archief` heeft `export-ignore`).
 - `batch.js`: Monte Carlo. Rekent met het échte blok `PASSANTEN` en de échte
   Garwood-marge uit `passanten.html`, ongewijzigd, via `vm`.
 
+- `simkijker.html` (nov 2026): één ronde als tijd-wegdiagram, tot op de
+  voetganger (Jay: "Iets waardoor ik vertrouwen krijg in de resultaten").
+  Elke lijn een voetganger, elke ontmoeting gezien of gemist (met kans en
+  worp), elke tik naar het vak waar hij telt; per vak de rekensom van
+  Passanten naast de waarheid, en F over de zaadjes 1 tot 400 ter
+  vergelijking. Trefkans 95% voor iedereen. Eén zelfstandige pagina (ook als
+  artifact), met een kopie van `sim_kern.js` en van het blok `PASSANTEN`:
+  `node _archief/passantensim/kijkercheck.js [--bijwerken]` controleert of die
+  kopieën nog gelijk zijn (en vervangt ze). `run()` geeft daarvoor ook de
+  voetgangers, alle ontmoetingen (met kans en worp) en de gps-punten terug;
+  dat trekt geen extra toevalsgetallen, dus dezelfde zaadjes geven dezelfde
+  rondes als voorheen.
+
 Draaien vanuit de repo-root (geen npm nodig):
 
     node _archief/passantensim/batch.js         # 1000 rondes per regel, ~4 min

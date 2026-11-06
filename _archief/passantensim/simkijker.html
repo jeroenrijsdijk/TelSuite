@@ -1,0 +1,1123 @@
+<title>Eén simulatieronde</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500&family=Share+Tech+Mono&display=swap">
+<!--
+  Simkijker (nov 2026): één ronde van de passantensimulatie, tot op de voetganger.
+  Jay: "Ik vind het moeilijk om er iets van te vinden, zonder dat ik echt inzicht
+  heb in de details. Hoe kun je een simulatie run visualiseren [...] Iets waardoor
+  ik vertrouwen krijg in de resultaten." Gekozen: het tijd-wegdiagram met de
+  vakkentabel ("1. is al genoeg denk ik").
+  Rekent met kopieën van sim_kern.js en van het blok PASSANTEN uit passanten.html.
+  Controleren of ze nog gelijk zijn, en bijwerken:
+      node _archief/passantensim/kijkercheck.js [--bijwerken]
+  Gaat niet online (_archief heeft export-ignore); gepubliceerd als artifact.
+-->
+<style>
+/* Layout: een tijd-wegdiagram over de volle breedte, ernaast een smalle kolom met wat je aanwijst; daaronder de vakken. */
+:root{
+  --bg:#eceae4; --paper:#f6f5f1; --ink:#1b1b19; --muted:#6d6d66; --line:#c7c7bf;
+  --accent:#2f5d62; --oker:#8a7a2b; --rood:#b0342b; --groen:#2e7d4f; --blauw:#2b59c3;
+  --voet:#8a908a; --voet2:#bcc0b9; --gps:#5b7c99; --buiten:#e2e0d9;
+  --bezoek:rgba(47,93,98,.14); --gat:rgba(47,93,98,.06); --kies:rgba(138,122,43,.13);
+  --kop:'Oswald',system-ui,sans-serif; --mono:'Share Tech Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#171816; --paper:#1f201d; --ink:#e8e6df; --muted:#a3a29a; --line:#3a3b36;
+  --accent:#6fa3a8; --oker:#c9b45a; --rood:#e0705f; --groen:#5cc08a; --blauw:#7d9cf0;
+  --voet:#7d827c; --voet2:#4d514b; --gps:#8fb0cc; --buiten:#232421;
+  --bezoek:rgba(111,163,168,.18); --gat:rgba(111,163,168,.08); --kies:rgba(201,180,90,.14); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#171816; --paper:#1f201d; --ink:#e8e6df; --muted:#a3a29a; --line:#3a3b36;
+  --accent:#6fa3a8; --oker:#c9b45a; --rood:#e0705f; --groen:#5cc08a; --blauw:#7d9cf0;
+  --voet:#7d827c; --voet2:#4d514b; --gps:#8fb0cc; --buiten:#232421;
+  --bezoek:rgba(111,163,168,.18); --gat:rgba(111,163,168,.08); --kies:rgba(201,180,90,.14); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--kop);font-weight:300;font-size:14px;line-height:1.45;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 40px}
+h1{margin:0;font-size:19px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;text-wrap:balance}
+h2{margin:0 0 6px;font-size:12px;font-weight:500;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.sub{color:var(--muted);font-size:13px;max-width:80ch}
+.mono,td,.chip b,.tijd{font-family:var(--mono);font-variant-numeric:tabular-nums}
+header{display:flex;flex-direction:column;gap:4px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.bedien{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:12px 0 10px}
+.bedien label{font-size:12px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+input,select,button{font-family:var(--kop);font-size:13px;color:var(--ink)}
+input[type=number]{width:92px;padding:5px 7px;background:var(--paper);border:1px solid var(--line);border-radius:3px;font-family:var(--mono)}
+button{padding:5px 12px;background:var(--paper);border:1px solid var(--line);border-radius:3px;cursor:pointer}
+button.hoofd{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+button:focus-visible,input:focus-visible,select:focus-visible,tr:focus-visible{outline:2px solid var(--oker);outline-offset:1px}
+select{padding:4px 6px;background:var(--paper);border:1px solid var(--line);border-radius:3px}
+.chips{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 12px;font-size:13px}
+.chip{display:flex;flex-direction:column;min-width:0}
+.chip span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chip b{font-weight:400;font-size:15px}
+.chip.f b{color:var(--accent);font-size:17px}
+.werk{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:900px){.werk{grid-template-columns:minmax(0,1fr)}}
+.legenda{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--muted);margin-bottom:6px}
+.legenda i{display:inline-block;vertical-align:middle;margin-right:5px}
+.scroll{overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:3px}
+#diagram{display:block;cursor:crosshair}
+#diagram text{font-family:var(--mono);font-size:10.5px;fill:var(--muted)}
+#diagram .vaknr{font-family:var(--kop);font-size:11.5px;fill:var(--ink);cursor:pointer}
+#diagram .waar{fill:var(--accent)}
+.buiten{fill:var(--buiten)}
+.bez{fill:var(--bezoek)} .gat{fill:var(--gat)} .kies{fill:var(--kies)}
+.grens{stroke:var(--line);stroke-width:1}
+.midden{stroke:var(--accent);stroke-width:1;stroke-dasharray:2 3;opacity:.7}
+.doorm{stroke:var(--accent);stroke-width:1.2}
+.v{fill:none;stroke:var(--voet);stroke-width:.9}
+.v2{fill:none;stroke:var(--voet2);stroke-width:.9}
+.vst{fill:none;stroke:var(--oker);stroke-width:1;stroke-dasharray:1 3}
+.licht{fill:none;stroke:var(--oker);stroke-width:2.6}
+.tel{fill:none;stroke:var(--ink);stroke-width:2.6}
+.gps{stroke:var(--gps);stroke-width:1.1}
+.hit{fill:var(--groen)} .mis{fill:var(--paper);stroke:var(--rood);stroke-width:1.4}
+.shit{fill:var(--blauw)} .smis{fill:var(--paper);stroke:var(--blauw);stroke-width:1.2}
+.inh{fill:var(--voet)}
+.tik{stroke:var(--groen);stroke-width:2} .tikbuur{stroke:var(--oker);stroke-width:2.4} .tikwees{stroke:var(--rood);stroke-width:2.4}
+.verbind{stroke:var(--muted);stroke-width:.7;stroke-dasharray:2 2}
+#info{background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:12px 14px;font-size:13px;position:sticky;top:max(10px,env(safe-area-inset-top,0px));
+  max-height:calc(100vh - 20px);overflow:auto;min-width:0}
+#info h3{margin:0 0 6px;font-size:15px;font-weight:500;letter-spacing:.02em}
+#info p{margin:6px 0}
+#info .rij{display:grid;grid-template-columns:auto 1fr;gap:2px 10px}
+#info .rij span:nth-child(odd){color:var(--muted)}
+#info .som{font-family:var(--mono);font-size:12.5px;background:var(--bg);padding:6px 8px;border-radius:3px;margin:6px 0;white-space:pre-wrap}
+#info ul{margin:4px 0;padding-left:18px}
+.ok{color:var(--groen)} .nee{color:var(--rood)} .buur{color:var(--oker)}
+.tabelvak{overflow-x:auto;margin-top:18px}
+table{border-collapse:collapse;font-size:12.5px;background:var(--paper);min-width:100%}
+th,td{padding:4px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{font-family:var(--kop);font-weight:500;font-size:11px;letter-spacing:.05em;color:var(--muted);vertical-align:bottom;white-space:normal;min-width:62px}
+th.l,td.l{text-align:left}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--bg)}
+tbody tr.aan{background:var(--kies)}
+tfoot td{font-weight:400;border-top:2px solid var(--line)}
+td.f{color:var(--accent)}
+.uitleg{max-width:78ch;font-size:13px;margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.uitleg p{margin:0}
+</style>
+
+<header>
+  <h1>Eén simulatieronde</h1>
+  <div class="sub">Een lopende teller in een gesimuleerde winkelstraat, tot op de voetganger. Wat de teller tegenkomt, tikt en meetelt, en wat Passanten er per vak van maakt, naast de waarheid.</div>
+</header>
+
+<div class="bedien">
+  <label for="zaad">Zaadje</label>
+  <input type="number" id="zaad" min="1" step="1" value="21">
+  <button id="vorige" aria-label="vorige ronde">‹ vorige</button>
+  <button id="volgende" class="hoofd">volgende ronde ›</button>
+  <label for="schaal">Tijdschaal</label>
+  <select id="schaal"><option value="1.4">1,4 px/s</option><option value="2.2" selected>2,2 px/s</option><option value="3.5">3,5 px/s</option><option value="5">5 px/s</option></select>
+</div>
+<div class="chips" id="chips"></div>
+
+<div class="werk">
+  <div style="min-width:0">
+    <div class="legenda">
+      <span><i><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" class="tel"/></svg></i>teller</span>
+      <span><i><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" class="v"/></svg></i>voetganger, eigen kant</span>
+      <span><i><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" class="v2"/></svg></i>overkant</span>
+      <span><i><svg width="10" height="10"><circle cx="5" cy="5" r="4" class="hit"/></svg></i>tegemoet, gezien</span>
+      <span><i><svg width="10" height="10"><circle cx="5" cy="5" r="3.5" class="mis"/></svg></i>tegemoet, gemist</span>
+      <span><i><svg width="10" height="10"><rect x="1" y="1" width="8" height="8" class="shit"/></svg></i>stilstaand</span>
+      <span><i><svg width="16" height="8"><line x1="2" y1="4" x2="14" y2="4" class="tik"/></svg></i>tik, telt in dat vak</span>
+      <span><i><svg width="16" height="8"><line x1="2" y1="4" x2="14" y2="4" class="tikbuur"/></svg></i>tik, telt in een buurvak</span>
+      <span><i><svg width="16" height="8"><line x1="2" y1="4" x2="14" y2="4" class="tikwees"/></svg></i>tik in een gat, telt niet</span>
+      <span><i><svg width="10" height="10"><path d="M1 5h8M5 1v8" class="gps"/></svg></i>gps-punt</span>
+      <span><i><svg width="16" height="10"><rect width="16" height="10" class="bez"/></svg></i>bezoek (_bezocht)</span>
+      <span><i><svg width="16" height="10"><rect width="16" height="10" class="gat"/></svg></i>gedeeld gaatje</span>
+      <span><i><svg width="8" height="14"><line x1="4" y1="0" x2="4" y2="14" class="midden"/></svg></i>midden van het vak: daar is de waarheid</span>
+    </div>
+    <div class="scroll"><svg id="diagram" role="img" aria-label="Tijd-wegdiagram van de ronde"></svg></div>
+  </div>
+  <aside id="info" aria-live="polite"></aside>
+</div>
+
+<div class="tabelvak"><table id="vakken"></table></div>
+
+<div class="uitleg">
+  <h2>Zo lees je het</h2>
+  <p>Horizontaal de straat in meters, verticaal de tijd, van boven naar onder. Elke dunne lijn is een voetganger: hoe schuiner, hoe sneller; recht naar beneden is stilstaan. Waar een lijn de dikke lijn van de teller kruist, komen ze elkaar tegen. Loopt de voetganger de andere kant op, dan is het een tegemoetkomer: gezien (groen) of gemist (rood). Inhalen en ingehaald worden telt niet.</p>
+  <p>De tik komt iets na de ontmoeting (reactietijd, salvo's) en schuift dan langs de tellerlijn. Passanten weet niet waar je was, alleen wanneer: een tik telt bij de passage waarin hij valt, en de passages komen uit de gps-punten (5 s en 3 punten, zoals Pocket live). De gaatjes ertussen worden in het midden gedeeld, hooguit 5 s per kant.</p>
+  <p>De waarheid is de stroom door het midden van elk vak, beide richtingen samen: het aantal lijnen dat de stippellijn kruist. Het model kent die stroom precies (kolom <i>waarheid</i>); tijdens de ronde zelf liepen er toevallig iets meer of minder door (kolom <i>door het midden</i>, met een streepje per persoon op de stippellijn).</p>
+  <p>Passanten rekent per vak 3600 × tegemoet ÷ venster, met venster = lengte ÷ 1,1 + tijd, en verdubbelt dat omdat je maar één richting liep. <b>F = waarheid ÷ Passanten</b>: de factor waarmee Passanten vermenigvuldigd moet worden. Eén ronde, en zeker één vak, is ruw; de ijkfactor komt uit het totaal over veel rondes (bovenaan: de zaadjes 1 tot 400, zelfde instellingen). Passanten gebruikt nu 1,05. Trefkans: 95% voor iedereen, aan beide kanten (Jay).</p>
+</div>
+
+<script>
+/* ==== kopie van _archief/passantensim/sim_kern.js (node _archief/passantensim/kijkercheck.js) ==== */
+/* ── Passantensimulatie: de kern (SIMKERN, okt 2026) ──────────────────────────
+   Eén winkelstraat, één lopende teller die hem één keer in één richting afloopt,
+   zoals Jay's rondes. De waarheid is de doorsnedestroom in het midden van elk vak
+   (Jay: "vakjes van 40-60 meter, dus neem daar gewoon het midden van").
+
+   Geen tijdstappen: elke voetganger is een stuksgewijs rechte lijn in (t, x),
+   en de teller ook. Een ontmoeting is een tekenwissel van x_voet − x_teller
+   tussen twee knikpunten; het tijdstip volgt exact uit lineaire interpolatie.
+
+   De stroom langs de straat: herkomst en bestemming komen uit dezelfde set
+   punten (twee straateinden en de winkeldeuren), met eigen gewichten wO en wD.
+   Dan is de stroom bij x precies bekend:
+     naar +: λ · Σ_{p<x} wO_p · Σ_{p'>x} wD_p' / Z,   Z = 1 − Σ wO_p·wD_p
+   en zo ook naar −. Met wO ≠ wD (een station aan één kant) is de straat scheef.
+
+   Uitvoer: de waarheid per vak, en de CSV-rijen van één Pocket-sessie
+   (sessie, netwerk, bezocht, telregels) zoals PASSANTEN.sessie ze verwacht.
+   Pocket wordt nagedaan: routepunten bij ≥ 5 m verplaatsing, een bezoek van het
+   eerste tot het laatste routepunt in een vak, een tik op het vak van het
+   routepunt dat qua tijd het dichtst ligt, tijden op hele seconden.
+
+   Puur: geen DOM en geen Node. Herhaalbaar via het zaadje.                    */
+var SIMKERN = (function () {
+  'use strict';
+
+  var STANDAARD = {
+    // de straat
+    straatMin: 150, straatMax: 600,    // m
+    segDoel: 40, segMin: 60,           // zoals SEGMENT_TARGET_M / SEGMENT_MIN_M in Pocket
+    deurPerM: 1 / 12,                  // winkeldeuren per meter
+    pEind: 0.5,                        // deel van herkomsten/bestemmingen dat een straateinde is
+    scheef: [0.5, 0.5],                // a: deel van de einde-herkomsten uit einde x=0 (0,5 = symmetrisch)
+    qMin: 300, qMax: 1600,             // passanten per uur, beide richtingen, midden van de straat
+    // voetgangers
+    groep: [0.55, 0.30, 0.10, 0.05],   // P(groepsgrootte 1, 2, 3, 4)
+    groepTussen: [0.3, 0.9],           // s tussen twee leden van een groepje
+    vGem: 1.25, vSd: 0.25, vMin: 0.5, vMax: 2.0,
+    pSlenter: 0.15, vSlenter: 0.7, vSlenterSd: 0.15,
+    pStop: 0.25, stopGem: 60, stopMin: 5,   // even stilstaan (etalage), daarna verder
+    stilDicht: 2,                      // vaste stilstaanders (terras, wachten) per 100 m, géén passant
+    // de lopende teller
+    tempo: 1.45, tempoSd: 0.08,        // m/s, vrij lopen
+    drukteQ: 900, drukteK: 0.55,       // vertraging: tempo / (1 + K·(q_tegen/Q)^3)
+    segJitter: 0.1, pPauze: 0.05, pauze: [4, 15],
+    // waarnemen en tikken
+    pZelf: 0.95, pOver: 0.75,          // trefkans aan de eigen kant / de overkant
+    pGroep: 0.85,                      // extra factor voor het 2e, 3e … lid van een groepje
+    qZicht: 4000,                      // drukte: trefkans × 1 / (1 + q/qZicht)
+    vertraging: 0.8, vertragingSd: 0.8, minTussen: 0.35,   // s
+    salvo: 3,                          // s; >0: eerst kijken, dan tikken: wat binnen dit venster
+                                       // gezien is, wordt in één salvo getikt ("inhaaltikken")
+    // gps (zoals Pocket)
+    gpsInt: [4, 6], gpsRuis: 4, gpsTau: 20, routeMin: 5,   // ruis met geheugen (s)
+    maxGat: 30, minVisitSec: 5, minVisitPts: 3,
+    idealGps: false,                   // true: bezoeken exact, tik op het echte vak
+    // vaste teller
+    pStatic: 0.97
+  };
+
+  /* ---------- toeval ------------------------------------------------------- */
+  function rng(zaad) {
+    var s = zaad >>> 0, extra = null;
+    function u() {                                   // mulberry32
+      s = (s + 0x6D2B79F5) >>> 0;
+      var t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+    function n(mu, sd) {
+      if (extra !== null) { var e = extra; extra = null; return mu + sd * e; }
+      var a = u() || 1e-12, b = u(), r = Math.sqrt(-2 * Math.log(a));
+      extra = r * Math.sin(2 * Math.PI * b);
+      return mu + sd * r * Math.cos(2 * Math.PI * b);
+    }
+    function exp(gem) { return -gem * Math.log(1 - u()); }
+    function tussen(ab) { return ab[0] + u() * (ab[1] - ab[0]); }
+    function kies(w) {
+      var x = u() * w.reduce(function (s, v) { return s + v; }, 0);
+      for (var i = 0; i < w.length; i++) { x -= w[i]; if (x < 0) return i; }
+      return w.length - 1;
+    }
+    return { u: u, n: n, exp: exp, tussen: tussen, kies: kies };
+  }
+
+  /* ---------- trajecten: [[t, x], …], lineair ertussen ----------------------- */
+  function zoek(tr, t) {                             // laatste knik met tijd ≤ t
+    var lo = 0, hi = tr.length - 1;
+    while (lo < hi) { var m = (lo + hi + 1) >> 1; if (tr[m][0] <= t) lo = m; else hi = m - 1; }
+    return lo;
+  }
+  function plek(tr, t) {
+    var i = zoek(tr, t);
+    if (i >= tr.length - 1) return tr[tr.length - 1][1];
+    var a = tr[i], b = tr[i + 1];
+    return b[0] === a[0] ? b[1] : a[1] + (b[1] - a[1]) * (t - a[0]) / (b[0] - a[0]);
+  }
+  function snelheid(tr, t) {
+    var i = zoek(tr, t);
+    if (i >= tr.length - 1) return 0;
+    var a = tr[i], b = tr[i + 1];
+    return b[0] === a[0] ? 0 : (b[1] - a[1]) / (b[0] - a[0]);
+  }
+  // Alle kruisingen van twee trajecten: [{t, v}] met v de snelheid van 'voet' op dat moment.
+  function kruisingen(voet, teller) {
+    var t0 = Math.max(voet[0][0], teller[0][0]);
+    var t1 = Math.min(voet[voet.length - 1][0], teller[teller.length - 1][0]);
+    if (t0 >= t1) return [];
+    var ts = [t0, t1];
+    voet.forEach(function (p) { if (p[0] > t0 && p[0] < t1) ts.push(p[0]); });
+    for (var i = zoek(teller, t0) + 1; i < teller.length && teller[i][0] < t1; i++) ts.push(teller[i][0]);
+    ts.sort(function (a, b) { return a - b; });
+    var uit = [], vorig = plek(voet, ts[0]) - plek(teller, ts[0]);
+    for (var j = 1; j < ts.length; j++) {
+      if (ts[j] === ts[j - 1]) continue;
+      var d = plek(voet, ts[j]) - plek(teller, ts[j]);
+      if ((vorig < 0 && d >= 0) || (vorig > 0 && d <= 0)) {
+        var t = ts[j - 1] + (ts[j] - ts[j - 1]) * vorig / (vorig - d);
+        uit.push({ t: t, v: snelheid(voet, Math.min(t + 1e-6, ts[j])) });
+      }
+      if (d !== 0) vorig = d;
+    }
+    return uit;
+  }
+  // Kruisingen van een vast punt x0 in een tijdvenster: [{t, richting ±1}].
+  function doorPunt(voet, x0, ta, tb) {
+    var uit = [];
+    for (var i = 0; i < voet.length - 1; i++) {
+      var a = voet[i], b = voet[i + 1];
+      if ((a[1] - x0) * (b[1] - x0) < 0) {
+        var t = a[0] + (b[0] - a[0]) * (x0 - a[1]) / (b[1] - a[1]);
+        if (t >= ta && t <= tb) uit.push({ t: t, r: b[1] > a[1] ? 1 : -1 });
+      }
+    }
+    return uit;
+  }
+
+  /* ---------- de straat -------------------------------------------------- */
+  function wereld(P, r) {
+    var L = r.tussen([P.straatMin, P.straatMax]);
+    var N = L < P.segMin ? 1 : Math.max(1, Math.round(L / P.segDoel));
+    var nDeur = Math.max(1, Math.round(L * P.deurPerM));
+    var deuren = [];
+    for (var i = 0; i < nDeur; i++) deuren.push(r.u() * L);
+    deuren.sort(function (a, b) { return a - b; });
+    var x = [0].concat(deuren, [L]);
+    var a = r.tussen(P.scheef);
+    if (r.u() < 0.5) a = 1 - a;                       // het station aan een willekeurige kant
+    var wO = x.map(function (_, j) { return j === 0 ? P.pEind * a : j === x.length - 1 ? P.pEind * (1 - a) : (1 - P.pEind) / nDeur; });
+    var wD = x.map(function (_, j) { return j === 0 ? P.pEind * (1 - a) : j === x.length - 1 ? P.pEind * a : (1 - P.pEind) / nDeur; });
+    var Z = 1 - x.reduce(function (s, _, j) { return s + wO[j] * wD[j]; }, 0);
+    function stroom(xx) {                             // per eenheid λ: [naar +, naar −]
+      var oL = 0, oR = 0, dL = 0, dR = 0;
+      x.forEach(function (p, j) { if (p < xx) { oL += wO[j]; dL += wD[j]; } else if (p > xx) { oR += wO[j]; dR += wD[j]; } });
+      return [oL * dR / Z, oR * dL / Z];
+    }
+    var qTot = r.tussen([P.qMin, P.qMax]);
+    var sm = stroom(L / 2);
+    var lam = qTot / 3600 / (sm[0] + sm[1]);          // personen per seconde, alle ritten
+    var segLen = L / N, segs = [];
+    for (var k = 0; k < N; k++) {
+      var xm = (k + 0.5) * segLen, s = stroom(xm);
+      segs.push({ k: k, xm: xm, qPlus: 3600 * lam * s[0], qMin: 3600 * lam * s[1] });
+    }
+    return { L: L, N: N, segLen: segLen, punten: x, wO: wO, wD: wD, a: a, qTot: qTot, lam: lam, segs: segs };
+  }
+
+  /* ---------- de lopende teller ------------------------------------------ */
+  function teller(P, W, r) {
+    var dir = r.u() < 0.5 ? 1 : -1;
+    var u0 = Math.max(0.8, r.n(P.tempo, P.tempoSd));
+    var qTegen = W.qTot / 2;
+    var uBasis = u0 / (1 + P.drukteK * Math.pow(qTegen / P.drukteQ, 3));
+    var T0 = 13 * 3600 + 5 * 60 + r.u() * 60;
+    var aanloop = 25;
+    var x = dir > 0 ? -aanloop : W.L + aanloop, t = T0 - aanloop / uBasis;
+    var tr = [[t, x]], inVak = [];
+    t = T0; x = dir > 0 ? 0 : W.L; tr.push([t, x]);
+    for (var j = 0; j < W.N; j++) {
+      var k = dir > 0 ? j : W.N - 1 - j;
+      var u = uBasis * (1 + P.segJitter * (2 * r.u() - 1)), binnen = t;
+      if (r.u() < P.pPauze) {
+        x += dir * W.segLen / 2; t += W.segLen / 2 / u; tr.push([t, x]);
+        t += r.tussen(P.pauze); tr.push([t, x]);
+        x += dir * W.segLen / 2; t += W.segLen / 2 / u; tr.push([t, x]);
+      } else {
+        x += dir * W.segLen; t += W.segLen / u; tr.push([t, x]);
+      }
+      inVak.push({ k: k, t0: binnen, t1: t });
+    }
+    x += dir * aanloop; t += aanloop / uBasis; tr.push([t, x]);
+    return { dir: dir, tr: tr, inVak: inVak, uBasis: uBasis, T0: T0, T1: inVak[inVak.length - 1].t1 };
+  }
+
+  /* ---------- de voetgangers ---------------------------------------------- */
+  function voetgangers(P, W, T, r) {
+    var gemG = P.groep.reduce(function (s, p, i) { return s + p * (i + 1); }, 0);
+    var lamG = W.lam / gemG;
+    var ta = T.T0 - 1800, tb = T.tr[T.tr.length - 1][0];
+    var lijst = [], groep = 0;
+    for (var t = ta + r.exp(1 / lamG); t < tb; t += r.exp(1 / lamG)) {
+      var o = r.kies(W.wO), d;
+      do { d = r.kies(W.wD); } while (d === o);
+      var xo = W.punten[o], xd = W.punten[d];
+      var v = r.u() < P.pSlenter ? r.n(P.vSlenter, P.vSlenterSd) : r.n(P.vGem, P.vSd);
+      v = Math.min(P.vMax, Math.max(P.vMin, v));
+      if (P.vSd === 0 && P.pSlenter === 0) v = P.vGem;
+      var stop = null;
+      if (r.u() < P.pStop) stop = { f: r.u(), duur: P.stopMin + r.exp(P.stopGem) };
+      var G = r.kies(P.groep) + 1, kant = r.u() < 0.5 ? 0 : 1, start = t;
+      groep++;
+      for (var g = 0; g < G; g++) {
+        if (g > 0) start += r.tussen(P.groepTussen);
+        var dx = xd - xo, tr = [[start, xo]];
+        if (stop) {
+          var xs = xo + stop.f * dx, ts = start + Math.abs(stop.f * dx) / v;
+          tr.push([ts, xs]); tr.push([ts + stop.duur, xs]);
+          tr.push([ts + stop.duur + Math.abs((1 - stop.f) * dx) / v, xd]);
+        } else tr.push([start + Math.abs(dx) / v, xd]);
+        lijst.push({ tr: tr, kant: kant, groep: groep, lid: g, passant: true });
+      }
+    }
+    // vaste stilstaanders: staan er de hele tijd, zijn geen passant
+    var nStil = Math.round(P.stilDicht * W.L / 100 * (0.5 + r.u()));
+    for (var i = 0; i < nStil; i++) {
+      var xx = r.u() * W.L;
+      lijst.push({ tr: [[ta, xx], [tb + 60, xx]], kant: r.u() < 0.5 ? 0 : 1, groep: -1, lid: 0, passant: false });
+    }
+    return lijst;
+  }
+
+  /* ---------- Pocket nadoen ------------------------------------------------ */
+  function hms(s) {
+    s = Math.floor(s);
+    return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map(function (v) { return (v < 10 ? '0' : '') + v; }).join(':');
+  }
+  function vakVan(W, x) {
+    if (x < 0 || x >= W.L) return null;
+    return Math.min(W.N - 1, Math.floor(x / W.segLen));
+  }
+  function routepunten(P, W, T, r) {
+    var tr = T.tr, t = tr[0][0] + r.u() * P.gpsInt[1], eind = tr[tr.length - 1][0];
+    var log = [], laatst = null, ex = r.n(0, P.gpsRuis), ey = r.n(0, P.gpsRuis), dt = 0;
+    for (; t <= eind; t += (dt = r.tussen(P.gpsInt))) {
+      // gps-fouten zijn traag (AR(1) met tijdconstante gpsTau), niet elke fix opnieuw
+      var rho = P.gpsTau > 0 ? Math.exp(-dt / P.gpsTau) : 0, w = Math.sqrt(1 - rho * rho);
+      ex = rho * ex + w * r.n(0, P.gpsRuis); ey = rho * ey + w * r.n(0, P.gpsRuis);
+      var x = plek(tr, t) + ex, y = ey;
+      if (laatst && Math.hypot(x - laatst[0], y - laatst[1]) < P.routeMin) continue;
+      laatst = [x, y];
+      var k = vakVan(W, x);
+      log.push({ ts: Math.floor(t), way: k === null ? '2' : '1', seg: k === null ? 0 : k, x: x, y: y });
+    }
+    return log;
+  }
+  function bezoeken(P, log) {                          // buildBezochtCsv
+    var v = [], cur = null;
+    log.forEach(function (p) {
+      var zelfde = cur && cur.way === p.way && cur.seg === p.seg;
+      if (!zelfde || p.ts - cur.tEnd > P.maxGat) {
+        if (cur) v.push(cur);
+        cur = { way: p.way, seg: p.seg, tStart: p.ts, tEnd: p.ts, n: 1 };
+      } else { cur.tEnd = p.ts; cur.n++; }
+    });
+    if (cur) v.push(cur);
+    return v.filter(function (b) { return b.tEnd - b.tStart >= P.minVisitSec && b.n >= P.minVisitPts; });
+  }
+
+  /* ---------- één run --------------------------------------------------- */
+  function run(param, zaad) {
+    var P = {}, k;
+    for (k in STANDAARD) P[k] = STANDAARD[k];
+    for (k in (param || {})) P[k] = param[k];
+    var r = rng(zaad);
+    var W = wereld(P, r), T = teller(P, W, r), V = voetgangers(P, W, T, r);
+    var zicht = 1 / (1 + W.qTot / P.qZicht), tellerKant = r.u() < 0.5 ? 0 : 1;
+
+    // ontmoetingen → bedoelde tikken
+    // (nov 2026, voor de simkijker: elke ontmoeting wordt bewaard, met kans en worp.
+    //  Dat trekt geen extra toevalsgetallen: dezelfde zaadjes geven dezelfde rondes.)
+    var bedoeld = [], ontmoet = { tegemoet: 0, stilstaand: 0 }, ontmoetingen = [];
+    V.forEach(function (p, pi) {
+      kruisingen(p.tr, T.tr).forEach(function (m) {
+        var soort;
+        if (Math.abs(m.v) < 1e-9) soort = 'stilstaand';
+        else if (m.v * T.dir < 0) soort = 'tegemoet';
+        else { ontmoetingen.push({ p: pi, t: m.t, soort: 'inhalen', getikt: false }); return; }   // niet getikt
+        ontmoet[soort]++;
+        var kans = (p.kant === tellerKant ? P.pZelf : P.pOver) * zicht;
+        if (p.lid > 0) kans *= P.pGroep;
+        var o = { p: pi, t: m.t, soort: soort, kans: kans, worp: r.u(), getikt: false };
+        ontmoetingen.push(o);
+        if (o.worp >= kans) return;
+        o.getikt = true;
+        var d = Math.max(-3, Math.min(5, r.n(P.vertraging, P.vertragingSd)));
+        bedoeld.push({ t: m.t + d, tMeet: m.t, soort: soort, passant: p.passant, o: ontmoetingen.length - 1, vertraging: d });
+      });
+    });
+    bedoeld.sort(function (a, b) { return a.t - b.t; });
+    if (P.salvo > 0) {
+      for (var i = 0; i < bedoeld.length;) {
+        var j = i;
+        while (j + 1 < bedoeld.length && bedoeld[j + 1].t <= bedoeld[i].t + P.salvo) j++;
+        for (var q = i; q <= j; q++) bedoeld[q].t = bedoeld[j].t;
+        i = j + 1;
+      }
+    }
+    var vorig = -Infinity;
+    bedoeld.forEach(function (b) { b.t = Math.max(b.t, vorig + P.minTussen); vorig = b.t; });
+
+    // gps, bezoeken, tikken aan een vak hangen
+    var bez, tikken, log = [];
+    bedoeld.forEach(function (b) { b.tZonderSalvo = b.tMeet + b.vertraging; });
+    if (P.idealGps) {
+      bez = T.inVak.map(function (v) { return { way: '1', seg: v.k, tStart: Math.round(v.t0), tEnd: Math.round(v.t1), n: 9 }; });
+      tikken = bedoeld.map(function (b) {
+        var k = vakVan(W, plek(T.tr, b.t));
+        return { ts: Math.floor(b.t), way: k === null ? '2' : '1', seg: k === null ? 0 : k, soort: b.soort };
+      });
+    } else {
+      log = routepunten(P, W, T, r);
+      bez = bezoeken(P, log);
+      tikken = bedoeld.map(function (b) {
+        var ts = Math.floor(b.t), best = null, bd = Infinity;
+        log.forEach(function (p) { var d = Math.abs(p.ts - ts); if (d < bd) { bd = d; best = p; } });
+        return { ts: ts, way: best ? best.way : '2', seg: best ? best.seg : 0, soort: b.soort };
+      });
+    }
+
+    // waarheid per vak + de vaste teller (perfect en met trefkans) tijdens de ronde
+    var ta = T.T0, tb = T.T1;
+    W.segs.forEach(function (s) {
+      s.staPlus = 0; s.staMin = 0; s.staGeteld = 0;
+      V.forEach(function (p) {
+        if (!p.passant) return;
+        doorPunt(p.tr, s.xm, ta, tb).forEach(function (c) {
+          if (c.r > 0) s.staPlus++; else s.staMin++;
+          if (r.u() < P.pStatic) s.staGeteld++;
+        });
+      });
+    });
+
+    // de CSV-rijen voor PASSANTEN.sessie
+    var GRAAD = 2 * Math.PI * 6371000 / 360, datum = '2026-10-24';
+    var invoer = {
+      sessie: [{ sessie_id: 'sim' + zaad + '_pkt_w', datum: datum, modus: 'winkelstraat' }],
+      netwerk: W.segs.map(function (s) {
+        return { osm_way_id: '1', segment_index: String(s.k), straat: 'Simstraat',
+          geometrie_wkt: 'LINESTRING (' + (s.k * W.segLen / GRAAD) + ' 0, ' + ((s.k + 1) * W.segLen / GRAAD) + ' 0)' };
+      }),
+      gps: [],
+      bezocht: bez.filter(function (b) { return b.way === '1'; }).map(function (b) {
+        return { datum: datum, osm_way_id: '1', segment_index: String(b.seg), straat: 'Simstraat',
+          start_tijd: hms(b.tStart), eind_tijd: hms(b.tEnd), duur_sec: String(b.tEnd - b.tStart) };
+      }),
+      telregels: tikken.map(function (x) {
+        return { osm_way_id: x.way, segment_index: String(x.seg), tijdstip: datum + 'T' + hms(x.ts), type: x.soort };
+      })
+    };
+    return { P: P, W: W, T: T, invoer: invoer, nVoet: V.length, bedoeld: bedoeld,
+             alleBezoeken: bez, zicht: zicht, ontmoet: ontmoet,
+             V: V, ontmoetingen: ontmoetingen, log: log, tellerKant: tellerKant };   // voor de simkijker
+  }
+
+  return { STANDAARD: STANDAARD, run: run, rng: rng, kruisingen: kruisingen, plek: plek, doorPunt: doorPunt };
+})();
+/* ── einde simkern ── */
+/* ==== einde kopie sim_kern.js ==== */
+</script>
+<script>
+/* ==== kopie van het blok PASSANTEN uit passanten.html (node _archief/passantensim/kijkercheck.js) ==== */
+/* ── Passanten per uur: de rekenkern (v3.34) ─────────────────────────────────
+   Gedeeld door passanten.html en winkelstraat_rekenrig.html, byte-identiek
+   (valideer.py). Uit het rekenrig gehaald; de uitkomsten zijn ongewijzigd.
+
+   Schatter (moving observer, Wardrop-Charlesworth):
+       q = 3600 * m / (L/v_voet + t)
+   m = aantal 'tegemoet'-tikken tijdens de passage
+   L = segmentlengte uit OSM-geometrie (betrouwbaar; géén GPS-afstand)
+   t = aanwezigheidstijd in het segment uit _bezocht.csv
+   De noemer is het ONTMOETINGSVENSTER: de tijd waarin een tegemoetkomer
+   jou had kunnen tegenkomen.
+
+   Pooling over meerdere passages = ratio-of-sums, NIET het gemiddelde van de
+   losse q's (dat weegt korte passages te zwaar; scheelt op veldwerk tot 28%):
+       q_cel = 3600 * Σm / Σ(L/v_voet + t)
+   Een cel is een weekdag en een uur: alle gemeten zaterdagen samen zijn één
+   zaterdag (Jay, v3.34: "Middel alle gemeten zaterdagen naar 1 waarde").
+
+   Per waargenomen LOOPRICHTING poolen, dan optellen. Loop je A→B, dan meet je
+   uitsluitend de stroom B→A. Heen én terug gelopen = echt totaal; één richting
+   gelopen = die ene stroom, met label.
+
+   Stilstaanders zijn géén stroom maar een momentopname: je passage ziet ieder
+   stilstaand persoon in het segment precies één keer. Dus k = Σm_stil / ΣL,
+   zonder enige snelheidsaanname.
+
+   Gaatjes tussen passages (v3.40; Jay: "Kunnen deze tikken niet gewoon
+   meetellen?"). _bezocht.csv komt uit de GPS-punten, en de GPS meet om de paar
+   seconden: tussen het laatste punt in het ene stuk en het eerste in het
+   volgende zit een gaatje. Waar je de grens overstak weet niemand; het midden
+   is de beste gok. Elk gaatje wordt daarom in het midden gedeeld: de eerste
+   helft hoort bij de passage ervoor, de tweede bij die erna, hooguit GAT_MAX
+   seconden per kant. In Jay's tellingen is een gaatje meestal 4 s en 9 op de
+   10 hooguit 9 s; die gaan dus helemaal mee. Een lang gat is iets anders: een
+   kort stuk zonder eigen passage, of even een winkel in. Tijd en tikken gaan samen mee: t wordt
+   langer, en een tik telt bij de passage waarin hij valt, op tijd, ook als de
+   reconstructie hem bij het buurstuk zette. Tot v3.40 telden tikken in een
+   gaatje niet mee (10–20% van de tikken), en was t te kort. t0 en t1 blijven
+   de GPS-tijden (voor de richting en het uur); van en tot is het venster.
+
+   Puur: geen DOM en geen bibliotheken. Invoer: de CSV's van één ZIP als rijen
+   (een object per regel, met de kop als sleutels).                           */
+var PASSANTEN = (function () {
+  var V_VOET = 1.1;     // m/s; Jay, v3.34: "Zet de loopsnelheid maar op 1,1 m/s." (het rig had 1,3)
+  var GAT_MAX = 5;      // s; v3.40: hooguit zoveel van een gaatje per kant naar een passage
+
+  /* ---------- geometrie ---------------------------------------------------- */
+  function wktPunten(wkt) {
+    var m = /\((.*)\)/.exec(wkt || '');
+    if (!m) return [];
+    return m[1].split(',').map(function (p) {
+      var xy = p.trim().split(/\s+/);
+      return [parseFloat(xy[0]), parseFloat(xy[1])];   // [lon, lat]
+    });
+  }
+  function haversine(a, b) {
+    var R = 6371000, rad = Math.PI / 180;
+    var la1 = a[1] * rad, la2 = b[1] * rad, dla = (b[1] - a[1]) * rad, dlo = (b[0] - a[0]) * rad;
+    var h = Math.sin(dla / 2) * Math.sin(dla / 2) +
+            Math.cos(la1) * Math.cos(la2) * Math.sin(dlo / 2) * Math.sin(dlo / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  function polyLengte(p) {
+    var s = 0;
+    for (var i = 0; i < p.length - 1; i++) s += haversine(p[i], p[i + 1]);
+    return s;
+  }
+  // positie langs polyline in meters — alleen gebruikt als terugval voor richting
+  function langsPolyline(pt, poly) {
+    var best = Infinity, bestPos = 0, cum = 0;
+    for (var i = 0; i < poly.length - 1; i++) {
+      var a = poly[i], b = poly[i + 1], seg = haversine(a, b);
+      if (seg < 1e-9) continue;
+      var dx = b[0] - a[0], dy = b[1] - a[1];
+      var t = ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / (dx * dx + dy * dy);
+      t = Math.max(0, Math.min(1, t));
+      var d = haversine(pt, [a[0] + t * dx, a[1] + t * dy]);
+      if (d < best) { best = d; bestPos = cum + t * seg; }
+      cum += seg;
+    }
+    return bestPos;
+  }
+
+  /* ---------- sessie inlezen ----------------------------------------------- */
+  function tijdNaarSec(hms) {
+    var p = String(hms).split(':').map(Number);
+    return p[0] * 3600 + p[1] * 60 + (p[2] || 0);
+  }
+  function isoNaarSec(iso) {
+    var t = String(iso).split('T')[1] || '';
+    return tijdNaarSec(t);
+  }
+  // d = { sessie, bezocht, telregels, netwerk, gps }: rijen per CSV (gps mag ontbreken).
+  // Geeft { id, datum, modus, visits[], nTel, nGekoppeld, nWees, geo }.
+  function sessie(d, bestandsnaam) {
+    var ses = d.sessie[0] || {};
+    var sid = ses.sessie_id || bestandsnaam;
+    // geometrie van dit netwerkbestand
+    var geo = {}, len = {};
+    d.netwerk.forEach(function (r) {
+      var k = r.osm_way_id + '/' + r.segment_index;
+      var p = wktPunten(r.geometrie_wkt);
+      if (p.length >= 2) { geo[k] = p; len[k] = polyLengte(p); }
+    });
+    // tikken indexeren
+    var tikken = d.telregels.map(function (r) {
+      return { k: r.osm_way_id + '/' + r.segment_index, sec: isoNaarSec(r.tijdstip), type: r.type };
+    });
+    var visits = d.bezocht.map(function (r) {
+      var k = r.osm_way_id + '/' + r.segment_index;
+      var t0 = tijdNaarSec(r.start_tijd), t1 = tijdNaarSec(r.eind_tijd);
+      return {
+        key: k, way: r.osm_way_id, seg: parseInt(r.segment_index, 10),
+        straat: r.straat || '(naamloos)',
+        L: len[k] || 0, t: parseFloat(r.duur_sec) || 0,
+        t0: t0, t1: t1, van: t0, tot: t1, teg: 0, stil: 0,
+        datum: r.datum || ses.datum, richting: null, richtingBron: ''
+      };
+    });
+    // v3.40: elk gaatje in het midden delen, hooguit GAT_MAX per kant (zie boven)
+    var opTijd = visits.slice().sort(function (a, b) { return a.t0 - b.t0; });
+    opTijd.forEach(function (v, i) {
+      var vorige = opTijd[i - 1], volgende = opTijd[i + 1];
+      if (vorige && vorige.t1 < v.t0) v.van = Math.max((vorige.t1 + v.t0) / 2, v.t0 - GAT_MAX);
+      if (volgende && volgende.t0 > v.t1) v.tot = Math.min((v.t1 + volgende.t0) / 2, v.t1 + GAT_MAX);
+    });
+    opTijd.forEach(function (v) { v.t += (v.t0 - v.van) + (v.tot - v.t1); });
+    // een tik telt bij de passage waarin hij valt; op een gedeelde grens: de eerste
+    tikken.forEach(function (x) {
+      for (var i = 0; i < opTijd.length; i++) {
+        var v = opTijd[i];
+        if (x.sec < v.van || x.sec > v.tot) continue;
+        if (x.type === 'tegemoet') v.teg++; else if (x.type === 'stilstaand') v.stil++;
+        return;
+      }
+    });
+    visits = visits.filter(function (v) { return v.L > 0 && v.t > 0; });
+    bepaalRichtingen(visits, d.gps || [], geo);
+    var gekoppeld = visits.reduce(function (s, v) { return s + v.teg + v.stil; }, 0);
+    return {
+      id: sid, datum: ses.datum || '', modus: ses.modus || ses.type || '',
+      visits: visits, nTel: d.telregels.length, nGekoppeld: gekoppeld,
+      nWees: d.telregels.length - gekoppeld, geo: geo
+    };
+  }
+  // De passages van een sessie bij de stukken weg zetten: "way/seg" -> { …, passages[] }.
+  function voegToe(segmenten, s) {
+    s.visits.forEach(function (v) {
+      if (!segmenten[v.key]) {
+        segmenten[v.key] = { key: v.key, way: v.way, seg: v.seg,
+                             straat: v.straat, L: v.L, geom: s.geo[v.key], passages: [] };
+      }
+      segmenten[v.key].passages.push(v);
+    });
+  }
+
+  /* ---------- richting per passage -------------------------------------------
+     Primair uit de VOLGORDE van passages op dezelfde way: 0→1→2 betekent richting
+     A (oplopende segment_index), 2→1→0 betekent B. Die conclusie rust op welk
+     segment je in zat, niet op coördinaten, en is dus ongevoelig voor GPS-ruis.
+     Terugval alleen voor een way met één enkele passage: projectie van de eerste
+     en laatste GPS-fix op de segmentgeometrie, met drempel van 8 m.
+     ------------------------------------------------------------------------ */
+  function bepaalRichtingen(visits, gps, geo) {
+    visits.forEach(function (v, i) {
+      var vorige = i > 0 ? visits[i - 1] : null;
+      var volgende = i < visits.length - 1 ? visits[i + 1] : null;
+      if (vorige && vorige.way === v.way && vorige.seg !== v.seg) {
+        v.richting = v.seg > vorige.seg ? 'A' : 'B';
+        v.richtingBron = 'volgorde';
+        return;
+      }
+      if (volgende && volgende.way === v.way && volgende.seg !== v.seg) {
+        v.richting = volgende.seg > v.seg ? 'A' : 'B';
+        v.richtingBron = 'volgorde';
+        return;
+      }
+      var poly = geo[v.key];
+      if (!poly) return;
+      var fixes = gps.filter(function (g) {
+        var s = isoNaarSec(g.tijdstip);
+        return s >= v.t0 && s <= v.t1 && isFinite(parseFloat(g.lat));
+      });
+      if (fixes.length < 2) return;
+      var a = langsPolyline([parseFloat(fixes[0].lon), parseFloat(fixes[0].lat)], poly);
+      var b = langsPolyline([parseFloat(fixes[fixes.length - 1].lon),
+                             parseFloat(fixes[fixes.length - 1].lat)], poly);
+      if (Math.abs(b - a) >= 8) {
+        v.richting = b > a ? 'A' : 'B';
+        v.richtingBron = 'gps ' + (b > a ? '+' : '') + (b - a).toFixed(0) + ' m';
+      } else {
+        v.richtingBron = 'gps Δ' + (b - a).toFixed(0) + ' m te klein';
+      }
+    });
+  }
+
+  /* ---------- aggregatie naar dag/uur-cellen ------------------------------- */
+  function dagIndex(datum) {
+    var d = new Date(datum + 'T12:00:00');
+    return isNaN(d) ? null : (d.getDay() + 6) % 7;      // 0 = maandag
+  }
+  // Vult seg.cells["dag:uur"] voor elk stuk weg, met loopsnelheid vped (m/s).
+  function bereken(segmenten, vped) {
+    vped = vped || V_VOET;
+    Object.keys(segmenten).forEach(function (k) {
+      var seg = segmenten[k];
+      seg.cells = {};
+      seg.passages.forEach(function (v) {
+        var dag = dagIndex(v.datum);
+        if (dag === null) return;
+        var uur = Math.floor(((v.t0 + v.t1) / 2) / 3600);   // uur van het midden
+        var ck = dag + ':' + uur;
+        var c = seg.cells[ck];
+        if (!c) {
+          c = seg.cells[ck] = { dag: dag, uur: uur, n: 0,
+            stromen: { A: { m: 0, w: 0, n: 0 }, B: { m: 0, w: 0, n: 0 }, '?': { m: 0, w: 0, n: 0 } },
+            stil: 0, stilL: 0, datums: [] };
+        }
+        var venster = v.L / vped + v.t;                    // ontmoetingsvenster (s)
+        var r = v.richting || '?';
+        c.stromen[r].m += v.teg;
+        c.stromen[r].w += venster;
+        c.stromen[r].n += 1;
+        c.stil += v.stil;
+        c.stilL += v.L;
+        c.n += 1;
+        if (c.datums.indexOf(v.datum) < 0) c.datums.push(v.datum);
+      });
+      // celwaarden afleiden
+      Object.keys(seg.cells).forEach(function (ck) {
+        var c = seg.cells[ck], totaal = 0, labels = [], m = 0;
+        ['A', 'B', '?'].forEach(function (r) {
+          var s = c.stromen[r];
+          if (!s.n) return;
+          s.q = 3600 * s.m / s.w;
+          totaal += s.q; m += s.m;
+          // gelopen richting A meet de stroom B→A
+          labels.push(r === '?' ? '?' : (r === 'A' ? 'B→A' : 'A→B'));
+        });
+        c.q = totaal;
+        c.m = m;
+        c.labels = labels;
+        c.kStil = c.stilL > 0 ? 100 * c.stil / c.stilL : 0;
+        c.compleet = c.stromen.A.n > 0 && c.stromen.B.n > 0;
+        c.datums.sort();
+      });
+    });
+    return segmenten;
+  }
+
+  return { V_VOET: V_VOET, GAT_MAX: GAT_MAX, sessie: sessie, voegToe: voegToe, bereken: bereken, dagIndex: dagIndex,
+           wktPunten: wktPunten, haversine: haversine, polyLengte: polyLengte };
+})();
+/* ── einde gedeeld blok passanten ── */
+/* ==== einde kopie PASSANTEN ==== */
+</script>
+<script>
+(function () {
+  'use strict';
+  var PARAM = { pZelf: 0.95, pOver: 0.95, pGroep: 1, qZicht: Infinity };   // Jay: "95% voor alles"
+  var OPHOGEN = 2;                     // passanten.html: één richting gemeten, dus × 2
+  var R, A, sel = { soort: 'geen' }, hover = null, schaal = 2.2, G = null, REF = null, N_REF = 400;
+
+  /* ---------- hulpjes ---------------------------------------------------- */
+  function komma(x, d) { return Number(x).toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function heel(x) { return Math.round(x).toLocaleString('nl-NL'); }
+  function hms(s) { s = Math.floor(s); return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map(function (v) { return (v < 10 ? '0' : '') + v; }).join(':'); }
+  function isoSec(iso) { var p = String(iso).split('T')[1].split(':').map(Number); return p[0] * 3600 + p[1] * 60 + p[2]; }
+  function el(id) { return document.getElementById(id); }
+  function interp(a, b, t) { return b[0] === a[0] ? b[1] : a[1] + (b[1] - a[1]) * (t - a[0]) / (b[0] - a[0]); }
+  function knip(tr, ta, tb) {          // het stuk van een traject tussen ta en tb
+    var uit = [];
+    for (var i = 0; i < tr.length - 1; i++) {
+      var a = tr[i], b = tr[i + 1];
+      if (b[0] < ta || a[0] > tb) continue;
+      var s0 = Math.max(a[0], ta), s1 = Math.min(b[0], tb);
+      if (!uit.length || uit[uit.length - 1][0] !== s0) uit.push([s0, interp(a, b, s0)]);
+      uit.push([s1, interp(a, b, s1)]);
+    }
+    return uit;
+  }
+
+  /* ---------- één ronde door de simulatie en door Passanten ------------------ */
+  function analyseer(zaad) {
+    R = SIMKERN.run(PARAM, zaad);
+    var W = R.W, T = R.T;
+    var ses = PASSANTEN.sessie(R.invoer, 'sim.zip'), segs = {};
+    PASSANTEN.voegToe(segs, ses);
+    PASSANTEN.bereken(segs, PASSANTEN.V_VOET);
+    function vakVan(x) { return x < 0 || x >= W.L ? null : Math.min(W.N - 1, Math.floor(x / W.segLen)); }
+    // elke ontmoeting: waar de teller toen was
+    R.ontmoetingen.forEach(function (o) { o.x = SIMKERN.plek(T.tr, o.t); o.vak = vakVan(o.x); });
+    // elke tik: bij welke passage hij telt (op tijd, de eerste die past, zoals in PASSANTEN.sessie)
+    var opTijd = ses.visits.slice().sort(function (a, b) { return a.t0 - b.t0; });
+    var tikken = R.invoer.telregels.map(function (r, i) {
+      var sec = isoSec(r.tijdstip), b = R.bedoeld[i], pas = null;
+      for (var j = 0; j < opTijd.length; j++) if (sec >= opTijd[j].van && sec <= opTijd[j].tot) { pas = opTijd[j]; break; }
+      var o = R.ontmoetingen[b.o];
+      var x = SIMKERN.plek(T.tr, b.t);
+      return { i: i, sec: sec, t: b.t, x: x, type: r.type, b: b, o: o, pas: pas, vakTelt: pas ? pas.seg : null,
+               soort: !pas ? 'wees' : pas.seg === o.vak ? 'goed' : 'buur' };
+    });
+    R.ontmoetingen.forEach(function (o) { o.tik = null; });
+    tikken.forEach(function (k) { k.o.tik = k; });
+    // de waarheid door het midden, tijdens de ronde
+    var door = W.segs.map(function (s) {
+      var lijst = [];
+      R.V.forEach(function (p, pi) {
+        if (!p.passant) return;
+        SIMKERN.doorPunt(p.tr, s.xm, T.T0, T.T1).forEach(function (c) { lijst.push({ p: pi, t: c.t, r: c.r }); });
+      });
+      return lijst;
+    });
+    var volgorde = T.dir > 0 ? W.segs : W.segs.slice().reverse();
+    var vakken = volgorde.map(function (s) {
+      var g = segs['1/' + s.k], c = g ? g.cells[Object.keys(g.cells)[0]] : null;
+      var st = c ? ['A', 'B', '?'].filter(function (r) { return c.stromen[r].n; }) : [];
+      var f = c && !c.compleet && st.length === 1 ? OPHOGEN : 1;
+      var passages = ses.visits.filter(function (v) { return v.key === '1/' + s.k; });
+      var venster = passages.reduce(function (a, v) { return a + v.L / PASSANTEN.V_VOET + v.t; }, 0);
+      var ont = R.ontmoetingen.filter(function (o) { return o.vak === s.k && o.soort === 'tegemoet'; });
+      return {
+        k: s.k, s: s, x0: s.k * W.segLen, x1: (s.k + 1) * W.segLen, L: g ? g.L : W.segLen,
+        waar: s.qPlus + s.qMin, tegen: T.dir > 0 ? s.qMin : s.qPlus, mee: T.dir > 0 ? s.qPlus : s.qMin,
+        door: door[s.k], ontmoet: ont.length, gezien: ont.filter(function (o) { return o.getikt; }).length,
+        telt: tikken.filter(function (k) { return k.type === 'tegemoet' && k.vakTelt === s.k; }),
+        passages: passages, venster: venster, m: c ? c.m : 0, q: c ? c.q : null, f: f,
+        schat: c ? c.q * f : null
+      };
+    });
+    var mee = vakken.filter(function (v) { return v.schat !== null; });
+    var sw = mee.reduce(function (a, v) { return a + v.waar; }, 0), ss = mee.reduce(function (a, v) { return a + v.schat; }, 0);
+    A = { ses: ses, tikken: tikken, vakken: vakken, F: ss > 0 ? sw / ss : null, sw: sw, ss: ss,
+          wees: tikken.filter(function (k) { return k.soort === 'wees'; }).length,
+          buur: tikken.filter(function (k) { return k.soort === 'buur'; }).length };
+  }
+
+  /* ---------- ter vergelijking: F over veel rondes (zaadjes 1 tot N_REF) -------- */
+  function rondeF(z) {
+    var Rz = SIMKERN.run(PARAM, z), ses = PASSANTEN.sessie(Rz.invoer, 'sim.zip'), segs = {}, w = 0, s = 0;
+    PASSANTEN.voegToe(segs, ses); PASSANTEN.bereken(segs, PASSANTEN.V_VOET);
+    Rz.W.segs.forEach(function (g) {
+      var x = segs['1/' + g.k]; if (!x) return;
+      var c = x.cells[Object.keys(x.cells)[0]], n = ['A', 'B', '?'].filter(function (r) { return c.stromen[r].n; }).length;
+      w += g.qPlus + g.qMin; s += c.q * (!c.compleet && n === 1 ? OPHOGEN : 1);
+    });
+    return s > 0 ? { w: w, s: s } : null;
+  }
+  function referentie() {
+    var lijst = [], sw = 0, ss = 0, z = 1;
+    (function stap() {
+      for (var eind = Math.min(N_REF, z + 19); z <= eind; z++) { var r = rondeF(z); if (r) { lijst.push(r.w / r.s); sw += r.w; ss += r.s; } }
+      if (z <= N_REF) { REF = { bezig: Math.round(100 * (z - 1) / N_REF) }; tekenChips(); setTimeout(stap, 0); return; }
+      lijst.sort(function (a, b) { return a - b; });
+      REF = { F: sw / ss, lijst: lijst, p10: lijst[Math.floor(0.1 * lijst.length)], p90: lijst[Math.floor(0.9 * lijst.length)] };
+      tekenChips();
+    })();
+  }
+
+  /* ---------- de kerncijfers ------------------------------------------------ */
+  function tekenChips() {
+    var W = R.W, T = R.T, teg = R.ontmoetingen.filter(function (o) { return o.soort === 'tegemoet'; });
+    var gez = teg.filter(function (o) { return o.getikt; }).length;
+    var c = [
+      ['straat', heel(W.L) + ' m · ' + W.N + ' vakken van ' + heel(W.segLen) + ' m'],
+      ['drukte in het midden', heel(W.qTot) + ' /u'],
+      ['herkomsten van het linkereind', heel(100 * W.wO[0] / (W.wO[0] + W.wO[W.wO.length - 1])) + '%'],
+      ['teller', (T.dir > 0 ? 'loopt →' : 'loopt ←') + ' · ' + komma(T.uBasis, 2) + ' m/s'],
+      ['ronde', hms(T.T0) + '–' + hms(T.T1) + ' · ' + heel(T.T1 - T.T0) + ' s'],
+      ['tegemoet', teg.length + ' ontmoet · ' + gez + ' gezien'],
+      ['tikken', A.tikken.length + ' · ' + A.buur + ' in een buurvak · ' + A.wees + ' in een gat'],
+      ['F van deze ronde', A.F === null ? '–' : komma(A.F, 2) + (REF && REF.lijst ? ' · hoger dan ' + Math.round(100 * REF.lijst.filter(function (f) { return f < A.F; }).length / REF.lijst.length) + '% van de rondes' : '')],
+      ['F over ' + N_REF + ' rondes', !REF || REF.bezig !== undefined ? 'rekent … ' + (REF ? REF.bezig : 0) + '%' : komma(REF.F, 2) + ' · 8 op de 10 tussen ' + komma(REF.p10, 2) + ' en ' + komma(REF.p90, 2)]
+    ];
+    el('chips').innerHTML = c.map(function (x, i) { return '<div class="chip' + (i >= c.length - 2 ? ' f' : '') + '"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
+  }
+
+  /* ---------- het diagram --------------------------------------------------- */
+  function tekenDiagram() {
+    var W = R.W, T = R.T, svg = el('diagram');
+    var breed = Math.max(640, svg.parentNode.clientWidth - 2);
+    var ml = 62, mr = 12, mt = 50, mb = 18, xmin = -25, xmax = W.L + 25;
+    var t0 = T.tr[0][0] - 4, t1 = T.tr[T.tr.length - 1][0] + 4;
+    var hoog = mt + mb + (t1 - t0) * schaal;
+    var X = function (x) { return ml + (x - xmin) / (xmax - xmin) * (breed - ml - mr); };
+    var Y = function (t) { return mt + (t - t0) * schaal; };
+    G = { X: X, Y: Y, t0: t0, t1: t1, ml: ml, mt: mt, xmin: xmin, xmax: xmax, breed: breed, hoog: hoog };
+    var s = [], k, i;
+    function pad(pts) { return pts.map(function (p, j) { return (j ? 'L' : 'M') + X(p[1]).toFixed(1) + ' ' + Y(p[0]).toFixed(1); }).join(''); }
+    // buiten de straat
+    s.push('<rect class="buiten" x="' + X(xmin) + '" y="' + mt + '" width="' + (X(0) - X(xmin)) + '" height="' + (hoog - mt - mb) + '"/>');
+    s.push('<rect class="buiten" x="' + X(W.L) + '" y="' + mt + '" width="' + (X(xmax) - X(W.L)) + '" height="' + (hoog - mt - mb) + '"/>');
+    // het gekozen vak
+    if (sel.soort === 'vak') { var vk = A.vakken.filter(function (v) { return v.k === sel.k; })[0];
+      s.push('<rect class="kies" x="' + X(vk.x0) + '" y="' + mt + '" width="' + (X(vk.x1) - X(vk.x0)) + '" height="' + (hoog - mt - mb) + '"/>'); }
+    // bezoeken en gedeelde gaatjes
+    A.ses.visits.forEach(function (v) {
+      var a = X(v.seg * W.segLen), b = X((v.seg + 1) * W.segLen);
+      s.push('<rect class="bez" x="' + a + '" y="' + Y(v.t0) + '" width="' + (b - a) + '" height="' + Math.max(1, (v.t1 - v.t0) * schaal) + '"/>');
+      if (v.van < v.t0) s.push('<rect class="gat" x="' + a + '" y="' + Y(v.van) + '" width="' + (b - a) + '" height="' + (v.t0 - v.van) * schaal + '"/>');
+      if (v.tot > v.t1) s.push('<rect class="gat" x="' + a + '" y="' + Y(v.t1) + '" width="' + (b - a) + '" height="' + (v.tot - v.t1) * schaal + '"/>');
+    });
+    // vakgrenzen, middens, tijdas
+    for (k = 0; k <= W.N; k++) s.push('<line class="grens" x1="' + X(k * W.segLen) + '" x2="' + X(k * W.segLen) + '" y1="' + (mt - 6) + '" y2="' + (hoog - mb) + '"/>');
+    var stap = schaal < 2 ? 60 : 30;
+    for (var tt = Math.ceil(t0 / stap) * stap; tt <= t1; tt += stap) {
+      s.push('<line class="grens" x1="' + (ml - 4) + '" x2="' + ml + '" y1="' + Y(tt) + '" y2="' + Y(tt) + '"/><text x="' + (ml - 7) + '" y="' + (Y(tt) + 3.5) + '" text-anchor="end">' + hms(tt) + '</text>');
+    }
+    A.vakken.forEach(function (v) {
+      var xm = X(v.s.xm);
+      s.push('<line class="midden" x1="' + xm + '" x2="' + xm + '" y1="' + Y(T.T0) + '" y2="' + Y(T.T1) + '"/>');
+      v.door.forEach(function (c) { s.push('<line class="doorm" x1="' + (xm - 3) + '" x2="' + (xm + 3) + '" y1="' + Y(c.t).toFixed(1) + '" y2="' + Y(c.t).toFixed(1) + '"/>'); });
+      s.push('<text class="vaknr" data-vak="' + v.k + '" x="' + xm + '" y="16" text-anchor="middle">vak ' + v.k + '</text>');
+      s.push('<text class="waar" x="' + xm + '" y="30" text-anchor="middle">' + heel(v.waar) + '/u</text>');
+      s.push('<text x="' + xm + '" y="42" text-anchor="middle">' + (v.schat === null ? '–' : heel(v.schat)) + '</text>');
+    });
+    s.push('<text x="' + (ml - 7) + '" y="30" text-anchor="end" class="waar">waar</text><text x="' + (ml - 7) + '" y="42" text-anchor="end">Passanten</text>');
+    // voetgangers
+    G.zicht = [];
+    R.V.forEach(function (p, pi) {
+      if (p.tr[0][0] > t1 || p.tr[p.tr.length - 1][0] < t0) return;
+      var pts = knip(p.tr, t0, t1);
+      if (pts.length < 2) return;
+      G.zicht.push(pi);
+      var cls = !p.passant ? 'vst' : p.kant === R.tellerKant ? 'v' : 'v2';
+      s.push('<path class="' + cls + '" d="' + pad(pts) + '"/>');
+    });
+    // de teller en zijn gps-punten
+    s.push('<path class="tel" d="' + pad(knip(T.tr, t0, t1)) + '"/>');
+    R.log.forEach(function (g) { var x = X(g.x), y = Y(g.ts); s.push('<path class="gps" d="M' + (x - 3) + ' ' + y + 'h6M' + x + ' ' + (y - 3) + 'v6"/>'); });
+    // ontmoetingen en tikken
+    A.tikken.forEach(function (k) {
+      var cls = k.soort === 'goed' ? 'tik' : k.soort === 'buur' ? 'tikbuur' : 'tikwees', x = X(k.x), y = Y(k.t);
+      s.push('<line class="verbind" x1="' + X(k.o.x) + '" y1="' + Y(k.o.t) + '" x2="' + x + '" y2="' + y + '"/>');
+      s.push('<line class="' + cls + '" x1="' + (x - 6) + '" x2="' + (x + 6) + '" y1="' + y + '" y2="' + y + '"/>');
+    });
+    R.ontmoetingen.forEach(function (o) {
+      var x = X(o.x).toFixed(1), y = Y(o.t).toFixed(1);
+      if (o.soort === 'inhalen') s.push('<circle class="inh" cx="' + x + '" cy="' + y + '" r="1.6"/>');
+      else if (o.soort === 'tegemoet') s.push('<circle class="' + (o.getikt ? 'hit' : 'mis') + '" cx="' + x + '" cy="' + y + '" r="' + (o.getikt ? 3.4 : 3.2) + '"/>');
+      else s.push('<rect class="' + (o.getikt ? 'shit' : 'smis') + '" x="' + (x - 3.2) + '" y="' + (y - 3.2) + '" width="6.4" height="6.4"/>');
+    });
+    s.push('<g id="licht"></g>');
+    svg.setAttribute('width', breed); svg.setAttribute('height', hoog); svg.setAttribute('viewBox', '0 0 ' + breed + ' ' + hoog);
+    svg.innerHTML = s.join('');
+  }
+  function licht(pi) {                 // één voetganger oplichten
+    var g = el('licht');
+    if (!g) return;
+    if (pi === null || pi === undefined) { g.innerHTML = ''; return; }
+    var pts = knip(R.V[pi].tr, G.t0, G.t1);
+    g.innerHTML = '<path class="licht" d="' + pts.map(function (p, j) { return (j ? 'L' : 'M') + G.X(p[1]).toFixed(1) + ' ' + G.Y(p[0]).toFixed(1); }).join('') + '"/>';
+  }
+  // wat ligt er onder de muis: een ontmoeting, een tik, of anders de dichtstbijzijnde voetganger op die tijd
+  function zoekVoet(px, py) {
+    var best = null, bd = 8;
+    R.ontmoetingen.forEach(function (o) { var d = Math.hypot(G.X(o.x) - px, G.Y(o.t) - py); if (d < bd) { bd = d; best = o.p; } });
+    A.tikken.forEach(function (k) { var d = Math.hypot(G.X(k.x) - px, G.Y(k.t) - py); if (d < bd) { bd = d; best = k.o.p; } });
+    if (best !== null) return best;
+    var t = G.t0 + (py - G.mt) / schaal; bd = 6;
+    G.zicht.forEach(function (pi) {
+      var tr = R.V[pi].tr;
+      if (t < tr[0][0] || t > tr[tr.length - 1][0]) return;
+      var d = Math.abs(G.X(SIMKERN.plek(tr, t)) - px);
+      if (d < bd) { bd = d; best = pi; }
+    });
+    return best;
+  }
+
+  /* ---------- het informatievak ------------------------------------------- */
+  function plekTekst(x) { return x <= 0.01 ? 'het linkereind' : x >= R.W.L - 0.01 ? 'het rechtereind' : 'een deur bij ' + heel(x) + ' m'; }
+  function voetHtml(pi) {
+    var p = R.V[pi], tr = p.tr, W = R.W, T = R.T;
+    if (!p.passant) {
+      return '<h3>Vaste stilstaander ' + pi + '</h3><p>Staat de hele tijd op ' + heel(tr[0][1]) + ' m (terras, wachten), ' +
+        (p.kant === R.tellerKant ? 'aan de kant van de teller' : 'aan de overkant') + '. Geen passant: telt niet in de waarheid. Wordt wel als stilstaand getikt.</p>' + ontmoetHtml(pi);
+    }
+    var lid = R.V.filter(function (q) { return q.groep === p.groep; }).length;
+    var v = 0;
+    for (var i = 0; i < tr.length - 1; i++) if (tr[i + 1][1] !== tr[i][1]) { v = Math.abs(tr[i + 1][1] - tr[i][1]) / (tr[i + 1][0] - tr[i][0]); break; }
+    var stop = null;
+    for (i = 0; i < tr.length - 1; i++) if (tr[i + 1][1] === tr[i][1] && tr[i + 1][0] > tr[i][0]) stop = { x: tr[i][1], d: tr[i + 1][0] - tr[i][0] };
+    var mid = [];
+    A.vakken.forEach(function (vk) { vk.door.forEach(function (c) { if (c.p === pi) mid.push(vk.k); }); });
+    var rij = [
+      ['groep', lid === 1 ? 'alleen' : 'groepje van ' + lid + ' (lid ' + (p.lid + 1) + ')'],
+      ['kant', p.kant === R.tellerKant ? 'eigen kant van de teller' : 'overkant'],
+      ['van', plekTekst(tr[0][1]) + ', ' + hms(tr[0][0])],
+      ['naar', plekTekst(tr[tr.length - 1][1]) + ', ' + hms(tr[tr.length - 1][0])],
+      ['loopt', komma(v, 2) + ' m/s ' + (tr[tr.length - 1][1] > tr[0][1] ? '→' : '←')],
+      ['stilstaan', stop ? heel(stop.d) + ' s bij ' + heel(stop.x) + ' m' : 'nee'],
+      ['door het midden', mid.length ? 'van vak ' + mid.join(', ') + ' (telt in de waarheid)' : 'van geen vak tijdens de ronde']
+    ];
+    return '<h3>Voetganger ' + pi + '</h3><div class="rij">' + rij.map(function (r) { return '<span>' + r[0] + '</span><span>' + r[1] + '</span>'; }).join('') + '</div>' + ontmoetHtml(pi);
+  }
+  function ontmoetHtml(pi) {
+    var ont = R.ontmoetingen.filter(function (o) { return o.p === pi; });
+    if (!ont.length) return '<p>Kwam de teller niet tegen.</p>';
+    return '<p>Met de teller:</p><ul>' + ont.map(function (o) {
+      var t = hms(o.t) + ', vak ' + (o.vak === null ? '–' : o.vak) + ': ';
+      if (o.soort === 'inhalen') return '<li>' + t + 'ingehaald of inhaalt; telt niet.</li>';
+      var wat = o.soort === 'tegemoet' ? 'tegemoet' : 'stilstaand';
+      if (!o.getikt) return '<li>' + t + wat + ', <span class="nee">gemist</span> (kans ' + komma(o.kans, 2) + ', worp ' + komma(o.worp, 2) + ').</li>';
+      var k = o.tik, s = '<li>' + t + wat + ', <span class="ok">gezien</span> (kans ' + komma(o.kans, 2) + ', worp ' + komma(o.worp, 2) + '). Getikt om ' + hms(k.t) +
+        ' (' + komma(k.b.vertraging, 1) + ' s reactietijd' + (Math.abs(k.t - k.b.tZonderSalvo) > 0.05 ? ', ' + komma(k.t - k.b.tZonderSalvo, 1) + ' s door het salvo' : '') + '). ';
+      if (k.soort === 'wees') s += '<span class="nee">Valt in een gat tussen twee passages: telt nergens.</span>';
+      else if (k.soort === 'buur') s += '<span class="buur">Telt in vak ' + k.vakTelt + '</span>, niet in vak ' + o.vak + '.';
+      else s += '<span class="ok">Telt in vak ' + k.vakTelt + '.</span>';
+      return s + '</li>';
+    }).join('') + '</ul>';
+  }
+  function vakHtml(k) {
+    var v = A.vakken.filter(function (x) { return x.k === k; })[0], T = R.T, duur = T.T1 - T.T0;
+    var naarR = T.dir > 0 ? v.mee : v.tegen, naarL = T.dir > 0 ? v.tegen : v.mee;
+    var plus = v.door.filter(function (c) { return c.r > 0; }).length, min = v.door.length - plus;
+    var h = '<h3>Vak ' + k + ' · ' + komma(v.L, 1) + ' m (' + heel(v.x0) + '–' + heel(v.x1) + ' m)</h3>';
+    h += '<p><b>Waarheid.</b> Het model geeft in het midden (' + heel(v.s.xm) + ' m) ' + heel(naarR) + ' /u naar → en ' + heel(naarL) + ' /u naar ←: samen <b>' + heel(v.waar) + ' /u</b>. ' +
+         'Tijdens de ronde (' + heel(duur) + ' s) liepen er ' + v.door.length + ' door het midden (' + plus + ' →, ' + min + ' ←), ≈ ' + heel(3600 * v.door.length / duur) + ' /u. ' +
+         'De teller loopt ' + (T.dir > 0 ? '→' : '←') + ' en meet dus alleen de stroom ' + (T.dir > 0 ? '←' : '→') + ': ' + heel(v.tegen) + ' /u.</p>';
+    if (!v.passages.length) return h + '<p class="nee">Geen passage in _bezocht: Passanten heeft voor dit vak niets.</p>';
+    var regels = v.passages.map(function (p) {
+      return hms(p.van) + '–' + hms(p.tot) + '  t ' + komma(p.t, 0) + ' s  L/1,1 ' + komma(p.L / PASSANTEN.V_VOET, 1) + ' s  venster ' + komma(p.L / PASSANTEN.V_VOET + p.t, 1) + ' s  tegemoet ' + p.teg + '  stil ' + p.stil;
+    });
+    h += '<p><b>Passanten.</b> De passage' + (v.passages.length > 1 ? 's' : '') + ' (gps-tijden plus de gedeelde gaatjes):</p><div class="som">' + regels.join('\n') + '</div>';
+    h += '<div class="som">q = 3600 × ' + v.m + ' ÷ ' + komma(v.venster, 1) + ' = ' + heel(v.q) + ' /u (één richting)\n× ' + v.f + (v.f === 2 ? ' (één richting gelopen)' : '') + ' = ' + heel(v.schat) + ' /u\n' +
+         'met de ijking van nu (× 1,05): ' + heel(v.schat * 1.05) + ' /u\n\nwaarheid ÷ Passanten = ' + heel(v.waar) + ' ÷ ' + heel(v.schat) + ' = ' + (v.schat > 0 ? komma(v.waar / v.schat, 2) : '–') + '</div>';
+    // waar kwamen de tikken van dit vak vandaan, en waar gingen de ontmoetingen hier heen
+    var hier = A.tikken.filter(function (t) { return t.vakTelt === k; });
+    var weg = R.ontmoetingen.filter(function (o) { return o.vak === k && o.getikt && o.tik.vakTelt !== k; });
+    var gemist = R.ontmoetingen.filter(function (o) { return o.vak === k && o.soort === 'tegemoet' && !o.getikt; });
+    h += '<p>' + v.ontmoet + ' tegemoet ontmoet in dit vak, ' + v.gezien + ' gezien' + (gemist.length ? ' (' + gemist.length + ' gemist)' : '') + '. ' +
+         hier.filter(function (t) { return t.type === 'tegemoet'; }).length + ' tegemoet-tikken tellen hier' +
+         (hier.some(function (t) { return t.o.vak !== k; }) ? ', waarvan ' + hier.filter(function (t) { return t.o.vak !== k; }).length + ' uit een buurvak' : '') + '.' +
+         (weg.length ? ' ' + weg.length + ' gezien hier, maar geteld ' + weg.map(function (o) { return o.tik.vakTelt === null ? 'nergens (gat)' : 'in vak ' + o.tik.vakTelt; }).join(', ') + '.' : '') + '</p>';
+    return h;
+  }
+  function tekenInfo() {
+    var h;
+    if (hover !== null) h = voetHtml(hover);
+    else if (sel.soort === 'voet') h = voetHtml(sel.p);
+    else if (sel.soort === 'vak') h = vakHtml(sel.k);
+    else h = '<h3>Wijs iets aan</h3><p>Ga met de muis over een lijn, een ontmoeting of een tik om die voetganger te volgen; klik om hem vast te houden.</p>' +
+             '<p>Klik op een vak (bovenaan het diagram of in de tabel) voor de rekensom van dat vak: van tikken naar Passanten, naast de waarheid.</p>';
+    el('info').innerHTML = h;
+  }
+
+  /* ---------- de vakkentabel ------------------------------------------------ */
+  function tekenTabel() {
+    var kop = ['vak', 'van–tot (m)', 'waarheid (/u, model)', 'door het midden in de ronde', 'stroom tegemoet (/u)', 'tegemoet ontmoet', 'gezien', 'tegemoet-tikken die hier tellen', 'passages', 'venster (s)', 'q, één richting (/u)', 'Passanten × 2 (/u)', 'waarheid ÷ Passanten'];
+    var h = '<thead><tr>' + kop.map(function (k, i) { return '<th' + (i < 2 ? ' class="l"' : '') + '>' + k + '</th>'; }).join('') + '</tr></thead><tbody>';
+    A.vakken.forEach(function (v) {
+      var n = v.telt.length;
+      h += '<tr tabindex="0" data-vak="' + v.k + '"' + (sel.soort === 'vak' && sel.k === v.k ? ' class="aan"' : '') + '><td class="l">' + v.k + '</td><td class="l">' + heel(v.x0) + '–' + heel(v.x1) + '</td>' +
+           '<td>' + heel(v.waar) + '</td><td>' + v.door.length + '</td><td>' + heel(v.tegen) + '</td><td>' + v.ontmoet + '</td><td>' + v.gezien + '</td><td>' + n + '</td>' +
+           '<td>' + v.passages.length + '</td><td>' + (v.passages.length ? komma(v.venster, 1) : '–') + '</td><td>' + (v.q === null ? '–' : heel(v.q)) + '</td>' +
+           '<td>' + (v.schat === null ? '–' : heel(v.schat)) + '</td><td class="f">' + (v.schat ? komma(v.waar / v.schat, 2) : '–') + '</td></tr>';
+    });
+    var mee = A.vakken.filter(function (v) { return v.schat !== null; }), som = function (f) { return A.vakken.reduce(function (a, v) { return a + f(v); }, 0); };
+    h += '</tbody><tfoot><tr><td class="l" colspan="2">ronde (' + mee.length + ' van ' + A.vakken.length + ' vakken met een passage)</td><td>' + heel(A.sw) + '</td><td>' + som(function (v) { return v.door.length; }) + '</td><td></td>' +
+         '<td>' + som(function (v) { return v.ontmoet; }) + '</td><td>' + som(function (v) { return v.gezien; }) + '</td><td>' + som(function (v) { return v.telt.length; }) + '</td><td>' + som(function (v) { return v.passages.length; }) + '</td><td></td><td></td>' +
+         '<td>' + heel(A.ss) + '</td><td class="f">F = ' + (A.F === null ? '–' : komma(A.F, 2)) + '</td></tr></tfoot>';
+    el('vakken').innerHTML = h;
+  }
+
+  /* ---------- samen ---------------------------------------------------------- */
+  function alles() {
+    var z = Math.max(1, parseInt(el('zaad').value, 10) || 1);
+    el('zaad').value = z;
+    analyseer(z);
+    if (sel.soort === 'vak' && !A.vakken.some(function (v) { return v.k === sel.k; })) sel = { soort: 'geen' };
+    if (sel.soort === 'voet') sel = { soort: 'geen' };
+    hover = null;
+    tekenChips(); tekenDiagram(); tekenTabel(); tekenInfo();
+  }
+  function kiesVak(k) { sel = sel.soort === 'vak' && sel.k === k ? { soort: 'geen' } : { soort: 'vak', k: k }; tekenDiagram(); tekenTabel(); tekenInfo(); }
+  el('volgende').addEventListener('click', function () { el('zaad').value = (parseInt(el('zaad').value, 10) || 0) + 1; alles(); });
+  el('vorige').addEventListener('click', function () { el('zaad').value = Math.max(1, (parseInt(el('zaad').value, 10) || 2) - 1); alles(); });
+  el('zaad').addEventListener('change', alles);
+  el('schaal').addEventListener('change', function () { schaal = parseFloat(this.value); tekenDiagram(); if (sel.soort === 'voet') licht(sel.p); });
+  el('vakken').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-vak]'); if (tr) kiesVak(+tr.getAttribute('data-vak')); });
+  el('vakken').addEventListener('keydown', function (e) { var tr = e.target.closest('tr[data-vak]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); kiesVak(+tr.getAttribute('data-vak')); } });
+  function muis(e) { var r = el('diagram').getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  el('diagram').addEventListener('mousemove', function (e) {
+    var m = muis(e), p = m[1] > G.mt ? zoekVoet(m[0], m[1]) : null;
+    if (p !== hover) { hover = p; licht(p !== null ? p : sel.soort === 'voet' ? sel.p : null); tekenInfo(); }
+  });
+  el('diagram').addEventListener('mouseleave', function () { hover = null; licht(sel.soort === 'voet' ? sel.p : null); tekenInfo(); });
+  el('diagram').addEventListener('click', function (e) {
+    var vak = e.target.getAttribute && e.target.getAttribute('data-vak');
+    if (vak !== null && vak !== undefined) { kiesVak(+vak); return; }
+    var m = muis(e), p = zoekVoet(m[0], m[1]);
+    sel = p !== null ? { soort: 'voet', p: p } : { soort: 'geen' };
+    hover = null; licht(p); tekenInfo();
+  });
+  var wacht;
+  setTimeout(referentie, 80);
+  window.addEventListener('resize', function () { clearTimeout(wacht); wacht = setTimeout(function () { tekenDiagram(); if (sel.soort === 'voet') licht(sel.p); }, 150); });
+  alles();
+})();
+</script>

@@ -249,7 +249,7 @@ var SIMKERN = (function () {
       if (laatst && Math.hypot(x - laatst[0], y - laatst[1]) < P.routeMin) continue;
       laatst = [x, y];
       var k = vakVan(W, x);
-      log.push({ ts: Math.floor(t), way: k === null ? '2' : '1', seg: k === null ? 0 : k });
+      log.push({ ts: Math.floor(t), way: k === null ? '2' : '1', seg: k === null ? 0 : k, x: x, y: y });
     }
     return log;
   }
@@ -276,19 +276,24 @@ var SIMKERN = (function () {
     var zicht = 1 / (1 + W.qTot / P.qZicht), tellerKant = r.u() < 0.5 ? 0 : 1;
 
     // ontmoetingen → bedoelde tikken
-    var bedoeld = [], ontmoet = { tegemoet: 0, stilstaand: 0 };
-    V.forEach(function (p) {
+    // (nov 2026, voor de simkijker: elke ontmoeting wordt bewaard, met kans en worp.
+    //  Dat trekt geen extra toevalsgetallen: dezelfde zaadjes geven dezelfde rondes.)
+    var bedoeld = [], ontmoet = { tegemoet: 0, stilstaand: 0 }, ontmoetingen = [];
+    V.forEach(function (p, pi) {
       kruisingen(p.tr, T.tr).forEach(function (m) {
         var soort;
         if (Math.abs(m.v) < 1e-9) soort = 'stilstaand';
         else if (m.v * T.dir < 0) soort = 'tegemoet';
-        else return;                                   // inhalen of ingehaald: niet getikt
+        else { ontmoetingen.push({ p: pi, t: m.t, soort: 'inhalen', getikt: false }); return; }   // niet getikt
         ontmoet[soort]++;
         var kans = (p.kant === tellerKant ? P.pZelf : P.pOver) * zicht;
         if (p.lid > 0) kans *= P.pGroep;
-        if (r.u() >= kans) return;
+        var o = { p: pi, t: m.t, soort: soort, kans: kans, worp: r.u(), getikt: false };
+        ontmoetingen.push(o);
+        if (o.worp >= kans) return;
+        o.getikt = true;
         var d = Math.max(-3, Math.min(5, r.n(P.vertraging, P.vertragingSd)));
-        bedoeld.push({ t: m.t + d, tMeet: m.t, soort: soort, passant: p.passant });
+        bedoeld.push({ t: m.t + d, tMeet: m.t, soort: soort, passant: p.passant, o: ontmoetingen.length - 1, vertraging: d });
       });
     });
     bedoeld.sort(function (a, b) { return a.t - b.t; });
@@ -304,7 +309,8 @@ var SIMKERN = (function () {
     bedoeld.forEach(function (b) { b.t = Math.max(b.t, vorig + P.minTussen); vorig = b.t; });
 
     // gps, bezoeken, tikken aan een vak hangen
-    var bez, tikken;
+    var bez, tikken, log = [];
+    bedoeld.forEach(function (b) { b.tZonderSalvo = b.tMeet + b.vertraging; });
     if (P.idealGps) {
       bez = T.inVak.map(function (v) { return { way: '1', seg: v.k, tStart: Math.round(v.t0), tEnd: Math.round(v.t1), n: 9 }; });
       tikken = bedoeld.map(function (b) {
@@ -312,7 +318,7 @@ var SIMKERN = (function () {
         return { ts: Math.floor(b.t), way: k === null ? '2' : '1', seg: k === null ? 0 : k, soort: b.soort };
       });
     } else {
-      var log = routepunten(P, W, T, r);
+      log = routepunten(P, W, T, r);
       bez = bezoeken(P, log);
       tikken = bedoeld.map(function (b) {
         var ts = Math.floor(b.t), best = null, bd = Infinity;
@@ -352,9 +358,10 @@ var SIMKERN = (function () {
       })
     };
     return { P: P, W: W, T: T, invoer: invoer, nVoet: V.length, bedoeld: bedoeld,
-             alleBezoeken: bez, zicht: zicht, ontmoet: ontmoet };
+             alleBezoeken: bez, zicht: zicht, ontmoet: ontmoet,
+             V: V, ontmoetingen: ontmoetingen, log: log, tellerKant: tellerKant };   // voor de simkijker
   }
 
-  return { STANDAARD: STANDAARD, run: run, rng: rng, kruisingen: kruisingen, plek: plek };
+  return { STANDAARD: STANDAARD, run: run, rng: rng, kruisingen: kruisingen, plek: plek, doorPunt: doorPunt };
 })();
 /* ── einde simkern ── */
