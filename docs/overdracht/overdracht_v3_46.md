@@ -126,6 +126,10 @@ De simkijker is in stappen gebouwd, telkens als artifact.
   - waarom (tempo, venster, stilstaanders).
 - **Telrapport:** een alinea *p/m·u en passanten per uur (v3.46)* na *Te kort
   gemeten*.
+- **ZIP delen:** de regel onder de bewaarknop staat in de teltools en de
+  reconstructie, niet meer in telrapport. Jay haalde hem daar op 4 november weg
+  ("Remove warning about sharing GeoPackage"). Dat de verzameling en de
+  GeoPackage je huis kunnen tonen, staat er nog wel.
 - **ZIP-referentie:** in de noot bij `dagcurve.csv` staat × 1.03.
 
 ## 4. Tests
@@ -141,6 +145,8 @@ De simkijker is in stappen gebouwd, telkens als artifact.
   - herhaalbaar.
 - **`passantentest.py`** (93): `IJK` 1,03. De teksten "geijkt: × 1,03 (voorlopig,
   uit simulatie)" blijven gelijk, met de link erin.
+- **`deeltest.py`** (25): deel C eiste nog de regel in telrapport, die Jay had
+  weggehaald. Nu eist het dat hij daar weg is; de reconstructie houdt hem.
 
 ## 5. Gewijzigde bestanden
 
@@ -154,7 +160,7 @@ De simkijker is in stappen gebouwd, telkens als artifact.
 | `sitemap.xml` | `simulatieronde.html` |
 | `_archief/passantensim/` | in main (README, `kijkercheck.js` naar de nieuwe plek) |
 | `_archief/overpass_rig/functest_simulatieronde.js` | nieuw |
-| `_archief/overpass_rig/passantentest.py`, `valideer.py`, `README.md`, `docs/ONTWIKKELEN.md`, `docs/OVERDRACHT_STAND_VAN_ZAKEN.md` | bijgewerkt |
+| `_archief/overpass_rig/passantentest.py`, `deeltest.py`, `valideer.py`, `README.md`, `docs/ONTWIKKELEN.md`, `docs/OVERDRACHT_STAND_VAN_ZAKEN.md` | bijgewerkt |
 
 ## 6. Validatie
 
