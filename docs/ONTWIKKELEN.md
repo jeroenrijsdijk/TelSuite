@@ -45,6 +45,7 @@ Scripts); de ZIP's gaan verder een KNIME-pijplijn in.
 | `telrapport.html` | kaartvisualisatie en analyse, ook van verzamel-ZIP's |
 | `telarchief.html` | Archief (v3.33; tot dan Ordenen, v3.31): de verkenner over alle tellingen. *Overzicht*: kaart (Leaflet, clusterbol van telrapport), filters, tabel en `catalogus.csv` in de moedermap. *Ordenen*: ZIP's in een map per soort telling, originelen met een reconstructie in een submap. File System Access API (Chrome, Edge); elders alleen bekijken en de CSV als download |
 | `passanten.html` | Passanten per uur (v3.34): winkelstraat-ZIP's in, dag en uur kiezen, per stuk straat het aantal passanten per uur op de kaart, met labels. Rekenkern: gedeeld blok `passanten` (ook in `winkelstraat_rekenrig.html`); marge: gedeeld blok `poisson` (uit telrapport). PapaParse, JSZip, Leaflet |
+| `simulatieronde.html` | De passantensimulatie, één ronde tot op de voetganger (v3.46; daarvoor als simkijker in `_archief/passantensim/`): tijd-wegdiagram, vakkentabel met de rekensom, en 200 tot 10.000 rondes als spreidingsdiagram, per drukteklasse. Draagt een kopie van `_archief/passantensim/sim_kern.js` en van het blok `PASSANTEN`; `functest_simulatieronde.js` bewaakt die kopieën en de ijkfactor, `kijkercheck.js --bijwerken` werkt ze bij. Geen bibliotheken |
 
 ### Publiek en documentatie
 
@@ -109,6 +110,7 @@ blok `planlink`) en is die map uit de repo.
 - `docs/overdracht/overdracht_vX_Y.md` — per release een overdracht, alle versies.
 - `docs/VELDTEST_3.0.md` — draaiboek voor de veldtest vóór versie 3.0 (groen op 7 oktober 2026); voorbeeld voor een volgende.
 - `_archief/overpass_rig/` — regressietests en `valideer.py`; zie de README daar.
+- `_archief/passantensim/` — de passantensimulatie (`sim_kern.js`, `batch.js`) en `kijkercheck.js`; zie de README daar.
 - `_archief/` verder — eerdere rigs en prototypes, alleen ter naslag.
 
 ## Plaatsen

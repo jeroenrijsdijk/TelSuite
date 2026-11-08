@@ -1,17 +1,27 @@
-<title>Eén simulatieronde</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<!DOCTYPE html>
+<html lang="nl">
+<head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500&family=Share+Tech+Mono&display=swap">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulatie van een winkelstraattelling | telonline.org</title>
+<meta name="description" content="Een lopende teller in een gesimuleerde winkelstraat, tot op de voetganger: wat hij tegenkomt en tikt, en wat Passanten daarvan maakt naast de waarheid.">
+<link rel="canonical" href="https://telonline.org/simulatieronde.html">
+<link href="fonts/fonts.css" rel="stylesheet">
 <!--
-  Simkijker (nov 2026): één ronde van de passantensimulatie, tot op de voetganger.
+  Simulatieronde (nov 2026; tot v3.46 als simkijker in _archief/passantensim):
+  één ronde van de passantensimulatie, tot op de voetganger.
   Jay: "Ik vind het moeilijk om er iets van te vinden, zonder dat ik echt inzicht
   heb in de details. Hoe kun je een simulatie run visualiseren [...] Iets waardoor
   ik vertrouwen krijg in de resultaten." Gekozen: het tijd-wegdiagram met de
   vakkentabel ("1. is al genoeg denk ik").
-  Rekent met kopieën van sim_kern.js en van het blok PASSANTEN uit passanten.html.
-  Controleren of ze nog gelijk zijn, en bijwerken:
-      node _archief/passantensim/kijkercheck.js [--bijwerken]
-  Gaat niet online (_archief heeft export-ignore); gepubliceerd als artifact.
+  Sinds v3.46 op telonline.org, met een verwijzing uit de handleiding (Jay:
+  "Verwijzen naar simulatieronde.html [...] om het systeem van winkelstraat
+  telling naar passanten te begrijpen").
+  Rekent met kopieën van _archief/passantensim/sim_kern.js en van het blok
+  PASSANTEN uit passanten.html; IJK is de IJKFACTOR van passanten.html.
+  functest_simulatieronde.js bewaakt dat alle drie gelijk blijven; bijwerken:
+      node _archief/passantensim/kijkercheck.js --bijwerken
+  Geen verzoeken naar buiten: de lettertypen komen uit fonts/.
 -->
 <style>
 /* Layout: een tijd-wegdiagram over de volle breedte, ernaast een smalle kolom met wat je aanwijst; daaronder de vakken. */
@@ -119,11 +129,14 @@ td.f{color:var(--accent)}
 .wolktip{position:absolute;z-index:5;background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:12px;padding:6px 9px;border-radius:3px;pointer-events:none;max-width:230px}
 .uitleg{max-width:78ch;font-size:13px;margin-top:16px;display:flex;flex-direction:column;gap:8px}
 .uitleg p{margin:0}
+.sub a{color:inherit}
 </style>
+</head>
+<body>
 
 <header>
-  <h1>Eén simulatieronde</h1>
-  <div class="sub">Een lopende teller in een gesimuleerde winkelstraat, tot op de voetganger. Wat de teller tegenkomt, tikt en meetelt, en wat Passanten er per vak van maakt, naast de waarheid.</div>
+  <h1>Simulatie van een winkelstraattelling</h1>
+  <div class="sub">Een lopende teller in een gesimuleerde winkelstraat, tot op de voetganger. Wat de teller tegenkomt, tikt en meetelt, en wat <a href="passanten.html">Passanten</a> er per vak van maakt, naast de waarheid. Hieruit komt de ijkfactor van Passanten. Uitleg: <a href="traffic_counter_help.html#passanten">handleiding</a> · <a href="index.html">telonline.org</a></div>
 </header>
 
 <div class="bedien">
@@ -182,11 +195,14 @@ td.f{color:var(--accent)}
 </section>
 
 <div class="uitleg">
+  <h2>Waarom deze simulatie</h2>
+  <p>Passanten rekent je tikken om naar passanten per uur. Of dat klopt, is in het echt moeilijk na te gaan: niemand weet hoeveel mensen er werkelijk liepen. In een simulatie wel. Hier loopt een teller door een straat met voetgangers waarvan alles bekend is, en Passanten rekent zijn tikken om zoals bij een echte telling. Het verschil met de waarheid, over veel rondes, is de ijkfactor.</p>
+  <p>De aannames: straten van 150 tot 600 m, in vakken van zo'n 40 m, met een deur om de 12 m. De helft van de mensen komt van een straateinde, de rest uit een deur. Ze lopen gemiddeld 1,25 m/s; 15% slentert rond de 0,7 m/s en een kwart blijft ergens even staan. Twee op de drie lopen met anderen, in groepjes tot vier. De teller loopt zo'n 1,45 m/s, in de drukte wat langzamer. Hij ziet 95% van wie hij tegenkomt, tikt met wat reactietijd en soms een paar tegelijk. De gps meet om de 4 tot 6 seconden, met een paar meter ruis, en de passages ontstaan zoals in Pocket.</p>
   <h2>Zo lees je het</h2>
   <p>Horizontaal de straat in meters, verticaal de tijd, van boven naar onder. Elke dunne lijn is een voetganger: hoe schuiner, hoe sneller; recht naar beneden is stilstaan. Waar een lijn de dikke lijn van de teller kruist, komen ze elkaar tegen. Loopt de voetganger de andere kant op, dan is het een tegemoetkomer: gezien (groen) of gemist (rood). Inhalen en ingehaald worden telt niet.</p>
   <p>De tik komt iets na de ontmoeting (reactietijd, salvo's) en schuift dan langs de tellerlijn. Passanten weet niet waar je was, alleen wanneer: een tik telt bij de passage waarin hij valt, en de passages komen uit de gps-punten (5 s en 3 punten, zoals Pocket live). De gaatjes ertussen worden in het midden gedeeld, hooguit 5 s per kant.</p>
   <p>De waarheid is de stroom door het midden van elk vak, beide richtingen samen: het aantal lijnen dat de stippellijn kruist. Het model kent die stroom precies (kolom <i>waarheid</i>); tijdens de ronde zelf liepen er toevallig iets meer of minder door (kolom <i>door het midden</i>, met een streepje per persoon op de stippellijn).</p>
-  <p>Passanten rekent per vak 3600 × tegemoet ÷ venster, met venster = lengte ÷ 1,1 + tijd, en verdubbelt dat omdat je maar één richting liep. <b>F = waarheid ÷ Passanten</b>: de factor waarmee Passanten vermenigvuldigd moet worden. Eén ronde, en zeker één vak, is ruw; de ijkfactor komt uit het totaal over veel rondes (bovenaan en onderaan: de zaadjes 1 tot het gekozen aantal rondes, zelfde instellingen). Passanten gebruikt nu 1,05. Trefkans: 95% voor iedereen, aan beide kanten (Jay). Met de schakelaar <i>drukte</i> kies je hoeveel passanten er in de straat lopen: een week (50–3.000 per uur in het midden, de meeste rondes rond de 600, zoals je eigen tellingen), weinig (300–600), gemengd (300–1.600, gelijkmatig) of veel (1.200–1.600); het zaadje kiest de rest van de straat. F over 400 rondes rekent dan opnieuw, met dezelfde drukte.</p>
+  <p>Passanten rekent per vak 3600 × tegemoet ÷ venster, met venster = lengte ÷ 1,1 + tijd, en verdubbelt dat omdat je maar één richting liep. <b>F = waarheid ÷ Passanten</b>: de factor waarmee Passanten vermenigvuldigd moet worden. Eén ronde, en zeker één vak, is ruw; de ijkfactor komt uit het totaal over veel rondes (bovenaan en onderaan: de zaadjes 1 tot het gekozen aantal rondes, zelfde instellingen). Passanten gebruikt sinds v3.46 1,03: de factor over een week, hieronder. Trefkans: 95% voor iedereen, aan beide kanten (een aanname; een vaste telling op de route kan hem later meten). Met de schakelaar <i>drukte</i> kies je hoeveel passanten er in de straat lopen: een week (50–3.000 per uur in het midden, de meeste rondes rond de 600, zoals zes echte winkelstraattellingen), weinig (300–600), gemengd (300–1.600, gelijkmatig) of veel (1.200–1.600); het zaadje kiest de rest van de straat. F over 400 rondes rekent dan opnieuw, met dezelfde drukte.</p>
 </div>
 
 <script>
@@ -848,7 +864,7 @@ var PASSANTEN = (function () {
   // bedoeld en zou hem bij 3.000 op 0,4 m/s zetten; daarom hier niet langzamer dan 0,8 m/s.
   var DRUKTE = {
     week:   { q: { qMin: 50, qMax: 3000, qMediaan: 600, qSpreiding: 0.75, tempoMin: 0.8 }, naam: 'een week',
-              tekst: '50–3.000 per uur in het midden, meestal 230–1.500 (mediaan 600, zoals je eigen tellingen)' },
+              tekst: '50–3.000 per uur in het midden, meestal 230–1.500 (mediaan 600, zoals zes echte winkelstraattellingen)' },
     weinig: { q: { qMin: 300, qMax: 600 }, naam: 'weinig', tekst: '300–600 per uur in het midden' },
     alles:  { q: { qMin: 300, qMax: 1600 }, naam: 'gemengd', tekst: '300–1.600 per uur in het midden, gelijkmatig' },
     veel:   { q: { qMin: 1200, qMax: 1600 }, naam: 'veel', tekst: '1.200–1.600 per uur in het midden' }
@@ -861,6 +877,7 @@ var PASSANTEN = (function () {
     el('druktetekst').textContent = DRUKTE[d].tekst;
   }
   var OPHOGEN = 2;                     // passanten.html: één richting gemeten, dus × 2
+  var IJK = 1.03;                      // IJKFACTOR in passanten.html (functest_simulatieronde.js bewaakt het)
   var R, A, sel = { soort: 'geen' }, hover = null, schaal = 2.2, G = null, REF = null, N_REF = 1000, refBeurt = 0, HUIDIG = null, ALS = 'passanten';
 
   /* ---------- hulpjes ---------------------------------------------------- */
@@ -1306,7 +1323,7 @@ var PASSANTEN = (function () {
     });
     h += '<p><b>Passanten.</b> De passage' + (v.passages.length > 1 ? 's' : '') + ' (gps-tijden plus de gedeelde gaatjes):</p><div class="som">' + regels.join('\n') + '</div>';
     h += '<div class="som">q = 3600 × ' + v.m + ' ÷ ' + komma(v.venster, 1) + ' = ' + heel(v.q) + ' /u (één richting)\n× ' + v.f + (v.f === 2 ? ' (één richting gelopen)' : '') + ' = ' + heel(v.schat) + ' /u\n' +
-         'met de ijking van nu (× 1,05): ' + heel(v.schat * 1.05) + ' /u\n\nwaarheid ÷ Passanten = ' + heel(v.waar) + ' ÷ ' + heel(v.schat) + ' = ' + (v.schat > 0 ? komma(v.waar / v.schat, 2) : '–') + '</div>';
+         'met de ijking van nu (× ' + komma(IJK, 2) + '): ' + heel(v.schat * IJK) + ' /u\n\nwaarheid ÷ Passanten = ' + heel(v.waar) + ' ÷ ' + heel(v.schat) + ' = ' + (v.schat > 0 ? komma(v.waar / v.schat, 2) : '–') + '</div>';
     if (v.pmu && v.pmu.pmu !== null) {
       var u = v.pmu;
       h += '<p><b>p/m·u, zoals telrapport.</b> De tikken in de bezoeken (alle soorten, n_tellingen), gedeeld door lengte × aanwezigheid (duur_sec, zonder de gaatjes):</p>' +
@@ -1421,3 +1438,5 @@ var PASSANTEN = (function () {
   alles();
 })();
 </script>
+</body>
+</html>

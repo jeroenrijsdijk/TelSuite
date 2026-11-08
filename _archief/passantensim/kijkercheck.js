@@ -1,13 +1,14 @@
-/* Simkijker: zijn de kopieën in simkijker.html nog gelijk aan het origineel?
-   simkijker.html is één zelfstandige pagina (ook als artifact), dus hij draagt
-   een kopie van sim_kern.js en van het blok PASSANTEN uit passanten.html.
+/* Simulatieronde: zijn de kopieën in simulatieronde.html nog gelijk aan het origineel?
+   simulatieronde.html (tot v3.46 simkijker.html hier) is één zelfstandige pagina,
+   dus hij draagt een kopie van sim_kern.js en van het blok PASSANTEN uit
+   passanten.html. functest_simulatieronde.js doet dezelfde controle in de tests.
 
    Draaien vanuit de repo-root:
      node _archief/passantensim/kijkercheck.js              controleren
      node _archief/passantensim/kijkercheck.js --bijwerken  de kopieën vervangen */
 const fs = require('fs');
 const path = require('path');
-const KIJKER = path.join(__dirname, 'simkijker.html');
+const KIJKER = path.join(__dirname, '..', '..', 'simulatieronde.html');   // sinds v3.46 op telonline.org
 
 function tussen(tekst, a, z, metEind) {
   const i = tekst.indexOf(a), j = tekst.indexOf(z, i);
@@ -28,7 +29,7 @@ const BRONNEN = [
 let html = fs.readFileSync(KIJKER, 'utf8'), anders = 0;
 BRONNEN.forEach(b => {
   const i = html.indexOf(b.begin), j = html.indexOf(b.eind, i);
-  if (i < 0 || j < 0) throw new Error('markering niet gevonden in simkijker.html: ' + b.naam);
+  if (i < 0 || j < 0) throw new Error('markering niet gevonden in simulatieronde.html: ' + b.naam);
   const nu = html.slice(i + b.begin.length, j);
   if (nu === b.tekst) { console.log('  OK   ' + b.naam); return; }
   anders++;

@@ -12,7 +12,8 @@ waarheid bekend is. Gaat niet online (`_archief` heeft `export-ignore`).
 - `batch.js`: Monte Carlo. Rekent met het échte blok `PASSANTEN` en de échte
   Garwood-marge uit `passanten.html`, ongewijzigd, via `vm`.
 
-- `simkijker.html` (nov 2026): één ronde als tijd-wegdiagram, tot op de
+- `simulatieronde.html` in de suite-root (sinds v3.46 op telonline.org; tot
+  dan `simkijker.html` hier, nov 2026): één ronde als tijd-wegdiagram, tot op de
   voetganger (Jay: "Iets waardoor ik vertrouwen krijg in de resultaten").
   Elke lijn een voetganger, elke ontmoeting gezien of gemist (met kans en
   worp), elke tik naar het vak waar hij telt; per vak de rekensom van

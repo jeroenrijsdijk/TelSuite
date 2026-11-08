@@ -32,6 +32,7 @@ Draaien vanuit de suite-map:
     node _archief/overpass_rig/functest_teller.js      # v3.37: het blok teller in de vijf veld-apps (vingerafdruk, wachtrij, GPC, niet meetellen), 25 tests
     node _archief/overpass_rig/functest_bezocht.js     # v3.41: _bezocht.csv na een reconstructie (herbouwBezocht): korte stukjes met een doorgang; v3.45: erdoorheen (minstens de helft gezien), nooit duur 0, 24 tests
     node _archief/overpass_rig/functest_kort.js        # v3.42: telrapport, te kort gemeten (lengte × aanwezigheid < 300 m·s: geen kleur), 12 tests
+    node _archief/overpass_rig/functest_simulatieronde.js  # v3.46: simulatieronde.html: de kopieën van sim_kern.js en PASSANTEN, de ijkfactor, een week aan drukte, 12 tests
     node _archief/overpass_rig/functest_dagcurve.js    # v3.43: Passanten, de dagcurve (model, wat te scheiden is, trekkingen, CSV's); v3.44: de dagcurve van gekozen stukken, hele straat, 39 tests
     node _archief/overpass_rig/functest_shiftsolo.js   # shift-klik isoleert telling, 27 tests
     node _archief/overpass_rig/functest_hwvoorkeur.js  # highway-voorkeur in de matcher + versiestempel, 22 tests
