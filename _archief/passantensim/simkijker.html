@@ -111,6 +111,9 @@ td.f{color:var(--accent)}
 .wolken canvas{display:block}
 .wolkcijfers{font-size:12.5px;color:var(--muted);margin-top:6px}
 .wolkcijfers b{color:var(--ink);font-weight:500}
+#klassen tr.geen{cursor:default}
+#klassen tr.geen:hover{background:none}
+.staaf{display:inline-block;height:9px;background:var(--accent);opacity:.75;border-radius:2px;vertical-align:middle}
 .wolktip{position:absolute;z-index:5;background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:12px;padding:6px 9px;border-radius:3px;pointer-events:none;max-width:230px}
 .uitleg{max-width:78ch;font-size:13px;margin-top:16px;display:flex;flex-direction:column;gap:8px}
 .uitleg p{margin:0}
@@ -123,11 +126,11 @@ td.f{color:var(--accent)}
 
 <div class="bedien">
   <label for="zaad">Zaadje</label>
-  <input type="number" id="zaad" min="1" step="1" value="21">
+  <input type="number" id="zaad" min="1" step="1" value="68">
   <button id="vorige" aria-label="vorige ronde">‹ vorige</button>
   <button id="volgende" class="hoofd">volgende ronde ›</button>
   <span class="schakel" id="drukte" role="group" aria-labelledby="druktelabel"><span id="druktelabel">Drukte</span>
-    <button type="button" data-drukte="weinig" aria-pressed="false">weinig</button><button type="button" data-drukte="alles" aria-pressed="true">gemengd</button><button type="button" data-drukte="veel" aria-pressed="false">veel</button></span>
+    <button type="button" data-drukte="week" aria-pressed="true">een week</button><button type="button" data-drukte="weinig" aria-pressed="false">weinig</button><button type="button" data-drukte="alles" aria-pressed="false">gemengd</button><button type="button" data-drukte="veel" aria-pressed="false">veel</button></span>
   <span class="sub" id="druktetekst"></span>
   <label for="schaal">Tijdschaal</label>
   <select id="schaal"><option value="1.4">1,4 px/s</option><option value="2.2" selected>2,2 px/s</option><option value="3.5">3,5 px/s</option><option value="5">5 px/s</option></select>
@@ -167,6 +170,8 @@ td.f{color:var(--accent)}
     <figure><figcaption>Per ronde <span>gemiddelde over de vakken</span></figcaption><canvas id="wolk-ronde" role="img" aria-label="Spreidingsdiagram per ronde: werkelijk tegen geteld"></canvas><div class="wolkcijfers" id="cijfers-ronde"></div></figure>
     <figure><figcaption>Per vak <span>wat de kaart van Passanten toont</span></figcaption><canvas id="wolk-vak" role="img" aria-label="Spreidingsdiagram per vak: werkelijk tegen geteld"></canvas><div class="wolkcijfers" id="cijfers-vak"></div></figure>
   </div>
+  <div class="tabelvak"><table id="klassen"></table></div>
+  <div class="sub" id="klassennoot"></div>
   <div id="wolktip" class="wolktip" hidden></div>
 </section>
 
@@ -175,7 +180,7 @@ td.f{color:var(--accent)}
   <p>Horizontaal de straat in meters, verticaal de tijd, van boven naar onder. Elke dunne lijn is een voetganger: hoe schuiner, hoe sneller; recht naar beneden is stilstaan. Waar een lijn de dikke lijn van de teller kruist, komen ze elkaar tegen. Loopt de voetganger de andere kant op, dan is het een tegemoetkomer: gezien (groen) of gemist (rood). Inhalen en ingehaald worden telt niet.</p>
   <p>De tik komt iets na de ontmoeting (reactietijd, salvo's) en schuift dan langs de tellerlijn. Passanten weet niet waar je was, alleen wanneer: een tik telt bij de passage waarin hij valt, en de passages komen uit de gps-punten (5 s en 3 punten, zoals Pocket live). De gaatjes ertussen worden in het midden gedeeld, hooguit 5 s per kant.</p>
   <p>De waarheid is de stroom door het midden van elk vak, beide richtingen samen: het aantal lijnen dat de stippellijn kruist. Het model kent die stroom precies (kolom <i>waarheid</i>); tijdens de ronde zelf liepen er toevallig iets meer of minder door (kolom <i>door het midden</i>, met een streepje per persoon op de stippellijn).</p>
-  <p>Passanten rekent per vak 3600 × tegemoet ÷ venster, met venster = lengte ÷ 1,1 + tijd, en verdubbelt dat omdat je maar één richting liep. <b>F = waarheid ÷ Passanten</b>: de factor waarmee Passanten vermenigvuldigd moet worden. Eén ronde, en zeker één vak, is ruw; de ijkfactor komt uit het totaal over veel rondes (bovenaan en onderaan: de zaadjes 1 tot 1.000, zelfde instellingen). Passanten gebruikt nu 1,05. Trefkans: 95% voor iedereen, aan beide kanten (Jay). Met de schakelaar <i>drukte</i> kies je hoeveel passanten er in de straat lopen: weinig (300–600 per uur in het midden), veel (1.200–1.600) of gemengd (300–1.600, zoals de simulatie); het zaadje kiest de rest van de straat. F over 400 rondes rekent dan opnieuw, met dezelfde drukte.</p>
+  <p>Passanten rekent per vak 3600 × tegemoet ÷ venster, met venster = lengte ÷ 1,1 + tijd, en verdubbelt dat omdat je maar één richting liep. <b>F = waarheid ÷ Passanten</b>: de factor waarmee Passanten vermenigvuldigd moet worden. Eén ronde, en zeker één vak, is ruw; de ijkfactor komt uit het totaal over veel rondes (bovenaan en onderaan: de zaadjes 1 tot 1.000, zelfde instellingen). Passanten gebruikt nu 1,05. Trefkans: 95% voor iedereen, aan beide kanten (Jay). Met de schakelaar <i>drukte</i> kies je hoeveel passanten er in de straat lopen: een week (50–3.000 per uur in het midden, de meeste rondes rond de 600, zoals je eigen tellingen), weinig (300–600), gemengd (300–1.600, gelijkmatig) of veel (1.200–1.600); het zaadje kiest de rest van de straat. F over 400 rondes rekent dan opnieuw, met dezelfde drukte.</p>
 </div>
 
 <script>
@@ -213,6 +218,9 @@ var SIMKERN = (function () {
     pEind: 0.5,                        // deel van herkomsten/bestemmingen dat een straateinde is
     scheef: [0.5, 0.5],                // a: deel van de einde-herkomsten uit einde x=0 (0,5 = symmetrisch)
     qMin: 300, qMax: 1600,             // passanten per uur, beide richtingen, midden van de straat
+    // qMediaan, qSpreiding (nov 2026): als qMediaan gezet is, is de drukte lognormaal (mediaan qMediaan,
+    // spreiding qSpreiding in ln) binnen qMin–qMax, in plaats van gelijkmatig. tempoMin: de teller
+    // loopt nooit langzamer (de vertraging hieronder is voor 300–1.600 per uur bedoeld). Standaard uit.
     // voetgangers
     groep: [0.55, 0.30, 0.10, 0.05],   // P(groepsgrootte 1, 2, 3, 4)
     groepTussen: [0.3, 0.9],           // s tussen twee leden van een groepje
@@ -318,6 +326,17 @@ var SIMKERN = (function () {
   }
 
   /* ---------- de straat -------------------------------------------------- */
+  // Jay (nov 2026): "Kun je in de 1000 simulaties een mix maken van druk en rustig - zeg maar
+  // 50-3000 passanten. Met uiteraard de meeste aandacht voor de aantallen die op een normale
+  // week zich voordoen". Zonder qMediaan zoals altijd: gelijkmatig tussen qMin en qMax.
+  function drukteTrekken(P, r) {
+    if (!P.qMediaan) return r.tussen([P.qMin, P.qMax]);
+    for (var i = 0; i < 200; i++) {
+      var q = P.qMediaan * Math.exp(P.qSpreiding * r.n(0, 1));
+      if (q >= P.qMin && q <= P.qMax) return q;
+    }
+    return Math.min(P.qMax, Math.max(P.qMin, P.qMediaan));
+  }
   function wereld(P, r) {
     var L = r.tussen([P.straatMin, P.straatMax]);
     var N = L < P.segMin ? 1 : Math.max(1, Math.round(L / P.segDoel));
@@ -336,7 +355,7 @@ var SIMKERN = (function () {
       x.forEach(function (p, j) { if (p < xx) { oL += wO[j]; dL += wD[j]; } else if (p > xx) { oR += wO[j]; dR += wD[j]; } });
       return [oL * dR / Z, oR * dL / Z];
     }
-    var qTot = r.tussen([P.qMin, P.qMax]);
+    var qTot = drukteTrekken(P, r);
     var sm = stroom(L / 2);
     var lam = qTot / 3600 / (sm[0] + sm[1]);          // personen per seconde, alle ritten
     var segLen = L / N, segs = [];
@@ -353,6 +372,7 @@ var SIMKERN = (function () {
     var u0 = Math.max(0.8, r.n(P.tempo, P.tempoSd));
     var qTegen = W.qTot / 2;
     var uBasis = u0 / (1 + P.drukteK * Math.pow(qTegen / P.drukteQ, 3));
+    if (P.tempoMin) uBasis = Math.max(uBasis, Math.min(u0, P.tempoMin));   // nov 2026, alleen als gezet
     var T0 = 13 * 3600 + 5 * 60 + r.u() * 60;
     var aanloop = 25;
     var x = dir > 0 ? -aanloop : W.L + aanloop, t = T0 - aanloop / uBasis;
@@ -812,14 +832,27 @@ var PASSANTEN = (function () {
   'use strict';
   var BASIS = { pZelf: 0.95, pOver: 0.95, pGroep: 1, qZicht: Infinity };   // Jay: "95% voor alles"
   // Jay: "maak ook even een schakelaar waarmee je veel of weinig passanten kunt kiezen".
-  // De drukte in het midden van de straat (beide richtingen, per uur) wordt per ronde getrokken
-  // uit dit bereik; gemengd is het bereik van de simulatie zelf (SIMKERN.STANDAARD).
-  var DRUKTE = { weinig: [300, 600], alles: [300, 1600], veel: [1200, 1600] }, drukte = 'alles', PARAM;
+  // De drukte in het midden van de straat (beide richtingen, per uur) wordt per ronde getrokken;
+  // gemengd is het bereik van de simulatie zelf (SIMKERN.STANDAARD), gelijkmatig.
+  // Een week (standaard): Jay, "een mix van druk en rustig - zeg maar 50-3000 passanten. Met
+  // uiteraard de meeste aandacht voor de aantallen die op een normale week zich voordoen".
+  // Lognormaal tussen 50 en 3.000: mediaan 600 (het meetkundig gemiddelde van Jay's zes
+  // winkelstraattellingen: 316–1.682 per uur), spreiding 0,75 in ln, dus 8 op de 10 rondes
+  // tussen zo'n 230 en 1.500. De vertraging van de teller in de drukte is voor 300–1.600
+  // bedoeld en zou hem bij 3.000 op 0,4 m/s zetten; daarom hier niet langzamer dan 0,8 m/s.
+  var DRUKTE = {
+    week:   { q: { qMin: 50, qMax: 3000, qMediaan: 600, qSpreiding: 0.75, tempoMin: 0.8 }, naam: 'een week',
+              tekst: '50–3.000 per uur in het midden, meestal 230–1.500 (mediaan 600, zoals je eigen tellingen)' },
+    weinig: { q: { qMin: 300, qMax: 600 }, naam: 'weinig', tekst: '300–600 per uur in het midden' },
+    alles:  { q: { qMin: 300, qMax: 1600 }, naam: 'gemengd', tekst: '300–1.600 per uur in het midden, gelijkmatig' },
+    veel:   { q: { qMin: 1200, qMax: 1600 }, naam: 'veel', tekst: '1.200–1.600 per uur in het midden' }
+  }, drukte = 'week', PARAM;
+  var KLASSEN = [[50, 200], [200, 500], [500, 1000], [1000, 2000], [2000, 3000]];
   function zetDrukte(d) {
     drukte = d;
-    PARAM = Object.assign({}, BASIS, { qMin: DRUKTE[d][0], qMax: DRUKTE[d][1] });
+    PARAM = Object.assign({}, BASIS, DRUKTE[d].q);
     document.querySelectorAll('#drukte button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-drukte') === d)); });
-    el('druktetekst').textContent = heel(DRUKTE[d][0]) + '–' + heel(DRUKTE[d][1]) + ' passanten per uur in het midden';
+    el('druktetekst').textContent = DRUKTE[d].tekst;
   }
   var OPHOGEN = 2;                     // passanten.html: één richting gemeten, dus × 2
   var R, A, sel = { soort: 'geen' }, hover = null, schaal = 2.2, G = null, REF = null, N_REF = 1000, refBeurt = 0, HUIDIG = null, ALS = 'passanten';
@@ -941,7 +974,8 @@ var PASSANTEN = (function () {
       w += waar; s += schat; vk.push({ z: z, k: g.k, w: waar, s: schat, pmu: pm });
     });
     var mp = vk.filter(function (p) { return p.pmu !== null; });
-    return s > 0 ? { z: z, w: w, s: s, n: vk.length, vakken: vk,
+    return s > 0 ? { z: z, w: w, s: s, n: vk.length, vakken: vk, q: Rz.W.qTot,
+                     kw: mp.reduce(function (a, p) { return a + p.w; }, 0), kp: mp.reduce(function (a, p) { return a + p.pmu; }, 0),
                      pmu: mp.length ? mp.reduce(function (a, p) { return a + p.pmu; }, 0) / mp.length : null } : null;
   }
   // geteld ÷ werkelijk (y: welke maat), en hoe vaak binnen 20% en 50% na × F; geschaald: (F × geteld) ÷ werkelijk
@@ -962,7 +996,7 @@ var PASSANTEN = (function () {
         if (!r) continue;
         lijst.push(r.w / r.s); sw += r.w; ss += r.s;
         r.vakken.forEach(function (p) { if (p.pmu !== null) { kw += p.w; kp += p.pmu; } });
-        rondes.push({ z: r.z, w: r.w / r.n, s: r.s / r.n, pmu: r.pmu }); [].push.apply(vakken, r.vakken);
+        rondes.push({ z: r.z, w: r.w / r.n, s: r.s / r.n, pmu: r.pmu, q: r.q, sw: r.w, ss: r.s, kw: r.kw, kp: r.kp }); [].push.apply(vakken, r.vakken);
       }
       if (z <= N_REF) { REF = { bezig: Math.round(100 * (z - 1) / N_REF) }; tekenChips(); tekenWolken(); setTimeout(stap, 0); return; }
       lijst.sort(function (a, b) { return a - b; });
@@ -970,6 +1004,14 @@ var PASSANTEN = (function () {
       REF = { F: F, K: K, lijst: lijst, p10: lijst[Math.floor(0.1 * lijst.length)], p90: lijst[Math.floor(0.9 * lijst.length)],
               rondes: rondes, vakken: vakken, vRonde: verhoudingen(rondes, F, ys), vVak: verhoudingen(vakken, F, ys),
               pRonde: verhoudingen(rondes, K, yp, true), pVak: verhoudingen(vakken, K, yp, true) };
+      // per drukteklasse: hoe vaak, en dezelfde maten binnen de klasse
+      REF.klassen = KLASSEN.map(function (kl, i) {
+        var rs = rondes.filter(function (r) { return r.q >= kl[0] && (r.q < kl[1] || (i === KLASSEN.length - 1 && r.q <= kl[1])); });
+        if (!rs.length) return { kl: kl, n: 0 };
+        var Fk = rs.reduce(function (a, r) { return a + r.sw; }, 0) / rs.reduce(function (a, r) { return a + r.ss; }, 0);
+        var Kk = rs.reduce(function (a, r) { return a + r.kw; }, 0) / rs.reduce(function (a, r) { return a + r.kp; }, 0);
+        return { kl: kl, n: rs.length, F: Fk, K: Kk, vF: verhoudingen(rs, Fk, ys), vK: verhoudingen(rs, Kk, yp, true), vF0: verhoudingen(rs, F, ys), vK0: verhoudingen(rs, K, yp, true) };
+      });
       tekenChips(); tekenWolken();
     })();
   }
@@ -1044,11 +1086,11 @@ var PASSANTEN = (function () {
   function tekenWolken() {
     var st = el('wolkstatus');
     if (!st) return;
-    el('wolkkop').textContent = N_REF.toLocaleString('nl-NL') + ' rondes, drukte ' + (drukte === 'alles' ? 'gemengd' : drukte) + ': werkelijk tegen geteld';
+    el('wolkkop').textContent = N_REF.toLocaleString('nl-NL') + ' rondes, drukte ' + DRUKTE[drukte].naam + ': werkelijk tegen geteld';
     if (!REF || REF.bezig !== undefined) {
       st.textContent = 'Rekent … ' + (REF ? REF.bezig : 0) + '%';
       ['wolk-ronde', 'wolk-vak'].forEach(function (id) { var c = el(id); c.getContext('2d').clearRect(0, 0, c.width, c.height); WOLK[id] = null; });
-      el('cijfers-ronde').textContent = ''; el('cijfers-vak').textContent = '';
+      el('cijfers-ronde').textContent = ''; el('cijfers-vak').textContent = ''; el('klassen').innerHTML = ''; el('klassennoot').textContent = '';
       return;
     }
     var pm = ALS === 'pmu';
@@ -1063,6 +1105,20 @@ var PASSANTEN = (function () {
     var b2 = wolk('wolk-vak', REF.vakken, Fl, Object.assign({ r: 1.6, alfa: 0.22, vak: true }, o));
     el('cijfers-ronde').innerHTML = cijfers(pm ? REF.pRonde : REF.vRonde, Fl, 'rondes (gemiddelde over de vakken)', b1, pm) + (pm ? ' k = ' + komma(REF.K, 1) + ' m.' : '');
     el('cijfers-vak').innerHTML = cijfers(pm ? REF.pVak : REF.vVak, Fl, 'vakken', b2, pm);
+    tekenKlassen();
+  }
+  // per drukteklasse: hoeveel rondes, en of één factor overal past
+  function tekenKlassen() {
+    var max = Math.max.apply(null, REF.klassen.map(function (k) { return k.n; })), pc = function (x) { return Math.round(100 * x) + '%'; };
+    var h = '<thead><tr><th class="l">drukte in het midden (/u)</th><th class="l">rondes</th><th>F (Passanten)</th><th>binnen 20% met de F van de klasse</th><th>met F = ' + komma(REF.F, 2) + ' voor alles</th>' +
+            '<th>k (p/m·u, m)</th><th>binnen 20% met de k van de klasse</th><th>met k = ' + komma(REF.K, 1) + ' m voor alles</th></tr></thead><tbody>';
+    REF.klassen.forEach(function (k) {
+      h += '<tr class="geen"><td class="l">' + heel(k.kl[0]) + '–' + heel(k.kl[1]) + '</td><td class="l"><span class="staaf" style="width:' + (max ? Math.round(120 * k.n / max) : 0) + 'px"></span> ' + k.n + '</td>' +
+           (k.n ? '<td class="f">' + komma(k.F, 2) + '</td><td>' + pc(k.vF.b20) + '</td><td>' + pc(k.vF0.b20) + '</td><td>' + komma(k.K, 1) + '</td><td>' + pc(k.vK.b20) + '</td><td>' + pc(k.vK0.b20) + '</td>'
+                : '<td colspan="6"></td>') + '</tr>';
+    });
+    el('klassen').innerHTML = h + '</tbody>';
+    el('klassennoot').textContent = 'Per ronde (gemiddelde over de vakken). Blijft F gelijk over de klassen, dan past één ijkfactor bij rustige en drukke straten. "Binnen 20%": het aandeel rondes waarin de omgerekende telling minder dan 20% van werkelijk afwijkt.';
   }
   function wolkPunt(id, e) {
     var w = WOLK[id]; if (!w) return null;
@@ -1090,7 +1146,7 @@ var PASSANTEN = (function () {
       ['tegemoet', teg.length + ' ontmoet · ' + gez + ' gezien'],
       ['tikken', A.tikken.length + ' · ' + A.buur + ' in een buurvak · ' + A.wees + ' in een gat'],
       ['F van deze ronde', A.F === null ? '–' : komma(A.F, 2) + (REF && REF.lijst ? ' · hoger dan ' + Math.round(100 * REF.lijst.filter(function (f) { return f < A.F; }).length / REF.lijst.length) + '% van de rondes' : '')],
-      ['F over ' + N_REF.toLocaleString('nl-NL') + ' rondes, ' + (drukte === 'alles' ? 'gemengd' : drukte), !REF || REF.bezig !== undefined ? 'rekent … ' + (REF ? REF.bezig : 0) + '%' : komma(REF.F, 2) + ' · 8 op de 10 tussen ' + komma(REF.p10, 2) + ' en ' + komma(REF.p90, 2)]
+      ['F over ' + N_REF.toLocaleString('nl-NL') + ' rondes, ' + DRUKTE[drukte].naam, !REF || REF.bezig !== undefined ? 'rekent … ' + (REF ? REF.bezig : 0) + '%' : komma(REF.F, 2) + ' · 8 op de 10 tussen ' + komma(REF.p10, 2) + ' en ' + komma(REF.p90, 2)]
     ];
     el('chips').innerHTML = c.map(function (x, i) { return '<div class="chip' + (i >= c.length - 2 ? ' f' : '') + '"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
   }
@@ -1352,7 +1408,7 @@ var PASSANTEN = (function () {
   var wacht;
   setTimeout(referentie, 80);
   window.addEventListener('resize', function () { clearTimeout(wacht); wacht = setTimeout(function () { tekenDiagram(); if (sel.soort === 'voet') licht(sel.p); if (REF && REF.rondes) tekenWolken(); }, 150); });
-  zetDrukte('alles');
+  zetDrukte('week');
   alles();
 })();
 </script>

@@ -27,7 +27,15 @@ waarheid bekend is. Gaat niet online (`_archief` heeft `export-ignore`).
   ook laten zien in de grafieken"): Passanten per uur, of p/m·u zoals
   telrapport (n_tellingen ÷ lengte ÷ duur_sec, met de terugval van v3.17);
   dan is de lijn werkelijk = k × p/m·u, k in meters. Ook in de vakkentabel
-  en de rekensom. Eén zelfstandige pagina (ook als
+  en de rekensom.
+  Drukte "een week" (standaard; Jay: "een mix van druk en rustig - zeg maar
+  50-3000 passanten. Met uiteraard de meeste aandacht voor de aantallen die op
+  een normale week zich voordoen"): lognormaal tussen 50 en 3.000, mediaan
+  600 (het meetkundig gemiddelde van Jay's zes winkelstraattellingen),
+  spreiding 0,75 in ln; de teller niet langzamer dan 0,8 m/s. In sim_kern:
+  `qMediaan`, `qSpreiding`, `tempoMin` (standaard uit; dezelfde zaadjes geven
+  zonder die drie dezelfde rondes). Onder de wolken een tabel per
+  drukteklasse: F en k per klasse, en hoe goed één factor overal past. Eén zelfstandige pagina (ook als
   artifact), met een kopie van `sim_kern.js` en van het blok `PASSANTEN`:
   `node _archief/passantensim/kijkercheck.js [--bijwerken]` controleert of die
   kopieën nog gelijk zijn (en vervangt ze). `run()` geeft daarvoor ook de

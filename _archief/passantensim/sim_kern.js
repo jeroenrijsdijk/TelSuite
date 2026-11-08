@@ -31,6 +31,9 @@ var SIMKERN = (function () {
     pEind: 0.5,                        // deel van herkomsten/bestemmingen dat een straateinde is
     scheef: [0.5, 0.5],                // a: deel van de einde-herkomsten uit einde x=0 (0,5 = symmetrisch)
     qMin: 300, qMax: 1600,             // passanten per uur, beide richtingen, midden van de straat
+    // qMediaan, qSpreiding (nov 2026): als qMediaan gezet is, is de drukte lognormaal (mediaan qMediaan,
+    // spreiding qSpreiding in ln) binnen qMin–qMax, in plaats van gelijkmatig. tempoMin: de teller
+    // loopt nooit langzamer (de vertraging hieronder is voor 300–1.600 per uur bedoeld). Standaard uit.
     // voetgangers
     groep: [0.55, 0.30, 0.10, 0.05],   // P(groepsgrootte 1, 2, 3, 4)
     groepTussen: [0.3, 0.9],           // s tussen twee leden van een groepje
@@ -136,6 +139,17 @@ var SIMKERN = (function () {
   }
 
   /* ---------- de straat -------------------------------------------------- */
+  // Jay (nov 2026): "Kun je in de 1000 simulaties een mix maken van druk en rustig - zeg maar
+  // 50-3000 passanten. Met uiteraard de meeste aandacht voor de aantallen die op een normale
+  // week zich voordoen". Zonder qMediaan zoals altijd: gelijkmatig tussen qMin en qMax.
+  function drukteTrekken(P, r) {
+    if (!P.qMediaan) return r.tussen([P.qMin, P.qMax]);
+    for (var i = 0; i < 200; i++) {
+      var q = P.qMediaan * Math.exp(P.qSpreiding * r.n(0, 1));
+      if (q >= P.qMin && q <= P.qMax) return q;
+    }
+    return Math.min(P.qMax, Math.max(P.qMin, P.qMediaan));
+  }
   function wereld(P, r) {
     var L = r.tussen([P.straatMin, P.straatMax]);
     var N = L < P.segMin ? 1 : Math.max(1, Math.round(L / P.segDoel));
@@ -154,7 +168,7 @@ var SIMKERN = (function () {
       x.forEach(function (p, j) { if (p < xx) { oL += wO[j]; dL += wD[j]; } else if (p > xx) { oR += wO[j]; dR += wD[j]; } });
       return [oL * dR / Z, oR * dL / Z];
     }
-    var qTot = r.tussen([P.qMin, P.qMax]);
+    var qTot = drukteTrekken(P, r);
     var sm = stroom(L / 2);
     var lam = qTot / 3600 / (sm[0] + sm[1]);          // personen per seconde, alle ritten
     var segLen = L / N, segs = [];
@@ -171,6 +185,7 @@ var SIMKERN = (function () {
     var u0 = Math.max(0.8, r.n(P.tempo, P.tempoSd));
     var qTegen = W.qTot / 2;
     var uBasis = u0 / (1 + P.drukteK * Math.pow(qTegen / P.drukteQ, 3));
+    if (P.tempoMin) uBasis = Math.max(uBasis, Math.min(u0, P.tempoMin));   // nov 2026, alleen als gezet
     var T0 = 13 * 3600 + 5 * 60 + r.u() * 60;
     var aanloop = 25;
     var x = dir > 0 ? -aanloop : W.L + aanloop, t = T0 - aanloop / uBasis;
