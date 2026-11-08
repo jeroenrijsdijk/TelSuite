@@ -22,7 +22,12 @@ waarheid bekend is. Gaat niet online (`_archief` heeft `export-ignore`).
   per uur in het midden. Onderaan 1.000 rondes (Jay: "doe eens een stuk of 1000
   simulaties, en maak een scatter plot van werkelijk vs geteld"): werkelijk
   tegen geteld, per ronde en per vak; klik op een stip en die ronde (en dat
-  vak) gaat open. Rekent bij elke drukte opnieuw, in een paar seconden. Eén zelfstandige pagina (ook als
+  vak) gaat open. Rekent bij elke drukte opnieuw, in een paar seconden.
+  Schakelaar "geteld als" (Jay: "passages per meter per uur [...] kun je die
+  ook laten zien in de grafieken"): Passanten per uur, of p/m·u zoals
+  telrapport (n_tellingen ÷ lengte ÷ duur_sec, met de terugval van v3.17);
+  dan is de lijn werkelijk = k × p/m·u, k in meters. Ook in de vakkentabel
+  en de rekensom. Eén zelfstandige pagina (ook als
   artifact), met een kopie van `sim_kern.js` en van het blok `PASSANTEN`:
   `node _archief/passantensim/kijkercheck.js [--bijwerken]` controleert of die
   kopieën nog gelijk zijn (en vervangt ze). `run()` geeft daarvoor ook de
