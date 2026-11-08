@@ -35,7 +35,9 @@ waarheid bekend is. Gaat niet online (`_archief` heeft `export-ignore`).
   spreiding 0,75 in ln; de teller niet langzamer dan 0,8 m/s. In sim_kern:
   `qMediaan`, `qSpreiding`, `tempoMin` (standaard uit; dezelfde zaadjes geven
   zonder die drie dezelfde rondes). Onder de wolken een tabel per
-  drukteklasse: F en k per klasse, en hoe goed één factor overal past. Eén zelfstandige pagina (ook als
+  drukteklasse: F en k per klasse, en hoe goed één factor overal past.
+  Het aantal rondes is in te stellen: 200 tot 10.000 (Jay: "Kun je het aantal
+  van 1000 simulaties instelbaar maken?"); 10.000 rekent in zo'n 15 s. Eén zelfstandige pagina (ook als
   artifact), met een kopie van `sim_kern.js` en van het blok `PASSANTEN`:
   `node _archief/passantensim/kijkercheck.js [--bijwerken]` controleert of die
   kopieën nog gelijk zijn (en vervangt ze). `run()` geeft daarvoor ook de
