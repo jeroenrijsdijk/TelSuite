@@ -19,7 +19,10 @@ waarheid bekend is. Gaat niet online (`_archief` heeft `export-ignore`).
   Passanten naast de waarheid, en F over de zaadjes 1 tot 400 ter
   vergelijking. Trefkans 95% voor iedereen. Schakelaar drukte (Jay: "veel of
   weinig passanten"): weinig 300–600, gemengd 300–1.600, veel 1.200–1.600
-  per uur in het midden; F over 400 rondes rekent dan opnieuw. Eén zelfstandige pagina (ook als
+  per uur in het midden. Onderaan 1.000 rondes (Jay: "doe eens een stuk of 1000
+  simulaties, en maak een scatter plot van werkelijk vs geteld"): werkelijk
+  tegen geteld, per ronde en per vak; klik op een stip en die ronde (en dat
+  vak) gaat open. Rekent bij elke drukte opnieuw, in een paar seconden. Eén zelfstandige pagina (ook als
   artifact), met een kopie van `sim_kern.js` en van het blok `PASSANTEN`:
   `node _archief/passantensim/kijkercheck.js [--bijwerken]` controleert of die
   kopieën nog gelijk zijn (en vervangt ze). `run()` geeft daarvoor ook de

@@ -103,6 +103,15 @@ tbody tr:hover{background:var(--bg)}
 tbody tr.aan{background:var(--kies)}
 tfoot td{font-weight:400;border-top:2px solid var(--line)}
 td.f{color:var(--accent)}
+.wolk{margin-top:26px;position:relative;display:flex;flex-direction:column;gap:6px}
+.wolken{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:18px;margin-top:6px}
+.wolken figure{margin:0;min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:10px 12px}
+.wolken figcaption{font-size:14px;font-weight:500;margin-bottom:4px}
+.wolken figcaption span{font-weight:300;color:var(--muted);font-size:12.5px;margin-left:6px}
+.wolken canvas{display:block}
+.wolkcijfers{font-size:12.5px;color:var(--muted);margin-top:6px}
+.wolkcijfers b{color:var(--ink);font-weight:500}
+.wolktip{position:absolute;z-index:5;background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:12px;padding:6px 9px;border-radius:3px;pointer-events:none;max-width:230px}
 .uitleg{max-width:78ch;font-size:13px;margin-top:16px;display:flex;flex-direction:column;gap:8px}
 .uitleg p{margin:0}
 </style>
@@ -149,12 +158,22 @@ td.f{color:var(--accent)}
 
 <div class="tabelvak"><table id="vakken"></table></div>
 
+<section class="wolk">
+  <h2 id="wolkkop">1.000 rondes: werkelijk tegen geteld</h2>
+  <div class="sub" id="wolkstatus"></div>
+  <div class="wolken">
+    <figure><figcaption>Per ronde <span>gemiddelde over de vakken</span></figcaption><canvas id="wolk-ronde" role="img" aria-label="Spreidingsdiagram per ronde: werkelijk tegen geteld"></canvas><div class="wolkcijfers" id="cijfers-ronde"></div></figure>
+    <figure><figcaption>Per vak <span>wat de kaart van Passanten toont</span></figcaption><canvas id="wolk-vak" role="img" aria-label="Spreidingsdiagram per vak: werkelijk tegen geteld"></canvas><div class="wolkcijfers" id="cijfers-vak"></div></figure>
+  </div>
+  <div id="wolktip" class="wolktip" hidden></div>
+</section>
+
 <div class="uitleg">
   <h2>Zo lees je het</h2>
   <p>Horizontaal de straat in meters, verticaal de tijd, van boven naar onder. Elke dunne lijn is een voetganger: hoe schuiner, hoe sneller; recht naar beneden is stilstaan. Waar een lijn de dikke lijn van de teller kruist, komen ze elkaar tegen. Loopt de voetganger de andere kant op, dan is het een tegemoetkomer: gezien (groen) of gemist (rood). Inhalen en ingehaald worden telt niet.</p>
   <p>De tik komt iets na de ontmoeting (reactietijd, salvo's) en schuift dan langs de tellerlijn. Passanten weet niet waar je was, alleen wanneer: een tik telt bij de passage waarin hij valt, en de passages komen uit de gps-punten (5 s en 3 punten, zoals Pocket live). De gaatjes ertussen worden in het midden gedeeld, hooguit 5 s per kant.</p>
   <p>De waarheid is de stroom door het midden van elk vak, beide richtingen samen: het aantal lijnen dat de stippellijn kruist. Het model kent die stroom precies (kolom <i>waarheid</i>); tijdens de ronde zelf liepen er toevallig iets meer of minder door (kolom <i>door het midden</i>, met een streepje per persoon op de stippellijn).</p>
-  <p>Passanten rekent per vak 3600 × tegemoet ÷ venster, met venster = lengte ÷ 1,1 + tijd, en verdubbelt dat omdat je maar één richting liep. <b>F = waarheid ÷ Passanten</b>: de factor waarmee Passanten vermenigvuldigd moet worden. Eén ronde, en zeker één vak, is ruw; de ijkfactor komt uit het totaal over veel rondes (bovenaan: de zaadjes 1 tot 400, zelfde instellingen). Passanten gebruikt nu 1,05. Trefkans: 95% voor iedereen, aan beide kanten (Jay). Met de schakelaar <i>drukte</i> kies je hoeveel passanten er in de straat lopen: weinig (300–600 per uur in het midden), veel (1.200–1.600) of gemengd (300–1.600, zoals de simulatie); het zaadje kiest de rest van de straat. F over 400 rondes rekent dan opnieuw, met dezelfde drukte.</p>
+  <p>Passanten rekent per vak 3600 × tegemoet ÷ venster, met venster = lengte ÷ 1,1 + tijd, en verdubbelt dat omdat je maar één richting liep. <b>F = waarheid ÷ Passanten</b>: de factor waarmee Passanten vermenigvuldigd moet worden. Eén ronde, en zeker één vak, is ruw; de ijkfactor komt uit het totaal over veel rondes (bovenaan en onderaan: de zaadjes 1 tot 1.000, zelfde instellingen). Passanten gebruikt nu 1,05. Trefkans: 95% voor iedereen, aan beide kanten (Jay). Met de schakelaar <i>drukte</i> kies je hoeveel passanten er in de straat lopen: weinig (300–600 per uur in het midden), veel (1.200–1.600) of gemengd (300–1.600, zoals de simulatie); het zaadje kiest de rest van de straat. F over 400 rondes rekent dan opnieuw, met dezelfde drukte.</p>
 </div>
 
 <script>
@@ -801,7 +820,7 @@ var PASSANTEN = (function () {
     el('druktetekst').textContent = heel(DRUKTE[d][0]) + '–' + heel(DRUKTE[d][1]) + ' passanten per uur in het midden';
   }
   var OPHOGEN = 2;                     // passanten.html: één richting gemeten, dus × 2
-  var R, A, sel = { soort: 'geen' }, hover = null, schaal = 2.2, G = null, REF = null, N_REF = 400, refBeurt = 0;
+  var R, A, sel = { soort: 'geen' }, hover = null, schaal = 2.2, G = null, REF = null, N_REF = 1000, refBeurt = 0, HUIDIG = null;
 
   /* ---------- hulpjes ---------------------------------------------------- */
   function komma(x, d) { return Number(x).toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d }); }
@@ -824,7 +843,7 @@ var PASSANTEN = (function () {
 
   /* ---------- één ronde door de simulatie en door Passanten ------------------ */
   function analyseer(zaad) {
-    R = SIMKERN.run(PARAM, zaad);
+    R = SIMKERN.run(PARAM, zaad); HUIDIG = zaad;
     var W = R.W, T = R.T;
     var ses = PASSANTEN.sessie(R.invoer, 'sim.zip'), segs = {};
     PASSANTEN.voegToe(segs, ses);
@@ -877,28 +896,126 @@ var PASSANTEN = (function () {
           buur: tikken.filter(function (k) { return k.soort === 'buur'; }).length };
   }
 
-  /* ---------- ter vergelijking: F over veel rondes (zaadjes 1 tot N_REF) -------- */
+  /* ---------- ter vergelijking: veel rondes (zaadjes 1 tot N_REF) --------------
+     Jay: "doe eens een stuk of 1000 simulaties, en maak een scatter plot van
+     werkelijk vs geteld". Per ronde en per vak: werkelijk (het model, in het
+     midden van het vak) en geteld (Passanten, zonder ijking). Klik op een punt
+     om die ronde (en dat vak) hierboven te openen.                              */
   function rondeF(z) {
-    var Rz = SIMKERN.run(PARAM, z), ses = PASSANTEN.sessie(Rz.invoer, 'sim.zip'), segs = {}, w = 0, s = 0;
+    var Rz = SIMKERN.run(PARAM, z), ses = PASSANTEN.sessie(Rz.invoer, 'sim.zip'), segs = {}, w = 0, s = 0, vk = [];
     PASSANTEN.voegToe(segs, ses); PASSANTEN.bereken(segs, PASSANTEN.V_VOET);
     Rz.W.segs.forEach(function (g) {
       var x = segs['1/' + g.k]; if (!x) return;
       var c = x.cells[Object.keys(x.cells)[0]], n = ['A', 'B', '?'].filter(function (r) { return c.stromen[r].n; }).length;
-      w += g.qPlus + g.qMin; s += c.q * (!c.compleet && n === 1 ? OPHOGEN : 1);
+      var waar = g.qPlus + g.qMin, schat = c.q * (!c.compleet && n === 1 ? OPHOGEN : 1);
+      w += waar; s += schat; vk.push({ z: z, k: g.k, w: waar, s: schat });
     });
-    return s > 0 ? { w: w, s: s } : null;
+    return s > 0 ? { z: z, w: w, s: s, n: vk.length, vakken: vk } : null;
+  }
+  function verhoudingen(lijst, F) {    // geteld ÷ werkelijk, en hoe vaak binnen 20% en 50% na × F
+    var r = lijst.map(function (p) { return p.s / p.w; }).sort(function (a, b) { return a - b; });
+    var binnen = function (f) { return lijst.filter(function (p) { return p.s * F >= p.w / (1 + f) && p.s * F <= p.w * (1 + f); }).length / lijst.length; };
+    return { n: lijst.length, med: r[Math.floor(0.5 * (r.length - 1))], p10: r[Math.floor(0.1 * (r.length - 1))], p90: r[Math.floor(0.9 * (r.length - 1))],
+             b20: binnen(0.2), b50: binnen(0.5), nul: lijst.filter(function (p) { return p.s === 0; }).length };
   }
   function referentie() {              // opnieuw bij een andere drukte; een oude berekening stopt dan
-    var lijst = [], sw = 0, ss = 0, z = 1, beurt = ++refBeurt;
-    REF = null;
+    var lijst = [], rondes = [], vakken = [], sw = 0, ss = 0, z = 1, beurt = ++refBeurt;
+    REF = null; tekenWolken();
     (function stap() {
       if (beurt !== refBeurt) return;
-      for (var eind = Math.min(N_REF, z + 19); z <= eind; z++) { var r = rondeF(z); if (r) { lijst.push(r.w / r.s); sw += r.w; ss += r.s; } }
-      if (z <= N_REF) { REF = { bezig: Math.round(100 * (z - 1) / N_REF) }; tekenChips(); setTimeout(stap, 0); return; }
+      for (var eind = Math.min(N_REF, z + 19); z <= eind; z++) {
+        var r = rondeF(z);
+        if (!r) continue;
+        lijst.push(r.w / r.s); sw += r.w; ss += r.s;
+        rondes.push({ z: r.z, w: r.w / r.n, s: r.s / r.n }); [].push.apply(vakken, r.vakken);
+      }
+      if (z <= N_REF) { REF = { bezig: Math.round(100 * (z - 1) / N_REF) }; tekenChips(); tekenWolken(); setTimeout(stap, 0); return; }
       lijst.sort(function (a, b) { return a - b; });
-      REF = { F: sw / ss, lijst: lijst, p10: lijst[Math.floor(0.1 * lijst.length)], p90: lijst[Math.floor(0.9 * lijst.length)] };
-      tekenChips();
+      var F = sw / ss;
+      REF = { F: F, lijst: lijst, p10: lijst[Math.floor(0.1 * lijst.length)], p90: lijst[Math.floor(0.9 * lijst.length)],
+              rondes: rondes, vakken: vakken, vRonde: verhoudingen(rondes, F), vVak: verhoudingen(vakken, F) };
+      tekenChips(); tekenWolken();
     })();
+  }
+
+  /* ---------- de wolken: werkelijk tegen geteld ------------------------------- */
+  var WOLK = {};                       // per canvas: de punten op het scherm, voor de muis
+  function kleur(naam) { return getComputedStyle(document.documentElement).getPropertyValue(naam).trim(); }
+  function mooi(m) { var s = [250, 500, 1000, 2000, 2500, 5000]; for (var i = 0; i < s.length; i++) if (m / s[i] <= 6) return s[i]; return 10000; }
+  function wolk(id, punten, F, opt) {
+    var cv = el(id), dpr = window.devicePixelRatio || 1, B = Math.max(260, cv.parentNode.clientWidth), H = Math.min(B, 440);
+    cv.width = B * dpr; cv.height = H * dpr; cv.style.width = B + 'px'; cv.style.height = H + 'px';
+    var g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, B, H);
+    var ml = 64, mr = 22, mt = 12, mb = 40, W = B - ml - mr, Hh = H - mt - mb;
+    var vals = []; punten.forEach(function (p) { vals.push(p.w, p.s); }); vals.sort(function (a, b) { return a - b; });
+    var M = vals.length ? vals[Math.floor(0.995 * (vals.length - 1))] * 1.04 : 2000, stap = mooi(M); M = Math.ceil(M / stap) * stap;
+    var X = function (v) { return ml + v / M * W; }, Y = function (v) { return mt + Hh - v / M * Hh; };
+    var ink = kleur('--ink'), muted = kleur('--muted'), line = kleur('--line'), acc = kleur('--accent'), oker = kleur('--oker');
+    g.font = '10.5px ' + kleur('--mono'); g.fillStyle = muted; g.strokeStyle = line; g.lineWidth = 1;
+    for (var v = 0; v <= M; v += stap) {
+      g.beginPath(); g.moveTo(ml, Y(v) + .5); g.lineTo(ml + W, Y(v) + .5); g.moveTo(X(v) + .5, mt); g.lineTo(X(v) + .5, mt + Hh); g.stroke();
+      g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText(heel(v), ml - 6, Y(v));
+      g.textAlign = 'center'; g.textBaseline = 'top'; g.fillText(heel(v), X(v), mt + Hh + 5);
+    }
+    g.font = '11.5px ' + kleur('--kop'); g.fillStyle = muted;
+    g.textAlign = 'center'; g.fillText('werkelijk (/u)', ml + W / 2, mt + Hh + 22);
+    g.save(); g.translate(9, mt + Hh / 2); g.rotate(-Math.PI / 2); g.textBaseline = 'middle'; g.fillText('geteld, Passanten zonder ijking (/u)', 0, 0); g.restore();
+    g.save(); g.beginPath(); g.rect(ml, mt, W, Hh); g.clip();
+    // de punten
+    g.fillStyle = acc; g.globalAlpha = opt.alfa;
+    var zicht = [], buiten = 0;
+    punten.forEach(function (p) {
+      if (p.w > M || p.s > M) { buiten++; return; }
+      var x = X(p.w), y = Y(p.s); g.beginPath(); g.arc(x, y, opt.r, 0, 2 * Math.PI); g.fill(); zicht.push({ x: x, y: y, p: p });
+    });
+    g.globalAlpha = 1;
+    // 1:1 en de gemiddelde verhouding
+    g.setLineDash([5, 4]); g.strokeStyle = muted; g.lineWidth = 1.2; g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(M), Y(M)); g.stroke();
+    g.setLineDash([]); g.strokeStyle = ink; g.lineWidth = 1.6; g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(M), Y(M / F)); g.stroke();
+    // deze ronde
+    g.strokeStyle = oker; g.lineWidth = 2;
+    zicht.forEach(function (q) { if (q.p.z === HUIDIG) { g.beginPath(); g.arc(q.x, q.y, opt.r + 3.5, 0, 2 * Math.PI); g.stroke(); } });
+    g.restore();
+    // de lijnen benoemen, met een rand in de achtergrondkleur zodat de stippen er niet doorheen lopen
+    function label(t, x, y, k) { g.lineWidth = 4; g.strokeStyle = kleur('--paper'); g.strokeText(t, x, y); g.fillStyle = k; g.fillText(t, x, y); }
+    g.font = '11.5px ' + kleur('--kop'); g.textAlign = 'right'; g.textBaseline = 'top';
+    label('1:1 (geteld = werkelijk)', X(M) - 6, mt + 6, muted);
+    label('gemiddeld: geteld = werkelijk ÷ ' + komma(F, 2), X(M) - 6, mt + 22, ink);
+    WOLK[id] = { zicht: zicht, vak: opt.vak };
+    return buiten;
+  }
+  function cijfers(v, F, eenheid, buiten) {
+    return '<b>' + v.n.toLocaleString('nl-NL') + '</b> ' + eenheid + '. Geteld ÷ werkelijk: mediaan ' + komma(v.med, 2) + ', 8 op de 10 tussen ' + komma(v.p10, 2) + ' en ' + komma(v.p90, 2) + '. ' +
+           'Na × F (' + komma(F, 2) + ') binnen 20% van werkelijk: ' + Math.round(100 * v.b20) + '%; binnen 50%: ' + Math.round(100 * v.b50) + '%.' +
+           (v.nul ? ' ' + v.nul + ' keer nul geteld.' : '') + (buiten ? ' ' + buiten + ' buiten beeld.' : '');
+  }
+  function tekenWolken() {
+    var st = el('wolkstatus');
+    if (!st) return;
+    el('wolkkop').textContent = N_REF.toLocaleString('nl-NL') + ' rondes, drukte ' + (drukte === 'alles' ? 'gemengd' : drukte) + ': werkelijk tegen geteld';
+    if (!REF || REF.bezig !== undefined) {
+      st.textContent = 'Rekent … ' + (REF ? REF.bezig : 0) + '%';
+      ['wolk-ronde', 'wolk-vak'].forEach(function (id) { var c = el(id); c.getContext('2d').clearRect(0, 0, c.width, c.height); WOLK[id] = null; });
+      el('cijfers-ronde').textContent = ''; el('cijfers-vak').textContent = '';
+      return;
+    }
+    st.textContent = 'Elke stip is een ronde of een vak (zaadjes 1 tot ' + N_REF.toLocaleString('nl-NL') + ', trefkans 95%). Werkelijk: de stroom in het midden van het vak, beide richtingen. Geteld: wat Passanten ervan maakt, zonder de ijking. De strepen onderaan in de vakken zijn 0, 1, 2 of 3 tikken in een vak. Ga met de muis over een stip; klik om die ronde hierboven te openen. Omcirkeld: de ronde die nu open staat.';
+    var b1 = wolk('wolk-ronde', REF.rondes, REF.F, { r: 2.6, alfa: 0.55, vak: false });
+    var b2 = wolk('wolk-vak', REF.vakken, REF.F, { r: 1.6, alfa: 0.22, vak: true });
+    el('cijfers-ronde').innerHTML = cijfers(REF.vRonde, REF.F, 'rondes (gemiddelde over de vakken)', b1);
+    el('cijfers-vak').innerHTML = cijfers(REF.vVak, REF.F, 'vakken', b2);
+  }
+  function wolkPunt(id, e) {
+    var w = WOLK[id]; if (!w) return null;
+    var r = el(id).getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, best = null, bd = 7;
+    w.zicht.forEach(function (q) { var d = Math.hypot(q.x - mx, q.y - my); if (d < bd) { bd = d; best = q; } });
+    return best;
+  }
+  function openRonde(z, k) {
+    el('zaad').value = z; alles();
+    if (k !== undefined && A.vakken.some(function (v) { return v.k === k; })) { sel = { soort: 'vak', k: k }; tekenDiagram(); tekenTabel(); tekenInfo(); }
+    var snel = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el('chips').scrollIntoView({ behavior: snel ? 'auto' : 'smooth', block: 'start' });
   }
 
   /* ---------- de kerncijfers ------------------------------------------------ */
@@ -914,7 +1031,7 @@ var PASSANTEN = (function () {
       ['tegemoet', teg.length + ' ontmoet · ' + gez + ' gezien'],
       ['tikken', A.tikken.length + ' · ' + A.buur + ' in een buurvak · ' + A.wees + ' in een gat'],
       ['F van deze ronde', A.F === null ? '–' : komma(A.F, 2) + (REF && REF.lijst ? ' · hoger dan ' + Math.round(100 * REF.lijst.filter(function (f) { return f < A.F; }).length / REF.lijst.length) + '% van de rondes' : '')],
-      ['F over ' + N_REF + ' rondes, ' + (drukte === 'alles' ? 'gemengd' : drukte), !REF || REF.bezig !== undefined ? 'rekent … ' + (REF ? REF.bezig : 0) + '%' : komma(REF.F, 2) + ' · 8 op de 10 tussen ' + komma(REF.p10, 2) + ' en ' + komma(REF.p90, 2)]
+      ['F over ' + N_REF.toLocaleString('nl-NL') + ' rondes, ' + (drukte === 'alles' ? 'gemengd' : drukte), !REF || REF.bezig !== undefined ? 'rekent … ' + (REF ? REF.bezig : 0) + '%' : komma(REF.F, 2) + ' · 8 op de 10 tussen ' + komma(REF.p10, 2) + ' en ' + komma(REF.p90, 2)]
     ];
     el('chips').innerHTML = c.map(function (x, i) { return '<div class="chip' + (i >= c.length - 2 ? ' f' : '') + '"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
   }
@@ -1115,6 +1232,7 @@ var PASSANTEN = (function () {
     if (sel.soort === 'voet') sel = { soort: 'geen' };
     hover = null;
     tekenChips(); tekenDiagram(); tekenTabel(); tekenInfo();
+    if (REF && REF.rondes) tekenWolken();      // de omcirkelde ronde
   }
   function kiesVak(k) { sel = sel.soort === 'vak' && sel.k === k ? { soort: 'geen' } : { soort: 'vak', k: k }; tekenDiagram(); tekenTabel(); tekenInfo(); }
   el('volgende').addEventListener('click', function () { el('zaad').value = (parseInt(el('zaad').value, 10) || 0) + 1; alles(); });
@@ -1139,9 +1257,25 @@ var PASSANTEN = (function () {
   document.querySelectorAll('.schakel button').forEach(function (b) {
     b.addEventListener('click', function () { if (b.getAttribute('data-drukte') === drukte) return; zetDrukte(b.getAttribute('data-drukte')); alles(); referentie(); });
   });
+  ['wolk-ronde', 'wolk-vak'].forEach(function (id) {
+    var cv = el(id);
+    cv.addEventListener('mousemove', function (e) {
+      var q = wolkPunt(id, e), tip = el('wolktip');
+      if (!q) { tip.hidden = true; cv.style.cursor = 'default'; return; }
+      cv.style.cursor = 'pointer';
+      tip.innerHTML = 'zaadje ' + q.p.z + (WOLK[id].vak ? ', vak ' + q.p.k : '') + '<br>werkelijk ' + heel(q.p.w) + ' /u · geteld ' + heel(q.p.s) + ' /u<br>geteld ÷ werkelijk ' + komma(q.p.s / q.p.w, 2) + ' · klik om te openen';
+      tip.hidden = false;
+      var r = cv.parentNode.getBoundingClientRect(), b = cv.getBoundingClientRect();
+      tip.style.left = Math.min(b.left - r.left + q.x + 12, r.width - 230) + 'px'; tip.style.top = (b.top - r.top + q.y + 12) + 'px';
+    });
+    cv.addEventListener('mouseleave', function () { el('wolktip').hidden = true; });
+    cv.addEventListener('click', function (e) { var q = wolkPunt(id, e); if (q) { el('wolktip').hidden = true; openRonde(q.p.z, WOLK[id].vak ? q.p.k : undefined); } });
+  });
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', tekenWolken);
+  new MutationObserver(tekenWolken).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   var wacht;
   setTimeout(referentie, 80);
-  window.addEventListener('resize', function () { clearTimeout(wacht); wacht = setTimeout(function () { tekenDiagram(); if (sel.soort === 'voet') licht(sel.p); }, 150); });
+  window.addEventListener('resize', function () { clearTimeout(wacht); wacht = setTimeout(function () { tekenDiagram(); if (sel.soort === 'voet') licht(sel.p); if (REF && REF.rondes) tekenWolken(); }, 150); });
   zetDrukte('alles');
   alles();
 })();
