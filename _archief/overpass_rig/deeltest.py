@@ -11,7 +11,9 @@ Eén regel onder de knop waarmee je de ZIP bewaart, zonder iets weg te klikken.
      telefoon van 360 px zonder zijwaarts schuiven. Static noemt het adres.
   B. Pocket: de regel staat in het voorbeeldscherm onder de kop met ZIP
      opslaan, in de taal van dat moment (Nederlands, dan Engels).
-  C. Telreconstructie en telrapport: een vaste regel onder de knop.
+  C. Telreconstructie: een vaste regel onder de knop. Telrapport had er tot
+     4 november 2026 ook een; Jay haalde hem weg ("Remove warning about sharing
+     GeoPackage"), dus nu: geen regel in telrapport.
   D. Privacyverklaring en handleiding hebben een stuk *Een ZIP delen*.
 
 Hulp (server, CDN-omleiding, nep-Overpass) komt uit hersteltest.py ernaast.
@@ -82,12 +84,12 @@ with sync_playwright() as p:
     eis('pocket: geen JS-fouten', not fouten, fouten)
     ctx.close()
 
-    print('\n== C. Telreconstructie en telrapport ==')
+    print('\n== C. Telreconstructie (en telrapport: geen regel meer) ==')
     ctx = b.new_context(viewport={'width': 1400, 'height': 900}); ctx.route('**/*', route_met_osm)
     pg = ctx.new_page(); fouten = []
     pg.on('pageerror', lambda e: fouten.append(e.message[:120]))
     for app, knop, nodig in [('telreconstructie.html', 'exportBtn', 'Begint je opname bij huis? Deel de zip dan niet zomaar met iedereen.'),
-                             ('telrapport.html', None, 'Begint een opname bij huis? Deel de verzameling of GeoPackage dan niet zomaar met iedereen.')]:
+                             ('telrapport.html', None, None)]:
         pg.goto(BASIS + app, wait_until='load'); pg.wait_for_timeout(500)
         if knop:
             st = pg.evaluate(STAAT, knop)
@@ -97,7 +99,7 @@ with sync_playwright() as p:
               const v = w && w.previousElementSibling;
               return { na_gpkg: !!(v && v.querySelector('#export-gpkg-btn')), tekst: w ? w.textContent : null,
                        zichtbaar: !!(w && w.offsetParent !== null) }; }""")
-            eis('%s: onder verzameling en GeoPackage, zichtbaar' % app, st['na_gpkg'] and st['zichtbaar'] and nodig in (st['tekst'] or ''), st)
+            eis('%s: geen regel meer onder verzameling en GeoPackage (Jay haalde hem weg, 4 nov 2026)' % app, st['tekst'] is None, st)
     eis('geen JS-fouten', not fouten, fouten)
     ctx.close()
     b.close()

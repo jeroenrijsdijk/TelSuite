@@ -34,7 +34,7 @@ opgeteld; v = 1,1 m/s.
      details van een cel, en "Toon op de kaart". Ook een grijs stuk opent het.
   F. Twee zaterdagen worden één waarde (eerst optellen, dan delen).
   G. Op 390 px: niets breder dan het scherm.
-  K. (v3.39) IJking: wat getoond wordt is × IJKFACTOR (sinds v3.40 1,05), de
+  K. (v3.39) IJking: wat getoond wordt is × IJKFACTOR (sinds v3.46 1,03), de
      gemeten stromen en c.q niet; de marge ligt MARGE_BREED (1,4) keer zo ver van
      de schatting. De verwachte labels, kleuren en weekwaarden zijn daarom × IJK.
   T. (v3.42) Te kort gemeten: een stuk met een ontmoetingsvenster onder
@@ -202,8 +202,8 @@ def schat(c):
     return c['q'] * (2 if not c['compleet'] and len(c['stromen']) == 1 else 1)
 
 MIN_TEGEN = 10
-IJK, BREED = 1.05, 1.4     # IJKFACTOR (v3.40) en MARGE_BREED (v3.39) in passanten.html
-IJK_TEKST = '1,05'
+IJK, BREED = 1.03, 1.4     # IJKFACTOR (v3.46; v3.40 1,05) en MARGE_BREED (v3.39) in passanten.html
+IJK_TEKST = '1,03'
 def richting_weg(way):
     _, a, b, _ = WEGEN[way]
     dx, dy = b[0] - a[0], b[1] - a[1]; n = math.hypot(dx, dy)

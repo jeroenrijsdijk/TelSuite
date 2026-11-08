@@ -19,10 +19,11 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.45'
-# v3.45: telreconstructie: een stuk waar je doorheen kwam (minstens de helft
-# gezien) is ook een bezoek; nooit een duur van 0. RECON_VERSIE v3.45.
-VERWACHT_GEWIJZIGD = {'telreconstructie.html', 'index.html', 'traffic_counter_help.html', 'zip_format_reference.html'}
+RELEASE = 'v3.46'
+# v3.46: simulatieronde.html op telonline.org (de simulatie achter de ijking,
+# tot op de voetganger); IJKFACTOR 1,03; de handleiding over ijking,
+# nauwkeurigheid en p/m·u tegen passanten.
+VERWACHT_GEWIJZIGD = {'simulatieronde.html', 'passanten.html', 'index.html', 'traffic_counter_help.html', 'zip_format_reference.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
