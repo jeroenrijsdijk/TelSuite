@@ -42,6 +42,7 @@ main{padding:12px 20px 30px;max-width:1300px}
 .leaflet-popup-content{margin:10px 13px;line-height:1.5}
 .pop .groot{font-size:20px;font-weight:400;margin:2px 0 0}
 .pop .dim{color:var(--muted)}
+#legenda .dim a,.pop .dim a{color:inherit}   /* v3.46: de link naar de simulatie */
 .pop .kort-noot{margin:4px 0 2px;padding:4px 7px;background:#efeee9;border-left:3px solid #8d8d86;font-size:12px}
 .qlabel span{display:inline-block;background:#fff;border:1px solid #1b1b19;border-radius:9px;padding:0 5px;font:500 11.5px/15px Oswald,sans-serif;color:#1b1b19;white-space:nowrap;transform:translate(-50%,-50%)}
 #legenda{position:absolute;right:10px;top:10px;z-index:800;background:rgba(246,245,241,.94);border:1px solid var(--line);border-radius:3px;padding:7px 10px;font-size:11.5px;line-height:1.5;max-width:260px}
@@ -119,7 +120,7 @@ main{padding:12px 20px 30px;max-width:1300px}
     <div class="rij"><span class="kop">Kies</span><button id="kiesknop" aria-pressed="false" onclick="kiesModus()">Kies stukken</button><span id="keuzetekst" class="sub"></span></div>
   </div>
   <div id="kaartvak"><div id="kaart"></div><div id="legenda" class="hide"></div></div>
-  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Liep je een stuk maar één kant op, dan is die ene stroom opgehoogd en staat er een sterretje bij: met de verhouding tussen de richtingen elders in dezelfde straat op hetzelfde moment, of anders × 2 (evenveel de andere kant op). Is het venster van een stuk op dat moment korter dan 30 s (een kort stukje, één keer gelopen), dan staat het grijs gestreept: te kort gemeten. Tikken die tussen twee stukken vallen (de gps meet om de paar seconden), tellen mee: elk gaatje wordt in het midden gedeeld. De uitkomst is daarna × 1,05 geijkt: een simulatie liet zien dat de telling zo'n 5% te laag uitkomt, omdat je af en toe iemand mist (voorlopig, tot een ijking met een vaste telling). Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
+  <div class="voet sub" id="voet">Hoe het gerekend wordt: lopend kom je meer tegenliggers tegen dan iemand die stilstaat ziet passeren, want je loopt ze tegemoet. Per stuk straat geldt: passanten per uur = 3600 · tegenliggers ÷ (lengte ÷ 1,1 m/s + de tijd dat je er liep). De 1,1 m/s is de aangenomen loopsnelheid van voetgangers. Alle gemeten zaterdagen samen zijn één zaterdag, en zo ook de andere dagen; een passage telt in het uur waarin het midden ervan valt. Je ziet alleen wie je tegemoet komt: wie een stuk heen en terug liep, ziet beide stromen. Liep je een stuk maar één kant op, dan is die ene stroom opgehoogd en staat er een sterretje bij: met de verhouding tussen de richtingen elders in dezelfde straat op hetzelfde moment, of anders × 2 (evenveel de andere kant op). Is het venster van een stuk op dat moment korter dan 30 s (een kort stukje, één keer gelopen), dan staat het grijs gestreept: te kort gemeten. Tikken die tussen twee stukken vallen (de gps meet om de paar seconden), tellen mee: elk gaatje wordt in het midden gedeeld. De uitkomst is daarna × 1,03 geijkt: een <a href="simulatieronde.html">simulatie</a> liet zien dat de telling zo'n 3% te laag uitkomt, omdat je af en toe iemand mist, bij rustige en drukke straten even veel (voorlopig, tot een ijking met een vaste telling). Meer in de <a href="traffic_counter_help.html#passanten">handleiding</a>.</div>
   </div>
   <div id="tab-dagcurve" class="hide"><div id="dagcurve"></div></div>
 </main>
@@ -671,7 +672,12 @@ function tekenKaart() {
    de simulatie opnieuw met die kern (3000 rondes): zonder gemiste tikken
    F = 0,98, met 95% trefkans F = 1,05. Jay kalibreert op de huidige
    telmethode (er liggen al zo'n 100 tellingen): het veldwerk blijft gelijk.
-   Te vervangen door een ijking met een vaste telling (Static) op de route.
+   v3.46: de simulatie per ronde bekeken (simulatieronde.html; Jay wilde "echt
+   inzicht in de details"), met een drukte zoals in een week: 50 tot 3.000 per
+   uur, de meeste rondes rond de 600. Over 10.000 rondes F = 1,03, en per
+   drukteklasse 1,02 tot 1,03: één factor past bij rustige en drukke straten.
+   Jay: "Naar 1,03". Nog steeds te vervangen door een ijking met een vaste
+   telling (Static) op de route.
    IJKFACTOR geldt voor wat getoond wordt (schat), niet voor de gemeten stromen.
    MARGE_BREED: mensen lopen in groepjes, dus de tikken zijn geen puur toeval;
    de spreiding is ongeveer twee keer die van Poisson (φ ≈ 2), en de
@@ -690,7 +696,7 @@ var OPHOGEN = 2, MIN_TEGEN = 10;
 var KORT_VENSTER = 30;     // s
 function venster(c) { return ['A', 'B', '?'].reduce(function (a, r) { return a + (c.stromen[r].n ? c.stromen[r].w : 0); }, 0); }
 function teKort(c) { return venster(c) < KORT_VENSTER; }
-var IJKFACTOR = 1.05;      // voorlopig, uit de simulatie (okt 2026, kern v3.40); te vervangen door een Static-ijking
+var IJKFACTOR = 1.03;      // uit de simulatie (v3.46: een week, 10.000 rondes; simulatieronde.html); te vervangen door een Static-ijking
 var MARGE_BREED = 1.4;     // overdispersie door groepjes: φ ≈ 2, marge × √φ
 var SCHATTINGEN = {};      // geheugen per stuk en moment; herbereken() leegt het
 function straatNaam(seg) { var n = String(seg.straat || '').trim().toLowerCase(); return n && n !== '(naamloos)' ? n : ''; }
@@ -766,7 +772,7 @@ function tekenLegenda() {
     '<div><span class="kort"></span>te kort gemeten (venster onder ' + KORT_VENSTER + ' s)</div>' +
     (Object.keys(KEUZE).length ? '<div><span class="gekozen"></span>gekozen voor de dagcurve</div>' : '') +
     '<div class="dim">loopsnelheid voetgangers: ' + komma(PASSANTEN.V_VOET, 1) + ' m/s</div>' +
-    '<div class="dim">geijkt: \u00d7 ' + komma(IJKFACTOR, 2) + ' (voorlopig, uit simulatie)</div>';
+    '<div class="dim">geijkt: \u00d7 ' + komma(IJKFACTOR, 2) + ' (voorlopig, uit <a href="simulatieronde.html">simulatie</a>)</div>';
   el.classList.remove('hide');
 }
 
@@ -812,7 +818,7 @@ function popupHtml(seg, c) {
     '<div class="dim">marge ' + rond(mg[0]) + '–' + rond(mg[1]) + ' (95%)</div>' +
     '<div>' + dag + ' ' + c.uur + ':00–' + (c.uur + 1) + ':00 · ' + c.n + ' keer langsgelopen, ' + dagen + '</div>' +
     '<div>' + richting + '</div>' +
-    '<div class="dim">geijkt: de berekende waarde \u00d7 ' + komma(IJKFACTOR, 2) + ' (voorlopig, uit een simulatie); de gemeten stromen hierboven niet. ' +
+    '<div class="dim">geijkt: de berekende waarde \u00d7 ' + komma(IJKFACTOR, 2) + ' (voorlopig, uit een <a href="simulatieronde.html" target="_blank">simulatie</a>); de gemeten stromen hierboven niet. ' +
     'De marge is ruimer dan bij puur toeval, omdat mensen in groepjes lopen.</div>' +
     '<div>stilstaand: ' + komma(c.kStil, 1) + ' per 100 m</div></div>';
 }
