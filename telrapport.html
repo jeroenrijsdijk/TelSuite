@@ -1082,7 +1082,7 @@ const visitData     = {};   // sid → [{ wid, segIdx, tStart, tEnd, durSec, nGp
 //   bezoekenOp:   wayData-sleutel → [{ sid, v }] uit visitData, in laadvolgorde
 //                 (dus dezelfde volgorde van optellen als voorheen).
 const wegvakkenVan  = {};
-const BUNDEL        = { diepte: 0, kleur: false, bollen: new Set(), lijst: false, ui: false, stats: false };   // v3.49, zie bundelOpen
+const BUNDEL        = { diepte: 0, kleur: false, bollen: new Set(), lijst: false, ui: false, stats: false, kader: null };   // v3.49, zie bundelOpen
 const bezoekenOp    = {};
 function koppel(k, e) {
   wayData[k].sessions.push(e);
@@ -1569,7 +1569,7 @@ function toonStandStill(text, naam, bron, vasteSid) {
 
   // Eerste sessie? Zoom erop in.
   if (Object.keys(sessions).length === 1) {
-    map.setView([data.lat, data.lon], 17);
+    kaartOp(function(){ map.setView([data.lat, data.lon], 17); });   // v3.49: in een bundel pas aan het eind
   }
 }
 
@@ -2010,7 +2010,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
       recolorAll();
       drawClusters(sid);
       const visGeom = netKeys.map(function(k){ return wayData[k].geometry; }).filter(Boolean);
-      if (visGeom.length) try { map.fitBounds(L.featureGroup(visGeom.map(function(g){ return L.polyline(g); })).getBounds().pad(0.2)); } catch(e) {}
+      if (visGeom.length) kaartOp(function(){ map.fitBounds(L.featureGroup(visGeom.map(function(g){ return L.polyline(g); })).getBounds().pad(0.2)); });
     }
     renderSessions(); updateUI(); updateStats();
     return;
@@ -2153,7 +2153,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
   renderSessions(); updateUI(); updateStats();
 
   const alle = dotLayers[sid][ptype]||[];
-  if (alle.length) { try{ map.fitBounds(L.featureGroup(alle).getBounds().pad(0.2)); }catch(e){} }
+  if (alle.length) kaartOp(function(){ map.fitBounds(L.featureGroup(alle).getBounds().pad(0.2)); });
 }
 
 // Voegt een zero-visited sessie-entry toe aan een segment.
@@ -2444,11 +2444,21 @@ function wayHeat(key) {
    zodat twee keer laden door elkaar heen niet halverwege tekent. Buiten een
    bundel (losse aanroepen, de tests) werkt alles direct, zoals voorheen.      */
 function bundelOpen() { BUNDEL.diepte++; }
+// Het kaartbeeld na het laden van een telling. Elke verschuiving laat Leaflet
+// alle lijnen opnieuw rekenen (42.550 wegvakken bij Jay's set): in een bundel
+// onthoudt kaartOp daarom alleen de laatste, en bundelKlaar zet die één keer.
+// Het eindbeeld is dus hetzelfde als voorheen: dat van de laatst geladen telling.
+function kaartOp(fn) {
+  if (BUNDEL.diepte) { BUNDEL.kader = fn; return; }
+  try { fn(); } catch (e) {}
+}
 function bundelKlaar() {
   if (BUNDEL.diepte > 0) BUNDEL.diepte--;
   if (BUNDEL.diepte > 0) return;
   const b = { kleur: BUNDEL.kleur, bollen: [...BUNDEL.bollen], lijst: BUNDEL.lijst, ui: BUNDEL.ui, stats: BUNDEL.stats };
+  const kader = BUNDEL.kader; BUNDEL.kader = null;
   BUNDEL.kleur = BUNDEL.lijst = BUNDEL.ui = BUNDEL.stats = false; BUNDEL.bollen.clear();
+  if (kader) { try { kader(); } catch (e) {} }
   if (b.kleur) recolorAll();
   b.bollen.forEach(function (sid) { if (sessions[sid]) drawClusters(sid); });
   if (b.lijst) renderSessions();
@@ -3768,7 +3778,7 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
                  + ' terrein(en), niet op de kaart gezet:', zonderGeom);
     }
     if (capLayers[sid].length) {
-      map.fitBounds(L.featureGroup(capLayers[sid]).getBounds().pad(0.4));
+      kaartOp(function(){ map.fitBounds(L.featureGroup(capLayers[sid]).getBounds().pad(0.4)); });
     }
     renderSessions(); updateUI(); updateStats();
 
@@ -3985,7 +3995,7 @@ async function loadZip(file, voorgeladenZip) {
   renderSessions();
   updateUI();
   updateStats();
-  map.fitBounds(Object.values(wayData).flatMap(w=>w.geometry),{padding:[30,30]});
+  kaartOp(function(){ map.fitBounds(Object.values(wayData).flatMap(w=>w.geometry),{padding:[30,30]}); });
 
 }
 
