@@ -24,15 +24,15 @@ function functie(naam) {
 const regel = re => { const m = re.exec(html); if (!m) throw new Error('niet gevonden: ' + re); return m[0]; };
 const blok = (a, z) => { const i = html.indexOf(a), j = html.indexOf(z, i); if (i < 0 || j < 0) throw new Error('blok: ' + a); return html.slice(i, j + z.length); };
 
-const ctx = { wayData: {}, wayLayers: {}, visitData: {}, sessions: {}, maxFietsTotaal: 1 };
+const ctx = { wayData: {}, wayLayers: {}, visitData: {}, bezoekenOp: {}, sessions: {}, maxFietsTotaal: 1 };
 vm.createContext(ctx);
 vm.runInContext([
-  'var wayData = this.wayData, wayLayers = this.wayLayers, visitData = this.visitData, sessions = this.sessions, maxFietsTotaal = 1;',
+  'var wayData = this.wayData, wayLayers = this.wayLayers, visitData = this.visitData, bezoekenOp = this.bezoekenOp, sessions = this.sessions, maxFietsTotaal = 1;',
   'function pocketZichtbaar(sid) { return !!(sessions[sid] && sessions[sid].visible); }',
   'function getSessionColor() { return "#123456"; }',
   regel(/const PMU_MIN_MS = [^;]+;/), regel(/const KORT_KLEUR = [^;]+;/),
   blok('const INTENSITEIT = [', '];'),
-  functie('intensityClass'), functie('parseKey'), functie('segmentLengthM'), functie('heatColor'),
+  functie('wkey'), functie('zetStijl'), functie('intensityClass'), functie('parseKey'), functie('segmentLengthM'), functie('heatColor'),
   functie('pmuForKey'), functie('pmuMeting'), functie('kortTekst'), functie('wayHeat'), functie('recolorOne')
 ].join('\n') + '\nthis.f = { pmuForKey, pmuMeting, kortTekst, wayHeat, recolorOne, PMU_MIN_MS, KORT_KLEUR };', ctx);
 const F = ctx.f;
@@ -51,6 +51,13 @@ function zet(key, L, bezoeken) {
     (ctx.visitData[b.sid] = ctx.visitData[b.sid] || []).push({ wid, segIdx: +seg, durSec: b.sec, nTel: b.tikken });
     ctx.wayData[key].sessions.push({ sid: b.sid, appType: 'pocket', totaal: b.tikken, zeroVisited: b.tikken === 0 });
   });
+  // v3.49: pmuMeting leest de bezoeken per wegvak uit bezoekenOp (zoals de lader
+  // die vult: per telling, in laadvolgorde)
+  Object.keys(ctx.bezoekenOp).forEach(k => { delete ctx.bezoekenOp[k]; });
+  Object.keys(ctx.visitData).forEach(sid => ctx.visitData[sid].forEach(v => {
+    const k = v.wid + ':' + (v.segIdx || 0);
+    (ctx.bezoekenOp[k] = ctx.bezoekenOp[k] || []).push({ sid, v });
+  }));
 }
 const lijn = () => { const l = { stijl: null, setStyle(s) { this.stijl = s; } }; return l; };
 

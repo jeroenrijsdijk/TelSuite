@@ -75,6 +75,7 @@ function maakCtx(opts) {
     toggleCapNetwerk: btn => { btn.classList.toggle('active'); log.toggles.push('cap'); },
     showHideDots: () => {},
     zetStippen: () => {},          // v3.47: pasVerzamelingWeergaveToe zet de stippen via zetStippen
+    recolorAll: () => {}, updateStats: () => {},   // v3.49: na het zetten van de zichtbaarheid
     applySessionVisibility: () => {},
     renderSessions: () => {},
     loadStandStillCsv: () => {},
