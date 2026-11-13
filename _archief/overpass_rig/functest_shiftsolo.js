@@ -119,12 +119,15 @@ console.log('== hint in de tooltip ==');
     vm.runInContext('clusterTip("goed: 4")', twee).indexOf('goed: 4') === 0);
 }
 
-console.log('== bedrading in de drie clusterpaden ==');
-eis('gecombineerd cluster', /clusterShiftSolo\(e, Object\.keys\(sessionCounts\)\)/.test(html));
+// v3.48: het gecombineerde cluster (makePtClusterMarker) is weg; niets riep hem
+// nog aan. Er zijn nu twee clusterpaden.
+console.log('== bedrading in de twee clusterpaden ==');
+eis('het gecombineerde cluster is weg (v3.48: nergens aangeroepen)',
+  html.indexOf('function makePtClusterMarker') < 0 && !/clusterShiftSolo\(e, Object\.keys\(sessionCounts\)\)/.test(html));
 eis('gap-pad', /clusterShiftSolo\(e, \[sid\]\)/.test(html));
 eis('segment-pad', (html.match(/clusterShiftSolo\(e, \[sid\]\)/g) || []).length === 2);
-eis('alle drie hebben de mousedown-blokkade',
-  (html.match(/\.on\('mousedown', shiftBoxZoomBlokkeren\)/g) || []).length === 3);
+eis('beide hebben de mousedown-blokkade',
+  (html.match(/\.on\('mousedown', shiftBoxZoomBlokkeren\)/g) || []).length === 2);
 eis('de sessielijst gebruikt dezelfde schakelaar', /soloSessies\(\[sid\]\);/.test(html));
 eis('en heeft geen eigen kopie meer van de solo-logica',
   !/const isSolo = sessions\[sid\]\.visible/.test(html));

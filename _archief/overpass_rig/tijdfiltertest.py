@@ -21,6 +21,17 @@ zetStippen het op één plek.
      parkeertelling gaan uit, niet de lege vakken van pocket. Weer aan: terug.
   F. Sessielijst: Winkelstraat uit en aan, zoals altijd.
 
+v3.48 — wat in telrapport dubbel stond, samengevoegd (Jay: "zijn er nog meer
+functies die twee of drie keer ongeveer hetzelfde doen"; "je mag verder met de
+dubbele code"):
+  C/D. Het tijdfilter tekent via applySessionVisibility: ook de route en de rij
+     in de sessielijst volgen het venster, en komen terug.
+  G. De tabel van een clusterbol noemt een eigen soort ("alles"), niet alleen
+     het totaal.
+  H. Over een bol bewegen dimt de andere tellingen zoals een rij in de
+     sessielijst: stippen, bollen en route; daarna alles terug.
+  I. Het kwaliteitsrapport (clusterDekking) telt precies de tikken in de bollen.
+
 Hulp (veld-apps, server, CDN-omleiding, sql.js, export) uit gpkgtest.py ernaast.
 Draaien vanuit de suite-root:  python3 _archief/overpass_rig/tijdfiltertest.py
 """
@@ -38,6 +49,24 @@ def eis(naam, v, x=None):
     else: fout += 1; print('  FOUT ' + naam + ('' if x is None else ' -> ' + str(x)[:400]))
 
 # Stippen op de kaart en in dotLayers, per soort telling en type: { soort: { type: n } }.
+# Per soort: route op de kaart, rij in de sessielijst uit, tikken in de bollen,
+# en wat clusterDekking geplaatst noemt.
+LAGEN = r"""(() => {
+  const soort = sid => (sessions[sid].appType === 'auto' ? 'car' : (sid.match(/_(pkt_[a-z])$/) || [, sid])[1])
+                       + (sessions[sid].meta.type === 'Alles' ? ':Alles' : '');
+  const uit = {};
+  Object.keys(sessions).forEach(sid => {
+    const rij = document.querySelector('.session-row[data-sid="' + sid + '"]');
+    uit[soort(sid)] = {
+      route: !!(gpsLayers[sid] && map.hasLayer(gpsLayers[sid])),
+      rijUit: !!(rij && rij.classList.contains('off')),
+      inBollen: (clusterLayers[sid] || []).reduce((a, m) => a + (m._cluster && map.hasLayer(m) ? m._cluster.total : 0), 0),
+      dekking: clusterDekking(sid).geplaatst
+    };
+  });
+  return uit;
+})()"""
+
 # De soort: car (parkeertelling) of de laatste letters van een pocket-sessie-id
 # (pkt_p, pkt_w, pkt_s), en ":Alles" voor de eigen soort.
 STIPPEN = r"""(() => {
@@ -105,6 +134,9 @@ with sync_playwright() as p:
     eis('tijdfilter op %02d uur: de vier in het venster houden al hun stippen' % uur,
         {k: v for k, v in st['kaart'].items() if k != 'pkt_s:Alles'} == zonder, st['kaart'])
     eis('"Alles" valt buiten het venster: geen stippen', 'pkt_s:Alles' not in st['kaart'], st['kaart'])
+    la = pg.evaluate(LAGEN)
+    eis('v3.48: route en rij volgen het venster ("Alles" uit, de rest aan)',
+        all(x['route'] == (k != 'pkt_s:Alles') and x['rijUit'] == (k == 'pkt_s:Alles') for k, x in la.items()), la)
     pg.evaluate("const s = document.getElementById('time-slider'); s.value = %d; s.dispatchEvent(new Event('input'))" % ((uur + 12) % 24))
     st = pg.evaluate(STIPPEN)
     eis('een uur waar niets valt: geen enkele stip', st['kaart'] == {}, st['kaart'])
@@ -113,6 +145,8 @@ with sync_playwright() as p:
     pg.evaluate("document.getElementById('time-toggle').click()"); pg.wait_for_timeout(300)
     st = pg.evaluate(STIPPEN)
     eis('alle stippen weer op de kaart', st['kaart'] == alle, st['kaart'])
+    la = pg.evaluate(LAGEN)
+    eis('v3.48: alle routes terug en geen rij meer uit', all(x['route'] and not x['rijUit'] for x in la.values()), la)
     pad, _ = exporteer(pg, 'tijdfilter.gpkg')
     db = sqlite3.connect(pad)
     rijen = db.execute('select app_type, type, count(*) from waarnemingen group by 1, 2').fetchall()
@@ -144,6 +178,48 @@ with sync_playwright() as p:
     pg.evaluate("toggleGroupVisibility('pocket:winkelstraat')")
     st = pg.evaluate(STIPPEN)
     eis('en weer aan: alles terug', st['kaart'] == alle, st['kaart'])
+
+    print('\n== G. De tabel van een clusterbol, met een eigen soort ==')
+    g = pg.evaluate("""(() => {
+      const sid = Object.keys(sessions).filter(s => sessions[s].meta.type === 'Alles')[0];
+      const m = (clusterLayers[sid] || []).filter(m => m._cluster)[0];
+      if (!m) return null;
+      m.fire('click');
+      const rijen = [...document.querySelectorAll('#detail-body table.cmp-table tr')].map(tr => tr.innerText.replace(/\\s+/g, ' ').trim());
+      return { counts: m._cluster.counts, total: m._cluster.total, rijen: rijen };
+    })()""")
+    eis('de "Alles"-telling heeft bollen op het wegvak', g is not None and g['total'] > 0, g)
+    if g:
+        eis('de tabel heeft een regel voor de eigen soort, met het aantal en 100%',
+            any(r.startswith('alles %d 100%%' % g['total']) for r in g['rijen']), g)
+        eis('en het totaal', ('totaal %d' % g['total']) in g['rijen'], g['rijen'])
+
+    print('\n== H. Dimmen bij een bol, zoals bij een rij ==')
+    h = pg.evaluate("""(() => {
+      const sids = Object.keys(sessions);
+      const wink = sids.filter(s => /_pkt_w$/.test(s))[0], ander = sids.filter(s => /_pkt_p$/.test(s))[0];
+      const m = (clusterLayers[wink] || []).filter(m => m._cluster)[0];
+      const op = sid => {
+        const stip = Object.values(dotLayers[sid] || {})[0][0].getElement();
+        const bol = (clusterLayers[sid] || []).filter(m => m._cluster)[0].getElement();
+        const rt = gpsLayers[sid].getElement();
+        return [stip.style.opacity, bol.style.opacity, rt.style.opacity];
+      };
+      m.fire('mouseover');
+      const tijdens = { eigen: op(wink), ander: op(ander),
+                        rij: document.querySelector('.session-row[data-sid="' + wink + '"]').classList.contains('highlighted') };
+      m.fire('mouseout');
+      return { tijdens: tijdens, na: { eigen: op(wink), ander: op(ander),
+               rij: document.querySelector('.session-row.highlighted') !== null } };
+    })()""")
+    eis('over een bol: de andere telling gedimd (stippen, bollen en route)', h['tijdens']['ander'] == ['0.15'] * 3, h)
+    eis('de eigen telling niet, en zijn rij licht op', h['tijdens']['eigen'] == [''] * 3 and h['tijdens']['rij'], h)
+    eis('eraf: alles terug, geen rij meer opgelicht', h['na']['ander'] == [''] * 3 and h['na']['eigen'] == [''] * 3 and not h['na']['rij'], h)
+
+    print('\n== I. Het kwaliteitsrapport telt wat in de bollen zit ==')
+    la = pg.evaluate(LAGEN)
+    eis('per telling: tikken in de bollen = clusterDekking',
+        all(x['inBollen'] == x['dekking'] and x['dekking'] > 0 for x in la.values()), la)
     eis('geen JS-fouten in telrapport', not fouten, fouten)
     b.close()
 
