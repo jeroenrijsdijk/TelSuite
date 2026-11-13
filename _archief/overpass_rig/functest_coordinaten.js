@@ -26,7 +26,8 @@ eis('het segmentpad middelt nog steeds ook', /const centLat=group\.reduce/.test(
 console.log('\n== A. tik-type komt van de marker, niet uit de tooltip ==');
 eis('tooltip wordt niet meer uitgeplozen voor het type',
   dc.indexOf("tip.getContent().split(' ')") < 0);
-eis('_tikType wordt gelezen', /dot\._tikType/.test(dc));
+// v3.48: de stippen voor het gap-pad kiest bolPunten (gedeeld met clusterDekking)
+eis('_tikType wordt gelezen', /dot\._tikType/.test(fn('bolPunten')) && /bolPunten\(sid\)/.test(dc));
 eis('pocket zet _tikType', /m\._tikType = rowType;/.test(fn('loadPocketZip')));
 // v3.30: het losse transect-formaat (loadTransectZip) is weg; pocket dekt transect.
 eis('het losse transect-formaat leest telrapport niet meer, en zegt dat',

@@ -19,9 +19,10 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.47'
-# v3.47: telrapport, de stippen na het tijdfilter (zetStippen): pocket-stippen
-# kwamen niet terug, dus de GeoPackage had alleen een eigen soort ("Alles").
+RELEASE = 'v3.48'
+# v3.48: telrapport, wat dubbel stond samengevoegd: het tijdfilter tekent via
+# applySessionVisibility, de tabel van een clusterbol via clusterPunten, dimmen
+# via setSessionEmphasis, en bolPunten voor drawClusters en clusterDekking.
 VERWACHT_GEWIJZIGD = {'telrapport.html', 'index.html'}
 VERWACHT_VERWIJDERD = set()
 
