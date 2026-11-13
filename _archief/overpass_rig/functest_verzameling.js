@@ -74,6 +74,7 @@ function maakCtx(opts) {
     setBasemap: k => { log.basemap.push(k); ctx.currentBasemap = k; },
     toggleCapNetwerk: btn => { btn.classList.toggle('active'); log.toggles.push('cap'); },
     showHideDots: () => {},
+    zetStippen: () => {},          // v3.47: pasVerzamelingWeergaveToe zet de stippen via zetStippen
     applySessionVisibility: () => {},
     renderSessions: () => {},
     loadStandStillCsv: () => {},
