@@ -1073,6 +1073,27 @@ const capLayers      = {};   // sid → [marker] voor capaciteitssessies
 const capTelData    = {};   // sid → [telregels] voor capaciteitssessies
 const telData       = {};   // sid → filtered snapped telregels
 const visitData     = {};   // sid → [{ wid, segIdx, tStart, tEnd, durSec, nGps, nTel }]
+// v3.49: twee opzoeklijsten, zodat niet elke telling alle wegvakken langs hoeft.
+// Bij 185 tellingen en 42.550 wegvakken was dat het meeste werk van de kaart:
+// per telling twee keer alle wegvakken (heeft hij er? de 0-badges), en per
+// wegvak alle bezoeken van alle tellingen (pmuMeting).
+//   wegvakkenVan: sid → Set van wayData-sleutels waar die telling een entry in
+//                 wayData[k].sessions heeft. Alleen via koppel() en ontkoppel().
+//   bezoekenOp:   wayData-sleutel → [{ sid, v }] uit visitData, in laadvolgorde
+//                 (dus dezelfde volgorde van optellen als voorheen).
+const wegvakkenVan  = {};
+const BUNDEL        = { diepte: 0, kleur: false, bollen: new Set(), lijst: false, ui: false, stats: false };   // v3.49, zie bundelOpen
+const bezoekenOp    = {};
+function koppel(k, e) {
+  wayData[k].sessions.push(e);
+  (wegvakkenVan[e.sid] = wegvakkenVan[e.sid] || new Set()).add(k);
+}
+function ontkoppel(sid) {
+  (wegvakkenVan[sid] || new Set()).forEach(function (k) {
+    if (wayData[k]) wayData[k].sessions = wayData[k].sessions.filter(function (e) { return e.sid !== sid; });
+  });
+  delete wegvakkenVan[sid];
+}
 const segSummary    = {};   // sid → key(wid,segIdx) → [{ richting, categorie, aantal }]  (wandel-recon)
 const standStillData    = {};  // sid → { lat, lon, accuracy, gpsReliable, street, city,
                                 //         start, end, durSec, factor, dirA, dirB,
@@ -1252,11 +1273,7 @@ function gelopenStukken(sid, sm, bezCSV, gpsCSV, netKeys) {
 function telPerStuk(sid) {
   const s = sessions[sid]; if (!s) return;
   const appType = s.appType, types = STUK_TYPES[appType]; if (!types) return;
-  Object.keys(wayData).forEach(function (k) {
-    const wd = wayData[k];
-    if (wd.sessions.some(function (e) { return e.sid === sid; }))
-      wd.sessions = wd.sessions.filter(function (e) { return e.sid !== sid; });
-  });
+  ontkoppel(sid);   // v3.49: alleen de eigen wegvakken, niet alle
   const per = {};
   (telData[sid] || []).forEach(function (r) {
     const wid = String(r.osm_way_id || '').trim(); if (!wid) return;
@@ -1275,7 +1292,7 @@ function telPerStuk(sid) {
       e.totaal = e.bezet + e.vrij;
       e.bezettingsgraad_pct = e.totaal > 0 ? Math.round(e.bezet / e.totaal * 1000) / 10 : 0;
     }
-    wayData[k].sessions.push(e);
+    koppel(k, e);
     if (!wayData[k].osmName && e.naam && e.naam !== '—') wayData[k].osmName = e.naam;
   });
   (nulStukken[sid] || []).forEach(function (k) {
@@ -1283,7 +1300,7 @@ function telPerStuk(sid) {
     const e = { sid: sid, appType: appType, naam: wayData[k].osmName || '', totaal: 0, zeroVisited: true };
     types.forEach(function (t) { e[t] = 0; });
     if (appType === 'auto') { e.bezet = 0; e.vrij = 0; e.bezettingsgraad_pct = 0; }
-    wayData[k].sessions.push(e);
+    koppel(k, e);
   });
 }
 
@@ -1916,6 +1933,10 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
       });
     });
     if (visits.length) visitData[sid] = visits;
+    visits.forEach(function (v) {   // v3.49: per wegvak, zie bezoekenOp
+      const k = wkey(v.wid, v.segIdx || 0);
+      (bezoekenOp[k] = bezoekenOp[k] || []).push({ sid: sid, v: v });
+    });
   }
 
   // _segmentsamenvatting.csv (wandel-recon, v2.20) — tellingen per (link × richting ×
@@ -2059,7 +2080,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
       if (!ws) {
         ws = { sid:sid, appType:'pocket', naam:naam, totaal:0 };
         ws[rowType] = 0;
-        wayData[k].sessions.push(ws);
+        koppel(k, ws);
       }
       ws[rowType] = (ws[rowType]||0)+1;
       ws.totaal  = (ws.totaal ||0)+1;
@@ -2092,9 +2113,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
   // het bestand terwijl de tikken van vóór de onderbreking wel een way-id dragen.
   // We fetchen op wayId-niveau en mappen dat op segIdx=0 alleen.
   if (hasSnap) {
-    const sessKeys = Object.keys(wayData).filter(function(k){
-      return wayData[k].sessions.some(function(s){ return s.sid===sid; });
-    });
+    const sessKeys = [...(wegvakkenVan[sid] || [])];   // v3.49
     const missing = sessKeys.filter(function(k){
       const g=wayData[k].geometry;
       return !g||(g.length===2&&g[0][0]===g[1][0]&&g[0][1]===g[1][1]);
@@ -2113,15 +2132,14 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
             }
           }
         });
-        recolorAll(); renderSessions(); drawClusters(sid);
+        recolorAll(); renderSessions(); drawClusters(sid); updateStats();
       });
     }
   }
 
   // Polylines aanmaken voor segmenten met geometrie maar zonder eigen layer
-  Object.keys(wayData).forEach(function(k){
-    if (!wayLayers[k] && wayData[k].geometry && wayData[k].geometry.length >= 2 &&
-        wayData[k].sessions.some(function(s){ return s.sid === sid; })) {
+  (wegvakkenVan[sid] || new Set()).forEach(function(k){   // v3.49: alleen de eigen wegvakken
+    if (!wayLayers[k] && wayData[k].geometry && wayData[k].geometry.length >= 2) {
       const g = wayData[k].geometry;
       if (!(g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) {
         makeWayLine(k, g, {color:'#3a3d42', weight:2, opacity:0.5});
@@ -2131,8 +2149,8 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
   });
 
   recolorAll();
+  drawClusters(sid);   // v3.49: vóór updateStats, die telt de bollen (locaties)
   renderSessions(); updateUI(); updateStats();
-  drawClusters(sid);
 
   const alle = dotLayers[sid][ptype]||[];
   if (alle.length) { try{ map.fitBounds(L.featureGroup(alle).getBounds().pad(0.2)); }catch(e){} }
@@ -2147,7 +2165,7 @@ function addPocketZero(sid, sm, key) {
   ws = { sid: sid, appType: 'pocket', naam: wd.osmName || '',
          totaal: 0, zeroVisited: true };
   ws[ptype] = 0;
-  wd.sessions.push(ws);
+  koppel(key, ws);
 }
 
 function pointInPolygon(lat, lon, poly) {
@@ -2216,7 +2234,7 @@ function attachPocketSegmentInteraction(k) {
   hit._pktAttached = true;
   hit.on('click', function() { showWegvakDetail(k); });
   hit.on('mouseover', function(e) {
-    const vis = wayLayers[k]; if (vis) vis.setStyle({ weight: 6, opacity: 1 });
+    const vis = wayLayers[k]; if (vis) { vis.setStyle({ weight: 6, opacity: 1 }); vis._stijl = null; }   // v3.49: zie zetStijl
     const wd = wayData[k];
     const naam = wd && wd.sessions[0] ? cleanNaam(wd.sessions[0].naam) : k;
     const visSess = wd ? wd.sessions.filter(s => sessions[s.sid]?.visible && !s.zeroVisited) : [];
@@ -2245,7 +2263,7 @@ function attachSessionSegmentInteraction(k) {
   hit._sessAttached = true;
   hit.on('click', function(){ showWegvakDetail(k); });
   hit.on('mouseover', function(e) {
-    const vis = wayLayers[k]; if (vis) vis.setStyle({weight:6,opacity:1});
+    const vis = wayLayers[k]; if (vis) { vis.setStyle({weight:6,opacity:1}); vis._stijl = null; }   // v3.49: zie zetStijl
     const wd2 = wayData[k];
     const naam = wd2.sessions[0] ? cleanNaam(wd2.sessions[0].naam) : (wd2.wayId || k);
     const visSess = wd2.sessions.filter(s=>sessions[s.sid]?.visible);
@@ -2318,14 +2336,12 @@ function pmuMeting(key) {
   const lenM = segmentLengthM(wd.geometry);
   if (!lenM) return null;
   let totTel = 0, totSec = 0;
-  Object.keys(visitData).forEach(sid => {
-    if (!pocketZichtbaar(sid)) return;
-    visitData[sid].forEach(v => {
-      if (v.wid === wid && (v.segIdx||0) === segIdx) {
-        totTel += v.nTel || 0;
-        totSec += v.durSec || 0;
-      }
-    });
+  // v3.49: de bezoeken op dit stuk via bezoekenOp, niet alle bezoeken van alle
+  // tellingen. bezoekenOp sleutelt op wkey(wid, segIdx), net als wayData.
+  (bezoekenOp[wkey(wid, segIdx)] || []).forEach(b => {
+    if (!pocketZichtbaar(b.sid)) return;
+    totTel += b.v.nTel || 0;
+    totSec += b.v.durSec || 0;
   });
   // Geen tikken in de bezoeken, wel getelde tikken op dit segment: dan tellen
   // die. Dat kan als _bezocht.csv en _telregels.csv een tik aan verschillende
@@ -2418,10 +2434,38 @@ function wayHeat(key) {
   }
 }
 
+/* v3.49: laden in een bundel. Bij het laden van veel ZIP's tekende telrapport na
+   elke ZIP de hele kaart opnieuw (kleuren, bollen, sessielijst, tellers), voor
+   alle tellingen die er al stonden: de tijd groeide met het kwadraat van het
+   aantal. In een bundel onthouden recolorAll, drawClusters, renderSessions,
+   updateUI en updateStats alleen dát het moet, en bundelKlaar() doet het aan het
+   eind één keer. ingestFiles opent en sluit de bundel; de voortgang staat in de
+   dropzone ("⏳ laden… k/n", daarna "⏳ kaart tekenen…"). Een teller (diepte),
+   zodat twee keer laden door elkaar heen niet halverwege tekent. Buiten een
+   bundel (losse aanroepen, de tests) werkt alles direct, zoals voorheen.      */
+function bundelOpen() { BUNDEL.diepte++; }
+function bundelKlaar() {
+  if (BUNDEL.diepte > 0) BUNDEL.diepte--;
+  if (BUNDEL.diepte > 0) return;
+  const b = { kleur: BUNDEL.kleur, bollen: [...BUNDEL.bollen], lijst: BUNDEL.lijst, ui: BUNDEL.ui, stats: BUNDEL.stats };
+  BUNDEL.kleur = BUNDEL.lijst = BUNDEL.ui = BUNDEL.stats = false; BUNDEL.bollen.clear();
+  if (b.kleur) recolorAll();
+  b.bollen.forEach(function (sid) { if (sessions[sid]) drawClusters(sid); });
+  if (b.lijst) renderSessions();
+  if (b.ui) updateUI();
+  if (b.stats || b.bollen.length) updateStats();
+}
+
 function recolorAll() {
+  if (BUNDEL.diepte) { BUNDEL.kleur = true; return; }   // v3.49
   // Herbereken maxFietsTotaal
   let mx = 1;
-  Object.keys(wayData).forEach(k => {
+  // v3.49: alleen de wegvakken van zichtbare fietstellingen (wegvakkenVan)
+  const fietsKeys = new Set();
+  Object.keys(wegvakkenVan).forEach(sid => {
+    if (sessions[sid]?.appType === 'fiets' && sessions[sid].visible) wegvakkenVan[sid].forEach(k => fietsKeys.add(k));
+  });
+  fietsKeys.forEach(k => {
     const wd = wayData[k];
     const fietsTotal = wd.sessions.filter(s => s.appType==='fiets' && sessions[s.sid]?.visible)
                                   .reduce((a,s) => a + (s.totaal||0), 0);
@@ -2432,18 +2476,28 @@ function recolorAll() {
   Object.keys(wayLayers).forEach(recolorOne);
 }
 
+// v3.49: een lijn alleen opnieuw stijlen als zijn stijl verandert. setStyle
+// schrijft anders bij elke recolorAll de SVG-attributen van alle lijnen opnieuw
+// (42.550 bij Jay's 185 tellingen). Wie een lijn op een andere manier stijlt
+// (de hover hieronder), zet _stijl op null, zodat recolorOne hem terugzet.
+function zetStijl(line, st) {
+  const sl = st.color + '|' + st.opacity + '|' + st.weight + '|' + st.dashArray;
+  if (line._stijl === sl) return;
+  line._stijl = sl;
+  line.setStyle(st);
+}
 function recolorOne(key) {
   const line = wayLayers[key]; if (!line) return;
   const heat = wayHeat(key);
   if (heat) {
     const kleur = heat.kleur || heatColor(heat.t);
-    line.setStyle({ color: kleur, opacity:0.9, weight:4, dashArray: null });
+    zetStijl(line, { color: kleur, opacity:0.9, weight:4, dashArray: null });
     return;
   }
   // v3.42: getikt, maar te kort gemeten voor een kleur
   const meting = pmuMeting(key);
   if (meting && meting.kort) {
-    line.setStyle({ color: KORT_KLEUR, opacity: 0.85, weight: 2.5, dashArray: '2 5' });
+    zetStijl(line, { color: KORT_KLEUR, opacity: 0.85, weight: 2.5, dashArray: '2 5' });
     return;
   }
   // Geen heat — check voor zichtbare zero-visited sessies
@@ -2452,14 +2506,14 @@ function recolorOne(key) {
     return s.zeroVisited && sessions[s.sid] && sessions[s.sid].visible;
   });
   if (zeroSess) {
-    line.setStyle({
+    zetStijl(line, {
       color:    getSessionColor(zeroSess.sid),
       opacity:  0.6, weight: 2,
       dashArray: '6 4'
     });
     return;
   }
-  line.setStyle({ color:'#3a3d42', opacity:0.5, weight:2, dashArray: null });
+  zetStijl(line, { color:'#3a3d42', opacity:0.5, weight:2, dashArray: null });
 }
 
 // ── PROJECTION ────────────────────────────────────────────────────
@@ -2713,9 +2767,7 @@ var combinedClusterLayer = [];  // leeg gehouden voor reset-compatibiliteit
    • Anders: de telregels met een wegvak met geometrie en een wegpositie
      (lat_marker), per wegvak en zijde langs de lijn geclusterd.            */
 function heeftWegvakken(sid) {
-  return Object.keys(wayData).some(function(k) {
-    return (wayData[k].sessions || []).some(function(s){ return s.sid === sid; });
-  });
+  return !!(wegvakkenVan[sid] && wegvakkenVan[sid].size);   // v3.49: opzoeken, niet alle wegvakken langs
 }
 function bolPunten(sid) {
   const s = sessions[sid]; if (!s) return { gap: false, punten: [] };
@@ -2745,6 +2797,7 @@ function bolPunten(sid) {
 }
 
 function drawClusters(sid) {
+  if (BUNDEL.diepte) { BUNDEL.bollen.add(sid); return; }   // v3.49
   (clusterLayers[sid]||[]).forEach(m=>map.removeLayer(m));
   clusterLayers[sid]=[];
   if (!clustersVisible || !sessions[sid]?.visible) return;
@@ -2849,7 +2902,7 @@ function drawClusters(sid) {
   // van het segment, in sessiekleur, gestreepte rand — visueel verschillend
   // van getelde clusters.
   if (appType === 'pocket') {
-    Object.keys(wayData).forEach(function(k) {
+    (wegvakkenVan[sid] || new Set()).forEach(function(k) {   // v3.49: alleen de eigen wegvakken
       const wd = wayData[k];
       const zeroSess = wd.sessions.find(function(s){ return s.sid === sid && s.zeroVisited; });
       if (!zeroSess || !wd.geometry || wd.geometry.length < 2) return;
@@ -2875,12 +2928,14 @@ function drawClusters(sid) {
       clusterLayers[sid].push(zm);
     });
   }
-
-  updateStats();
+  // v3.49: geen updateStats() meer per telling (die liep alle wegvakken langs, en
+  // werd zo 185 keer per keer tekenen uitgerekend). Wie drawClusters aanroept,
+  // roept daarna één keer updateStats() aan; redrawAllClusters doet dat zelf.
 }
 
 function redrawAllClusters() {
   Object.keys(sessions).forEach(sid=>drawClusters(sid));
+  updateStats();   // v3.49: één keer, niet per telling
 }
 
 // ── Betrouwbaarheid van een p/m·u (v3.7) ──────────────────────────────────
@@ -4254,6 +4309,7 @@ function makeSessionRow(sid) {
 }
 
 function renderSessions() {
+  if (BUNDEL.diepte) { BUNDEL.lijst = true; return; }   // v3.49
   const list = document.getElementById('sessions-list');
   list.innerHTML = '';
   const sids = Object.keys(sessions).sort().reverse();
@@ -4607,6 +4663,8 @@ function resetAll() {
   Object.keys(dotLayers).forEach(function(k){ delete dotLayers[k]; });
   Object.keys(telData).forEach(function(k){ delete telData[k]; });
   Object.keys(visitData).forEach(function(k){ delete visitData[k]; });
+  Object.keys(wegvakkenVan).forEach(function(k){ delete wegvakkenVan[k]; });   // v3.49
+  Object.keys(bezoekenOp).forEach(function(k){ delete bezoekenOp[k]; });
   Object.keys(segSummary).forEach(function(k){ delete segSummary[k]; });
   Object.keys(capTelData).forEach(function(k){ delete capTelData[k]; });
   Object.keys(globalPolyMap).forEach(function(k){ delete globalPolyMap[k]; });
@@ -4741,9 +4799,8 @@ function drawTimeDots() {
     if (h === null) return;
 
     // Bbox-check: heeft de sessie wayData binnen de kaartbbox?
-    const inBbox = Object.keys(wayData).some(function(k) {
+    const inBbox = [...(wegvakkenVan[sid] || [])].some(function(k) {   // v3.49: alleen de eigen wegvakken
       const wd = wayData[k];
-      if (!wd.sessions.some(function(ws){ return ws.sid === sid; })) return false;
       return wd.geometry && wd.geometry.some(function(pt) {
         return bounds.contains(L.latLng(pt[0], pt[1]));
       });
@@ -4806,6 +4863,7 @@ map.on('dblclick', onMapDblClickForPolygon);
 
 // ── UI ZICHTBAARHEID ─────────────────────────────────────────────
 function updateUI() {
+  if (BUNDEL.diepte) { BUNDEL.ui = true; return; }   // v3.49
   const hasFiets    =Object.values(sessions).some(s=>s.appType==='fiets');
   const hasAuto     =Object.values(sessions).some(s=>s.appType==='auto');
   const hasCap      =Object.values(sessions).some(s=>s.appType==='capaciteit');
@@ -4853,19 +4911,25 @@ function updateUI() {
 
 // ── STATS ─────────────────────────────────────────────────────────
 function updateStats() {
+  if (BUNDEL.diepte) { BUNDEL.stats = true; return; }   // v3.49
   const visSids=Object.keys(sessions).filter(s=>pocketZichtbaar(s));
   document.getElementById('s-sessies').textContent=visSids.length;
   const totL=Object.values(clusterLayers).reduce((a,arr)=>a+arr.length,0);
   document.getElementById('s-locaties').textContent=totL;
 
-  const totFiets=Object.values(wayData).reduce((a,wd)=>
-    a+wd.sessions.filter(s=>s.appType==='fiets'&&sessions[s.sid]?.visible)
-                 .reduce((b,s)=>b+(s.fiets||0),0),0);
+  // v3.49: via wegvakkenVan alleen de wegvakken van zichtbare fiets- en
+  // autotellingen, niet twee keer alle wegvakken
+  let totFiets = 0, totBezet = 0;
+  Object.keys(wegvakkenVan).forEach(sid => {
+    const s = sessions[sid];
+    if (!s || !s.visible || (s.appType !== 'fiets' && s.appType !== 'auto')) return;
+    wegvakkenVan[sid].forEach(k => wayData[k].sessions.forEach(e => {
+      if (e.sid !== sid) return;
+      if (e.appType === 'fiets') totFiets += e.fiets || 0;
+      else if (e.appType === 'auto') totBezet += e.bezet || 0;
+    }));
+  });
   document.getElementById('s-fietsen').textContent=totFiets;
-
-  const totBezet=Object.values(wayData).reduce((a,wd)=>
-    a+wd.sessions.filter(s=>s.appType==='auto'&&sessions[s.sid]?.visible)
-                 .reduce((b,s)=>b+(s.bezet||0),0),0);
   document.getElementById('s-bezet').textContent=totBezet;
 }
 
@@ -5742,6 +5806,7 @@ function pasVerzamelingWeergaveToe(w) {
         applySessionVisibility(sid);
       });
       renderSessions();
+      recolorAll(); updateStats();   // v3.49: kleuren en tellers volgen (de tellers kwamen tot nu uit drawClusters)
     }
 
     const capBtn = document.getElementById('capnetwerk-toggle');
@@ -6844,10 +6909,20 @@ async function ingestFiles(files){
     toLoad=keep;
   }
 
-  for(let i=0;i<toLoad.length;i++){
-    if(dzText) dzText.innerHTML='⏳ laden… '+(i+1)+'/'+toLoad.length;
-    try{ await loadFile(toLoad[i]); }
-    catch(err){ console.error('Laden mislukt:', toLoad[i].name, err); }
+  // v3.49: in een bundel laden en aan het eind één keer tekenen (zie BUNDEL)
+  bundelOpen();
+  try{
+    for(let i=0;i<toLoad.length;i++){
+      if(dzText) dzText.innerHTML='⏳ laden… '+(i+1)+'/'+toLoad.length;
+      try{ await loadFile(toLoad[i]); }
+      catch(err){ console.error('Laden mislukt:', toLoad[i].name, err); }
+    }
+  }finally{
+    if(dzText) dzText.innerHTML='⏳ kaart tekenen… ('+Object.keys(sessions).length+' tellingen)';
+    // Eerst de tekst laten zien: een beeldje, of hooguit 100 ms (een tabblad op
+    // de achtergrond krijgt geen beeldjes en mag niet blijven hangen).
+    await new Promise(function(r){ requestAnimationFrame(function(){ setTimeout(r, 0); }); setTimeout(r, 100); });
+    bundelKlaar();
   }
 
   // v2.59: stilzwijgend weglaten is precies wat deze release repareert, dus
