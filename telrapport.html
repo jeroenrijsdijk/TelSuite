@@ -3876,6 +3876,26 @@ function showHideDots(sid, type, show) {
     (show&&sessions[sid]?.visible)?m.addTo(map):map.removeLayer(m));
 }
 
+// v3.47: welke stippen van één telling op de kaart staan, op één plek. De
+// sessielijst, het tijdfilter (aan en uit), de typeknopjes en een verzameling
+// gaan hier allemaal langs; showHideDots kijkt daarbij ook naar visible.
+// Fietsparkeren en parkeren volgen hun typeknopjes (dotVisible). Pocket heeft
+// die niet: daar staan alle stippen van een zichtbare telling, ook een eigen
+// soort die bij Start is ingetypt. Tot v3.47 deed het tijdfilter het met de
+// knopjes van APP_CONFIG[app].types; voor pocket gaf dat "uit" (geen knopje),
+// dus na het tijdfilter waren de pocket-stippen weg, ook in de GeoPackage. Een
+// eigen soort ("Alles") stond niet in de lijst en bleef juist altijd staan.
+// En het knopje "leeg" van parkeren zette ook de lege vakken van pocket uit.
+function zetStippen(sid) {
+  const s = sessions[sid]; if (!s) return;
+  if (s.appType === 'pocket') {
+    Object.keys(dotLayers[sid] || {}).forEach(type => showHideDots(sid, type, true));
+    return;
+  }
+  const cfg = APP_CONFIG[s.appType] || APP_CONFIG.fiets;
+  cfg.types.forEach(type => showHideDots(sid, type, dotVisible[type]));
+}
+
 // ── LOAD ZIP ─────────────────────────────────────────────────────
 async function loadZip(file, voorgeladenZip) {
   // v2.55: loadFile pakt een ZIP soms al uit om te zien of het een verzameling
@@ -4456,13 +4476,7 @@ function applySessionVisibility(sid) {
 
   if (gpsLayers[sid]) s.visible ? gpsLayers[sid].addTo(map) : map.removeLayer(gpsLayers[sid]);
   if (capLayers[sid]) capLayers[sid].forEach(m => s.visible ? m.addTo(map) : map.removeLayer(m));
-  const cfg = APP_CONFIG[s.appType] || APP_CONFIG.fiets;
-  cfg.types.forEach(type => showHideDots(sid, type, dotVisible[type]));
-  if (s.appType === 'pocket') {
-    Object.keys(dotLayers[sid] || {}).forEach(function(type) {
-      showHideDots(sid, type, s.visible);
-    });
-  }
+  zetStippen(sid);
   drawClusters(sid);
 }
 
@@ -4616,7 +4630,7 @@ document.querySelectorAll('.dot-btn[data-type]').forEach(btn=>{
     const type=this.dataset.type;
     dotVisible[type]=!dotVisible[type];
     this.classList.toggle('active',dotVisible[type]);
-    Object.keys(dotLayers).forEach(sid=>showHideDots(sid,type,dotVisible[type]));
+    Object.keys(dotLayers).forEach(zetStippen);   // v3.47: niet meer per type, zie zetStippen
   });
 });
 
@@ -4829,9 +4843,8 @@ function applyTimeFilter() {
     if (capLayers[sid]) capLayers[sid].forEach(function(m){
       inWin ? m.addTo(map) : map.removeLayer(m);
     });
-    // Dots
-    const cfg = APP_CONFIG[sessions[sid].appType] || APP_CONFIG.fiets;
-    cfg.types.forEach(function(type){ showHideDots(sid, type, dotVisible[type] && inWin); });
+    // Dots (v3.47: visible is hierboven al inWin)
+    zetStippen(sid);
   });
 
   // Session-list rij-states updaten (off-class)
@@ -4931,8 +4944,7 @@ function toggleTimeFilter(active) {
       }
       if (gpsLayers[sid]) gpsLayers[sid].addTo(map);
       if (capLayers[sid]) capLayers[sid].forEach(function(m){ m.addTo(map); });
-      const cfg = APP_CONFIG[sessions[sid].appType] || APP_CONFIG.fiets;
-      cfg.types.forEach(function(type){ showHideDots(sid, type, dotVisible[type]); });
+      zetStippen(sid);   // v3.47
     });
     document.querySelectorAll('.session-row').forEach(function(el) {
       el.classList.remove('off');
@@ -5872,8 +5884,8 @@ function pasVerzamelingWeergaveToe(w) {
         dotVisible[type] = w.stippen[type];
         const btn = document.querySelector('.dot-btn[data-type="' + type + '"]');
         if (btn) btn.classList.toggle('active', dotVisible[type]);
-        Object.keys(dotLayers).forEach(function(sid){ showHideDots(sid, type, dotVisible[type]); });
       });
+      Object.keys(dotLayers).forEach(zetStippen);   // v3.47
     }
 
     if (w.zichtbaar) {
