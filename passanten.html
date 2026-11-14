@@ -1044,39 +1044,62 @@ function dcWaarnemingen(filter) {
       en weekdagen via de gemeten combinaties samenhangen (ma 15, di 15, di 12,
       …). Alleen de grootste groep krijgt een werkdagcurve en weekdagfactoren;
       zaterdag en zondag hebben geen weekdagfactor en hoeven dat niet.        */
-function dcGroepen(obs) {
-  function vereniging() {
-    var ouder = {};
-    function wortel(x) { if (!(x in ouder)) ouder[x] = x; while (ouder[x] !== x) { ouder[x] = ouder[ouder[x]]; x = ouder[x]; } return x; }
-    return { wortel: wortel, bind: function (a, b) { ouder[wortel(a)] = wortel(b); } };
+/* v3.51: union-find op getallen in plaats van op tekst. Elke waarneming krijgt
+   één keer vaste nummers (dcIds): ui voor stuk|richting, mi voor weekdag:uur, ki
+   voor het vakje (dagtype:uur). De trekkingen van de marge gebruiken dezelfde
+   waarnemingen steeds opnieuw, dus daarna is het alleen nog rekenen met
+   getallen. Dezelfde groepen, dezelfde volgorde, dus dezelfde uitkomst.        */
+var DC_ID = { u: {}, nu: 0, m: {}, nm: 0, k: {}, nk: 0 };
+function dcId(map, sleutel, veld) {
+  var x = DC_ID[map][sleutel];
+  if (x === undefined) { x = DC_ID[map][sleutel] = DC_ID[veld]++; }
+  return x;
+}
+function dcIds(obs) {
+  for (var i = 0; i < obs.length; i++) {
+    var o = obs[i];
+    if (o.ui === undefined) { o.ui = dcId('u', o.u, 'nu'); o.mi = dcId('m', o.d + ':' + o.h, 'nm'); o.ki = dcId('k', o.k, 'nk'); }
   }
+}
+function dcVereniging(n) {
+  var ouder = new Int32Array(n);
+  for (var i = 0; i < n; i++) ouder[i] = i;
+  function wortel(x) { while (ouder[x] !== x) { ouder[x] = ouder[ouder[x]]; x = ouder[x]; } return x; }
+  return { wortel: wortel, bind: function (a, b) { ouder[wortel(a)] = wortel(b); } };
+}
+function dcGroepen(obs) {
+  dcIds(obs);
   function grootste(lijst, van) {
     var n = {}, best = null;
     lijst.forEach(function (o) { var r = van(o); n[r] = (n[r] || 0) + 1; if (best === null || n[r] > n[best]) best = r; });
     return best;
   }
-  var g1 = vereniging();
-  obs.forEach(function (o) { g1.bind('u' + o.u, 'm' + o.d + ':' + o.h); });
-  var r1 = grootste(obs, function (o) { return g1.wortel('u' + o.u); });
-  var mee = obs.filter(function (o) { return g1.wortel('u' + o.u) === r1; });
-  var g2 = vereniging(), werk = mee.filter(function (o) { return o.d < 5; });
-  werk.forEach(function (o) { g2.bind('d' + o.d, 'h' + o.h); });
-  var r2 = grootste(werk, function (o) { return g2.wortel('d' + o.d); });
+  var U = DC_ID.nu;                                  // 0 … U-1 stukken, daarna de momenten
+  var g1 = dcVereniging(U + DC_ID.nm);
+  obs.forEach(function (o) { g1.bind(o.ui, U + o.mi); });
+  var r1 = grootste(obs, function (o) { return g1.wortel(o.ui); });
+  var mee = obs.filter(function (o) { return g1.wortel(o.ui) === r1; });
+  var werk = mee.filter(function (o) { return o.d < 5; }), maxH = 0;
+  werk.forEach(function (o) { if (o.h > maxH) maxH = o.h; });
+  var g2 = dcVereniging(5 + maxH + 1);               // 0 … 4 ma–vr, daarna de uren
+  werk.forEach(function (o) { g2.bind(o.d, 5 + o.h); });
+  var r2 = grootste(werk, function (o) { return g2.wortel(o.d); });
   return { obs: mee,
-           dag: function (d) { return r2 !== null && g2.wortel('d' + d) === r2; },
-           cel: function (k) { var t = k.split(':'); return t[0] !== 'werkdag' || (r2 !== null && g2.wortel('h' + t[1]) === r2); } };
+           dag: function (d) { return r2 !== null && g2.wortel(d) === r2; },
+           cel: function (k) { var t = k.split(':'), h = +t[1];
+             return t[0] !== 'werkdag' || (r2 !== null && h <= maxH && g2.wortel(5 + h) === r2); } };
 }
 // De schatting op één set waarnemingen, nog zonder schaal: { F: { 'werkdag:12': …, … }, D: [ma … vr], dagOk, mee }.
 // Alleen wat te scheiden is, staat in F (zie dcGroepen); mee zijn de waarnemingen die meedoen.
 // start (de schatting op alles) maakt de trekkingen sneller.
 function dcSchat(alle, start) {
   var gr = dcGroepen(alle), obs = gr.obs, n = obs.length, i, j, d, x, it, verschil;
-  var uNr = {}, kNr = {}, K = [], nU = 0;
+  var uNr = new Int32Array(DC_ID.nu).fill(-1), kNr = new Int32Array(DC_ID.nk).fill(-1), K = [], nU = 0;   // v3.51: op nummer
   var ou = new Int32Array(n), ok = new Int32Array(n), od = new Int32Array(n), ow = new Float64Array(n), om = new Float64Array(n);
   obs.forEach(function (o, i) {
-    if (!(o.u in uNr)) uNr[o.u] = nU++;
-    if (!(o.k in kNr)) { kNr[o.k] = K.length; K.push(o.k); }
-    ou[i] = uNr[o.u]; ok[i] = kNr[o.k]; od[i] = o.d; ow[i] = o.w; om[i] = o.m;
+    if (uNr[o.ui] < 0) uNr[o.ui] = nU++;
+    if (kNr[o.ki] < 0) { kNr[o.ki] = K.length; K.push(o.k); }
+    ou[i] = uNr[o.ui]; ok[i] = kNr[o.ki]; od[i] = o.d; ow[i] = o.w; om[i] = o.m;
   });
   var A = new Float64Array(nU), F = new Float64Array(K.length), D = [1, 1, 1, 1, 1, 1, 1];
   var mA = new Float64Array(nU), mF = new Float64Array(K.length), mD = [0, 0, 0, 0, 0], nA = new Float64Array(nU), nF = new Float64Array(K.length), nD;
