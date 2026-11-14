@@ -16,6 +16,11 @@
    (union-find op tekst, zoals tot v3.50) ernaast en eist dezelfde uitkomst, tot
    op de laatste decimaal.
 
+   v3.52: de stippen, een per telling per uur (Jay: "Het gaat om het aangeven
+   van de spreiding - aangeven dat het gemiddelde niet als waarheid moeten worden
+   gezien"). Zonder ruis vallen ze op de curve; met ruis is hun gemiddelde,
+   gewogen met wat het model verwacht, precies de index van het vakje.
+
    Draaien vanuit de suite-root:  node _archief/overpass_rig/functest_dagcurve.js */
 const fs = require('fs');
 const vm = require('vm');
@@ -264,6 +269,10 @@ const nieuwGroepen = functieTekst(blokOud, 'function dcGroepen(obs) {');
 const nieuwNummers = /  var uNr = new Int32Array[^\n]*\n(?:.*\n){5}  \}\);/.exec(blokOud);
 eis('de nieuwe dcGroepen en de nieuwe nummering gevonden', !!nieuwGroepen && !!nieuwNummers && nieuwGroepen.indexOf('dcVereniging') > 0);
 blokOud = blokOud.replace(nieuwGroepen, OUD_GROEPEN).replace(nieuwNummers[0], OUD_NUMMERS);
+// v3.52: de oude nummering gaat op o.u in plaats van o.ui; dcStippen leest hem zo ook mee
+const stipNummer = 's0.A[s0.uNr[o.ui]]';
+eis('de nummering in dcStippen gevonden', blokOud.split(stipNummer).length === 2);
+blokOud = blokOud.replace(stipNummer, 's0.A[s0.uNr[o.u]]');
 const ctxOud = { console };
 vm.createContext(ctxOud);
 vm.runInContext([
@@ -287,6 +296,34 @@ const planB = plan5.slice(0, 60).concat(plan5.slice(80)).concat([[[6, 13, 41, 'A
   eis(naam + ': en dagcurve.csv', F.dagcurveCsv() === O.dagcurveCsv());
   F.kies({}); O.kies({});
 });
+
+console.log('\n== v3.52: de stippen, een per telling per uur ==');
+// zonder ruis (de verwachte aantallen van het eerste plan): elke stip ligt op de curve
+F.zet(sessies(plan)); dc = F.dagcurve();
+eis('zonder ruis: ' + dc.stippen.length + ' stippen, elk precies op de index van zijn vakje',
+    dc.stippen.length === plan.reduce((n, ps) => n + new Set(ps.map(p => p[1])).size, 0) && dc.stippen.every(p => bijna(p.index, dc.cel[p.k].index, 1e-6)),
+    dc.stippen.filter(p => !bijna(p.index, dc.cel[p.k].index, 1e-6)).map(p => [p.sid, p.k, p.index, dc.cel[p.k].index]));
+// met ruis: de 100 tellingen
+F.zet(sessies(plan5)); dc = F.dagcurve();
+const perVak = {};
+dc.stippen.forEach(p => (perVak[p.k] = perVak[p.k] || []).push(p));
+const vakken = Object.keys(dc.cel).filter(k => !dc.cel[k].los);
+eis('één stip per telling en uur (' + dc.stippen.length + '), alleen in vakjes die te scheiden zijn',
+    dc.stippen.length === plan5.reduce((n, ps) => n + new Set(ps.filter(p => !dc.cel[(p[0] < 5 ? 'werkdag' : p[0] === 5 ? 'zaterdag' : 'zondag') + ':' + p[1]].los).map(p => p[1])).size, 0) &&
+    dc.stippen.every(p => !dc.cel[p.k].los) && new Set(dc.stippen.map(p => p.sid + '|' + p.k)).size === dc.stippen.length);
+eis('per vakje: het gemiddelde van de stippen, gewogen met wat het model verwacht, is precies de index',
+    vakken.every(k => bijna(perVak[k].reduce((a, p) => a + p.gewicht * p.index, 0) / perVak[k].reduce((a, p) => a + p.gewicht, 0), dc.cel[k].index, 1e-6)),
+    vakken.map(k => [k, dc.cel[k].index, perVak[k].reduce((a, p) => a + p.gewicht * p.index, 0) / perVak[k].reduce((a, p) => a + p.gewicht, 0)]));
+eis('per vakje: de tegemoetkomers van de stippen samen zijn die van het vakje', vakken.every(k => perVak[k].reduce((a, p) => a + p.tikken, 0) === dc.cel[k].tikken));
+const w12 = perVak['werkdag:12'].map(p => p.index);
+eis('en ze liggen niet op de curve: werkdag 12 van ' + Math.round(Math.min(...w12)) + ' tot ' + Math.round(Math.max(...w12)) + ' (index ' + Math.round(dc.cel['werkdag:12'].index) + ')',
+    Math.min(...w12) < 0.95 * dc.cel['werkdag:12'].index && Math.max(...w12) > 1.05 * dc.cel['werkdag:12'].index);   // alleen Poisson-ruis: geen grote spreiding
+// de keuze: alleen stippen van de gekozen stukken
+F.kies({ '1/0': true, '2/0': true, '3/0': true });
+const kz = F.dagcurveKeuze(), metStuk = new Set(plan5.map((ps, i) => ps.some(p => p[2] <= 3) ? 'S' + String(i).padStart(3, '0') : null).filter(Boolean));
+eis('de keuze: alleen tellingen die de gekozen stukken liepen (' + new Set(kz.stippen.map(p => p.sid)).size + ' van ' + metStuk.size + ')',
+    kz.stippen.length > 0 && kz.stippen.every(p => metStuk.has(p.sid)));
+F.kies({});
 
 console.log('\n' + (fout === 0 ? 'ALLE ' + ok + ' TESTS OK' : ok + ' ok, ' + fout + ' FOUT'));
 process.exit(fout ? 1 : 0);

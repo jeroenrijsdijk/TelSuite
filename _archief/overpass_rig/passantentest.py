@@ -517,6 +517,16 @@ else:
             and dc['cel']['zaterdag:13'][2] and dc['cel']['werkdag:11'][1] == 1 and not dc['cel']['werkdag:11'][2] and dc['tellingen'] == 3, dc)
         eis('op werkdagen te weinig, dus index 100 = zaterdag 13, en donderdag is de enige werkdag (factor 1)', dc['ref'] == 'alles' and dc['refK'] == ['zaterdag:13']
             and abs(dc['cel']['zaterdag:13'][0] - 100) < 1e-9 and dc['dagen'][3][:2] == [1, 1] and 'het gemiddelde van de gemeten uren' in pg.inner_text('#dagcurve'), dc)
+        # v3.52: de stippen, een per telling per uur, achter de curve
+        st = pg.evaluate("""(() => { const svg = document.querySelector('#dagcurve svg'), d = DAGCURVE.stippen, z = d.filter(p => p.k === 'zaterdag:13');
+          return { n: d.length, k: d.map(p => p.k), gem: z.reduce((a, p) => a + p.gewicht * p.index, 0) / z.reduce((a, p) => a + p.gewicht, 0), z: z.map(p => p.index),
+                   getekend: [...svg.querySelectorAll('.dc-stip')].map(c => [c.getAttribute('fill'), c.querySelector('title').textContent]),
+                   eerst: svg.innerHTML.indexOf('dc-stip') < svg.innerHTML.indexOf('dc-punt'), legenda: svg.textContent.includes('één telling') }; })()""")
+        eis('v3.52: twee stippen in zaterdag 13 en een in werkdag 11, gewogen samen precies de curve (index 100)', st['n'] == 3 and sorted(st['k']) == ['werkdag:11', 'zaterdag:13', 'zaterdag:13']
+            and abs(st['gem'] - 100) < 1e-6 and min(st['z']) < 100 < max(st['z']), st)
+        eis('v3.52: getekend alleen de twee van zaterdag 13 (werkdag 11 heeft geen curve), in de zaterdagkleur, met telling, uur en minuten',
+            len(st['getekend']) == 2 and all(f == '#b0342b' and 'zaterdag' in t and '13:00–14:00' in t and 'tegemoetkomers in' in t for f, t in st['getekend']), st['getekend'])
+        eis('v3.52: de stippen onder de curve, en "één telling" in de legenda', st['eerst'] and st['legenda'], st)
         # los nagerekend: dezelfde passages, hetzelfde model
         rijen = []
         for datum, start, pas in GEBRUIKT:
