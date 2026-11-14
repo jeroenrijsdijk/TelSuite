@@ -137,7 +137,7 @@ stuk zonder tikken blijft klikbaar.
 
 ## 5. Tests
 
-- **`snelheidtest.py`: 26 (was 22).** Nieuw deel G:
+- **`snelheidtest.py`: 27 (was 22).** Nieuw deel G:
   - een wegvak heeft een eigen lijn of zit in de kale laag, nooit allebei;
   - kaal = `isKaal`;
   - de kale laag heeft een deel per kaal wegvak, is niet interactief en ligt
@@ -162,7 +162,7 @@ stuk zonder tikken blijft klikbaar.
 
 ```
 valideer.py           ALLES OK — de 3 verwachte bestanden
-snelheidtest.py       26/26
+snelheidtest.py       27/27
 vergelijking          v3.49 = v3.50 op 46 en 185 tellingen
 volledige ronde lokaal: zie de PR
 ```
