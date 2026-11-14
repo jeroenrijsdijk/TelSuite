@@ -96,6 +96,23 @@ main{padding:12px 20px 30px;max-width:1300px}
 .dc-tabel th[colspan]{text-align:center}
 .dc-tabel .alle{color:var(--muted)}
 #week-detail button{font-family:inherit;font-size:12.5px;margin-top:8px;padding:5px 12px;cursor:pointer;background:var(--accent);color:#fff;border:none;border-radius:3px}
+#week-plan{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font-size:13px}   /* v3.53 */
+#week-plan .plan-kop{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+#week-plan ol{margin:6px 0 4px;padding-left:22px}
+#week-plan li{margin:2px 0}
+#plan-tabel{border-collapse:separate;border-spacing:2px;font-variant-numeric:tabular-nums}
+#plan-tabel th{font-weight:400;font-size:10.5px;color:var(--muted);padding:0 3px;text-align:center}
+#plan-tabel tbody th{text-align:left;padding-right:6px}
+#plan-tabel td{width:34px;min-width:34px;height:24px;padding:0;text-align:center;font-size:11px;border-radius:2px;white-space:nowrap}
+#plan-tabel td.p-leeg{background:repeating-linear-gradient(45deg,#e8e7e1,#e8e7e1 3px,#f2f1ec 3px,#f2f1ec 6px)}
+#plan-tabel td.p-nooit{background:#fff;box-shadow:inset 0 0 0 1.5px var(--accent)}
+#plan-tabel td.p-dun,#plan-tabel td.p-gezien{background:#e8e7e1;color:#6d6d66}
+#plan-tabel td.p-volgt{background:#dfe6e1}
+#plan-tabel td.p-hoger{background:#efc9bf;font-weight:500}
+#plan-tabel td.p-lager{background:#c3d6da;font-weight:500}
+#plan-tabel td.p-tel{background:var(--accent);color:#fff;font-weight:500;box-shadow:none}
+.plan-legenda{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:11.5px;color:var(--muted)}
+.plan-legenda i{display:inline-block;width:14px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .sleep{position:fixed;inset:0;z-index:2000;background:rgba(47,93,98,.85);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;letter-spacing:.04em}
 @media (max-width:700px){#kaart{height:62vh}main{padding:10px 12px 24px}#legenda{position:static;max-width:none;margin-top:6px}}   /* telefoon: legenda onder de kaart */
 </style>
@@ -133,6 +150,7 @@ main{padding:12px 20px 30px;max-width:1300px}
     <div class="sub">Passanten per uur, per weekdag en uur. Leeg: niet gemeten. *: niet in beide richtingen gemeten, opgehoogd (zie de details). <em>Gem.</em>: de gemeten uren of dagen samen, op dezelfde manier gerekend. Klik op een cel voor de details.</div>
     <div class="week-tabel"><table id="week-tabel" onclick="weekKlik(event)"></table></div>
     <div id="week-detail"></div>
+    <div id="week-plan"></div>
   </div>
 </div>
 <div id="sleep" class="sleep hide">Laat los om in te lezen</div>
@@ -492,6 +510,7 @@ function herbereken() {
   PASSANTEN.bereken(SEGMENTEN, PASSANTEN.V_VOET);
   SCHATTINGEN = {};
   DAGCURVE = null;    // v3.43
+  DCKERN = null;      // v3.53
   DCKEUZE = null;     // v3.44
   Object.keys(KEUZE).forEach(function (k) { if (!SEGMENTEN[k]) delete KEUZE[k]; });
   if (LAATSTE && !SEGMENTEN[LAATSTE.key]) LAATSTE = null; else if (LAATSTE) LAATSTE = SEGMENTEN[LAATSTE.key];
@@ -853,6 +872,7 @@ function openWeek(seg) {
     Object.keys(datums).length + (Object.keys(datums).length === 1 ? ' dag' : ' dagen');
   if (kaart) kaart.closePopup();
   tekenWeek();
+  tekenPlan();   // v3.53
   document.getElementById('week').classList.remove('hide');
 }
 function sluitWeek() { document.getElementById('week').classList.add('hide'); WEEKSEG = null; }
@@ -903,6 +923,70 @@ function toonOpKaart() {
   DAG = c.dag; UUR = c.uur;
   sluitWeek();
   tekenAlles();
+}
+/* Wanneer tellen? onder het weekoverzicht (v3.53); het rekenen staat in dcPlan. */
+var PLAN_STAND = { nooit: 'hier nog nooit geteld', leeg: 'nergens genoeg geteld', dun: 'te weinig', gezien: 'genoeg, niet te vergelijken',
+                   volgt: 'volgt de curve', hoger: 'hoger dan de curve', lager: 'lager dan de curve' };
+var KOMPAS = ['noord', 'noordoost', 'oost', 'zuidoost', 'zuid', 'zuidwest', 'west', 'noordwest'];
+function kompas(v) { return KOMPAS[Math.round(((Math.atan2(v[0], v[1]) * 180 / Math.PI + 360) % 360) / 45) % 8]; }
+// Alleen in één bekende richting gelopen? Dan welke kant je nog op moet (A loopt zoals de lijn getekend is).
+function richtingAdvies(seg) {
+  var n = { A: 0, B: 0 }, dir = richtingVan(seg);
+  Object.keys(seg.cells).forEach(function (ck) { n.A += seg.cells[ck].stromen.A.n; n.B += seg.cells[ck].stromen.B.n; });
+  if (!dir || (n.A > 0) === (n.B > 0)) return '';
+  var gelopen = n.A > 0 ? dir : [-dir[0], -dir[1]];
+  return 'Alleen richting ' + kompas(gelopen) + ' gelopen. Loop hem ook richting ' + kompas([-gelopen[0], -gelopen[1]]) +
+         ': nu wordt de stroom die kant op opgehoogd, niet gemeten.';
+}
+function planUur(c) { return c.type + ' ' + c.uur + ':00–' + (c.uur + 1) + ':00'; }
+function planWaarom(c) {
+  var keer = c.perKeer !== null ? '; ≈ ' + komma(c.perKeer, 1) + ' tegemoetkomers per keer langs' : '';
+  var hier = c.n + (c.n === 1 ? ' telling' : ' tellingen') + ', ' + Math.max(1, Math.round(c.seconden / 60)) + ' min, ' + c.tikken + ' tegemoetkomers';
+  if (c.stand === 'nooit') return 'hier nog nooit geteld, in het gebied ' + c.gebied + ' tellingen' + keer;
+  if (c.stand === 'leeg') return 'nergens genoeg geteld (' + c.gebied + (c.gebied === 1 ? ' telling' : ' tellingen') + ' in het gebied)' + keer;
+  if (c.stand === 'dun') return hier + ': te weinig' + keer;
+  return komma(c.verhouding, 1) + ' keer de curve op ' + c.n + ' tellingen: nog eens om het te bevestigen' + keer;
+}
+function planTitel(c) {
+  var t = planUur(c) + ' · ' + PLAN_STAND[c.stand];
+  if (c.n) t += ' · ' + c.n + (c.n === 1 ? ' telling' : ' tellingen') + ', ' + Math.max(1, Math.round(c.seconden / 60)) + ' min, ' + c.tikken + ' tegemoetkomers';
+  if (c.verhouding !== null) t += ' · ' + komma(c.verhouding, 2) + ' keer wat de curve verwacht (' + komma(c.verwacht, 1) + '), marge ' + komma(c.onder, 1) + '–' + komma(c.boven, 1);
+  else if (!c.n) t += ' · in het gebied ' + c.gebied + (c.gebied === 1 ? ' telling' : ' tellingen');
+  if (c.perKeer !== null) t += ' · ≈ ' + komma(c.perKeer, 1) + ' tegemoetkomers per keer langs';
+  return t;
+}
+function tekenPlan() {
+  var el = document.getElementById('week-plan'), pl = WEEKSEG ? dcPlan(WEEKSEG.key) : null;
+  if (!pl) { el.innerHTML = ''; return; }
+  var rang = {}, h, html = '<div class="plan-kop">Wanneer tellen?</div>';
+  pl.advies.forEach(function (c, i) { rang[c.k] = i + 1; });
+  html += pl.advies.length ? '<ol>' + pl.advies.map(function (c) { return '<li><b>' + planUur(c) + '</b>: ' + planWaarom(c) + '</li>'; }).join('') + '</ol>'
+    : '<div>Op elk uur waarop in het gebied genoeg geteld is, is dit stuk genoeg gezien.</div>';
+  var ra = richtingAdvies(WEEKSEG);
+  if (ra) html += '<div>' + ra + '</div>';
+  if (!pl.verbonden) html += '<div class="sub">Dit stuk hangt nog niet samen met de rest van het gebied: de verhouding met de curve is er nog niet. Tel het op een uur dat elders goed geteld is.</div>';
+  html += '<div class="week-tabel"><table id="plan-tabel"><thead><tr><th></th>';
+  for (h = pl.van; h <= pl.tot; h++) html += '<th>' + h + '</th>';
+  html += '</tr></thead><tbody>';
+  pl.typen.forEach(function (t) {
+    html += '<tr><th>' + t + '</th>';
+    pl.cellen.filter(function (c) { return c.type === t; }).forEach(function (c) {
+      var tekst = rang[c.k] ? String(rang[c.k]) : c.stand === 'dun' || c.stand === 'gezien' ? String(c.n)
+        : c.verhouding !== null && (c.stand === 'volgt' || c.stand === 'hoger' || c.stand === 'lager') ? komma(c.verhouding, 1) : '';
+      html += '<td class="p-' + (rang[c.k] ? 'tel' : c.stand) + '" data-plan="' + c.k + '" title="' + planTitel(c) + '">' + tekst + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div><div class="plan-legenda">' +
+    '<span><i style="background:var(--accent)"></i>eerst tellen (1–' + PLAN_ADVIES + ')</span>' +
+    '<span><i style="background:#fff;box-shadow:inset 0 0 0 1.5px var(--accent)"></i>hier nog nooit, in het gebied wel</span>' +
+    '<span><i style="background:#e8e7e1"></i>te weinig: het aantal tellingen</span>' +
+    '<span><i style="background:#dfe6e1"></i>volgt de curve</span><span><i style="background:#efc9bf"></i>hoger</span><span><i style="background:#c3d6da"></i>lager</span>' +
+    '<span><i style="background:repeating-linear-gradient(45deg,#e8e7e1,#e8e7e1 3px,#f2f1ec 3px,#f2f1ec 6px)"></i>nergens genoeg geteld</span></div>' +
+    '<div class="sub">Een getal als 1,3: dit stuk had op dat uur 1,3 keer zoveel tegemoetkomers als de dagcurve van het gebied verwacht, op het niveau van dit stuk. ' +
+    'Hoger of lager alleen als de marge (95%) niet om 1 heen ligt. In die marge zit ook hoe ver tellingen buiten het toeval om uit elkaar liggen: ' +
+    (pl.spreiding > 0 ? 'hier gemiddeld \u00b1' + Math.round(100 * pl.spreiding) + '%' : 'nog niet te meten') + ' (gemeten aan de stippen van de dagcurve). Werkdag is maandag tot en met vrijdag samen, zoals in de dagcurve. Wijs een vakje aan voor de details.</div>';
+  el.innerHTML = html;
 }
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') sluitWeek(); });
 
@@ -1184,7 +1268,10 @@ function dagcurveKeuze() {               // null zonder keuze
   if (!DCKEUZE || DCKEUZE.sleutel !== k) DCKEUZE = { sleutel: k, dc: dagcurveVan(KEUZE) };
   return DCKEUZE.dc;
 }
-function dagcurveVan(filter) {
+// v3.53: het deel van dagcurveVan zonder de stippen en de marges: de schatting, de aantallen per
+// vakje en de schaal. "Wanneer tellen?" (dcPlan) gebruikt het voor alle stukken.
+function dcGenoeg(x) { return Object.keys(x.tellingen).length >= DC_MIN_TELLINGEN && x.tikken >= DC_MIN_TIKKEN; }
+function dcKern(filter) {
   var per = dcWaarnemingen(filter), sessies = Object.keys(per).filter(function (id) { return per[id].length; });
   var obs = [].concat.apply([], sessies.map(function (id) { return per[id]; }));
   if (!obs.length) return { leeg: true };
@@ -1202,18 +1289,24 @@ function dagcurveVan(filter) {
     if (!cel[o.k].los) tel(o, cel[o.k]);
     if (o.d < 5 && s0.dagOk[o.d]) { dag[o.d].tellingen[o.sid] = true; dag[o.d].tikken += o.m; }
   });
-  function genoeg(x) { return Object.keys(x.tellingen).length >= DC_MIN_TELLINGEN && x.tikken >= DC_MIN_TIKKEN; }
-  Object.keys(cel).forEach(function (k) { var c = cel[k]; c.n = Object.keys(c.tellingen).length; c.genoeg = !c.los && genoeg(c); });
+  Object.keys(cel).forEach(function (k) { var c = cel[k]; c.n = Object.keys(c.tellingen).length; c.genoeg = !c.los && dcGenoeg(c); });
   // de schaal: werkdagen met genoeg samen gemiddeld 1 (anders alle die te scheiden zijn);
   // index 100 = de werkdaguren in DC_REF met genoeg, anders alle werkdaguren met genoeg, anders alles
-  var dagen = [0, 1, 2, 3, 4].filter(function (d) { return s0.dagOk[d] && genoeg(dag[d]); });
+  var dagen = [0, 1, 2, 3, 4].filter(function (d) { return s0.dagOk[d] && dcGenoeg(dag[d]); });
   if (!dagen.length) dagen = [0, 1, 2, 3, 4].filter(function (d) { return s0.dagOk[d]; });
   var ref = 'kern', refK = [];
   for (h = DC_REF[0]; h < DC_REF[1]; h++) if (cel['werkdag:' + h] && cel['werkdag:' + h].genoeg && s0.F['werkdag:' + h] > 0) refK.push('werkdag:' + h);
   if (!refK.length) { ref = 'werkdag'; refK = Object.keys(cel).filter(function (k) { return cel[k].type === 'werkdag' && cel[k].genoeg && s0.F[k] > 0; }); }
   if (!refK.length) { ref = 'alles'; refK = Object.keys(cel).filter(function (k) { return cel[k].genoeg && s0.F[k] > 0; }); }
   if (!refK.length) refK = Object.keys(s0.F).filter(function (k) { return s0.F[k] > 0; });
-  var basis = dcNormeer(s0, dagen, refK);
+  var basis = dcNormeer(s0, dagen, refK), uren = obs.map(function (o) { return o.h; });
+  return { per: per, sessies: sessies, obs: obs, s0: s0, cel: cel, dag: dag, dekking: dekking, dagen: dagen, ref: ref, refK: refK, basis: basis,
+           van: Math.min.apply(null, uren), tot: Math.max.apply(null, uren) };
+}
+function dagcurveVan(filter) {
+  var kern = dcKern(filter);
+  if (kern.leeg) return { leeg: true };
+  var per = kern.per, sessies = kern.sessies, obs = kern.obs, s0 = kern.s0, cel = kern.cel, dag = kern.dag, dagen = kern.dagen, refK = kern.refK, basis = kern.basis;
   var stippen = basis ? dcStippen(s0, basis, cel) : [];   // v3.52
   // de marges: dezelfde schatting en schaal op trekkingen van de tellingen
   var rng = dcRng(343), bruikbaar = 0;
@@ -1230,13 +1323,106 @@ function dagcurveVan(filter) {
   Object.keys(cel).forEach(function (k) { var c = cel[k]; c.index = basis && !c.los ? basis.idx[k] : null; marge(c); });
   dag.forEach(function (x) {
     x.n = Object.keys(x.tellingen).length; x.factor = basis ? basis.dag[x.dag] : null;
-    x.genoeg = x.factor !== null && genoeg(x); x.inNorm = dagen.indexOf(x.dag) >= 0;
+    x.genoeg = x.factor !== null && dcGenoeg(x); x.inNorm = dagen.indexOf(x.dag) >= 0;
     marge(x);
   });
-  var uren = obs.map(function (o) { return o.h; });
-  return { cel: cel, dagen: dag, dekking: dekking, ref: ref, refK: refK, trekkingen: bruikbaar, tellingen: sessies.length, stippen: stippen,
+  return { cel: cel, dagen: dag, dekking: kern.dekking, ref: kern.ref, refK: refK, trekkingen: bruikbaar, tellingen: sessies.length, stippen: stippen,
            passages: obs.reduce(function (a, o) { return a + o.p; }, 0),
-           van: Math.min.apply(null, uren), tot: Math.max.apply(null, uren) };
+           van: kern.van, tot: kern.tot };
+}
+/* ── Wanneer tellen? (v3.53) ─────────────────────────────────────────────────
+   Jay: "Als ik al mijn winkelstraat tellingen in passanten.html laad, en ik klik
+   op een link, kun je dan doorrekenen wanneer er geteld moet worden op die
+   link?", en: "ik maak zelf een route op basis van de linkjes die ik aanklik.
+   Doe het gewoon op uurbasis". De tellingen zijn er om kennis over de
+   loopstromen te verzamelen. Per stuk en per vakje (dagtype:uur):
+   - nooit: hier nog niet geteld, in het gebied wel genoeg; leeg: nergens genoeg.
+   - dun: minder dan DC_MIN_TELLINGEN tellingen of DC_MIN_TIKKEN tegemoetkomers
+     (verwacht, of geteld als er geen verwachting is), net als bij de dagcurve.
+   - anders de verhouding: de tegemoetkomers ÷ wat de schatting op alle stukken
+     (dcKern) hier verwacht, op het niveau van dit stuk per richting
+     (Σ w · A · D · F). De marge: die van de popup (poissonMarge × MARGE_BREED)
+     en de spreiding tussen tellingen (dcSpreiding) samen, in het kwadraat
+     opgeteld. Hoger of lager alleen als 1 erbuiten ligt, anders volgt het de
+     curve. Zonder die spreiding wijkt een stuk al af omdat het toevallig op
+     twee drukke dagen geteld is.
+   Het advies, in deze volgorde: nooit, dun (de minste tellingen eerst), een
+   afwijking op maar DC_MIN_TELLINGEN tellingen (bevestigen), en dan uren waar
+   het gebied te weinig heeft. Daarbinnen eerst waar één keer langslopen het
+   meest zegt: de kleinste onzekerheid van de vergelijking met de curve,
+   φ/μ + σ²·(1 + 1/n): μ tegemoetkomers per keer langs, σ de spreiding tussen
+   tellingen, n de tellingen in het gebied op dat uur. Bij een grote spreiding
+   telt vooral hoe goed het gebied dat uur kent, niet hoe druk het er is.      */
+var DCKERN = null;                        // dcKern(null); herbereken() leegt hem
+var PLAN_ADVIES = 3;
+function dcKernAlle() { return DCKERN || (DCKERN = dcKern(null)); }
+/* Hoe ver een telling, buiten het toeval om, van de curve af ligt: σ, uit de
+   stippen (v3.52). Per stip z = geteld ÷ verwacht (μ = gewicht × F). Dan is
+   (z − 1)² gemiddeld σ² + φ/μ, met φ = MARGE_BREED² (groepjes). Alleen vakjes
+   met genoeg en minstens twee stippen, en × n/(n − 1): de curve is op die
+   stippen zelf geschat, dus ze liggen er dichter bij dan bij de echte.      */
+function dcSpreiding(kern) {
+  if (kern.spreiding !== undefined) return kern.spreiding;
+  var phi = MARGE_BREED * MARGE_BREED, per = {}, som = 0, n = 0;
+  if (kern.basis) dcStippen(kern.s0, kern.basis, kern.cel).forEach(function (p) {
+    if (kern.cel[p.k].genoeg) (per[p.k] = per[p.k] || []).push(p);
+  });
+  Object.keys(per).forEach(function (k) {
+    var l = per[k];
+    if (l.length < 2) return;
+    l.forEach(function (p) {
+      var mu = p.gewicht * kern.s0.F[p.k], z = p.tikken / mu;
+      som += ((z - 1) * (z - 1) - phi / mu) * l.length / (l.length - 1); n++;
+    });
+  });
+  return (kern.spreiding = n >= 5 ? Math.sqrt(Math.max(0, som / n)) : 0);
+}
+function dcPlan(key) {
+  var kern = dcKernAlle();
+  if (kern.leeg) return null;
+  var s0 = kern.s0, pre = key + '|', vak = {}, wA = 0, p = 0, verbonden = false, dGem = 0, nd = 0, d, sp = dcSpreiding(kern);
+  for (d = 0; d < 5; d++) if (s0.dagOk[d]) { dGem += s0.D[d]; nd++; }
+  dGem = nd ? dGem / nd : 1;
+  kern.obs.forEach(function (o) {
+    if (o.u.lastIndexOf(pre, 0) !== 0) return;
+    var x = vak[o.k] || (vak[o.k] = { tellingen: {}, m: 0, e: 0, t: 0, p: 0 }), i = s0.uNr[o.ui];
+    x.tellingen[o.sid] = (x.tellingen[o.sid] || 0); x.m += o.m; x.t += o.t; x.p += o.p;
+    if (!(i >= 0)) return;                 // niet in de grootste groep: geen verwachting
+    verbonden = true; wA += o.w * s0.A[i]; p += o.p;
+    if (!(o.k in s0.F)) return;
+    var e = o.w * s0.A[i] * (o.d < 5 ? s0.D[o.d] : 1) * s0.F[o.k];
+    x.e += e; x.tellingen[o.sid] += e;     // per telling verwacht: voor de spreiding tussen tellingen
+  });
+  var typen = DC_TYPEN.filter(function (t) { return Object.keys(kern.cel).some(function (k) { return kern.cel[k].type === t; }); });
+  var cellen = [];
+  typen.forEach(function (t) {
+    for (var h = kern.van; h <= kern.tot; h++) {
+      var k = t + ':' + h, x = vak[k], g = kern.cel[k], f = k in s0.F ? s0.F[k] * (t === 'werkdag' ? dGem : 1) : 0;
+      var c = { k: k, type: t, uur: h, n: x ? Object.keys(x.tellingen).length : 0, tikken: x ? x.m : 0, seconden: x ? x.t : 0, passages: x ? x.p : 0,
+                verwacht: x && x.e > 0 ? x.e : null, gebied: g ? g.n : 0, genoegGebied: !!(g && g.genoeg), drukte: f,
+                perKeer: verbonden && f > 0 ? wA / p * f : null, verhouding: null, onder: null, boven: null };
+      c.onzeker = MARGE_BREED * MARGE_BREED / Math.max(0.1, c.perKeer !== null ? c.perKeer : f > 0 ? 1 : 0.1) + sp * sp * (1 + 1 / Math.max(1, c.gebied));
+      if (c.verwacht !== null) {
+        var gm = poissonMarge(c.tikken), r = c.tikken / c.verwacht, kw = 0;
+        Object.keys(x.tellingen).forEach(function (sid) { kw += x.tellingen[sid] * x.tellingen[sid]; });
+        var dag = 1.96 * sp * Math.sqrt(kw) / c.verwacht;   // de spreiding tussen tellingen, rond 1
+        c.verhouding = r;
+        c.onder = Math.max(0, r - Math.sqrt(Math.pow(MARGE_BREED * (r - gm[0] / c.verwacht), 2) + dag * dag));
+        c.boven = r + Math.sqrt(Math.pow(MARGE_BREED * (gm[1] / c.verwacht - r), 2) + dag * dag);
+      }
+      if (!c.n) c.stand = c.genoegGebied ? 'nooit' : 'leeg';
+      else if (c.n < DC_MIN_TELLINGEN || (c.verwacht !== null ? c.verwacht : c.tikken) < DC_MIN_TIKKEN) c.stand = 'dun';
+      else if (c.verwacht === null || !c.genoegGebied) c.stand = 'gezien';
+      else c.stand = c.onder > 1 ? 'hoger' : c.boven < 1 ? 'lager' : 'volgt';
+      cellen.push(c);
+    }
+  });
+  var rang = { nooit: 0, dun: 1, hoger: 2, lager: 2, leeg: 3 };
+  var advies = cellen.filter(function (c) { return c.stand in rang && (rang[c.stand] !== 2 || c.n <= DC_MIN_TELLINGEN); }).sort(function (a, b) {
+    return rang[a.stand] - rang[b.stand] || (a.stand === 'dun' ? a.n - b.n : 0) || a.onzeker - b.onzeker || b.gebied - a.gebied ||
+           DC_TYPEN.indexOf(a.type) - DC_TYPEN.indexOf(b.type) || a.uur - b.uur;
+  }).slice(0, PLAN_ADVIES);
+  return { cellen: cellen, advies: advies, typen: typen, van: kern.van, tot: kern.tot, verbonden: verbonden, spreiding: sp };
 }
 function dcGetal(x) { return x === null || x === undefined ? '' : String(Math.round(x)); }
 // achter (v3.44): de dagcurve van alle stukken, dun gestippeld achter die van de keuze.
