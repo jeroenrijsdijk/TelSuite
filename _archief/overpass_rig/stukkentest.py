@@ -111,8 +111,9 @@ with sync_playwright() as p:
     eis('totaal per stuk telt wel alle types: stuk 1 = fiets + wrak = 2', pg.evaluate("wayHeat('501:1').total") == 2)
     dek = pg.evaluate("clusterDekking('%s')" % SA)
     eis('alle 5 tikken in een cluster', dek['geplaatst'] == 5 and dek['buiten'] == 0, dek)
-    kleur = pg.evaluate("({geteld: wayLayers['501:1'].options.color, nul: wayLayers['501:2'].options.dashArray, grijs: wayLayers['503:0'].options.color})")
-    eis('geteld in kleur, nul gestreept, niet gelopen grijs', kleur['geteld'] != '#3a3d42' and kleur['nul'] and kleur['grijs'] == '#3a3d42', kleur)
+    # v3.50: een niet gelopen stuk is kaal: geen eigen lijn, maar in de kale laag (grijs)
+    kleur = pg.evaluate("({geteld: wayLayers['501:1'].options.color, nul: wayLayers['501:2'].options.dashArray, eigen: !!wayLayers['503:0'], kaal: kaalNet.has('503:0'), grijs: kaalLaag && kaalLaag.options.color})")
+    eis('geteld in kleur, nul gestreept, niet gelopen grijs (in de kale laag)', kleur['geteld'] != '#3a3d42' and kleur['nul'] and not kleur['eigen'] and kleur['kaal'] and kleur['grijs'] == '#3a3d42', kleur)
 
     print('\n== B. _recon van een andere telling ==')
     SB = '20261021_110000_rec'

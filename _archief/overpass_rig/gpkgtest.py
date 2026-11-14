@@ -134,8 +134,10 @@ OP_KAART = r"""(() => {
     if (map.hasLayer(m)) { const ll = m.getLatLng(); dots.push([sid, r6(ll.lng), r6(ll.lat)]); } })));
   Object.keys(clusterLayers).forEach(sid => (clusterLayers[sid] || []).forEach(m => {
     if (m._cluster && map.hasLayer(m)) cl.push([sid, m._cluster.total]); }));
-  Object.keys(wayLayers).forEach(k => { const g = (wayData[k] || {}).geometry || [];
-    if (map.hasLayer(wayLayers[k]) && g.length >= 2 && !(g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) wv.push(k); });
+  // v3.50: een wegvak heeft een eigen lijn (wayLayers) of zit in de kale laag (kaalNet)
+  lijnKeys.forEach(k => { const g = (wayData[k] || {}).geometry || [];
+    const lijn = wayLayers[k] || (kaalNet.has(k) ? kaalLaag : null);
+    if (lijn && map.hasLayer(lijn) && g.length >= 2 && !(g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) wv.push(k); });
   Object.keys(gpsLayers).forEach(sid => { if (map.hasLayer(gpsLayers[sid]) && sessions[sid]) rt.push(sid); });
   const ter = [];
   Object.keys(capLayers).forEach(sid => (capLayers[sid] || []).forEach(l => {

@@ -25,6 +25,14 @@ bezoekenOp), tellers één keer per actie, zetStijl, en laden in een bundel.
   F. De acties binnen ruime grenzen: bollen aan, tijdfilter aan, schuiven en
      uit, een groep uit en aan. Tot v3.49 duurde elk daarvan seconden.
 
+  G. v3.50 (Jay: "Het kale net als 1 laag zonder hover en klik lijkt me een
+     goed idee"): elk wegvak met een lijn heeft een eigen lijn of zit in de kale
+     laag, nooit allebei; kaal = geen telling en geen bezoek; de kale laag is één
+     polylijn zonder klik en hover, in een pane die geen muis vangt. Ook een
+     wegvak dat bij een later geladen telling geteld wordt, gaat uit de kale
+     laag naar een eigen lijn: 20 tellingen erbij, in gebieden die al geladen
+     zijn, met andere wegvakken dan daar al geteld.
+
 De grenzen zijn ruim (een trage CI-machine), maar te krap voor de oude manier,
 die bij 150 tellingen minuten deed over het laden.
 
@@ -48,11 +56,12 @@ UIT = '/tmp/snelheidtest'
 GRENS_LADEN_S = 60          # bij 150 tellingen; de oude manier: minuten
 GRENS_ACTIE_MS = 3000       # per actie; de oude manier: seconden tot tien seconden
 
-def maak_set(map_, n, gebieden):
-    """n pocket-ZIP's; tellingen in hetzelfde gebied delen hun 230 wegvakken."""
+def maak_set(map_, n, gebieden, begin=0):
+    """n pocket-ZIP's (nummers begin..begin+n-1); tellingen in hetzelfde gebied
+    (nummer modulo gebieden) delen hun 230 wegvakken, maar tellen elk andere."""
     os.makedirs(map_, exist_ok=True)
     for f in os.listdir(map_): os.remove(os.path.join(map_, f))
-    for i in range(n):
+    for i in range(begin, begin + n):
         g = i % gebieden
         modus = 'winkelstraat' if i % 3 else 'simpel'
         sid = '202610%02d_%02d%02d00_%s_pkt_%s' % (1 + i % 28, 9 + i % 9, i % 60,
@@ -183,6 +192,41 @@ with sync_playwright() as p:
       return { voor, tijdens, na };
     })()""")
     eis('tijdens de hover dik (6), daarna weer zoals ervoor', h['tijdens'] == [6, 1] and h['na'] == h['voor'], h)
+
+    print('\n== G. Het kale net als één laag (v3.50) ==')
+    k = pg.evaluate("""(() => {
+      const eigen = Object.keys(wayLayers), fout = [];
+      lijnKeys.forEach(k => {
+        const g = wayData[k] && wayData[k].geometry; if (!g || g.length < 2) return;
+        const inKaal = kaalNet.has(k), heeft = !!wayLayers[k];
+        if (inKaal === heeft) fout.push(k + ': kaal ' + inKaal + ', eigen ' + heeft);
+        else if (inKaal !== isKaal(k)) fout.push(k + ': kaal ' + inKaal + ' maar isKaal ' + isKaal(k));
+      });
+      const gedeeld = eigen.filter(k => wayData[k].sessions.length > 1 || (bezoekenOp[k] || []).length > 1).length;
+      return { lijnen: lijnKeys.length, eigen: eigen.length, kaal: kaalNet.size, fout: fout.slice(0, 5), nFout: fout.length, gedeeld,
+               laag: !!kaalLaag && map.hasLayer(kaalLaag), delen: kaalLaag ? kaalLaag.getLatLngs().length : 0,
+               interactief: kaalLaag ? kaalLaag.options.interactive : null, pane: kaalLaag ? kaalLaag.options.pane : null,
+               muis: map.getPane('kaalnet').style.pointerEvents, wachtrij: teBouwen.size };
+    })()""")
+    print('  %d wegvakken met een lijn: %d eigen, %d kaal (%d gedeeld door meer tellingen)' % (k['lijnen'], k['eigen'], k['kaal'], k['gedeeld']))
+    eis('eigen lijn of kale laag, nooit allebei, en kaal = geen telling en geen bezoek', k['nFout'] == 0 and k['wachtrij'] == 0, k['fout'])
+    eis('de kale laag: één polylijn met een deel per kaal wegvak', k['laag'] and k['delen'] == k['kaal'] and k['kaal'] > 0.9 * k['lijnen'], k)
+    eis('zonder klik en hover, in een pane die geen muis vangt', k['interactief'] is False and k['pane'] == 'kaalnet' and k['muis'] == 'none', k)
+    kaal1 = set(pg.evaluate('[...kaalNet]'))
+    extra = maak_set(UIT + '_extra', 20, gebieden=max(1, N * 5 // 6), begin=N)
+    pg.set_input_files('#file-input', extra)
+    pg.wait_for_function('Object.keys(sessions).length === %d && !/laden|tekenen/.test(document.getElementById("dropzone").innerText)' % (N + 20),
+                         timeout=600000, polling=100)
+    k2 = pg.evaluate("""(() => {
+      const fout = [];
+      lijnKeys.forEach(k => { const g = wayData[k] && wayData[k].geometry; if (!g || g.length < 2) return;
+        if (kaalNet.has(k) === !!wayLayers[k] || kaalNet.has(k) !== isKaal(k)) fout.push(k); });
+      return { eigen: Object.keys(wayLayers), kaal: kaalNet.size, nFout: fout.length, fout: fout.slice(0, 5),
+               delen: kaalLaag ? kaalLaag.getLatLngs().length : 0 };
+    })()""")
+    over = [x for x in k2['eigen'] if x in kaal1]
+    eis('20 tellingen erbij: %d wegvakken van de kale laag naar een eigen lijn' % len(over), len(over) > 0, len(over))
+    eis('en daarna nog steeds: eigen of kaal, nooit allebei; de kale laag klopt', k2['nFout'] == 0 and k2['delen'] == k2['kaal'], k2['fout'])
 
     print('\n== F. Acties binnen ruime grenzen ==')
     acties = [('bollen uit', ms_uit), ('bollen aan', ms_aan)]
