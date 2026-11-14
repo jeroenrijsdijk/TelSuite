@@ -1018,7 +1018,8 @@ var DAGCURVE = null;                   // de uitkomst voor alle stukken; herbere
 var DCKEUZE = null;                    // v3.44: { sleutel, dc } voor de gekozen stukken
 var TAB = 'kaart';
 function dcUur(v) { return Math.floor(((v.t0 + v.t1) / 2) / 3600); }   // zoals in PASSANTEN: het uur van het midden
-// Per telling de passages samen per stuk|richting, weekdag en uur: { sessie_id: [{ sid, u, d, h, k, w, m, p }] }.
+// Per telling de passages samen per stuk|richting, weekdag en uur: { sessie_id: [{ sid, u, d, h, k, w, m, p, t }] }.
+// t (v3.52): de seconden op die stukken, voor de stippen (dcStippen).
 // filter (v3.44): { sleutel: true } van de stukken die meedoen, of null voor alle.
 function dcWaarnemingen(filter) {
   var per = {};
@@ -1028,8 +1029,8 @@ function dcWaarnemingen(filter) {
       var d = PASSANTEN.dagIndex(v.datum), h = dcUur(v);
       if (d === null || (filter && !filter[v.key])) return;
       var u = v.key + '|' + (v.richting || '?'), s = u + '|' + d + '|' + h;
-      if (!rij[s]) lijst.push(rij[s] = { sid: id, u: u, d: d, h: h, k: DAGTYPE[d] + ':' + h, w: 0, m: 0, p: 0 });
-      rij[s].w += v.L / PASSANTEN.V_VOET + v.t; rij[s].m += v.teg; rij[s].p++;
+      if (!rij[s]) lijst.push(rij[s] = { sid: id, u: u, d: d, h: h, k: DAGTYPE[d] + ':' + h, w: 0, m: 0, p: 0, t: 0 });
+      rij[s].w += v.L / PASSANTEN.V_VOET + v.t; rij[s].m += v.teg; rij[s].p++; rij[s].t += v.t;
     });
   });
   return per;
@@ -1122,7 +1123,8 @@ function dcSchat(alle, start) {
   }
   var Fk = {};
   K.forEach(function (k, j) { if (gr.cel(k)) Fk[k] = F[j]; });
-  return { F: Fk, D: D.slice(0, 5), dagOk: [0, 1, 2, 3, 4].map(function (d) { return gr.dag(d) && mD[d] > 0; }), mee: obs, iteraties: it };
+  return { F: Fk, D: D.slice(0, 5), dagOk: [0, 1, 2, 3, 4].map(function (d) { return gr.dag(d) && mD[d] > 0; }), mee: obs, iteraties: it,
+           A: A, uNr: uNr };   // v3.52: het niveau per stuk|richting, voor de stippen (dcStippen)
 }
 // De schaal: de weekdagfactoren in dagen samen gemiddeld 1, en index 100 = het gemiddelde van refK.
 // Geeft { idx: { 'werkdag:12': 104.2, … }, dag: [factor ma … vr, of null] }, of null als dagen of refK
@@ -1133,7 +1135,37 @@ function dcNormeer(s, dagen, refK) {
   var schaal = function (k) { return k.indexOf('werkdag:') === 0 ? s.F[k] * gem : s.F[k]; };
   var r = refK.reduce(function (a, k) { return a + schaal(k); }, 0) / refK.length, idx = {};
   Object.keys(s.F).forEach(function (k) { idx[k] = 100 * schaal(k) / r; });
-  return { idx: idx, dag: s.dagOk.map(function (ok, d) { return ok ? s.D[d] / gem : null; }) };
+  return { idx: idx, dag: s.dagOk.map(function (ok, d) { return ok ? s.D[d] / gem : null; }), gem: gem, r: r };   // v3.52: gem en r voor dcStippen
+}
+/* De stippen (v3.52). Jay: "Het gaat om het aangeven van de spreiding - aangeven
+   dat het gemiddelde niet als waarheid moeten worden gezien". Per telling en uur
+   een eigen index: de tegemoetkomers van die telling in dat uur, gedeeld door wat
+   het model zonder het uur verwacht (venster × het niveau van de straat × de
+   weekdag), op dezelfde schaal als de curve (dcNormeer). Alleen in vakjes die te
+   scheiden zijn. Gewogen met die verwachting is het gemiddelde van de stippen in
+   een vakje precies de index van de curve: zo ver kan een losse telling ervan af
+   liggen. s0: de schatting op alles (dcSchat), basis: dcNormeer(s0, …).          */
+function dcStippen(s0, basis, cel) {
+  var per = {}, lijst = [];
+  s0.mee.forEach(function (o) {
+    if (!cel[o.k] || cel[o.k].los || !(o.k in s0.F)) return;
+    var e = o.w * s0.A[s0.uNr[o.ui]] * (o.d < 5 ? s0.D[o.d] : 1), sl = o.sid + '|' + o.k;
+    var x = per[sl] || (per[sl] = { sid: o.sid, k: o.k, type: DAGTYPE[o.d], dag: o.d, uur: o.h, m: 0, e: 0, p: 0, t: 0 });
+    x.m += o.m; x.e += e; x.p += o.p; x.t += o.t;
+  });
+  Object.keys(per).forEach(function (sl) {
+    var x = per[sl];
+    if (!(x.e > 0)) return;
+    lijst.push({ sid: x.sid, k: x.k, type: x.type, dag: x.dag, uur: x.uur, tikken: x.m, passages: x.p, seconden: x.t, gewicht: x.e,
+                 index: 100 * (x.m / x.e) * (x.type === 'werkdag' ? basis.gem : 1) / basis.r });
+  });
+  return lijst;
+}
+// Vast per telling, -0,5 … 0,5: de stippen van één telling staan in elk uur even ver opzij.
+function dcOpzij(id) {
+  var h = 2166136261;
+  for (var i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) / 4294967295 - 0.5;
 }
 function dcRng(zaad) {                  // mulberry32: herhaalbare trekkingen
   return function () { zaad |= 0; zaad = zaad + 0x6D2B79F5 | 0; var t = Math.imul(zaad ^ zaad >>> 15, 1 | zaad);
@@ -1182,6 +1214,7 @@ function dagcurveVan(filter) {
   if (!refK.length) { ref = 'alles'; refK = Object.keys(cel).filter(function (k) { return cel[k].genoeg && s0.F[k] > 0; }); }
   if (!refK.length) refK = Object.keys(s0.F).filter(function (k) { return s0.F[k] > 0; });
   var basis = dcNormeer(s0, dagen, refK);
+  var stippen = basis ? dcStippen(s0, basis, cel) : [];   // v3.52
   // de marges: dezelfde schatting en schaal op trekkingen van de tellingen
   var rng = dcRng(343), bruikbaar = 0;
   for (var b = 0; b < DC_TREKKINGEN && sessies.length > 1 && basis; b++) {
@@ -1201,17 +1234,21 @@ function dagcurveVan(filter) {
     marge(x);
   });
   var uren = obs.map(function (o) { return o.h; });
-  return { cel: cel, dagen: dag, dekking: dekking, ref: ref, refK: refK, trekkingen: bruikbaar, tellingen: sessies.length,
+  return { cel: cel, dagen: dag, dekking: dekking, ref: ref, refK: refK, trekkingen: bruikbaar, tellingen: sessies.length, stippen: stippen,
            passages: obs.reduce(function (a, o) { return a + o.p; }, 0),
            van: Math.min.apply(null, uren), tot: Math.max.apply(null, uren) };
 }
 function dcGetal(x) { return x === null || x === undefined ? '' : String(Math.round(x)); }
 // achter (v3.44): de dagcurve van alle stukken, dun gestippeld achter die van de keuze.
 function dcGrafiek(dc, breedte, achter) {  // breedte: zo breed als het vak, zodat de letters leesbaar blijven
-  var W = Math.round(Math.min(860, Math.max(320, breedte || 760))), H = W < 500 ? 260 : 300, L = 40, R = 12, T = achter ? 44 : 30, B = 34, max = 100, v, h;
+  // de stippen (v3.52): elke telling in elk uur met een curve, alleen van dc (niet van achter)
+  var stip = (dc.stippen || []).filter(function (p) { return dc.cel[p.k] && dc.cel[p.k].genoeg; });
+  var W = Math.round(Math.min(860, Math.max(320, breedte || 760))), H = W < 500 ? 260 : 300, L = 40, R = 12, T = achter || stip.length ? 44 : 30, B = 34, max = 100, v, h;
   var h0 = achter ? Math.min(dc.van, achter.van) : dc.van, tot = achter ? Math.max(dc.tot, achter.tot) : dc.tot, h1 = tot + 1;
   Object.keys(dc.cel).forEach(function (k) { var c = dc.cel[k]; if (c.genoeg) max = Math.max(max, c.boven !== null ? c.boven : c.index); });
   if (achter) Object.keys(achter.cel).forEach(function (k) { var c = achter.cel[k]; if (c.genoeg) max = Math.max(max, c.index); });
+  // de schaal neemt de stippen mee tot het 97,5e percentiel; wat hoger ligt, wordt een driehoekje bovenaan
+  if (stip.length) max = Math.max(max, dcPercentiel(stip.map(function (p) { return p.index; }), 0.975));
   max = Math.ceil(max * 1.05 / 50) * 50;
   var x = function (h) { return L + (h - h0) / (h1 - h0) * (W - L - R); }, y = function (v) { return T + (1 - v / max) * (H - T - B); };
   var mid = function (c) { return x(c.uur + 0.5); };
@@ -1228,20 +1265,29 @@ function dcGrafiek(dc, breedte, achter) {  // breedte: zo breed als het vak, zod
   s += '<text x="' + (W - R) + '" y="' + (H - 4) + '" text-anchor="end" font-size="11" fill="#6d6d66">uur</text>';
   if (!Object.keys(dc.cel).some(function (k) { return dc.cel[k].genoeg; }))
     s += '<text x="' + (W / 2) + '" y="' + (H / 2 - 20) + '" text-anchor="middle" font-size="13" fill="#6d6d66">Nog te weinig gemeten voor een curve</text>';
+  // de stippen onder alles; klein = maar een paar minuten op de stukken in dat uur (vol vanaf een half uur)
+  stip.forEach(function (p) {
+    var cx = x(p.uur + 0.5 + 0.6 * dcOpzij(p.sid)).toFixed(1), cy = y(p.index).toFixed(1), r = 1.6 + 1.4 * Math.sqrt(Math.min(1, p.seconden / 1800)), ses = SESSIES[p.sid];
+    var tip = '<title>' + p.sid + ', ' + DAGNAAM[p.dag] + (ses && ses.s.datum ? ' ' + ses.s.datum : '') + ', ' + p.uur + ':00–' + (p.uur + 1) + ':00: index ' + dcGetal(p.index) +
+              ', ' + p.tikken + ' tegemoetkomers in ' + Math.max(1, Math.round(p.seconden / 60)) + ' min</title>';
+    s += p.index > max
+      ? '<path class="dc-stip boven" d="M' + (cx - 3) + ',' + (T + 3) + 'L' + cx + ',' + (T - 2) + 'L' + (+cx + 3) + ',' + (T + 3) + 'Z" fill="' + DC_KLEUR[p.type] + '" opacity="0.5">' + tip + '</path>'
+      : '<circle class="dc-stip" cx="' + cx + '" cy="' + cy + '" r="' + r.toFixed(1) + '" fill="' + DC_KLEUR[p.type] + '" opacity="0.35">' + tip + '</circle>';
+  });
   if (achter) DC_TYPEN.forEach(function (t) {
     reeksen(achter, t).forEach(function (r) {
-      if (r.length > 1) s += '<polyline class="dc-alle" fill="none" stroke="' + DC_KLEUR[t] + '" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.6" points="' + r.map(function (c) { return mid(c) + ',' + y(c.index); }).join(' ') + '"/>';
+      if (r.length > 1) s += '<polyline class="dc-alle" fill="none" stroke="' + DC_KLEUR[t] + '" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.6" pointer-events="none" points="' + r.map(function (c) { return mid(c) + ',' + y(c.index); }).join(' ') + '"/>';
       else s += '<circle class="dc-alle" cx="' + mid(r[0]) + '" cy="' + y(r[0].index) + '" r="2.5" fill="none" stroke="' + DC_KLEUR[t] + '" opacity="0.7"/>';
     });
   });
   DC_TYPEN.forEach(function (t, ti) {
     reeksen(dc, t).forEach(function (st) {
       if (st.length > 1 && st.every(function (c) { return c.onder !== null; }))
-        s += '<polygon fill="' + DC_KLEUR[t] + '" opacity="0.13" points="' + st.map(function (c) { return mid(c) + ',' + y(c.boven); })
+        s += '<polygon fill="' + DC_KLEUR[t] + '" opacity="0.13" pointer-events="none" points="' + st.map(function (c) { return mid(c) + ',' + y(c.boven); })
              .concat(st.slice().reverse().map(function (c) { return mid(c) + ',' + y(c.onder); })).join(' ') + '"/>';
-      if (st.length > 1) s += '<polyline fill="none" stroke="' + DC_KLEUR[t] + '" stroke-width="2.2" points="' + st.map(function (c) { return mid(c) + ',' + y(c.index); }).join(' ') + '"/>';
+      if (st.length > 1) s += '<polyline fill="none" stroke="' + DC_KLEUR[t] + '" stroke-width="2.2" pointer-events="none" points="' + st.map(function (c) { return mid(c) + ',' + y(c.index); }).join(' ') + '"/>';
       st.forEach(function (c) {
-        if (c.onder !== null) s += '<line x1="' + mid(c) + '" x2="' + mid(c) + '" y1="' + y(c.onder) + '" y2="' + y(c.boven) + '" stroke="' + DC_KLEUR[t] + '" opacity="0.45"/>';
+        if (c.onder !== null) s += '<line x1="' + mid(c) + '" x2="' + mid(c) + '" y1="' + y(c.onder) + '" y2="' + y(c.boven) + '" stroke="' + DC_KLEUR[t] + '" opacity="0.45" pointer-events="none"/>';
         s += '<circle class="dc-punt" data-cel="' + t + ':' + c.uur + '" cx="' + mid(c) + '" cy="' + y(c.index) + '" r="3.5" fill="' + DC_KLEUR[t] + '"><title>' + t + ' ' + c.uur + ':00–' + (c.uur + 1) + ':00: index ' + dcGetal(c.index) +
              (c.onder !== null ? ' (' + dcGetal(c.onder) + '–' + dcGetal(c.boven) + ')' : '') + ', ' + c.n + ' tellingen</title></circle>';
       });
@@ -1250,6 +1296,7 @@ function dcGrafiek(dc, breedte, achter) {  // breedte: zo breed als het vak, zod
   });
   if (achter) s += '<line x1="' + (L + 8) + '" x2="' + (L + 22) + '" y1="27" y2="27" stroke="#1b1b19" stroke-width="2.2"/><text x="' + (L + 26) + '" y="31" font-size="11.5" fill="#1b1b19">je keuze</text>' +
                    '<line x1="' + (L + 92) + '" x2="' + (L + 106) + '" y1="27" y2="27" stroke="#1b1b19" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.6"/><text x="' + (L + 110) + '" y="31" font-size="11.5" fill="#1b1b19">alle stukken</text>';
+  if (stip.length) s += '<circle cx="' + (L + (achter ? 194 : 14)) + '" cy="27" r="3" fill="#1b1b19" opacity="0.35"/><text x="' + (L + (achter ? 202 : 22)) + '" y="31" font-size="11.5" fill="#1b1b19">één telling</text>';
   return s + '</svg>';
 }
 function dcRefTekst(dc) {
@@ -1286,7 +1333,9 @@ function dcTeken() {
       'Omrekenen: een telling op een werkdag om 14 uur met Q passanten per uur geeft voor een gemiddeld werkdaguur Q × 100 ÷ index(werkdag 14), ' +
       'en daarna ÷ de factor van die weekdag. Op zaterdag om 13 uur: Q × 100 ÷ index(zaterdag 13). ' +
       'Een streepje: te weinig gemeten (minder dan ' + DC_MIN_TELLINGEN + ' tellingen of ' + DC_MIN_TIKKEN + ' tegemoetkomers). ' +
-      (dc.trekkingen ? 'De marge (95%) komt uit ' + dc.trekkingen + ' trekkingen van de tellingen (met teruglegging).' : 'Een marge vraagt meer tellingen.') + '</div>';
+      (dc.trekkingen ? 'De marge (95%) komt uit ' + dc.trekkingen + ' trekkingen van de tellingen (met teruglegging).' : 'Een marge vraagt meer tellingen.') + ' ' +
+      '<b>De stippen</b>: elke stip is één telling in dat uur' + (kz ? ' (van je keuze)' : '') + ', omgerekend zoals de curve; een kleine stip had maar een paar minuten in dat uur, ' +
+      'een driehoekje bovenaan ligt hoger dan de schaal. De marge zegt hoe zeker het gemiddelde is; de stippen laten zien hoe ver één telling ervan af kan liggen.</div>';
   t += dcGrafiek(dc, el.clientWidth, kz ? alle : null);
   // per uur: de index (met kz ook die van alle stukken ernaast)
   t += '<div class="dc-tabellen"><div class="dc-tabel"><table id="dc-uren"><thead>' + (kz
