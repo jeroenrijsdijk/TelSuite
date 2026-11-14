@@ -411,6 +411,18 @@ else:
             pg.inner_text('#week-detail'))
         mg = pg.evaluate("marge(SEGMENTEN['1001/0'].cells['5:13'])")
         eis('de marge omsluit de (geijkte) waarde', mg[0] < IJK * za['q'] < mg[1], mg)
+        # v3.53: Wanneer tellen? onder het weekoverzicht
+        pl = pg.evaluate("""(() => { const pl = dcPlan('1001/0'), t = document.getElementById('week-plan');
+          return { typen: pl.typen, van: pl.van, tot: pl.tot, advies: pl.advies.map(c => c.k), za: pl.cellen.find(c => c.k === 'zaterdag:13'), wd: pl.cellen.find(c => c.k === 'werkdag:11'),
+                   kop: t.querySelector('.plan-kop').textContent, li: t.querySelectorAll('li').length, tel: t.querySelectorAll('td.p-tel').length,
+                   rijen: [...t.querySelectorAll('#plan-tabel tbody tr')].map(tr => [tr.children[0].textContent, tr.children.length - 1]),
+                   zaTd: t.querySelector('td[data-plan="zaterdag:13"]').title, tekst: t.innerText }; })()""")
+        eis('v3.53: onder het weekoverzicht "Wanneer tellen?", een rij per dagtype met een vakje per uur',
+            pl['kop'] == 'Wanneer tellen?' and len(pl['rijen']) >= 2 and [r[0] for r in pl['rijen']] == pl['typen'] and all(r[1] == pl['tot'] - pl['van'] + 1 for r in pl['rijen']), pl)
+        eis('v3.53: zaterdag 13 uur 2 tellingen, ook in de tooltip; werkdag 11 uur (de donderdag) 1 telling, te weinig',
+            pl['za']['n'] == 2 and '2 tellingen' in pl['zaTd'] and pl['wd']['n'] == 1 and pl['wd']['stand'] == 'dun', [pl['za'], pl['wd'], pl['zaTd']])
+        eis('v3.53: het advies als lijst en gemarkeerd in de tabel, hooguit 3; in beide richtingen gelopen: geen richtingadvies',
+            pl['li'] == pl['tel'] == len(pl['advies']) and 1 <= len(pl['advies']) <= 3 and 'Alleen richting' not in pl['tekst'], pl)
         pg.click('#week-tabel td[data-cel="3:11"]')
         eis('klik op do 11: die cel gekozen, de details van donderdag', 'donderdag 11:00\u201312:00' in pg.inner_text('#week-detail')
             and pg.evaluate("document.querySelector('#week-tabel td.sel').getAttribute('data-cel')") == '3:11')
@@ -434,6 +446,11 @@ else:
         s2 = IJK * 2 * k0['q']; verw2 = [max(0, s2 - BREED * (s2 - IJK * 2 * mg1[0])), s2 + BREED * (IJK * 2 * mg1[1] - s2)]
         eis('de marge gaat \u00d7 2 en \u00d7 ' + IJK_TEKST + ' mee, 1,4 keer zo ver van de schatting, en omsluit de opgehoogde waarde',
             abs(mg2[0] - verw2[0]) < 1e-9 and abs(mg2[1] - verw2[1]) < 1e-9 and mg2[0] < s2 < mg2[1], [mg1, mg2, verw2])
+        ra = pg.evaluate("""(() => { const t = document.getElementById('week-plan').innerText, m = /Alleen richting (\\S+) gelopen\\. Loop hem ook richting (\\S+):/.exec(t);
+          const s = SEGMENTEN['1002/0'], a = Object.values(s.cells).some(c => c.stromen.A.n), d = richtingVan(s);
+          return m ? [m[1], m[2], kompas(a ? d : [-d[0], -d[1]]), KOMPAS.indexOf(m[1]), KOMPAS.indexOf(m[2])] : t; })()""")
+        eis('v3.53: de Kerkstraat is maar in één richting gelopen: Wanneer tellen? zegt welke kant nog, de tegenovergestelde',
+            isinstance(ra, list) and ra[0] == ra[2] and ra[3] >= 0 and ra[4] == (ra[3] + 4) % 8, ra)
         rijen_k = pg.evaluate("[...document.querySelectorAll('#week-tabel tbody tr')].map(tr => [...tr.children].map(x => x.textContent))")
         eis('ook gem. (za, en alles samen) is \u00d7 2: er is maar één richting gemeten',
             rijen_k[5][25] == rijen_k[7][25] == str(round(IJK * 2 * k0['q'])) + '*', [rijen_k[5][25], rijen_k[7][25]])

@@ -21,13 +21,20 @@
    gezien"). Zonder ruis vallen ze op de curve; met ruis is hun gemiddelde,
    gewogen met wat het model verwacht, precies de index van het vakje.
 
+   v3.53: Wanneer tellen? per stuk en uur (Jay: "kun je dan doorrekenen wanneer
+   er geteld moet worden op die link?"; "Doe het gewoon op uurbasis"). Zonder
+   ruis volgt elk stuk de curve; met verschillen tussen dagen meet dcSpreiding
+   die, en zonder die spreiding in de marge zou een stuk ten onrechte afwijken;
+   een stuk met een eigen ritme wijkt wel af.
+
    Draaien vanuit de suite-root:  node _archief/overpass_rig/functest_dagcurve.js */
 const fs = require('fs');
 const vm = require('vm');
 const html = fs.readFileSync('passanten.html', 'utf8');
 const a = html.indexOf('/* ── Dagcurve (v3.43)'), z = html.indexOf('function dcGrafiek(');
 if (a < 0 || z < 0) throw new Error('blok Dagcurve niet gevonden');
-const csv = ['function dcCsvGetal(', 'function dagcurveCsv(', 'function passagesCsv(', 'function straatNaam(', 'function heleStraat('].map(n => {
+const csv = ['function dcCsvGetal(', 'function dagcurveCsv(', 'function passagesCsv(', 'function straatNaam(', 'function heleStraat(',
+             'function poissonCdf(', 'function poissonMarge('].map(n => {
   const i = html.indexOf(n); let j = html.indexOf('{', i), diep = 0;
   for (; j < html.length; j++) { if (html[j] === '{') diep++; else if (html[j] === '}' && --diep === 0) return html.slice(i, j + 1); }
 });
@@ -37,9 +44,10 @@ vm.runInContext([
   'var SESSIES = {}, KEUZE = {};',
   "var PASSANTEN = { V_VOET: 1.1, dagIndex: function (d) { var t = new Date(d + 'T12:00:00Z'); return isNaN(t) ? null : (t.getUTCDay() + 6) % 7; } };",
   "var DAGKORT = ['ma','di','wo','do','vr','za','zo'], DAGNAAM = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];",
-  html.slice(a, z), csv.join('\n'), /var STRAAT_GAT = [^;]+;/.exec(html)[0],
+  html.slice(a, z), csv.join('\n'), /var STRAAT_GAT = [^;]+;/.exec(html)[0], /var MARGE_BREED = [^;]+;/.exec(html)[0],
   'this.f = { dcSchat, dcNormeer, dcGroepen, dcWaarnemingen, dagcurve, dagcurveVan, dagcurveKeuze, dagcurveCsv, passagesCsv, heleStraat, ' +
-  'zet: function (s) { SESSIES = s; DAGCURVE = null; DCKEUZE = null; }, kies: function (k) { KEUZE = k; }, ' +
+  'dcPlan, dcSpreiding, dcKernAlle, ' +
+  'zet: function (s) { SESSIES = s; DAGCURVE = null; DCKEUZE = null; DCKERN = null; }, kies: function (k) { KEUZE = k; }, ' +
   'DC_REF: DC_REF, DC_TREKKINGEN: DC_TREKKINGEN };'
 ].join('\n'), ctx);
 const F = ctx.f;
@@ -324,6 +332,67 @@ const kz = F.dagcurveKeuze(), metStuk = new Set(plan5.map((ps, i) => ps.some(p =
 eis('de keuze: alleen tellingen die de gekozen stukken liepen (' + new Set(kz.stippen.map(p => p.sid)).size + ' van ' + metStuk.size + ')',
     kz.stippen.length > 0 && kz.stippen.every(p => metStuk.has(p.sid)));
 F.kies({});
+
+console.log('\n== v3.53: wanneer tellen, per stuk en uur ==');
+const typeVan = d => d < 5 ? 'werkdag' : d === 5 ? 'zaterdag' : 'zondag';
+// zonder ruis: elk stuk volgt de curve precies, en er is geen spreiding tussen tellingen
+F.zet(sessies(plan)); dc = F.dagcurve();
+let pl = F.dcPlan('12/0');
+const metV = pl.cellen.filter(c => c.verhouding !== null);
+eis('zonder ruis: spreiding 0, en op elk uur met een verwachting precies 1 keer de curve (' + metV.length + ' uren)',
+    pl.spreiding === 0 && metV.length >= 5 && metV.every(c => bijna(c.verhouding, 1, 1e-6)) && pl.cellen.every(c => c.stand !== 'hoger' && c.stand !== 'lager'),
+    metV.map(c => [c.k, c.verhouding]));
+// de aantallen: zoals in het plan
+const telPlan = (pp, stuk) => { const r = {}; pp.forEach((ps, i) => ps.forEach(([d, h, st, , , m]) => { if (st !== stuk) return;
+  const k = typeVan(d) + ':' + h, x = r[k] = r[k] || { t: new Set(), m: 0 }; x.t.add(i); x.m += m; })); return r; };
+let tp = telPlan(plan, 12);
+eis('per uur het aantal tellingen en tegemoetkomers van dit stuk, zoals in het plan',
+    pl.cellen.every(c => c.n === (tp[c.k] ? tp[c.k].t.size : 0) && bijna(c.tikken + 1, (tp[c.k] ? tp[c.k].m : 0) + 1, 1e-9)) &&
+    Object.keys(tp).every(k => pl.cellen.some(c => c.k === k)));
+eis('nooit (het gebied heeft er genoeg) en leeg (het gebied niet) waar het stuk niet geteld is',
+    pl.cellen.filter(c => !c.n).every(c => c.stand === (dc.cel[c.k] && dc.cel[c.k].genoeg ? 'nooit' : 'leeg')) && pl.cellen.some(c => c.stand === 'leeg'),
+    pl.cellen.filter(c => !c.n).map(c => [c.k, c.stand]));
+const nooit = pl.cellen.filter(c => c.stand === 'nooit');
+eis('het advies: eerst de uren waar het nooit geteld is, zonder spreiding het drukste eerst, hooguit 3',
+    pl.advies.length === Math.min(3, pl.cellen.filter(c => c.stand !== 'volgt' && c.stand !== 'gezien').length) &&
+    pl.advies.slice(0, nooit.length).every(c => c.stand === 'nooit') && pl.advies.every((c, i) => !i || c.stand !== 'nooit' || pl.advies[i - 1].drukte >= c.drukte),
+    pl.advies.map(c => [c.k, c.stand, c.drukte]));
+// alleen toeval (Poisson): geen spreiding, en bijna nooit hoger of lager
+F.zet(sessies(plan5));
+const afwijkend = () => { let t = 0, a = 0; for (let st = 1; st <= 40; st++) F.dcPlan(st + '/0').cellen.forEach(c => {
+  if (c.stand === 'volgt' || c.stand === 'hoger' || c.stand === 'lager') { t++; if (c.stand !== 'volgt') a++; } }); return [a, t]; };
+let [af, ge] = afwijkend();
+eis('alleen toeval: spreiding ' + F.dcSpreiding(F.dcKernAlle()).toFixed(3) + ' (onder 0,1), en ' + af + ' van de ' + ge + ' uren hoger of lager (hooguit 5%)',
+    F.dcSpreiding(F.dcKernAlle()) < 0.1 && ge >= 100 && af <= 0.05 * ge);
+// dagen verschillen: elke telling × een eigen factor (lognormaal, σ 0,4), geen stuk met een eigen ritme
+const normaal = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+const plan7 = plan5.map(ps => { const f = Math.exp(0.4 * normaal() - 0.08);
+  return ps.map(([d, h, st, r, w]) => [d, h, st, r, w, poisson(f * w / 3600 * A2[st] * (d < 5 ? FW2[h] * D2[d] : FZ2[h]))]); });
+F.zet(sessies(plan7));
+const sp7 = F.dcSpreiding(F.dcKernAlle()), echtSp = Math.sqrt(Math.exp(0.16) - 1);
+[af, ge] = afwijkend();
+eis('dagen verschillen: spreiding ' + sp7.toFixed(2) + ' (echt ' + echtSp.toFixed(2) + ', binnen 30%), en ' + af + ' van de ' + ge + ' uren hoger of lager (hooguit 5%)',
+    Math.abs(sp7 / echtSp - 1) < 0.3 && ge >= 100 && af <= 0.05 * ge);
+F.dcKernAlle().spreiding = 0;
+const [af0, ge0] = afwijkend();
+eis('zonder die spreiding in de marge zouden er veel meer afwijken: ' + af0 + ' van de ' + ge0, af0 > 2 * af && af0 > 0.08 * ge0);
+// een stuk met een eigen ritme: stuk 7 op werkdagen om 16 en 17 uur drie keer zo druk
+const plan8 = plan7.map(ps => ps.map(([d, h, st, r, w, m]) => st === 7 && d < 5 && (h === 16 || h === 17) ? [d, h, st, r, w, 3 * m + poisson(0.5)] : [d, h, st, r, w, m]));
+F.zet(sessies(plan8));
+pl = F.dcPlan('7/0');
+const laat = pl.cellen.filter(c => c.k === 'werkdag:16' || c.k === 'werkdag:17');
+eis('een stuk met een eigen ritme: stuk 7 op werkdag 16 en 17 uur hoger waar het twee keer of vaker geteld is (' + laat.map(c => c.k + ' ' + c.n + ' tellingen ' + (c.verhouding || 0).toFixed(1) + ' ' + c.stand).join(', ') + ')',
+    laat.filter(c => c.n >= 2).length >= 1 && laat.filter(c => c.n >= 2).every(c => c.stand === 'hoger') && laat.every(c => c.n >= 2 || c.stand !== 'hoger'), laat);
+// met spreiding: een uur dat het gebied goed kent gaat voor een drukker uur dat het gebied nauwelijks kent
+const nooit8 = pl.cellen.filter(c => c.stand === 'nooit' && c.perKeer > 5), paren = [];
+nooit8.forEach(x => nooit8.forEach(y => { if (x.gebied > 2 * y.gebied && y.perKeer > x.perKeer) paren.push([x, y]); }));
+eis('met spreiding: eerst waar het gebied het uur goed kent, ook als het elders drukker is (' +
+    paren.map(([x, y]) => x.k + ' (' + x.gebied + ' tellingen, ≈' + x.perKeer.toFixed(0) + ' per keer) voor ' + y.k + ' (' + y.gebied + ', ≈' + y.perKeer.toFixed(0) + ')').join('; ') + ')',
+    paren.length > 0 && paren.every(([x, y]) => x.onzeker < y.onzeker) &&
+    pl.advies.every((c, i) => !i || c.stand !== pl.advies[i - 1].stand || c.stand === 'dun' || pl.advies[i - 1].onzeker <= c.onzeker),
+    nooit8.map(c => [c.k, c.gebied, +c.perKeer.toFixed(1), +c.onzeker.toFixed(3)]));
+eis('per keer langs verwacht: wat de schatting per passage geeft (alleen waar het gebied een curve heeft)',
+    pl.cellen.every(c => c.perKeer === null || (c.perKeer > 0 && c.drukte > 0)) && pl.cellen.some(c => c.perKeer > 0));
 
 console.log('\n' + (fout === 0 ? 'ALLE ' + ok + ' TESTS OK' : ok + ' ok, ' + fout + ' FOUT'));
 process.exit(fout ? 1 : 0);
