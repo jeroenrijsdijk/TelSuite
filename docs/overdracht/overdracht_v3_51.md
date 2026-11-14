@@ -73,16 +73,38 @@ gebeurt op twee sets:
 - de 100 tellingen van de test;
 - een set met zondag en een losse straat (die niet te scheiden is).
 
-## 4. Gewijzigde bestanden
+## 4. README op GitHub
+
+Jay: "zullen we de readme op https://github.com/jeroenrijsdijk/TelSuite ook even
+bijwerken naar de nieuwste inzichten?" De README was van v3.37.
+
+- **Nieuw in de lijst:**
+  - `passanten.html`: kaart per weekdag en uur, weekoverzicht, dagcurve, CSV's;
+  - `telarchief.html`: kaart en tabel van alle tellingen, ordenen met logboek;
+  - `about.html`;
+  - `simulatieronde.html`: de bron van de ijkfactor.
+- **Bijgewerkt:**
+  - de inleiding noemt nu ook voetgangers in winkelstraten;
+  - onder het schema een zin over Passanten en Archief;
+  - de GeoPackage met QGIS-project;
+  - telrapport blijft vlot met een paar honderd tellingen;
+  - `winkelstraat_rekenrig.html` is het prototype van Passanten.
+- **Privacy:** de vingerafdruk voor de teller is de enige uitzondering.
+- **Afhankelijkheden:** sql.js, Open-Meteo, en de lettertypen in `fonts/`.
+- **Development:** de tests in `_archief/overpass_rig/`, GitHub Actions bij elke
+  PR, en dat een merge naar `main` live gaat.
+
+## 5. Gewijzigde bestanden
 
 | bestand | wat |
 |---|---|
 | `passanten.html` | `DC_ID`, `dcId`, `dcIds`, `dcVereniging`; `dcGroepen` en de nummering in `dcSchat` |
 | `index.html` | versie v3.51 |
 | `_archief/overpass_rig/functest_dagcurve.js` | de vergelijking met de oude versie |
+| `README.md` | zie §4 |
 | `_archief/overpass_rig/valideer.py`, `README.md`, `docs/OVERDRACHT_STAND_VAN_ZAKEN.md` | bijgewerkt |
 
-## 5. Validatie
+## 6. Validatie
 
 ```
 valideer.py            ALLES OK — de 2 verwachte bestanden
