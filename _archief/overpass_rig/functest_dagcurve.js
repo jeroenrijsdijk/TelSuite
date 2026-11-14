@@ -10,6 +10,12 @@
    De test knipt het rekendeel uit de pagina en draait het in Node op gemaakte
    tellingen waarvan de echte factoren bekend zijn.
 
+   v3.51: de dagcurve 3 keer zo snel (Jay: "is er in passanten.html ook nog iets
+   te versnellen?"; "die mag je maken"). Samenhang en schatting rekenen op vaste
+   nummers per waarneming in plaats van op tekst. De test zet de oude versie
+   (union-find op tekst, zoals tot v3.50) ernaast en eist dezelfde uitkomst, tot
+   op de laatste decimaal.
+
    Draaien vanuit de suite-root:  node _archief/overpass_rig/functest_dagcurve.js */
 const fs = require('fs');
 const vm = require('vm');
@@ -217,6 +223,70 @@ const hs = F.heleStraat(SEG['1/1'], SEG);
 eis('vanaf een stuk in het midden: de stukken die aaneen liggen, beide kanten op, ook over een gat van 40 m', hs[0] === '1/1' && hs.slice().sort().join() === '1/0,1/1,2/0,3/0', hs);
 eis('niet: 100 m verder, een Hoofdstraat in een ander dorp, of een andere straat ertussen', !hs.includes('4/0') && !hs.includes('5/0') && !hs.includes('6/0'));
 eis('een stuk zonder naam: alleen dat stuk', F.heleStraat(SEG['7/0'], SEG).join() === '7/0');
+
+console.log('\n== v3.51: dezelfde uitkomst als de oude versie (union-find op tekst) ==');
+// De oude dcGroepen en de oude nummering in dcSchat, zoals tot v3.50.
+const OUD_GROEPEN = `function dcGroepen(obs) {
+  function vereniging() {
+    var ouder = {};
+    function wortel(x) { if (!(x in ouder)) ouder[x] = x; while (ouder[x] !== x) { ouder[x] = ouder[ouder[x]]; x = ouder[x]; } return x; }
+    return { wortel: wortel, bind: function (a, b) { ouder[wortel(a)] = wortel(b); } };
+  }
+  function grootste(lijst, van) {
+    var n = {}, best = null;
+    lijst.forEach(function (o) { var r = van(o); n[r] = (n[r] || 0) + 1; if (best === null || n[r] > n[best]) best = r; });
+    return best;
+  }
+  var g1 = vereniging();
+  obs.forEach(function (o) { g1.bind('u' + o.u, 'm' + o.d + ':' + o.h); });
+  var r1 = grootste(obs, function (o) { return g1.wortel('u' + o.u); });
+  var mee = obs.filter(function (o) { return g1.wortel('u' + o.u) === r1; });
+  var g2 = vereniging(), werk = mee.filter(function (o) { return o.d < 5; });
+  werk.forEach(function (o) { g2.bind('d' + o.d, 'h' + o.h); });
+  var r2 = grootste(werk, function (o) { return g2.wortel('d' + o.d); });
+  return { obs: mee,
+           dag: function (d) { return r2 !== null && g2.wortel('d' + d) === r2; },
+           cel: function (k) { var t = k.split(':'); return t[0] !== 'werkdag' || (r2 !== null && g2.wortel('h' + t[1]) === r2); } };
+}`;
+const OUD_NUMMERS = `  var uNr = {}, kNr = {}, K = [], nU = 0;
+  var ou = new Int32Array(n), ok = new Int32Array(n), od = new Int32Array(n), ow = new Float64Array(n), om = new Float64Array(n);
+  obs.forEach(function (o, i) {
+    if (!(o.u in uNr)) uNr[o.u] = nU++;
+    if (!(o.k in kNr)) { kNr[o.k] = K.length; K.push(o.k); }
+    ou[i] = uNr[o.u]; ok[i] = kNr[o.k]; od[i] = o.d; ow[i] = o.w; om[i] = o.m;
+  });`;
+function functieTekst(tekst, naam) {
+  const i = tekst.indexOf(naam); let j = tekst.indexOf('{', i), diep = 0;
+  for (; j < tekst.length; j++) { if (tekst[j] === '{') diep++; else if (tekst[j] === '}' && --diep === 0) return tekst.slice(i, j + 1); }
+}
+let blokOud = html.slice(a, z);
+const nieuwGroepen = functieTekst(blokOud, 'function dcGroepen(obs) {');
+const nieuwNummers = /  var uNr = new Int32Array[^\n]*\n(?:.*\n){5}  \}\);/.exec(blokOud);
+eis('de nieuwe dcGroepen en de nieuwe nummering gevonden', !!nieuwGroepen && !!nieuwNummers && nieuwGroepen.indexOf('dcVereniging') > 0);
+blokOud = blokOud.replace(nieuwGroepen, OUD_GROEPEN).replace(nieuwNummers[0], OUD_NUMMERS);
+const ctxOud = { console };
+vm.createContext(ctxOud);
+vm.runInContext([
+  'var SESSIES = {}, KEUZE = {};',
+  "var PASSANTEN = { V_VOET: 1.1, dagIndex: function (d) { var t = new Date(d + 'T12:00:00Z'); return isNaN(t) ? null : (t.getUTCDay() + 6) % 7; } };",
+  "var DAGKORT = ['ma','di','wo','do','vr','za','zo'], DAGNAAM = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];",
+  blokOud, csv.join('\n'), /var STRAAT_GAT = [^;]+;/.exec(html)[0],
+  'this.f = { dagcurve, dagcurveKeuze, dagcurveCsv, zet: function (s) { SESSIES = s; DAGCURVE = null; DCKEUZE = null; }, kies: function (k) { KEUZE = k; } };'
+].join('\n'), ctxOud);
+const O = ctxOud.f;
+// Twee keer dezelfde gegevens: de 100 tellingen van hierboven, en een tweede set met
+// zaterdag, zondag en een losse straat (wat niet te scheiden is, valt weg).
+const planB = plan5.slice(0, 60).concat(plan5.slice(80)).concat([[[6, 13, 41, 'A', 60, 9], [6, 14, 41, 'B', 60, 11]], [[2, 9, 42, 'A', 50, 2]]]);
+[['100 tellingen', plan5], ['met zondag en een losse straat', planB]].forEach(([naam, plan]) => {
+  F.zet(sessies(plan)); O.zet(sessies(plan));
+  let t0 = Date.now(); const nw = F.dagcurve(); const tNieuw = Date.now() - t0;
+  t0 = Date.now(); const ou = O.dagcurve(); const tOud = Date.now() - t0;
+  eis(naam + ': dagcurve gelijk tot op de laatste decimaal (nieuw ' + tNieuw + ' ms, oud ' + tOud + ' ms)', JSON.stringify(nw) === JSON.stringify(ou));
+  F.kies({ '1/0': true, '2/0': true, '3/0': true, '17/0': true }); O.kies({ '1/0': true, '2/0': true, '3/0': true, '17/0': true });
+  eis(naam + ': ook de dagcurve van een keuze', JSON.stringify(F.dagcurveKeuze()) === JSON.stringify(O.dagcurveKeuze()));
+  eis(naam + ': en dagcurve.csv', F.dagcurveCsv() === O.dagcurveCsv());
+  F.kies({}); O.kies({});
+});
 
 console.log('\n' + (fout === 0 ? 'ALLE ' + ok + ' TESTS OK' : ok + ' ok, ' + fout + ' FOUT'));
 process.exit(fout ? 1 : 0);
