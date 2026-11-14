@@ -772,6 +772,12 @@ map.getPane('capnetwerk').style.zIndex = 210; // net boven tiles (200), onder al
 // straat klikbaar blijft, maar onder de cluster-badges (620) zodat totalen winnen.
 map.createPane('wayhit');
 map.getPane('wayhit').style.zIndex = 560;
+// v3.50: het kale wegennet (wegvakken zonder telling en zonder bezoek) als één
+// laag, net boven de tegels en onder alles, zonder klik of hover. De pane vangt
+// geen muis: wat eronder en erboven ligt, blijft gewoon te raken.
+map.createPane('kaalnet');
+map.getPane('kaalnet').style.zIndex = 215;
+map.getPane('kaalnet').style.pointerEvents = 'none';
 const capNetwerkLayers = [];  // voor toggle
 
 // ── Capaciteitsreferentielaag ─────────────────────────────────────────────
@@ -1082,15 +1088,29 @@ const visitData     = {};   // sid → [{ wid, segIdx, tStart, tEnd, durSec, nGp
 //   bezoekenOp:   wayData-sleutel → [{ sid, v }] uit visitData, in laadvolgorde
 //                 (dus dezelfde volgorde van optellen als voorheen).
 const wegvakkenVan  = {};
+// v3.50: welke wegvakken een lijn hebben, en hoe. Elk wegvak dat een lijn vraagt
+// (vraagLijn) staat in lijnKeys, in volgorde van vragen (de volgorde van de
+// GeoPackage-export, zoals voorheen de volgorde van wayLayers). bouwLijnen()
+// beslist: een kaal wegvak (isKaal) gaat in kaalNet en wordt getekend in de ene
+// kaalLaag; de rest krijgt een eigen lijn met kliklijn in wayLayers/wayHitLayers.
+// teBouwen houdt bij wat opnieuw bekeken moet worden: nieuw gevraagd, of zijn
+// tellingen of bezoeken veranderden (koppel, ontkoppel, bezoekenOp).
+const lijnSoort     = {};          // k → 'pocket' | 'sessie' (welke klik en hover)
+const lijnKeys      = [];
+const kaalNet       = new Set();
+const teBouwen      = new Set();
+let   kaalLaag      = null;
 const BUNDEL        = { diepte: 0, kleur: false, bollen: new Set(), lijst: false, ui: false, stats: false, kader: null };   // v3.49, zie bundelOpen
 const bezoekenOp    = {};
 function koppel(k, e) {
   wayData[k].sessions.push(e);
   (wegvakkenVan[e.sid] = wegvakkenVan[e.sid] || new Set()).add(k);
+  if (lijnSoort[k]) teBouwen.add(k);   // v3.50: misschien niet meer kaal
 }
 function ontkoppel(sid) {
   (wegvakkenVan[sid] || new Set()).forEach(function (k) {
     if (wayData[k]) wayData[k].sessions = wayData[k].sessions.filter(function (e) { return e.sid !== sid; });
+    if (lijnSoort[k]) teBouwen.add(k);   // v3.50: misschien kaal geworden
   });
   delete wegvakkenVan[sid];
 }
@@ -1936,6 +1956,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
     visits.forEach(function (v) {   // v3.49: per wegvak, zie bezoekenOp
       const k = wkey(v.wid, v.segIdx || 0);
       (bezoekenOp[k] = bezoekenOp[k] || []).push({ sid: sid, v: v });
+      if (lijnSoort[k]) teBouwen.add(k);   // v3.50: bezocht, dus niet meer kaal
     });
   }
 
@@ -1996,10 +2017,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
 
   // Teken alle netwerk-ways als grijze achtergrondlaag (ook niet-getelde)
   netKeys.forEach(function(k) {
-    if (!wayLayers[k] && wayData[k] && wayData[k].geometry && wayData[k].geometry.length >= 2) {
-      makeWayLine(k, wayData[k].geometry, {color:'#3a3d42', weight:2, opacity:0.5});
-      attachPocketSegmentInteraction(k);
-    }
+    if (!heeftLijn(k) && wayData[k] && wayData[k].geometry && wayData[k].geometry.length >= 2) vraagLijn(k, 'pocket');
   });
 
   // Geen telregels
@@ -2126,10 +2144,7 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
           const k = wkey(wid, 0);
           if (wayData[k]) {
             wayData[k].geometry = geomMap[wid];
-            if (!wayLayers[k]) {
-              makeWayLine(k, wayData[k].geometry, {color:'#3a3d42',weight:2,opacity:0.5});
-              attachPocketSegmentInteraction(k);
-            }
+            if (!heeftLijn(k)) vraagLijn(k, 'pocket');
           }
         });
         recolorAll(); renderSessions(); drawClusters(sid); updateStats();
@@ -2139,12 +2154,9 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
 
   // Polylines aanmaken voor segmenten met geometrie maar zonder eigen layer
   (wegvakkenVan[sid] || new Set()).forEach(function(k){   // v3.49: alleen de eigen wegvakken
-    if (!wayLayers[k] && wayData[k].geometry && wayData[k].geometry.length >= 2) {
+    if (!heeftLijn(k) && wayData[k].geometry && wayData[k].geometry.length >= 2) {
       const g = wayData[k].geometry;
-      if (!(g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) {
-        makeWayLine(k, g, {color:'#3a3d42', weight:2, opacity:0.5});
-        attachPocketSegmentInteraction(k);
-      }
+      if (!(g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) vraagLijn(k, 'pocket');
     }
   });
 
@@ -2211,18 +2223,61 @@ function parseLocalDateTime(datum, tijd) {
   return new Date(y, mo-1, da, +m[1], +m[2], +(m[3]||0));
 }
 
-// Maakt de zichtbare straatlijn (wayhit-pane, boven de dots, niet-interactief)
-// plus een onzichtbare brede kliklijn in dezelfde pane die taps opvangt — zodat
-// een straat klikbaar blijft ondanks de dot-wolk eroverheen. De zichtbare lijn
-// blijft in wayLayers[k] (recolor/hover/cleanup ongewijzigd); de kliklijn in
-// wayHitLayers[k]. Idempotent: bestaande lijnen worden niet gedupliceerd.
-function makeWayLine(k, geometry, style) {
-  if (wayLayers[k]) return wayHitLayers[k];
-  const vis = L.polyline(geometry, Object.assign({}, style, { pane:'wayhit', interactive:false })).addTo(map);
-  const hit = L.polyline(geometry, { pane:'wayhit', color:'#000', weight:16, opacity:0 }).addTo(map);
+// v3.50: een wegvak vraagt een lijn; bouwLijnen() (aan het begin van recolorAll)
+// beslist of het een eigen lijn wordt of in de kale laag gaat. soort: 'pocket'
+// (attachPocketSegmentInteraction) of 'sessie' (attachSessionSegmentInteraction).
+function vraagLijn(k, soort) {
+  if (!lijnSoort[k]) { lijnSoort[k] = soort; lijnKeys.push(k); }
+  teBouwen.add(k);
+}
+function heeftLijn(k) { return !!(wayLayers[k] || kaalNet.has(k)); }
+// Kaal: geen telling (ook geen 0-bezoek of gelopen stuk) en geen bezoek. Zo'n
+// wegvak is altijd grijs: hover en klik toonden alleen de naam.
+function isKaal(k) {
+  return !(wayData[k] && wayData[k].sessions.length) && !bezoekenOp[k];
+}
+function bouwLijnen() {
+  if (!teBouwen.size) return;
+  let kaalAnders = false;
+  teBouwen.forEach(function (k) {
+    const g = wayData[k] && wayData[k].geometry;
+    if (!g || g.length < 2) return;   // geometrie komt nog (Overpass): dan vraagt de terugroep opnieuw
+    if (isKaal(k)) {
+      if (wayLayers[k]) {   // kaal geworden (een correctie): eigen lijn weg
+        map.removeLayer(wayLayers[k]); map.removeLayer(wayHitLayers[k]);
+        delete wayLayers[k]; delete wayHitLayers[k];
+      }
+      if (!kaalNet.has(k)) { kaalNet.add(k); kaalAnders = true; }
+    } else {
+      if (kaalNet.delete(k)) kaalAnders = true;
+      if (!wayLayers[k]) maakLosseLijn(k);
+    }
+  });
+  teBouwen.clear();
+  if (kaalAnders) tekenKaalLaag();
+}
+// Een eigen lijn: de zichtbare straatlijn (wayhit-pane, boven de dots,
+// niet-interactief) plus een onzichtbare brede kliklijn die taps opvangt, zodat
+// een straat klikbaar blijft ondanks de dot-wolk eroverheen. De zichtbare lijn in
+// wayLayers[k] (recolor/hover/cleanup), de kliklijn in wayHitLayers[k].
+function maakLosseLijn(k) {
+  const g = wayData[k].geometry;
+  const vis = L.polyline(g, { color:'#3a3d42', weight:2, opacity:0.5, pane:'wayhit', interactive:false }).addTo(map);
+  const hit = L.polyline(g, { pane:'wayhit', color:'#000', weight:16, opacity:0 }).addTo(map);
   wayLayers[k]    = vis;
   wayHitLayers[k] = hit;
-  return hit;
+  if (lijnSoort[k] === 'sessie') attachSessionSegmentInteraction(k);
+  else attachPocketSegmentInteraction(k);
+}
+// De kale laag: één polylijn met een deel per kaal wegvak, in de stijl die
+// recolorOne een kaal wegvak gaf. Opnieuw opgebouwd als er een wegvak bijkomt of
+// afgaat (bij het laden; in een bundel één keer). Gewoon SVG: als canvas was hij
+// even snel (gemeten), en SVG laat de rest van de kaart zoals hij was.
+function tekenKaalLaag() {
+  if (kaalLaag) map.removeLayer(kaalLaag);
+  const delen = [];
+  kaalNet.forEach(function (k) { delen.push(wayData[k].geometry); });
+  kaalLaag = delen.length ? L.polyline(delen, { color:'#3a3d42', weight:2, opacity:0.5, pane:'kaalnet', interactive:false }).addTo(map) : null;
 }
 
 // Voegt click- en hover-gedrag toe aan de kliklijn van een pocket-segment.
@@ -2468,6 +2523,7 @@ function bundelKlaar() {
 
 function recolorAll() {
   if (BUNDEL.diepte) { BUNDEL.kleur = true; return; }   // v3.49
+  bouwLijnen();   // v3.50: eerst beslissen welke wegvakken een eigen lijn hebben
   // Herbereken maxFietsTotaal
   let mx = 1;
   // v3.49: alleen de wegvakken van zichtbare fietstellingen (wegvakkenVan)
@@ -3932,11 +3988,8 @@ async function loadZip(file, voorgeladenZip) {
   // meer uit _straten.csv: die telt per straat, niet per stuk.
 
   // Wegvak-polylijnen
-  Object.entries(wayData).forEach(([k,wd])=>{
-    if (!wayLayers[k]) {
-      makeWayLine(k, wd.geometry, {color:'#3a3d42',weight:2,opacity:0.5});
-      attachSessionSegmentInteraction(k);
-    }
+  Object.keys(wayData).forEach(k=>{
+    if (!heeftLijn(k)) vraagLijn(k, 'sessie');
   });
 
   // GPS-spoor
@@ -4646,6 +4699,9 @@ function resetAll() {
   if (!confirm('Alle geladen sessies verwijderen?')) return;
   // Verwijder alle kaartlagen
   Object.keys(wayLayers).forEach(function(k){ map.removeLayer(wayLayers[k]); });
+  if (kaalLaag) { map.removeLayer(kaalLaag); kaalLaag = null; }   // v3.50
+  kaalNet.clear(); teBouwen.clear(); lijnKeys.length = 0;
+  Object.keys(lijnSoort).forEach(function(k){ delete lijnSoort[k]; });
   Object.keys(wayHitLayers).forEach(function(k){ map.removeLayer(wayHitLayers[k]); });
   Object.keys(gpsLayers).forEach(function(sid){ map.removeLayer(gpsLayers[sid]); });
   Object.keys(clusterLayers).forEach(function(sid){
@@ -6317,9 +6373,12 @@ function gpkgLagen() {
   var GRENS = ['< 10', '10–30', '30–60', '60–100', '≥ 100'];
   var DICHT = ['zeer laag', 'laag', 'gemiddeld', 'hoog', 'zeer hoog'];
   var vRijen = [], vCats = {};
-  Object.keys(wayLayers).forEach(function (k) {
-    var line = wayLayers[k], wd = wayData[k];
-    if (!wd || !map.hasLayer(line)) return;
+  bouwLijnen();   // v3.50
+  // v3.50: alle wegvakken met een lijn, eigen of in de kale laag, in de volgorde
+  // waarin ze hun lijn vroegen (zoals voorheen wayLayers)
+  lijnKeys.forEach(function (k) {
+    var line = wayLayers[k] || (kaalNet.has(k) ? kaalLaag : null), wd = wayData[k];
+    if (!wd || !line || !map.hasLayer(line)) return;
     var g = wd.geometry || [];
     if (g.length < 2 || (g.length === 2 && g[0][0] === g[1][0] && g[0][1] === g[1][1])) return;
     var heat = wayHeat(k), mk = null, w = {

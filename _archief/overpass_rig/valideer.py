@@ -19,10 +19,10 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.49'
-# v3.49: telrapport snel bij veel tellingen: opzoeklijsten (wegvakkenVan,
-# bezoekenOp), tellers één keer per actie, zetStijl, laden in een bundel.
-VERWACHT_GEWIJZIGD = {'telrapport.html', 'index.html'}
+RELEASE = 'v3.50'
+# v3.50: telrapport, het kale wegennet als één laag zonder klik en hover
+# (vraagLijn, bouwLijnen, kaalLaag); de handleiding zegt het.
+VERWACHT_GEWIJZIGD = {'telrapport.html', 'index.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description
