@@ -105,7 +105,16 @@ Dezelfde set van 185 tellingen:
 
 | | v3.49 | v3.50 |
 |---|---|---|
-RESULTAAT_RIJEN
+| 185 ZIP's laden | 6,5 s | 3,9 s |
+| inzoomen, per stap | 1,35–1,75 s | 0,67–0,78 s |
+| ver uitgezoomd | 2,4–2,8 s | 0,85 s |
+| schuiven, per stap | 0,6–0,9 s | 0,38–0,44 s |
+| bezig per muisbeweging | 180–200 ms | 17 ms |
+| geheugen (JS) | 179 MB | 68 MB |
+| elementen op de pagina | 106.000 | 23.000 |
+
+Drie rondes v3.49 en twee rondes v3.50, met `leaflet.css`. Hover en tooltip op
+een geteld wegvak werken in beide versies hetzelfde.
 
 **Gelijk gebleven.** Na het laden en na 16 acties zijn deze gelijk aan v3.49:
 
