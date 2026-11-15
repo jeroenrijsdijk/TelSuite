@@ -719,6 +719,53 @@ else:
             breed <= 390 and pg.evaluate("document.querySelector('#dc-uren').parentElement.scrollWidth >= document.querySelector('#dc-uren').parentElement.clientWidth"))
         if os.environ.get('PASSANTEN_PNG'):
             pg.screenshot(path=os.environ['PASSANTEN_PNG'].replace('.png', '_keuze_390.png'), full_page=True)
+
+        print('== v3.57. Laad dagkrommen (een zelfgemaakte kromme, geen echte) ==')
+        pg.click('#tabs button[data-tab="kaart"]'); pg.wait_for_timeout(150)
+        # De vorm: een driehoek rond 14 uur, per dag een andere hoogte; Nederlandse getallen, 24 = 0:00 van de volgende dag.
+        hoog = [1, 1, 1, 1, 1.2, 2, 0.5]
+        RK = [[0.0] * 24 for _ in range(7)]
+        def nlget(x): return f'{x:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
+        regels = ['UurCorr;1,00;2,00;3,00;4,00;5,00;6,00;7,00']
+        for u in range(1, 25):
+            rij = []
+            for d in range(7):
+                x = round(max(0.5, 1000 - 120 * abs(u - 14)) * hoog[d], 2) if u < 24 else (3.0 if d == 6 else 0.0)
+                rij.append(nlget(x))
+                if u == 24: RK[(d + 1) % 7][0] += x
+                else: RK[d][u] += x
+            regels.append(nlget(u) + ';' + ';'.join(rij))
+        kpad = os.path.join(tmp, 'proef_krommen.csv')
+        open(kpad, 'w', encoding='utf-8').write('\ufeff' + '\r\n'.join(regels) + '\r\n')
+        pg.set_input_files('#dagkrommen', kpad); pg.wait_for_timeout(200)
+        gel = pg.evaluate("[DAGKROMMEN && DAGKROMMEN.R, document.getElementById('krommen-status').innerText, JSON.parse(localStorage.getItem(KROMMEN_SLEUTEL) || 'null')]")
+        eis('v3.57: de CSV gelezen: 7 dagen \u00d7 24 uur zoals bedoeld (1.000,00 is duizend; rij 24 van zondag is maandag 0:00), de naam in de balk, bewaard in de browser',
+            gel[0] is not None and all(abs(gel[0][d][h] - RK[d][h]) < 1e-9 for d in range(7) for h in range(24)) and gel[0][0][0] == 3.0
+            and 'proef_krommen.csv' in gel[1] and gel[2] and gel[2]['naam'] == 'proef_krommen.csv', [gel[0] and gel[0][5][12:16], gel[0] and gel[0][0][0], gel[1]])
+        fouten_csv = pg.evaluate("""[leesDagkrommen('a;b\\n1;2;3').fout, leesDagkrommen('u;1;2;3;4;5;6;7\\n25;1;1;1;1;1;1;1').fout,
+          leesDagkrommen('u;1;2;3;4;5;6;7\\n9;1;x;1;1;1;1;1').fout, krommenGetal('1.234,56'), krommenGetal('1234.5'), krommenGetal('2.345'),
+          leesDagkrommen('u\\t1\\t2\\t3\\t4\\t5\\t6\\t7\\n' + Array.from({ length: 12 }, (_, i) => (i + 8) + '\\t1\\t1\\t1\\t1\\t1\\t1\\t1').join('\\n')).R !== undefined]""")
+        eis('v3.57: een kapotte CSV wordt geweigerd met de reden; getallen 1.234,56 / 1234.5 / 2.345; tab als scheiding mag',
+            fouten_csv[0] and 'uur' in fouten_csv[1] and 'geen getal' in fouten_csv[2] and fouten_csv[3:6] == [1234.56, 1234.5, 2345] and fouten_csv[6] is True, fouten_csv)
+        # het weekoverzicht van de Voorstraat: het niveau uit de twee gemeten vakjes, de rest van 9-21 met de kromme
+        pg.evaluate("openWeek(SEGMENTEN['1001/0'])"); pg.wait_for_timeout(150)
+        wk = pg.evaluate("""(R => { const seg = SEGMENTEN['1001/0'], a = schat(seg.cells['5:13'], seg).q, b = schat(seg.cells['3:11'], seg).q, niv = (a + b) / (R[5][13] + R[3][11]);
+          let tot = 0; for (let h = 9; h <= 20; h++) tot += h === 13 ? a : niv * R[5][h];
+          const td = document.querySelectorAll('#week-tabel tbody tr')[5].lastElementChild;
+          return { verwacht: tot, tekst: td.textContent, titel: td.title }; })""", RK)
+        nl0 = lambda x: f'{round(x):,}'.replace(',', '.')
+        eis('v3.57: dagtotaal zaterdag met de kromme: \u2248%s (1 uur gemeten, 11 geschat), geen \u2265 meer; de tooltip noemt de dagkrommen' % nl0(wk['verwacht']),
+            wk['tekst'] == '\u2248' + nl0(wk['verwacht']) and '11 geschat met de dagkrommen (proef_krommen.csv)' in wk['titel'], wk)
+        pg.keyboard.press('Escape')
+        pg.click('#tabs button[data-tab="dagcurve"]'); pg.wait_for_selector('#dc-uren', timeout=20000)
+        dk = pg.evaluate("""[[...document.querySelectorAll('#dagcurve .dc-kromme')].map(p => p.dataset.type), document.querySelector('#dagcurve svg').getBoundingClientRect().right,
+          document.querySelector('#dagcurve .uitleg').innerText.includes('proef_krommen.csv')]""")
+        eis('v3.57: in de dagcurve de kromme gestippeld per dagtype dat er is, ook op 390 px binnen beeld, en genoemd in de uitleg',
+            len(dk[0]) >= 1 and dk[1] <= 390 and dk[2], dk)
+        pg.reload(wait_until='load'); pg.wait_for_timeout(300)
+        eis('v3.57: na herladen staan de dagkrommen er nog', 'proef_krommen.csv' in pg.inner_text('#krommen-status') and pg.evaluate("DAGKROMMEN !== null"))
+        pg.click('#krommen-status button'); pg.wait_for_timeout(100)
+        eis('v3.57: wis: weg uit de balk en uit de browser', pg.inner_text('#krommen-status') == '' and pg.evaluate("DAGKROMMEN === null && localStorage.getItem(KROMMEN_SLEUTEL) === null"))
         eis('geen JS-fouten', not fouten, fouten)
         ctx.close(); b.close()
     shutil.rmtree(tmp, ignore_errors=True)
