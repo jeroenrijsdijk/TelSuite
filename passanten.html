@@ -450,6 +450,7 @@ function poissonMarge(k) {                  // [onder, boven] voor het verwachte
    Hier: inlezen, dag en uur kiezen, en de kaart.                              */
 var SESSIES = {};          // sessie_id -> { s: PASSANTEN.sessie(...), recon, naam }
 var SEGMENTEN = {}, MAXQ = 0, DAG = null, UUR = null;
+var ETMAAL = false, MAXE = null;   // v3.59: de kaart toont het geschatte etmaaltotaal; MAXE: de schaal, null = nog uitrekenen
 var OVERGESLAGEN = [];     // [naam, reden]
 // v3.55: dit staat niet meer in "Niet meegenomen" (Jay: "De recon/origineel hoef je daar niet te laten zien")
 var RECON_REDEN = 'origineel; de reconstructie doet mee';
@@ -523,7 +524,8 @@ function wisDagkrommen() {
   try { localStorage.removeItem(KROMMEN_SLEUTEL); } catch (e) { /* niets */ }
 }
 function zetDagkrommen(k) {
-  DAGKROMMEN = k;
+  DAGKROMMEN = k; MAXE = null;
+  if (ETMAAL && kaart) tekenKaart();   // v3.59
   document.getElementById('krommen-status').innerHTML = k ? 'Dagkrommen: ' + esc(k.naam) + ' <button class="link" onclick="wisDagkrommen()">wis</button>' : '';
   if (WEEKSEG) { tekenWeek(); tekenPlan(); }
   if (TAB === 'dagcurve' && DAGCURVE) dcTeken();
@@ -626,6 +628,7 @@ function herbereken() {
   SCHATTINGEN = {};
   DAGCURVE = null;    // v3.43
   DCKERN = null;      // v3.53
+  MAXE = null;        // v3.59
   DCKEUZE = null;     // v3.44
   Object.keys(KEUZE).forEach(function (k) { if (!SEGMENTEN[k]) delete KEUZE[k]; });
   if (LAATSTE && !SEGMENTEN[LAATSTE.key]) LAATSTE = null; else if (LAATSTE) LAATSTE = SEGMENTEN[LAATSTE.key];
@@ -657,6 +660,7 @@ function kiesStandaard() {
 }
 function kiesDag(d) {
   DAG = d;
+  if (ETMAAL) return tekenAlles();   // v3.59: elke dag mag, het uur doet er niet toe
   var uren = urenVan(d);
   if (uren.indexOf(UUR) < 0) {
     var per = momenten();
@@ -664,7 +668,7 @@ function kiesDag(d) {
   }
   tekenAlles();
 }
-function kiesUur(u) { UUR = u; tekenAlles(); }
+function kiesUur(u) { UUR = u; ETMAAL = false; tekenAlles(); }
 function urenVan(d) {
   var u = {};
   Object.keys(momenten()).forEach(function (ck) { if (+ck.split(':')[0] === d) u[+ck.split(':')[1]] = true; });
@@ -705,18 +709,19 @@ function tekenKeuze() {
   var per = momenten(), heeftDag = {};
   Object.keys(per).forEach(function (ck) { heeftDag[+ck.split(':')[0]] = true; });
   document.getElementById('dagen').innerHTML = DAGKORT.map(function (k, d) {
-    return '<button data-dag="' + d + '" aria-pressed="' + (d === DAG) + '"' + (heeftDag[d] ? '' : ' disabled') +
+    return '<button data-dag="' + d + '" aria-pressed="' + (d === DAG) + '"' + (heeftDag[d] || ETMAAL ? '' : ' disabled') +
            ' title="' + DAGNAAM[d] + '" onclick="kiesDag(' + d + ')">' + k + '</button>';
   }).join(' ');
   document.getElementById('uren').innerHTML = urenVan(DAG).map(function (u) {
-    return '<button data-uur="' + u + '" aria-pressed="' + (u === UUR) + '" title="' + u + ':00–' + (u + 1) + ':00" onclick="kiesUur(' + u + ')">' + u + '</button>';
-  }).join(' ');
+    return '<button data-uur="' + u + '" aria-pressed="' + (!ETMAAL && u === UUR) + '" title="' + u + ':00–' + (u + 1) + ':00" onclick="kiesUur(' + u + ')">' + u + '</button>';
+  }).join(' ') + ' <button data-etmaal aria-pressed="' + ETMAAL + '" title="het geschatte totaal van 0:00 tot 24:00 per stuk; kies de dag hierboven" onclick="kiesEtmaal()">etmaal</button>';
 }
 
 // Kleur: bleek zeegroen (rustig) naar diep petrol (druk), zoals in het rekenrig.
 // De schaal loopt over alle dagen en uren, zodat een kleur bij elk uur hetzelfde betekent.
-function kleur(q) {
-  var f = MAXQ > 0 ? Math.pow(Math.min(1, q / MAXQ), 0.6) : 0;
+function kleur(q, max) {      // max: v3.59, voor het etmaal; anders MAXQ
+  if (max === undefined) max = MAXQ;
+  var f = max > 0 ? Math.pow(Math.min(1, q / max), 0.6) : 0;
   return 'rgb(' + Math.round(198 + (26 - 198) * f) + ',' + Math.round(216 + (78 - 216) * f) + ',' + Math.round(210 + (84 - 210) * f) + ')';
 }
 function lijnVan(seg) { return (seg.geom || []).map(function (p) { return [p[1], p[0]]; }); }
@@ -747,11 +752,29 @@ function maakKaart() {
   kaart.on('zoomend', tekenLabels);
   return true;
 }
-var GEMETEN = [];          // [{ seg, c, mid }] voor de labels
+/* Het etmaal (v3.59). Jay: "Maak er in passanten.html maar een etmaal-knop bij, met knoppen
+   voor de 7 dagen - teken dan op het netwerk de geschatte etmaal totaal." Per stuk het totaal
+   van 0:00 tot 24:00 op de gekozen weekdag: dagTotaal over 0-23, gemeten waar gemeten, anders
+   geschat (weekSchatter: de geladen dagkrommen, of de eigen dagcurve). Een uur dat niet te
+   schatten is, valt weg (≥). De kleurschaal loopt over alle stukken en de zeven dagen.       */
+function etmaalVan(seg, d) { return dagTotaal(seg, weekSchatter(seg, 0, 23), d, 0, 23); }
+function etmaalMax() {
+  if (MAXE === null) {
+    MAXE = 0;
+    Object.keys(SEGMENTEN).forEach(function (k) {
+      var seg = SEGMENTEN[k], sch = weekSchatter(seg, 0, 23);
+      for (var d = 0; d < 7; d++) { var t = dagTotaal(seg, sch, d, 0, 23); if (t) MAXE = Math.max(MAXE, t.q); }
+    });
+  }
+  return MAXE;
+}
+function kiesEtmaal() { ETMAAL = true; tekenAlles(); }
+var GEMETEN = [];          // [{ seg, mid, q, tekst } + c (uur) of etmaal] voor de labels
 function tekenKaart() {
   if (!maakKaart()) return;
   lijnLaag.clearLayers();
   GEMETEN = [];
+  if (ETMAAL) return tekenEtmaal();
   var ck = DAG + ':' + UUR, alles = [];
   Object.keys(SEGMENTEN).forEach(function (k) {
     var seg = SEGMENTEN[k], ll = lijnVan(seg);
@@ -769,7 +792,23 @@ function tekenKaart() {
       return;
     }
     lijnLaag.addLayer(L.polyline(ll, { color: kleur(schat(c, seg).q), weight: 7, opacity: 0.95 }).on('click', klik));
-    GEMETEN.push({ seg: seg, c: c, mid: midden(ll) });
+    GEMETEN.push({ seg: seg, c: c, mid: midden(ll), q: schat(c, seg).q, tekst: labelTekst(c, seg) });
+  });
+  if (!gepast && alles.length) { kaart.fitBounds(L.latLngBounds(alles).pad(0.15), { maxZoom: 18 }); gepast = true; }
+  tekenLabels();
+  tekenLegenda();
+}
+function tekenEtmaal() {
+  var max = etmaalMax(), alles = [];
+  Object.keys(SEGMENTEN).forEach(function (k) {
+    var seg = SEGMENTEN[k], ll = lijnVan(seg);
+    if (ll.length < 2) return;
+    alles = alles.concat(ll);
+    var t = etmaalVan(seg, DAG), klik = function (e) { klikStuk(seg, e); };
+    if (KEUZE[k]) lijnLaag.addLayer(L.polyline(ll, { color: KEUZE_KLEUR, weight: t ? 13 : 10, opacity: 0.9, className: 'gekozen' }).on('click', klik));
+    if (!t) { lijnLaag.addLayer(L.polyline(ll, { color: GRIJS, weight: 3, opacity: 0.75 }).on('click', klik)); return; }
+    lijnLaag.addLayer(L.polyline(ll, { color: kleur(t.q, max), weight: 7, opacity: 0.95, className: 'etmaal' }).on('click', klik));
+    GEMETEN.push({ seg: seg, mid: midden(ll), q: t.q, tekst: (t.mist.length ? '\u2265' : '') + rond(t.q) + (t.ster ? '*' : ''), etmaal: t });
   });
   if (!gepast && alles.length) { kaart.fitBounds(L.latLngBounds(alles).pad(0.15), { maxZoom: 18 }); gepast = true; }
   tekenLabels();
@@ -885,8 +924,8 @@ function tekenLabels() {
   if (!kaart) return;
   labelLaag.clearLayers();
   var geplaatst = [];
-  GEMETEN.slice().sort(function (a, b) { return schat(b.c, b.seg).q - schat(a.c, a.seg).q; }).forEach(function (x) {
-    var tekst = labelTekst(x.c, x.seg), p = kaart.latLngToLayerPoint(x.mid);
+  GEMETEN.slice().sort(function (a, b) { return b.q - a.q; }).forEach(function (x) {
+    var tekst = x.tekst, p = kaart.latLngToLayerPoint(x.mid);
     var w = tekst.length * 7 + 14, h = 18;
     var vak = [p.x - w / 2, p.y - h / 2, p.x + w / 2, p.y + h / 2];
     if (geplaatst.some(function (b) { return vak[0] < b[2] && b[0] < vak[2] && vak[1] < b[3] && b[1] < vak[3]; })) return;
@@ -897,6 +936,22 @@ function tekenLabels() {
 }
 function tekenLegenda() {
   var el = document.getElementById('legenda'), stappen = [];
+  if (ETMAAL) {
+    var max = etmaalMax();
+    for (var j = 0; j <= 10; j++) stappen.push(kleur(max * j / 10, max));
+    el.innerHTML = '<b>Passanten per etmaal</b> · ' + DAGNAAM[DAG] + ', geschat' +
+      '<div class="schaal" style="background:linear-gradient(90deg,' + stappen.join(',') + ')"></div>' +
+      '<div class="getallen"><span>0</span><span>' + rond(max) + '</span></div>' +
+      '<div>Gemeten uren zoals gemeten, de andere geschat met ' + (DAGKROMMEN ? 'de dagkrommen (' + esc(DAGKROMMEN.naam) + ')' : 'de dagcurve van je tellingen') +
+      ', op het niveau van het stuk.</div>' +
+      (GEMETEN.some(function (x) { return x.etmaal.mist.length; }) ? '<div>\u2265 uren zonder ' + (DAGKROMMEN ? 'schatting' : 'dagcurve (vaak de nacht)') + ' tellen niet mee: minstens dit</div>' : '') +
+      (GEMETEN.some(function (x) { return x.etmaal.ster; }) ? '<div>* er is opgehoogd (één richting gemeten)</div>' : '') +
+      '<div><span class="grijs"></span>niet te schatten (niets gemeten of niet verbonden)</div>' +
+      (Object.keys(KEUZE).length ? '<div><span class="gekozen"></span>gekozen voor de dagcurve</div>' : '') +
+      '<div class="dim">geijkt: \u00d7 ' + komma(IJKFACTOR, 2) + '</div>';
+    el.classList.remove('hide');
+    return;
+  }
   for (var i = 0; i <= 10; i++) stappen.push(kleur(MAXQ * i / 10));
   el.innerHTML = '<b>Passanten per uur</b> · ' + DAGNAAM[DAG] + ' ' + UUR + ':00–' + (UUR + 1) + ':00' +
     '<div class="schaal" style="background:linear-gradient(90deg,' + stappen.join(',') + ')"></div>' +
@@ -1003,8 +1058,8 @@ function weekWaarde(x) { return !x ? '' : teKort(x) ? '\u00b7' : rond(schat(x, W
    × de ophoging van het hele stuk × IJKFACTOR. Het gemiddelde is het gewone gemiddelde van de
    vakjes; genoeg gedekt als minstens WEEK_GEDEKT ervan gemeten is.                              */
 var WEEK_GEDEKT = 0.8;
-function weekSchatter(seg) {
-  if (DAGKROMMEN) return krommenSchatter(seg);   // v3.57
+function weekSchatter(seg, van, tot) {           // van, tot: v3.59, alleen voor de dagkrommen
+  if (DAGKROMMEN) return krommenSchatter(seg, van, tot);   // v3.57
   var kern = dcKernAlle();
   if (kern.leeg) return null;
   var s0 = kern.s0, A = 0, cellen = Object.keys(seg.cells).map(function (k) { return seg.cells[k]; });
@@ -1023,7 +1078,8 @@ function weekSchatter(seg) {
 // v3.57: met geladen dagkrommen de vorm daarvan, op het niveau van dit stuk: Σ gemeten ÷ Σ kromme
 // over de gemeten vakjes (niet te kort). Alleen binnen DAG_VAN … DAG_TOT; daarbuiten hoort een uur
 // alleen bij een gemiddelde als het gemeten is.
-function krommenSchatter(seg) {
+function krommenSchatter(seg, van, tot) {
+  van = van === undefined ? DAG_VAN : van; tot = tot === undefined ? DAG_TOT : tot;
   var R = DAGKROMMEN.R, q = 0, r = 0, ster = false;
   Object.keys(seg.cells).forEach(function (ck) {
     var c = seg.cells[ck];
@@ -1032,7 +1088,7 @@ function krommenSchatter(seg) {
   });
   var niveau = r > 0 ? q / r : null;
   return { niveau: niveau, f: 1, ster: ster, bron: 'de dagkrommen (' + DAGKROMMEN.naam + ')', schat: function (d, h) {
-    if (h < DAG_VAN || h > DAG_TOT) return undefined;
+    if (h < van || h > tot) return undefined;
     return niveau === null ? null : niveau * R[d][h];
   } };
 }
@@ -1067,9 +1123,9 @@ function weekGemTd(seg, sch, mee, wat) {
    zonder dagcurve (of op een stuk dat niet aan de rest hangt) is niet te schatten en telt niet
    mee: dan is het totaal een ondergrens, ≥. Vet: minstens WEEK_GEDEKT van de 12 uur gemeten.    */
 var DAG_VAN = 9, DAG_TOT = 20;
-function dagTotaal(seg, sch, d) {
+function dagTotaal(seg, sch, d, van, tot) {   // van, tot: v3.59, voor het etmaal (0, 23); anders DAG_VAN, DAG_TOT
   var som = 0, gemeten = 0, geschat = 0, mist = [], ster = false;
-  for (var h = DAG_VAN; h <= DAG_TOT; h++) {
+  for (var h = van === undefined ? DAG_VAN : van; h <= (tot === undefined ? DAG_TOT : tot); h++) {
     var c = seg.cells[d + ':' + h], e = sch ? sch.schat(d, h) : undefined;
     if (c && !teKort(c)) { som += schat(c, seg).q; gemeten++; if (!c.compleet) ster = true; continue; }
     if (typeof e === 'number') { som += e; geschat++; if (sch.ster) ster = true; continue; }
