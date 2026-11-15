@@ -416,25 +416,29 @@ else:
             cel(5, 13) == str(round(IJK * V[(1001, 0, 5, 13)]['q'])) and cel(3, 11) == str(round(IJK * V[(1001, 0, 3, 11)]['q']))
             and sum(1 for d in range(7) for h in range(24) if cel(d, h)) == 2, [cel(5, 13), cel(3, 11)])
         za, do_ = V[(1001, 0, 5, 13)], V[(1001, 0, 3, 11)]
-        # v3.55: gem. is het gemiddelde van de vakjes (gemeten, of geschat met de dagcurve); hier is alleen zaterdag 13 een uur met een curve
-        q_gem = IJK * (za['q'] + do_['q']) / 2
-        eis('v3.55: gem. per dag is die dag; gem. over alles: het gemiddelde van de twee vakjes (%.0f), niets geschat' % q_gem,
-            rijen[5][25] == str(round(IJK * za['q'])) and rijen[3][25] == str(round(IJK * do_['q'])) and rijen[7][25] == f'{round(q_gem):,}'.replace(',', '.')
-            and rijen[7][14] == str(round(IJK * za['q'])) and rijen[7][12] == str(round(IJK * do_['q'])) and not any('\u2248' in x for x in rijen[7] + [r[25] for r in rijen]),
-            [rijen[5][25], rijen[3][25], rijen[7][25]])
-        gk = pg.evaluate("""[...document.querySelectorAll('#week-tabel td.gem')].filter(td => td.textContent).map(td => [td.textContent, td.className, td.title])""")
-        kl = {t: c for t, c, _ in gk}
-        eis('v3.55: zaterdag (het uur met een dagcurve, gemeten) is genoeg gedekt (vet); donderdag heeft geen dagcurve en is dat niet (grijs)',
-            'gedekt' in pg.evaluate("document.querySelectorAll('#week-tabel tbody tr')[5].lastElementChild.className") and
-            'dun' in pg.evaluate("document.querySelectorAll('#week-tabel tbody tr')[3].lastElementChild.className") and
-            'geen dagcurve' in pg.evaluate("document.querySelectorAll('#week-tabel tbody tr')[3].lastElementChild.title"), gk)
-        # zonder de meting van zaterdag 13 wordt dat uur geschat met de dagcurve: ≈, en dicht bij wat gemeten is
+        # v3.56: de laatste kolom is het dagtotaal van 9:00 tot 21:00; hier heeft alleen zaterdag 13 een dagcurve,
+        # dus de andere 11 uur zijn niet te schatten: ≥. De rij gem. (v3.55) blijft het gemiddelde per uur.
+        nl = lambda x: f'{round(x):,}'.replace(',', '.')
+        eis('v3.56: kolom "dag 9\u201321": zaterdag \u2265 de gemeten 13 uur, donderdag \u2265 de gemeten 11 uur, de hoek \u2265 het gemiddelde van die twee dagen',
+            pg.evaluate("document.querySelector('#week-tabel thead tr').lastElementChild.textContent") == 'dag 9\u201321'
+            and rijen[5][25] == '\u2265' + nl(IJK * za['q']) and rijen[3][25] == '\u2265' + nl(IJK * do_['q'])
+            and rijen[7][25] == '\u2265' + nl(IJK * (za['q'] + do_['q']) / 2), [rijen[5][25], rijen[3][25], rijen[7][25]])
+        eis('v3.55: de rij gem. per uur: 13 uur is zaterdag, 11 uur is donderdag, niets geschat',
+            rijen[7][14] == str(round(IJK * za['q'])) and rijen[7][12] == str(round(IJK * do_['q'])) and not any('\u2248' in x for x in rijen[7]), rijen[7])
+        tz = pg.evaluate("document.querySelectorAll('#week-tabel tbody tr')[5].lastElementChild.title")
+        eis('v3.56: de tooltip van zaterdag: 1 van de 12 uur gemeten, de 11 andere niet te schatten en niet meegeteld; grijs (niet genoeg gedekt)',
+            '1 van de 12 uur gemeten' in tz and 'niet meegeteld: 9:00, 10:00, 11:00, 12:00, 14:00, 15:00, 16:00, 17:00, 18:00, 19:00, 20:00' in tz
+            and 'dun' in pg.evaluate("document.querySelectorAll('#week-tabel tbody tr')[5].lastElementChild.className"), tz)
+        # zonder de meting van zaterdag 13 wordt dat uur geschat met de dagcurve; met een schatter voor elk uur: ≈ en geen ≥
         sc = pg.evaluate("""(() => { const seg = SEGMENTEN['1001/0'], kopie = Object.assign({}, seg, { cells: Object.assign({}, seg.cells) });
-          delete kopie.cells['5:13']; const sch = weekSchatter(seg), g = weekGem(kopie, sch, d => d === 5), td = weekGemTd(kopie, sch, d => d === 5, 'zaterdag');
-          return { g, td, gemeten: schat(seg.cells['5:13'], seg).q }; })()""")
-        eis('v3.55: een uur met een dagcurve dat niet gemeten is, wordt geschat: \u2248 voor het getal, 0 van 1 gemeten, niet gedekt; de schatting %.0f tegen gemeten %.0f' % (sc['g']['q'], sc['gemeten']),
-            sc['g']['geschat'] == 1 and sc['g']['gemeten'] == 0 and '>\u2248' in sc['td'] and 'dun' in sc['td'] and '0 van de 1 uur gemeten' in sc['td']
-            and 0.5 < sc['g']['q'] / sc['gemeten'] < 2, sc)
+          delete kopie.cells['5:13']; const sch = weekSchatter(seg), t = dagTotaal(kopie, sch, 5);
+          const nep = { f: 1, schat: () => 100 }, alle = dagTotaal(seg, nep, 5), gedekt = dagTotaalTd(dagTotaal(seg, { f: 1, schat: () => undefined }, 5), 'x');
+          return { t, tekst: dagTekst(t), e: sch.schat(5, 13), gemeten: schat(seg.cells['5:13'], seg).q, alle, alleTekst: dagTekst(alle) }; })()""")
+        eis('v3.56: zaterdag 13 niet gemeten: geschat met de dagcurve (%.0f tegen gemeten %.0f), 11 uur niet te schatten: \u2265' % (sc['e'], sc['gemeten']),
+            sc['t']['geschat'] == 1 and sc['t']['gemeten'] == 0 and len(sc['t']['mist']) == 11 and sc['tekst'] == '\u2265' + nl(sc['e'])
+            and 0.5 < sc['e'] / sc['gemeten'] < 2, sc)
+        eis('v3.56: is elk uur te schatten, dan \u2248 en geen \u2265: de gemeten 13 uur plus 11 \u00d7 de schatting',
+            abs(sc['alle']['q'] - (sc['gemeten'] + 1100)) < 1e-6 and sc['alleTekst'] == '\u2248' + nl(sc['gemeten'] + 1100) and sc['alle']['geschat'] == 11, sc['alle'])
         eis('de cel van de kaart (za 13) is gekozen; eronder de details: waarde, 4 keer op 2 zaterdagen, beide richtingen, stilstaanders',
             pg.evaluate("document.querySelector('#week-tabel td.sel').getAttribute('data-cel')") == '5:13'
             and pg.inner_text('#week-detail .week-moment') == 'Zaterdag 13:00\u201314:00 \u00b7 17-10, 24-10'
@@ -485,8 +489,9 @@ else:
         eis('v3.53: de Kerkstraat is maar in één richting gelopen: Wanneer tellen? zegt welke kant nog, de tegenovergestelde',
             isinstance(ra, list) and ra[0] == ra[2] and ra[3] >= 0 and ra[4] == (ra[3] + 4) % 8, ra)
         rijen_k = pg.evaluate("[...document.querySelectorAll('#week-tabel tbody tr')].map(tr => [...tr.children].map(x => x.textContent))")
-        eis('ook gem. (za, en alles samen) is \u00d7 2: er is maar één richting gemeten',
-            rijen_k[5][25] == rijen_k[7][25] == str(round(IJK * 2 * k0['q'])) + '*', [rijen_k[5][25], rijen_k[7][25]])
+        eis('ook het dagtotaal (za, en gemiddeld per dag) en gem. om 13 uur zijn \u00d7 2: er is maar één richting gemeten (v3.56: \u2265, de andere uren hebben geen dagcurve)',
+            rijen_k[5][25] == rijen_k[7][25] == '\u2265' + str(round(IJK * 2 * k0['q'])) + '*' and rijen_k[7][14] == str(round(IJK * 2 * k0['q'])) + '*',
+            [rijen_k[5][25], rijen_k[7][25], rijen_k[7][14]])
         pg.keyboard.press('Escape')
         eis('Escape sluit het weekoverzicht', not pg.is_visible('#week'))
         pg.click('#dagen button[data-dag="5"]'); pg.wait_for_timeout(200)
