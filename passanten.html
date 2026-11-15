@@ -153,7 +153,7 @@ main{padding:12px 20px 30px;max-width:1300px}
       <div><div id="week-titel"></div><div id="week-sub" class="sub"></div></div>
       <button class="sluit" onclick="sluitWeek()" aria-label="Sluiten">&#x2715;</button>
     </div>
-    <div class="sub">Passanten per uur, per weekdag en uur. Leeg: niet gemeten. *: niet in beide richtingen gemeten, opgehoogd (zie de details). <em>Gem.</em>: het gemiddelde over de uren waarop de dagcurve van het gebied er is. Een uur dat hier niet (of te kort) gemeten is, wordt geschat met de dagcurve: <b>&asymp;</b> = deels geschat. <b>Vet</b>: genoeg gedekt, minstens 80% van die uren gemeten; grijs: minder. Klik op een cel voor de details.</div>
+    <div class="sub">Passanten per uur, per weekdag en uur. Leeg: niet gemeten. *: niet in beide richtingen gemeten, opgehoogd (zie de details). <em>Dag 9&ndash;21</em>: het dagtotaal van 9:00 tot 21:00. Een uur dat hier niet (of te kort) gemeten is, wordt geschat met de dagcurve: <b>&asymp;</b> = deels geschat; <b>&ge;</b> = een uur zonder dagcurve telt niet mee, dus minstens dit. <b>Vet</b>: genoeg gedekt, minstens 80% van de 12 uur gemeten; grijs: minder. De rij <em>gem.</em>: het gemiddelde per uur over de dagen met een dagcurve, net zo aangevuld. Klik op een cel voor de details.</div>
     <div class="week-tabel"><table id="week-tabel" onclick="weekKlik(event)"></table></div>
     <div id="week-detail"></div>
     <div id="week-plan"></div>
@@ -982,10 +982,38 @@ function weekGemTd(seg, sch, mee, wat) {
     (gedekt ? ' \u00b7 genoeg gedekt' : g.curve ? ' \u00b7 niet genoeg gedekt' : ' \u00b7 hier geen dagcurve: alleen wat gemeten is');
   return '<td class="gem ' + (gedekt ? 'gedekt' : 'dun') + '" title="' + titel + '">' + tekst + '</td>';
 }
+/* Het dagtotaal (v3.56). Jay: "Ik zou in in die kolom het geschatte dagtotaal willen hebben,
+   tussen 9:00 en 20:59 uur. De missende tellingen mag je schatten uit de dagkromme." De som van
+   de uren DAG_VAN t/m DAG_TOT: gemeten, of geschat met de dagcurve (weekSchatter, ≈). Een uur
+   zonder dagcurve (of op een stuk dat niet aan de rest hangt) is niet te schatten en telt niet
+   mee: dan is het totaal een ondergrens, ≥. Vet: minstens WEEK_GEDEKT van de 12 uur gemeten.    */
+var DAG_VAN = 9, DAG_TOT = 20;
+function dagTotaal(seg, sch, d) {
+  var som = 0, gemeten = 0, geschat = 0, mist = [], ster = false;
+  for (var h = DAG_VAN; h <= DAG_TOT; h++) {
+    var c = seg.cells[d + ':' + h], e = sch ? sch.schat(d, h) : undefined;
+    if (c && !teKort(c)) { som += schat(c, seg).q; gemeten++; if (!c.compleet) ster = true; continue; }
+    if (typeof e === 'number') { som += e; geschat++; if (sch.f !== 1) ster = true; continue; }
+    mist.push(h);
+  }
+  return gemeten + geschat ? { q: som, gemeten: gemeten, geschat: geschat, mist: mist, ster: ster } : null;
+}
+function dagTekst(t) { return (t.mist.length ? '\u2265' : t.geschat ? '\u2248' : '') + rond(t.q) + (t.ster ? '*' : ''); }
+function dagTotaalTd(t, wat) {
+  if (!t) return '<td class="gem dag"></td>';
+  var uren = DAG_TOT - DAG_VAN + 1, gedekt = t.gemeten >= WEEK_GEDEKT * uren;
+  var tal = function (x) { return x % 1 ? komma(x, 1) : String(x); };   // in het hoekvakje gemiddeld over de dagen
+  var titel = wat + ', ' + DAG_VAN + ':00\u2013' + (DAG_TOT + 1) + ':00: ' + dagTekst(t) + ' passanten \u00b7 ' + tal(t.gemeten) + ' van de ' + uren + ' uur gemeten' +
+    (t.geschat ? ', ' + tal(t.geschat) + ' geschat met de dagcurve' : '') +
+    (t.mist.length ? ', niet te schatten en niet meegeteld: ' + t.mist.filter(function (x, i, l) { return l.indexOf(x) === i; }).sort(function (a, b) { return a - b; })
+      .map(function (h) { return h + ':00'; }).join(', ') : '') +
+    (gedekt ? ' \u00b7 genoeg gedekt' : ' \u00b7 niet genoeg gedekt');
+  return '<td class="gem dag ' + (gedekt ? 'gedekt' : 'dun') + '" title="' + titel + '">' + dagTekst(t) + '</td>';
+}
 function tekenWeek() {
-  var seg = WEEKSEG, sch = weekSchatter(seg), html = '<thead><tr><th></th>';
+  var seg = WEEKSEG, sch = weekSchatter(seg), totalen = [], html = '<thead><tr><th></th>';
   for (var h = 0; h < 24; h++) html += '<th>' + h + '</th>';
-  html += '<th class="gem">gem.</th></tr></thead><tbody>';
+  html += '<th class="gem" title="het dagtotaal van ' + DAG_VAN + ':00 tot ' + (DAG_TOT + 1) + ':00">dag ' + DAG_VAN + '\u2013' + (DAG_TOT + 1) + '</th></tr></thead><tbody>';
   for (var d = 0; d < 7; d++) {
     html += '<tr><th>' + DAGKORT[d] + '</th>';
     for (h = 0; h < 24; h++) {
@@ -999,11 +1027,18 @@ function tekenWeek() {
       html += '<td data-cel="' + ck + '"' + (ck === WEEKCEL ? ' class="sel"' : '') + ' style="background:' + kleur(schat(c, seg).q) + ';color:' + tekstKleur(schat(c, seg).q) + '"' +
               ' title="' + DAGNAAM[d] + ' ' + h + ':00\u2013' + (h + 1) + ':00 \u00b7 ' + weekWaarde(c) + ' passanten per uur">' + weekWaarde(c) + '</td>';
     }
-    html += weekGemTd(seg, sch, function (dd) { return dd === d; }, DAGNAAM[d]);
+    var t = dagTotaal(seg, sch, d);
+    if (t) totalen.push(t);
+    html += dagTotaalTd(t, DAGNAAM[d]);
   }
   html += '<tr class="gem"><th class="gem">gem.</th>';
   for (h = 0; h < 24; h++) html += weekGemTd(seg, sch, function (dd, hh) { return hh === h; }, h + ':00\u2013' + (h + 1) + ':00');
-  html += weekGemTd(seg, sch, function () { return true; }, 'de hele week') + '</tr></tbody>';
+  // het hoekvakje: het gemiddelde dagtotaal over de dagen met een totaal
+  var gt = totalen.length ? { q: totalen.reduce(function (a, t) { return a + t.q; }, 0) / totalen.length,
+    gemeten: totalen.reduce(function (a, t) { return a + t.gemeten; }, 0), geschat: totalen.reduce(function (a, t) { return a + t.geschat; }, 0),
+    mist: [].concat.apply([], totalen.map(function (t) { return t.mist; })), ster: totalen.some(function (t) { return t.ster; }) } : null;
+  if (gt) { gt.gemeten /= totalen.length; gt.geschat /= totalen.length; }
+  html += dagTotaalTd(gt, 'gemiddeld per dag (' + totalen.length + (totalen.length === 1 ? ' dag' : ' dagen') + ')') + '</tr></tbody>';
   document.getElementById('week-tabel').innerHTML = html;
   var c = seg.cells[WEEKCEL];
   document.getElementById('week-detail').innerHTML = c ? '<div class="week-moment">' + DAGNAAM[c.dag].charAt(0).toUpperCase() + DAGNAAM[c.dag].slice(1) +
