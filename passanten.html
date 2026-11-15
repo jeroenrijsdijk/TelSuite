@@ -29,6 +29,8 @@ main{padding:12px 20px 30px;max-width:1300px}
 .knop.ghost{background:var(--paper);color:var(--ink);border:1px solid var(--line)}
 .note{background:var(--paper);border-left:2px solid var(--accent);padding:8px 11px;margin-top:10px;font-size:12.5px;color:#3a3a35;max-width:90ch}
 .note.warn{border-left-color:var(--oker)}
+.note .balk{display:block;height:5px;margin:6px 0 2px;background:var(--line);border-radius:3px;overflow:hidden;max-width:420px}   /* v3.54 */
+.note .balk i{display:block;height:100%;background:var(--accent);transition:width .15s}
 .hide{display:none!important}
 .keuze{margin:12px 0 8px}
 .keuze .rij{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0}
@@ -497,11 +499,38 @@ async function leesZip(file) {
   if (al) OVERGESLAGEN.push([al.naam, 'origineel; de reconstructie doet mee']);
   SESSIES[s.id] = { s: s, recon: recon, naam: file.name };
 }
+// v3.54: de voortgang. Jay: "Voor het inlezen van winkelstraat zips wil ik graag een
+// voortgangs indicator in passanten.html". Ten hoogste elke 100 ms even de beurt aan de
+// browser, zodat hij de melding tekent; in een tab op de achtergrond niet (daar wacht
+// setTimeout tot een seconde, en er valt niets te zien).
+function geefBeurt() { return document.hidden ? Promise.resolve() : new Promise(function (r) { setTimeout(r, 0); }); }
+function voortgang(tekst, deel) {
+  melding(tekst + '<span class="balk"><i style="width:' + (100 * deel).toFixed(1) + '%"></i></span>');
+}
 async function lees(lijst) {
   var zips = Array.prototype.filter.call(lijst || [], function (f) { return /\.zip$/i.test(f.name); });
   if (!zips.length) { melding('Geen ZIP-bestanden gevonden.', 'warn'); return; }
-  melding('Bezig met lezen…');
-  for (var i = 0; i < zips.length; i++) await leesZip(zips[i]);
+  // v3.54: staat de reconstructie ernaast (<sessie_id>_recon.zip), dan het origineel niet eens openen.
+  // Jay: "alleen recon inlezen als er [...] ook een origineel in de map staat". Een hernoemd bestand
+  // vangt leesZip nog op de inhoud (sessie_id).
+  var reconVan = {};
+  zips.forEach(function (f) { var m = /^(.*)_recon(?:\s*\(\d+\))?\.zip$/i.exec(f.name); if (m) reconVan[m[1].toLowerCase()] = true; });
+  zips = zips.filter(function (f) {
+    var basis = f.name.replace(/(?:\s*\(\d+\))?\.zip$/i, '').toLowerCase();
+    if (/_recon$/.test(basis) || !reconVan[basis]) return true;
+    OVERGESLAGEN.push([f.name, 'origineel; de reconstructie doet mee']);
+    return false;
+  });
+  var t = 0;
+  for (var i = 0; i < zips.length; i++) {
+    if (!i || performance.now() - t > 100) {
+      voortgang('Bezig met lezen… ' + i + ' van ' + zips.length + ' ZIP\'s <span class="sub">' + esc(zips[i].name) + '</span>', i / zips.length);
+      await geefBeurt(); t = performance.now();
+    }
+    await leesZip(zips[i]);
+  }
+  voortgang('Bezig met rekenen… ' + zips.length + ' van ' + zips.length + ' ZIP\'s gelezen', 1);
+  await geefBeurt();
   herbereken();
 }
 function herbereken() {

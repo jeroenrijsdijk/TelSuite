@@ -293,10 +293,22 @@ else:
         pg = ctx.new_page(); fouten = []
         pg.on('pageerror', lambda e: fouten.append(e.message[:160]))
         pg.goto(BASIS + 'passanten.html', wait_until='load'); pg.wait_for_timeout(300)
+        # v3.54: de voortgang; elke melding tijdens het inlezen opnemen
+        pg.evaluate("""window.GEZIEN = []; new MutationObserver(() => { const t = document.getElementById('melding').innerText;
+          if (GEZIEN[GEZIEN.length - 1] !== t) GEZIEN.push(t); }).observe(document.getElementById('melding'), { childList: true, subtree: true, characterData: true });
+          window.GEOPEND = []; const laad = JSZip.loadAsync; JSZip.loadAsync = function (f) { if (f && f.name) GEOPEND.push(f.name); return laad.apply(this, arguments); }; 0;""")
         pg.set_input_files('#bestanden', PADEN)
         pg.wait_for_function("GEMETEN.length > 0", timeout=20000); pg.wait_for_timeout(300)
 
         print('== A. Inlezen ==')
+        nz = len([q for q in PADEN if q.lower().endswith('.zip')]) - 1   # het origineel naast de reconstructie wordt niet gelezen
+        geopend = pg.evaluate("GEOPEND")
+        eis('v3.54: het origineel naast zijn reconstructie wordt niet eens geopend; de rest wel', S1[0] + '.zip' not in geopend and
+            S1[0] + '_recon.zip' in geopend and len(geopend) == nz, geopend)
+        gz = pg.evaluate("[GEZIEN, document.querySelector('#melding .balk') !== null]")
+        eis('v3.54: tijdens het inlezen een voortgang: "0 van %d" met de naam en een balk, dan "Bezig met rekenen… %d van %d", daarna niet meer bezig' % (nz, nz, nz),
+            any(t.startswith('Bezig met lezen… 0 van %d ZIP' % nz) and '.zip' in t for t in gz[0]) and
+            any(t.startswith('Bezig met rekenen… %d van %d' % (nz, nz)) for t in gz[0]) and 'Bezig' not in gz[0][-1] and not gz[1], gz)
         ses = pg.evaluate("Object.fromEntries(Object.entries(SESSIES).map(([k, v]) => [k, [v.recon, v.naam]]))")
         eis('drie winkelstraat-tellingen doen mee', sorted(ses) == sorted([S1[0], S2[0], S3[0]]), ses)
         eis('van de eerste de reconstructie, niet het origineel', ses.get(S1[0]) == [True, S1[0] + '_recon.zip'], ses.get(S1[0]))
