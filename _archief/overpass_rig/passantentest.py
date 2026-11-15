@@ -308,6 +308,20 @@ else:
                    zoom: kaart.getZoom(), nodig: kaart.getBoundsZoom(L.latLngBounds([].concat(...keys.map(k => lijnVan(SEGMENTEN[k])))).pad(0.15)) }; })()""")
         eis('v3.55: na het inlezen staat de kaart op de laatst gedane telling (24-10, %s): al haar stukken in beeld' % S1[0],
             zl['ids'] == [S1[0]] and zl['binnen'] and zl['stukken'] > 0 and zl['zoom'] == min(18, zl['nodig']), zl)
+        # v3.59: het etmaal op de kaart, hier zonder dagkrommen: alleen zaterdag 13 heeft een dagcurve
+        voor = pg.evaluate("[DAG, UUR]")
+        pg.click('#uren button[data-etmaal]'); pg.wait_for_timeout(150); pg.click('#dagen button[data-dag="5"]'); pg.wait_for_timeout(150)
+        et = pg.evaluate("""(() => { const x = GEMETEN.find(g => g.seg.key === '1001/0'), seg = SEGMENTEN['1001/0'];
+          return { etmaal: ETMAAL, dag: DAG, tekst: x && x.tekst, q13: schat(seg.cells['5:13'], seg).q, n: GEMETEN.length,
+                   uit: [...document.querySelectorAll('#dagen button')].filter(b => b.disabled).length, kop: document.querySelector('#legenda b').textContent,
+                   lijnen: document.querySelectorAll('path.etmaal').length, knop: document.querySelector('#uren button[data-etmaal]').getAttribute('aria-pressed') }; })()""")
+        eis('v3.59: knop etmaal, zaterdag: de Voorstraat \u2265 de gemeten 13 uur (de andere uren hebben geen dagcurve); alle dagen te kiezen; legenda per etmaal',
+            et['etmaal'] and et['dag'] == 5 and et['tekst'] == '\u2265' + f"{round(et['q13']):,}".replace(',', '.') and et['uit'] == 0
+            and et['kop'] == 'Passanten per etmaal' and et['lijnen'] == et['n'] > 0 and et['knop'] == 'true', et)
+        pg.click('#uren button[data-uur]'); pg.wait_for_timeout(150)
+        eis('v3.59: een uur kiezen: terug naar passanten per uur', not pg.evaluate("ETMAAL") and pg.inner_text('#legenda b') == 'Passanten per uur'
+            and pg.evaluate("document.querySelector('#uren button[data-etmaal]').getAttribute('aria-pressed')") == 'false')
+        pg.evaluate("([d, u]) => { kiesDag(d); kiesUur(u); }", voor); pg.wait_for_timeout(100)
         eis('v3.54: het origineel naast zijn reconstructie wordt niet eens geopend; de rest wel', S1[0] + '.zip' not in geopend and
             S1[0] + '_recon.zip' in geopend and len(geopend) == nz, geopend)
         gz = pg.evaluate("[GEZIEN, document.querySelector('#melding .balk') !== null]")
@@ -331,7 +345,7 @@ else:
         knoppen = pg.evaluate("[...document.querySelectorAll('#dagen button')].map(b => [b.textContent, b.disabled, b.getAttribute('aria-pressed')])")
         eis('alleen donderdag en zaterdag zijn aan te klikken; zaterdag staat aan (daar zijn de meeste stukken gemeten)',
             [k[0] for k in knoppen if not k[1]] == ['do', 'za'] and [k[0] for k in knoppen if k[2] == 'true'] == ['za'], knoppen)
-        eis('uur: alleen 13 (en die staat aan)', pg.evaluate("[...document.querySelectorAll('#uren button')].map(b => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '!' : ''))") == ['13!'])
+        eis('uur: alleen 13 (en die staat aan), en sinds v3.59 de knop etmaal (uit)', pg.evaluate("[...document.querySelectorAll('#uren button')].map(b => b.textContent + (b.getAttribute('aria-pressed') === 'true' ? '!' : ''))") == ['13!', 'etmaal'])
 
         print('\n== C. Kaart: zaterdag 13 uur ==')
         gem = pg.evaluate(GEMETEN)
@@ -756,6 +770,14 @@ else:
         eis('v3.57: dagtotaal zaterdag met de kromme: \u2248%s (1 uur gemeten, 11 geschat), geen \u2265 meer; de tooltip noemt de dagkrommen' % nl0(wk['verwacht']),
             wk['tekst'] == '\u2248' + nl0(wk['verwacht']) and '11 geschat met de dagkrommen (proef_krommen.csv)' in wk['titel'], wk)
         pg.keyboard.press('Escape')
+        # v3.59: het etmaal met de kromme: elk uur te schatten, dus geen \u2265
+        pg.click('#uren button[data-etmaal]'); pg.wait_for_timeout(150); pg.click('#dagen button[data-dag="5"]'); pg.wait_for_timeout(150)
+        ek = pg.evaluate("""(R => { const seg = SEGMENTEN['1001/0'], a = schat(seg.cells['5:13'], seg).q, b = schat(seg.cells['3:11'], seg).q, niv = (a + b) / (R[5][13] + R[3][11]);
+          let tot = 0; for (let h = 0; h < 24; h++) tot += h === 13 ? a : niv * R[5][h];
+          return { verwacht: tot, tekst: GEMETEN.find(g => g.seg.key === '1001/0').tekst, legenda: document.getElementById('legenda').innerText }; })""", RK)
+        eis('v3.59: etmaal zaterdag met de kromme: de Voorstraat %s (0:00\u201324:00, geen \u2265); de legenda noemt de dagkrommen en geen \u2265' % nl0(ek['verwacht']),
+            ek['tekst'] == nl0(ek['verwacht']) and 'proef_krommen.csv' in ek['legenda'] and '\u2265' not in ek['legenda'], ek)
+        pg.click('#uren button[data-uur]'); pg.wait_for_timeout(100)
         pg.click('#tabs button[data-tab="dagcurve"]'); pg.wait_for_selector('#dc-uren', timeout=20000)
         dk = pg.evaluate("""[[...document.querySelectorAll('#dagcurve .dc-kromme')].map(p => p.dataset.type), document.querySelector('#dagcurve svg').getBoundingClientRect().right,
           document.querySelector('#dagcurve .uitleg').innerText.includes('proef_krommen.csv')]""")
