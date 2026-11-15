@@ -133,7 +133,7 @@ main{padding:12px 20px 30px;max-width:1300px}
   <div class="balk">
     <label class="knop">Kies ZIP's<input type="file" id="bestanden" multiple accept=".zip" hidden onchange="lees(this.files); this.value='';"></label>
     <label class="knop ghost">of een map<input type="file" id="map" webkitdirectory multiple hidden onchange="lees(this.files); this.value='';"></label>
-    <label class="knop ghost" title="Een CSV met een dagkromme per weekdag: passanten per uur, kolom 1 = maandag … 7 = zondag; het uur is het begin van de meting (24 = 0:00 van de volgende dag). Blijft in deze browser, niet op de server.">Laad dagkrommen<input type="file" id="dagkrommen" accept=".csv,.txt" hidden onchange="laadDagkrommen(this.files[0]); this.value='';"></label>
+    <label class="knop ghost" title="Een CSV met een dagkromme per weekdag: passanten per uur, kolom 1 = maandag … 7 = zondag; het uur 0 tot 23 (9 = 9:00–9:59). Blijft in deze browser, niet op de server.">Laad dagkrommen<input type="file" id="dagkrommen" accept=".csv,.txt" hidden onchange="laadDagkrommen(this.files[0]); this.value='';"></label>
     <span id="krommen-status" class="sub"></span>
     <span id="samenvatting" class="sub">Of sleep ze hierheen. Alleen winkelstraat-tellingen van pocket doen mee.</span>
   </div>
@@ -475,8 +475,8 @@ function csv(tekst) {
    deze aanhouden als onderliggende dagkromme", en: "Deze kromme mag niet openbaar in
    de code. Maak er maar een functie van die "Laad Dagkrommen", met een csv als input."
    De CSV: een kopregel, dan per rij het uur en zeven kolommen, 1 = maandag … 7 = zondag.
-   Het uur is het begin van de meting ("het genoemde uur is het startpunt van de meting,
-   dat betekent dat 24 dus het eerste uur van de volgende dag is"); 0 mag ook. Scheiding
+   Het uur is het klokuur, 0 tot 23 (v3.58; Jay: "dat de .csv normale uren heeft, (dus 1 is
+   01:00 tot 01:59)"). Tot v3.57 liep het van 1 tot 24, met 24 = 0:00 van de volgende dag. Scheiding
    ; of tab of komma; getallen Nederlands (1.234,56) of met een punt. Alleen de vorm telt:
    per stuk wordt hij op het eigen niveau gezet (weekSchatter). Hij blijft in deze
    browser (localStorage), nooit in de code of op de server.                          */
@@ -498,11 +498,11 @@ function leesDagkrommen(tekst) {
     var c = regels[i].split(sch);
     if (c.length < 8) return { fout: 'regel ' + (i + 1) + ' heeft geen 7 dagen' };
     var u = krommenGetal(c[0]);
-    if (!(u >= 0 && u <= 24 && u === Math.round(u))) return { fout: 'regel ' + (i + 1) + ': uur "' + c[0].trim() + '" is geen 0 tot 24' };
+    if (!(u >= 0 && u <= 23 && u === Math.round(u))) return { fout: 'regel ' + (i + 1) + ': uur "' + c[0].trim() + '" is geen 0 tot 23 (9 = 9:00\u20139:59)' };
     for (var d = 0; d < 7; d++) {
       var x = krommenGetal(c[d + 1]);
       if (!(x >= 0)) return { fout: 'regel ' + (i + 1) + ', dag ' + (d + 1) + ': "' + c[d + 1].trim() + '" is geen getal' };
-      if (u === 24) R[(d + 1) % 7][0] += x; else R[d][u] += x;   // 24: het eerste uur van de volgende dag
+      R[d][u] += x;
     }
     n++;
   }
