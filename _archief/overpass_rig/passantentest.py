@@ -318,6 +318,7 @@ else:
                      'foto.zip': 'geen telling van telonline.org'}, over)
         mel = pg.inner_text('#melding')
         eis('de melding noemt wat niet meedoet, en de tikken buiten een passage', 'Niet meegenomen' in mel and 'foto.zip' in mel and '2 van de' in mel, mel)
+        eis('v3.55: het origineel naast zijn reconstructie staat niet in de melding (wel in OVERGESLAGEN)', S1[0] + '.zip' not in mel and 'reconstructie' not in mel, mel)
         sam = pg.inner_text('#samenvatting')
         eis('samenvatting: 3 tellingen, 1 donderdag, 2 zaterdagen, 12 stukken straat', sam == '3 tellingen \u00b7 1 donderdag, 2 zaterdagen \u00b7 12 stukken straat', sam)
 
@@ -410,13 +411,28 @@ else:
             cel(5, 13) == str(round(IJK * V[(1001, 0, 5, 13)]['q'])) and cel(3, 11) == str(round(IJK * V[(1001, 0, 3, 11)]['q']))
             and sum(1 for d in range(7) for h in range(24) if cel(d, h)) == 2, [cel(5, 13), cel(3, 11)])
         za, do_ = V[(1001, 0, 5, 13)], V[(1001, 0, 3, 11)]
-        q_alles, _ = samen([za, do_])
-        eis('gem. per dag is die dag; gem. over alles: beide cellen samen gerekend (%.0f), niet het gemiddelde (%.0f)' % (q_alles, (za['q'] + do_['q']) / 2),
-            rijen[5][25] == str(round(IJK * za['q'])) and rijen[3][25] == str(round(IJK * do_['q'])) and rijen[7][25] == str(round(IJK * q_alles))
-            and rijen[7][14] == str(round(IJK * za['q'])) and rijen[7][12] == str(round(IJK * do_['q'])) and abs(q_alles - (za['q'] + do_['q']) / 2) > 1,
+        # v3.55: gem. is het gemiddelde van de vakjes (gemeten, of geschat met de dagcurve); hier is alleen zaterdag 13 een uur met een curve
+        q_gem = IJK * (za['q'] + do_['q']) / 2
+        eis('v3.55: gem. per dag is die dag; gem. over alles: het gemiddelde van de twee vakjes (%.0f), niets geschat' % q_gem,
+            rijen[5][25] == str(round(IJK * za['q'])) and rijen[3][25] == str(round(IJK * do_['q'])) and rijen[7][25] == f'{round(q_gem):,}'.replace(',', '.')
+            and rijen[7][14] == str(round(IJK * za['q'])) and rijen[7][12] == str(round(IJK * do_['q'])) and not any('\u2248' in x for x in rijen[7] + [r[25] for r in rijen]),
             [rijen[5][25], rijen[3][25], rijen[7][25]])
+        gk = pg.evaluate("""[...document.querySelectorAll('#week-tabel td.gem')].filter(td => td.textContent).map(td => [td.textContent, td.className, td.title])""")
+        kl = {t: c for t, c, _ in gk}
+        eis('v3.55: zaterdag (het uur met een dagcurve, gemeten) is genoeg gedekt (vet); donderdag heeft geen dagcurve en is dat niet (grijs)',
+            'gedekt' in pg.evaluate("document.querySelectorAll('#week-tabel tbody tr')[5].lastElementChild.className") and
+            'dun' in pg.evaluate("document.querySelectorAll('#week-tabel tbody tr')[3].lastElementChild.className") and
+            'geen dagcurve' in pg.evaluate("document.querySelectorAll('#week-tabel tbody tr')[3].lastElementChild.title"), gk)
+        # zonder de meting van zaterdag 13 wordt dat uur geschat met de dagcurve: ≈, en dicht bij wat gemeten is
+        sc = pg.evaluate("""(() => { const seg = SEGMENTEN['1001/0'], kopie = Object.assign({}, seg, { cells: Object.assign({}, seg.cells) });
+          delete kopie.cells['5:13']; const sch = weekSchatter(seg), g = weekGem(kopie, sch, d => d === 5), td = weekGemTd(kopie, sch, d => d === 5, 'zaterdag');
+          return { g, td, gemeten: schat(seg.cells['5:13'], seg).q }; })()""")
+        eis('v3.55: een uur met een dagcurve dat niet gemeten is, wordt geschat: \u2248 voor het getal, 0 van 1 gemeten, niet gedekt; de schatting %.0f tegen gemeten %.0f' % (sc['g']['q'], sc['gemeten']),
+            sc['g']['geschat'] == 1 and sc['g']['gemeten'] == 0 and '>\u2248' in sc['td'] and 'dun' in sc['td'] and '0 van de 1 uur gemeten' in sc['td']
+            and 0.5 < sc['g']['q'] / sc['gemeten'] < 2, sc)
         eis('de cel van de kaart (za 13) is gekozen; eronder de details: waarde, 4 keer op 2 zaterdagen, beide richtingen, stilstaanders',
             pg.evaluate("document.querySelector('#week-tabel td.sel').getAttribute('data-cel')") == '5:13'
+            and pg.inner_text('#week-detail .week-moment') == 'Zaterdag 13:00\u201314:00 \u00b7 17-10, 24-10'
             and all(x in pg.inner_text('#week-detail') for x in ['\u2248 %d passanten per uur' % round(IJK * za['q']), 'zaterdag 13:00\u201314:00',
                                                                  '4 keer langsgelopen, op 2 zaterdagen (17-10, 24-10)', 'in beide richtingen gemeten',
                                                                  'stilstaand: %s per 100 m' % ('%.1f' % za['stil100']).replace('.', ',')]),
@@ -433,8 +449,8 @@ else:
             pl['kop'] == 'Wanneer tellen?' and len(pl['rijen']) >= 2 and [r[0] for r in pl['rijen']] == pl['typen'] and all(r[1] == pl['tot'] - pl['van'] + 1 for r in pl['rijen']), pl)
         eis('v3.53: zaterdag 13 uur 2 tellingen, ook in de tooltip; werkdag 11 uur (de donderdag) 1 telling, te weinig',
             pl['za']['n'] == 2 and '2 tellingen' in pl['zaTd'] and pl['wd']['n'] == 1 and pl['wd']['stand'] == 'dun', [pl['za'], pl['wd'], pl['zaTd']])
-        eis('v3.53: het advies als lijst en gemarkeerd in de tabel, hooguit 3; in beide richtingen gelopen: geen richtingadvies',
-            pl['li'] == pl['tel'] == len(pl['advies']) and 1 <= len(pl['advies']) <= 3 and 'Alleen richting' not in pl['tekst'], pl)
+        eis('v3.53: het advies als lijst en gemarkeerd in de tabel, hooguit 5 (v3.55); in beide richtingen gelopen: geen richtingadvies',
+            pl['li'] == pl['tel'] == len(pl['advies']) and 1 <= len(pl['advies']) <= 5 and 'Alleen richting' not in pl['tekst'], pl)
         pg.click('#week-tabel td[data-cel="3:11"]')
         eis('klik op do 11: die cel gekozen, de details van donderdag', 'donderdag 11:00\u201312:00' in pg.inner_text('#week-detail')
             and pg.evaluate("document.querySelector('#week-tabel td.sel').getAttribute('data-cel')") == '3:11')
