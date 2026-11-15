@@ -303,6 +303,11 @@ else:
         print('== A. Inlezen ==')
         nz = len([q for q in PADEN if q.lower().endswith('.zip')]) - 1   # het origineel naast de reconstructie wordt niet gelezen
         geopend = pg.evaluate("GEOPEND")
+        zl = pg.evaluate("""(() => { const ids = laatsteTellingen(), b = kaart.getBounds(), keys = [...new Set(SESSIES[ids[0]].s.visits.map(v => v.key))];
+          return { ids, binnen: keys.every(k => lijnVan(SEGMENTEN[k]).every(p => b.contains(p))), stukken: keys.length,
+                   zoom: kaart.getZoom(), nodig: kaart.getBoundsZoom(L.latLngBounds([].concat(...keys.map(k => lijnVan(SEGMENTEN[k])))).pad(0.15)) }; })()""")
+        eis('v3.55: na het inlezen staat de kaart op de laatst gedane telling (24-10, %s): al haar stukken in beeld' % S1[0],
+            zl['ids'] == [S1[0]] and zl['binnen'] and zl['stukken'] > 0 and zl['zoom'] == min(18, zl['nodig']), zl)
         eis('v3.54: het origineel naast zijn reconstructie wordt niet eens geopend; de rest wel', S1[0] + '.zip' not in geopend and
             S1[0] + '_recon.zip' in geopend and len(geopend) == nz, geopend)
         gz = pg.evaluate("[GEZIEN, document.querySelector('#melding .balk') !== null]")

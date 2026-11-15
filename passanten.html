@@ -538,6 +538,24 @@ async function lees(lijst) {
   voortgang('Bezig met rekenen… ' + zips.length + ' van ' + zips.length + ' ZIP\'s gelezen', 1);
   await geefBeurt();
   herbereken();
+  zoomLaatste();   // v3.55
+}
+// v3.55: na het inlezen naar de laatst gedane tellingen. Jay: "je mag na het laden inzoomen naar de
+// laatst gedane tellingen". Dat zijn de tellingen van de laatste datum, ook als dat er meer zijn.
+function laatsteTellingen() {
+  var ids = Object.keys(SESSIES), laatste = ids.reduce(function (a, id) { var dt = SESSIES[id].s.datum || ''; return dt > a ? dt : a; }, '');
+  return ids.filter(function (id) { return (SESSIES[id].s.datum || '') === laatste; });
+}
+function zoomLaatste() {
+  if (!kaart) return;
+  var punten = [], gezien = {};
+  laatsteTellingen().forEach(function (id) {
+    SESSIES[id].s.visits.forEach(function (v) {
+      if (gezien[v.key] || !SEGMENTEN[v.key]) return;
+      gezien[v.key] = true; punten = punten.concat(lijnVan(SEGMENTEN[v.key]));
+    });
+  });
+  if (punten.length) { kaart.fitBounds(L.latLngBounds(punten).pad(0.15), { maxZoom: 18 }); gepast = true; }
 }
 function herbereken() {
   SEGMENTEN = {};

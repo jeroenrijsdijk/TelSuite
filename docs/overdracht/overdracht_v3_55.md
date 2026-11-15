@@ -1,4 +1,4 @@
-# Overdracht v3.55 — Passanten: vier klusjes
+# Overdracht v3.55 — Passanten: vijf klusjes
 
 Jay verzamelde vier kleine klussen ("ga niet gelijk aan het werk") en gaf
 daarna het sein: "Dit is de laatste aanpassig voor nu, je mag aan de slag".
@@ -68,9 +68,22 @@ tellen. Daar mag je 5 momenten van maken."
 
 `PLAN_ADVIES` = 5. De legenda volgt vanzelf ("eerst tellen (1–5)").
 
-## 5. Tests
+## 5. Inzoomen op de laatste tellingen
 
-- **`passantentest.py`: 105 (was 102).**
+Jay, na het sein: "Toch nog iets - je mag na het laden inzoomen naar de laatst
+gedane tellingen".
+
+- Na elk inlezen zoomt de kaart naar de stukken van de laatst gedane
+  tellingen (`zoomLaatste`, `pad(0.15)`, hooguit zoom 18). Dat zijn alle
+  tellingen van de laatste datum (`laatsteTellingen`).
+- Voorheen paste de kaart zich alleen bij het eerste inlezen aan, aan alle
+  stukken.
+- Op de gemaakte set liggen de twee laatste tellingen over het hele gebied;
+  daar is het zoomniveau dus hetzelfde.
+
+## 6. Tests
+
+- **`passantentest.py`: 106 (was 102).**
   - Het origineel staat niet in de melding.
   - Gem. over alles is het gemiddelde van de twee vakjes, niets geschat.
   - Zaterdag is vet; donderdag (geen dagcurve) grijs.
@@ -78,25 +91,27 @@ tellen. Daar mag je 5 momenten van maken."
     gemeten, 622 tegen gemeten 628.
   - De kop boven het detail.
   - Hooguit 5 momenten.
+  - Na het inlezen: de laatste telling (24-10) gekozen, al haar stukken in
+    beeld, op het zoomniveau dat daarbij hoort.
 - **Bewust aangepast:** "gem. over alles: beide cellen samen gerekend, niet het
   gemiddelde". Het is nu juist het gemiddelde.
 - **`functest_dagcurve.js`: 63**, de eis voor het advies naar hooguit 5.
 
-## 6. Gewijzigde bestanden
+## 7. Gewijzigde bestanden
 
 | bestand | wat |
 |---|---|
-| `passanten.html` | `RECON_REDEN`; `weekSchatter`, `weekGem`, `weekGemTd`; `.week-moment`; `PLAN_ADVIES`; de uitleg boven de tabel; CSS |
-| `traffic_counter_help.html` | Passanten: inlezen, gem., de kop, vijf momenten |
+| `passanten.html` | `RECON_REDEN`; `weekSchatter`, `weekGem`, `weekGemTd`; `.week-moment`; `PLAN_ADVIES`; `laatsteTellingen`, `zoomLaatste`; de uitleg boven de tabel; CSS |
+| `traffic_counter_help.html` | Passanten: inlezen en inzoomen, gem., de kop, vijf momenten |
 | `index.html` | versie v3.55 |
 | `_archief/overpass_rig/passantentest.py`, `functest_dagcurve.js` | zie §5 |
 | `_archief/overpass_rig/valideer.py`, `README.md`, `docs/OVERDRACHT_STAND_VAN_ZAKEN.md` | bijgewerkt |
 
-## 7. Validatie
+## 8. Validatie
 
 ```
 valideer.py              ALLES OK — de 3 verwachte bestanden
-passantentest.py         105/105
+passantentest.py         106/106
 functest_dagcurve.js     63/63
 300 tellingen            schatting ÷ meting 0,994 over 4.705 vakjes
 volledige ronde lokaal: zie de PR
