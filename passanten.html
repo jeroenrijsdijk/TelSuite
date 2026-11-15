@@ -72,6 +72,10 @@ main{padding:12px 20px 30px;max-width:1300px}
 #week-tabel td[data-cel]{cursor:pointer}
 #week-tabel td.sel{outline:2px solid var(--ink);outline-offset:-2px}
 #week-tabel td.gem,#week-tabel th.gem{background:#ebeae4;font-weight:500;color:var(--ink)}
+#week-tabel td.gem.dun{font-weight:400;color:var(--muted)}   /* v3.55: niet genoeg gedekt */
+#week-tabel td.gem.gedekt{font-weight:700}
+.week-moment{font-size:17px;font-weight:600;margin:2px 0 6px;color:var(--ink)}
+.week-moment span{font-size:13px;font-weight:400;color:var(--muted)}
 #week-tabel tr.gem th,#week-tabel tr.gem td{border-top:1px solid var(--line)}
 #week-detail{margin-top:10px;font-size:13px}
 #week-detail .pop{background:#fff;border:1px solid var(--line);border-radius:3px;padding:8px 11px;max-width:560px}
@@ -149,7 +153,7 @@ main{padding:12px 20px 30px;max-width:1300px}
       <div><div id="week-titel"></div><div id="week-sub" class="sub"></div></div>
       <button class="sluit" onclick="sluitWeek()" aria-label="Sluiten">&#x2715;</button>
     </div>
-    <div class="sub">Passanten per uur, per weekdag en uur. Leeg: niet gemeten. *: niet in beide richtingen gemeten, opgehoogd (zie de details). <em>Gem.</em>: de gemeten uren of dagen samen, op dezelfde manier gerekend. Klik op een cel voor de details.</div>
+    <div class="sub">Passanten per uur, per weekdag en uur. Leeg: niet gemeten. *: niet in beide richtingen gemeten, opgehoogd (zie de details). <em>Gem.</em>: het gemiddelde over de uren waarop de dagcurve van het gebied er is. Een uur dat hier niet (of te kort) gemeten is, wordt geschat met de dagcurve: <b>&asymp;</b> = deels geschat. <b>Vet</b>: genoeg gedekt, minstens 80% van die uren gemeten; grijs: minder. Klik op een cel voor de details.</div>
     <div class="week-tabel"><table id="week-tabel" onclick="weekKlik(event)"></table></div>
     <div id="week-detail"></div>
     <div id="week-plan"></div>
@@ -444,6 +448,8 @@ function poissonMarge(k) {                  // [onder, boven] voor het verwachte
 var SESSIES = {};          // sessie_id -> { s: PASSANTEN.sessie(...), recon, naam }
 var SEGMENTEN = {}, MAXQ = 0, DAG = null, UUR = null;
 var OVERGESLAGEN = [];     // [naam, reden]
+// v3.55: dit staat niet meer in "Niet meegenomen" (Jay: "De recon/origineel hoef je daar niet te laten zien")
+var RECON_REDEN = 'origineel; de reconstructie doet mee';
 var kaart = null, lijnLaag = null, labelLaag = null, gepast = false;
 var DAGNAAM = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag'];
 var DAGKORT = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
@@ -495,8 +501,8 @@ async function leesZip(file) {
   var recon = /_recon(\s*\(\d+\))?\.zip$/i.test(file.name) || !!String(ses.reconstructie || '').trim();
   var al = SESSIES[s.id];
   // Een reconstructie gaat voor het origineel; verder telt elke telling één keer.
-  if (al && (al.recon || !recon)) { OVERGESLAGEN.push([file.name, al.recon && !recon ? 'origineel; de reconstructie doet mee' : 'dubbel']); return; }
-  if (al) OVERGESLAGEN.push([al.naam, 'origineel; de reconstructie doet mee']);
+  if (al && (al.recon || !recon)) { OVERGESLAGEN.push([file.name, al.recon && !recon ? RECON_REDEN : 'dubbel']); return; }
+  if (al) OVERGESLAGEN.push([al.naam, RECON_REDEN]);
   SESSIES[s.id] = { s: s, recon: recon, naam: file.name };
 }
 // v3.54: de voortgang. Jay: "Voor het inlezen van winkelstraat zips wil ik graag een
@@ -518,7 +524,7 @@ async function lees(lijst) {
   zips = zips.filter(function (f) {
     var basis = f.name.replace(/(?:\s*\(\d+\))?\.zip$/i, '').toLowerCase();
     if (/_recon$/.test(basis) || !reconVan[basis]) return true;
-    OVERGESLAGEN.push([f.name, 'origineel; de reconstructie doet mee']);
+    OVERGESLAGEN.push([f.name, RECON_REDEN]);
     return false;
   });
   var t = 0;
@@ -532,6 +538,24 @@ async function lees(lijst) {
   voortgang('Bezig met rekenen… ' + zips.length + ' van ' + zips.length + ' ZIP\'s gelezen', 1);
   await geefBeurt();
   herbereken();
+  zoomLaatste();   // v3.55
+}
+// v3.55: na het inlezen naar de laatst gedane tellingen. Jay: "je mag na het laden inzoomen naar de
+// laatst gedane tellingen". Dat zijn de tellingen van de laatste datum, ook als dat er meer zijn.
+function laatsteTellingen() {
+  var ids = Object.keys(SESSIES), laatste = ids.reduce(function (a, id) { var dt = SESSIES[id].s.datum || ''; return dt > a ? dt : a; }, '');
+  return ids.filter(function (id) { return (SESSIES[id].s.datum || '') === laatste; });
+}
+function zoomLaatste() {
+  if (!kaart) return;
+  var punten = [], gezien = {};
+  laatsteTellingen().forEach(function (id) {
+    SESSIES[id].s.visits.forEach(function (v) {
+      if (gezien[v.key] || !SEGMENTEN[v.key]) return;
+      gezien[v.key] = true; punten = punten.concat(lijnVan(SEGMENTEN[v.key]));
+    });
+  });
+  if (punten.length) { kaart.fitBounds(L.latLngBounds(punten).pad(0.15), { maxZoom: 18 }); gepast = true; }
 }
 function herbereken() {
   SEGMENTEN = {};
@@ -599,13 +623,13 @@ function tekenAlles() {
   document.getElementById('samenvatting').textContent = n
     ? n + (n === 1 ? ' telling' : ' tellingen') + ' · ' + dagen.join(', ') + ' · ' + ks.length + ' stukken straat'
     : 'Of sleep ze hierheen. Alleen winkelstraat-tellingen van pocket doen mee.';
-  var regels = [];
-  if (OVERGESLAGEN.length) {
-    regels.push('<b>Niet meegenomen:</b> ' + OVERGESLAGEN.map(function (o) { return esc(o[0]) + ' (' + esc(o[1]) + ')'; }).join(', ') + '.');
+  var regels = [], getoond = OVERGESLAGEN.filter(function (o) { return o[1] !== RECON_REDEN; });
+  if (getoond.length) {
+    regels.push('<b>Niet meegenomen:</b> ' + getoond.map(function (o) { return esc(o[0]) + ' (' + esc(o[1]) + ')'; }).join(', ') + '.');
   }
   if (wees) regels.push(wees + ' van de ' + tikken + ' tikken lagen buiten een passage over een stuk straat en tellen niet mee.');
   if (!n) regels.unshift('Er is nog geen winkelstraat-telling ingelezen.');
-  melding(regels.join(' '), (OVERGESLAGEN.length || !n) ? 'warn' : '');
+  melding(regels.join(' '), (getoond.length || !n) ? 'warn' : '');
   document.getElementById('keuze').classList.toggle('hide', !n);
   document.getElementById('tabs').classList.toggle('hide', !n);   // v3.43
   if (!n) return;
@@ -907,17 +931,66 @@ function openWeek(seg) {
 function sluitWeek() { document.getElementById('week').classList.add('hide'); WEEKSEG = null; }
 function tekstKleur(q) { return MAXQ > 0 && Math.pow(Math.min(1, q / MAXQ), 0.6) > 0.5 ? '#fff' : '#1b1b19'; }
 function weekWaarde(x) { return !x ? '' : teKort(x) ? '\u00b7' : rond(schat(x, WEEKSEG).q) + (x.compleet ? '' : '*'); }
+/* Gemiddelden in het weekoverzicht (v3.55). Jay: "Aan het einde van de rij geef je een dag
+   gemiddelde maar dat is bij een half getelde week geen betrouwbare waarde", en: "Je mag bijschaven
+   met de dagcurve, maar zet er een duidelijk sterretje bij dat het geschat is. Markeer ook als het
+   aantal tellingen genoeg dekt". Het sterretje betekent hier al "één richting, opgehoogd", dus
+   geschat is ≈. Een gemiddelde loopt over de vakjes (dag, uur) waarop de dagcurve van het gebied er
+   is (dcKern, genoeg), plus de gemeten vakjes. Gemeten: schat(c, seg).q. Niet of te kort gemeten:
+   3600 · Σ A[stuk|richting] · F · D (de verwachting per seconde venster, dus passanten per uur),
+   × de ophoging van het hele stuk × IJKFACTOR. Het gemiddelde is het gewone gemiddelde van de
+   vakjes; genoeg gedekt als minstens WEEK_GEDEKT ervan gemeten is.                              */
+var WEEK_GEDEKT = 0.8;
+function weekSchatter(seg) {
+  var kern = dcKernAlle();
+  if (kern.leeg) return null;
+  var s0 = kern.s0, A = 0, cellen = Object.keys(seg.cells).map(function (k) { return seg.cells[k]; });
+  ['A', 'B', '?'].forEach(function (r) {
+    var id = DC_ID.u[seg.key + '|' + r], i = id === undefined ? -1 : s0.uNr[id];
+    if (i >= 0) A += s0.A[i];
+  });
+  var f = cellen.length ? schat(samen(cellen), seg).f : 1;
+  return { kern: kern, A: A, f: f, schat: function (d, h) {
+    var k = DAGTYPE[d] + ':' + h, g = kern.cel[k];
+    if (!g || !g.genoeg) return undefined;               // geen curve: hoort niet bij het gemiddelde
+    if (!(A > 0) || !(k in s0.F)) return null;           // wel een curve, maar dit stuk is niet te schatten
+    return 3600 * A * s0.F[k] * (d < 5 ? s0.D[d] : 1) * f * IJKFACTOR;
+  } };
+}
+// Het gemiddelde over de vakjes waarvoor mee(d, h) waar is: { q, gemeten, geschat, open, curve, ster }.
+// curve: de vakjes met een dagcurve. Zonder die is niet te zeggen of de tellingen genoeg dekken.
+function weekGem(seg, sch, mee) {
+  var som = 0, gemeten = 0, geschat = 0, open = 0, curve = 0, ster = false;
+  for (var d = 0; d < 7; d++) for (var h = 0; h < 24; h++) {
+    if (!mee(d, h)) continue;
+    var c = seg.cells[d + ':' + h], e = sch ? sch.schat(d, h) : undefined;
+    if (e !== undefined) curve++;
+    if (c && !teKort(c)) { som += schat(c, seg).q; gemeten++; if (!c.compleet) ster = true; continue; }
+    if (e === undefined) continue;
+    if (e === null) { open++; continue; }
+    som += e; geschat++; if (sch.f !== 1) ster = true;
+  }
+  return gemeten + geschat ? { q: som / (gemeten + geschat), gemeten: gemeten, geschat: geschat, open: open, curve: curve, ster: ster } : null;
+}
+function weekGemTd(seg, sch, mee, wat) {
+  var g = weekGem(seg, sch, mee);
+  if (!g) return '<td class="gem"></td>';
+  var alle = g.gemeten + g.geschat + g.open, gedekt = g.curve > 0 && g.gemeten >= WEEK_GEDEKT * alle;
+  var tekst = (g.geschat ? '\u2248' : '') + rond(g.q) + (g.ster ? '*' : '');
+  var titel = wat + ': gemiddeld ' + tekst + ' passanten per uur \u00b7 ' + g.gemeten + ' van de ' + alle + ' uur gemeten' +
+    (g.geschat ? ', ' + g.geschat + ' geschat met de dagcurve' : '') + (g.open ? ', ' + g.open + ' niet te schatten (dit stuk hangt niet aan de rest)' : '') +
+    (gedekt ? ' \u00b7 genoeg gedekt' : g.curve ? ' \u00b7 niet genoeg gedekt' : ' \u00b7 hier geen dagcurve: alleen wat gemeten is');
+  return '<td class="gem ' + (gedekt ? 'gedekt' : 'dun') + '" title="' + titel + '">' + tekst + '</td>';
+}
 function tekenWeek() {
-  var seg = WEEKSEG, html = '<thead><tr><th></th>';
+  var seg = WEEKSEG, sch = weekSchatter(seg), html = '<thead><tr><th></th>';
   for (var h = 0; h < 24; h++) html += '<th>' + h + '</th>';
   html += '<th class="gem">gem.</th></tr></thead><tbody>';
   for (var d = 0; d < 7; d++) {
     html += '<tr><th>' + DAGKORT[d] + '</th>';
-    var dag = [];
     for (h = 0; h < 24; h++) {
       var ck = d + ':' + h, c = seg.cells[ck];
       if (!c) { html += '<td class="leeg" title="' + DAGNAAM[d] + ' ' + h + ':00 \u00b7 niet gemeten"></td>'; continue; }
-      dag.push(c);
       if (teKort(c)) {   // v3.42
         html += '<td data-cel="' + ck + '" class="kort' + (ck === WEEKCEL ? ' sel' : '') + '" title="' + DAGNAAM[d] + ' ' + h + ':00\u2013' + (h + 1) +
                 ':00 \u00b7 te kort gemeten">\u00b7</td>';
@@ -926,18 +999,15 @@ function tekenWeek() {
       html += '<td data-cel="' + ck + '"' + (ck === WEEKCEL ? ' class="sel"' : '') + ' style="background:' + kleur(schat(c, seg).q) + ';color:' + tekstKleur(schat(c, seg).q) + '"' +
               ' title="' + DAGNAAM[d] + ' ' + h + ':00\u2013' + (h + 1) + ':00 \u00b7 ' + weekWaarde(c) + ' passanten per uur">' + weekWaarde(c) + '</td>';
     }
-    html += '<td class="gem">' + weekWaarde(samen(dag)) + '</td></tr>';
+    html += weekGemTd(seg, sch, function (dd) { return dd === d; }, DAGNAAM[d]);
   }
   html += '<tr class="gem"><th class="gem">gem.</th>';
-  for (h = 0; h < 24; h++) {
-    var uur = [];
-    for (d = 0; d < 7; d++) if (seg.cells[d + ':' + h]) uur.push(seg.cells[d + ':' + h]);
-    html += '<td class="gem">' + weekWaarde(samen(uur)) + '</td>';
-  }
-  html += '<td class="gem">' + weekWaarde(samen(Object.keys(seg.cells).map(function (k) { return seg.cells[k]; }))) + '</td></tr></tbody>';
+  for (h = 0; h < 24; h++) html += weekGemTd(seg, sch, function (dd, hh) { return hh === h; }, h + ':00\u2013' + (h + 1) + ':00');
+  html += weekGemTd(seg, sch, function () { return true; }, 'de hele week') + '</tr></tbody>';
   document.getElementById('week-tabel').innerHTML = html;
   var c = seg.cells[WEEKCEL];
-  document.getElementById('week-detail').innerHTML = c ? popupHtml(seg, c) +
+  document.getElementById('week-detail').innerHTML = c ? '<div class="week-moment">' + DAGNAAM[c.dag].charAt(0).toUpperCase() + DAGNAAM[c.dag].slice(1) +
+    ' ' + c.uur + ':00\u2013' + (c.uur + 1) + ':00 <span>\u00b7 ' + c.datums.map(datumKort).join(', ') + '</span></div>' + popupHtml(seg, c) +
     '<button onclick="toonOpKaart()">Toon ' + DAGNAAM[c.dag] + ' ' + c.uur + ':00 op de kaart</button>' : '';
 }
 function weekKlik(e) {
@@ -1383,7 +1453,7 @@ function dagcurveVan(filter) {
    tellingen, n de tellingen in het gebied op dat uur. Bij een grote spreiding
    telt vooral hoe goed het gebied dat uur kent, niet hoe druk het er is.      */
 var DCKERN = null;                        // dcKern(null); herbereken() leegt hem
-var PLAN_ADVIES = 3;
+var PLAN_ADVIES = 5;   // v3.55, was 3. Jay: "Daar mag je 5 momenten van maken"
 function dcKernAlle() { return DCKERN || (DCKERN = dcKern(null)); }
 /* Hoe ver een telling, buiten het toeval om, van de curve af ligt: σ, uit de
    stippen (v3.52). Per stip z = geteld ÷ verwacht (μ = gewicht × F). Dan is
