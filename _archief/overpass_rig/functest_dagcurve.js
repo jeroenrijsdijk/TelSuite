@@ -353,8 +353,8 @@ eis('nooit (het gebied heeft er genoeg) en leeg (het gebied niet) waar het stuk 
     pl.cellen.filter(c => !c.n).every(c => c.stand === (dc.cel[c.k] && dc.cel[c.k].genoeg ? 'nooit' : 'leeg')) && pl.cellen.some(c => c.stand === 'leeg'),
     pl.cellen.filter(c => !c.n).map(c => [c.k, c.stand]));
 const nooit = pl.cellen.filter(c => c.stand === 'nooit');
-eis('het advies: eerst de uren waar het nooit geteld is, zonder spreiding het drukste eerst, hooguit 3',
-    pl.advies.length === Math.min(3, pl.cellen.filter(c => c.stand !== 'volgt' && c.stand !== 'gezien').length) &&
+eis('het advies: eerst de uren waar het nooit geteld is, zonder spreiding het drukste eerst, hooguit 5 (v3.55)',
+    pl.advies.length === Math.min(5, pl.cellen.filter(c => c.stand !== 'volgt' && c.stand !== 'gezien').length) &&
     pl.advies.slice(0, nooit.length).every(c => c.stand === 'nooit') && pl.advies.every((c, i) => !i || c.stand !== 'nooit' || pl.advies[i - 1].drukte >= c.drukte),
     pl.advies.map(c => [c.k, c.stand, c.drukte]));
 // alleen toeval (Poisson): geen spreiding, en bijna nooit hoger of lager
