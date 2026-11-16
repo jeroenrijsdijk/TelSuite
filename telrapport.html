@@ -491,6 +491,42 @@
     }
     #drawer-backdrop.show { display: block; }
   }
+  /* ── A4 van één telling (v3.60) ─────────────────────────────── */
+  .session-a4 { flex-shrink: 0; font-size: 9.5px; line-height: 1.2; padding: 1px 4px; margin-left: 4px; border: 1px solid currentColor;
+    border-radius: 3px; opacity: .75; cursor: pointer; letter-spacing: .04em; }
+  .session-a4:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+  #a4-scherm { position: fixed; inset: 0; z-index: 3000; background: #5b5f66; overflow: auto; padding: 16px 0 40px; }
+  #a4-scherm .a4-knoppen { width: 210mm; max-width: calc(100vw - 32px); margin: 0 auto 10px; display: flex; gap: 8px; align-items: center; color: #fff; font-size: 13px; }
+  #a4-scherm .a4-knoppen button { font: inherit; padding: 6px 14px; border: none; border-radius: 3px; cursor: pointer; background: #fff; color: #1b1b19; }
+  #a4-scherm .a4-knoppen button.hoofd { background: #2f5d62; color: #fff; }
+  .a4-blad { width: 210mm; height: 297mm; margin: 0 auto; background: #fff; color: #1b1b19; box-sizing: border-box; padding: 12mm 13mm 10mm;
+    display: flex; flex-direction: column; overflow: hidden; font-family: 'Oswald', sans-serif; font-weight: 300;
+    box-shadow: 0 4px 24px rgba(0,0,0,.35); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .a4-blad h1 { font-size: 22pt; font-weight: 500; margin: 0; letter-spacing: .01em; }
+  .a4-blad .a4-sub { font-size: 12pt; margin-top: 1mm; }
+  .a4-blad .a4-id { font-family: 'Share Tech Mono', monospace; font-size: 8.5pt; color: #6d6d66; margin-top: .5mm; }
+  .a4-blad .wx { margin: 2mm 0 0; font-size: 10pt; color: #1b1b19; background: none; border: none; padding: 0; }
+  .a4-blad .wx .wx-src { color: #6d6d66; }
+  #a4-kaart { height: 112mm; margin-top: 4mm; border: .3mm solid #b9b8b0; flex-shrink: 0; position: relative; overflow: hidden; }
+  .a4-blad .a4-legenda { display: flex; gap: 5mm; font-size: 9pt; margin-top: 1.5mm; color: #3c3c37; }
+  .a4-blad .a4-legenda i { display: inline-block; width: 3mm; height: 3mm; border-radius: 50%; margin-right: 1.3mm; vertical-align: -.3mm; border: .25mm solid #fff; box-shadow: 0 0 0 .2mm #999; }
+  .a4-blad table { width: 100%; border-collapse: collapse; margin-top: 4mm; font-size: 9.5pt; font-variant-numeric: tabular-nums; }
+  .a4-blad th { text-align: right; font-weight: 500; border-bottom: .35mm solid #1b1b19; padding: 1mm 1.5mm; }
+  .a4-blad th:first-child, .a4-blad td:first-child { text-align: left; }
+  .a4-blad td { text-align: right; padding: .7mm 1.5mm; border-bottom: .15mm solid #dcdbd4; }
+  .a4-blad tr.a4-som td { border-top: .35mm solid #1b1b19; border-bottom: none; font-weight: 500; }
+  .a4-blad .a4-totaal { display: flex; gap: 4mm; margin-top: auto; padding-top: 4mm; }
+  .a4-blad .a4-tegel { flex: 1; border: .3mm solid #b9b8b0; border-radius: 1.5mm; padding: 2.5mm 3mm; }
+  .a4-blad .a4-tegel b { display: block; font-size: 24pt; font-weight: 500; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .a4-blad .a4-tegel span { font-size: 9.5pt; color: #3c3c37; }
+  .a4-blad footer { display: flex; justify-content: space-between; font-size: 8pt; color: #6d6d66; margin-top: 3mm; }
+  @media print {
+    @page { size: A4 portrait; margin: 0; }
+    body.a4-print > *:not(#a4-scherm) { display: none !important; }
+    body.a4-print #a4-scherm { position: static; background: none; padding: 0; overflow: visible; }
+    body.a4-print .a4-knoppen { display: none; }
+    body.a4-print .a4-blad { box-shadow: none; margin: 0; }
+  }
 </style>
 </head>
 <body>
@@ -1078,6 +1114,7 @@ const clusterLayers    = {};   // sid → [marker]
 const capLayers      = {};   // sid → [marker] voor capaciteitssessies
 const capTelData    = {};   // sid → [telregels] voor capaciteitssessies
 const telData       = {};   // sid → filtered snapped telregels
+const a4Tikken      = {};   // v3.60: sid → [{ type, lat, lon, straat, wk }], alle tikken van een pocket-telling
 const visitData     = {};   // sid → [{ wid, segIdx, tStart, tEnd, durSec, nGps, nTel }]
 // v3.49: twee opzoeklijsten, zodat niet elke telling alle wegvakken langs hoeft.
 // Bij 185 tellingen en 42.550 wegvakken was dat het meeste werk van de kaart:
@@ -2047,6 +2084,11 @@ function loadPocketZip(sid, sm, telCSV, gpsCSV, netCSV, bezCSV, segCSV) {
   const datum = fmtDatum(sm.datum, sm.start_tijd);
   const rows  = parseCSV(telCSV);
   const hasSnap = rows.some(function(r){ return r.osm_way_id && r.osm_way_id.trim(); });
+  // v3.60: elke tik met type, positie en straat, voor het A4 (toonA4)
+  a4Tikken[sid] = rows.map(function (r) { var p = tikPositie(r);
+    return { type: perRowType ? (r.type || 'other') : ptype, lat: p[0], lon: p[1], straat: (r.straat || '').trim(),
+             wk: r.osm_way_id && r.osm_way_id.trim() ? wkey(r.osm_way_id.trim(), +(r.segment_index || 0) || 0) : '' }; })
+    .filter(function (t) { return isFinite(t.lat) && isFinite(t.lon); });
 
   // telData vullen zodat drawClusters werkt — segIdx onthouden voor segment-projectie.
   // Transect/winkelstraat: per-rij type i.p.v. de sessie-type, zodat clusters splitsen.
@@ -4289,6 +4331,116 @@ function kwaliteitRapport(F, sm) {
 
 function kwEsc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
 
+/* ── A4 van één telling (v3.60) ───────────────────────────────────────────────
+   Jay: "Stel, ik heb in telrapport 1 parkeertellingen gedaaan met Pocket- Simpel. Ik wil
+   dan 1 A4 met daarop het resultaat. Kaartje, Lege plaatsen, bezette plaatsen. Datum,
+   tijd." En: "Voor nu even 1 telling, een echt kaartje met achtergrond, tabel per straat
+   en onderaan de totaal-waarden. Het weer is een fijne extra. Naam teller ook erop."
+   Een printweergave over de pagina heen (#a4-scherm), staand A4 in mm. Afdrukken of als
+   PDF bewaren gaat met de printknop van de browser; @media print toont dan alleen het
+   blad. Het kaartje is een eigen Leaflet-kaart met de ondergrond van het scherm; we
+   printen pas als de tegels er zijn (of na A4_WACHT ms). Parkeren (leeg/bezet): bezet,
+   leeg, totaal en bezettingsgraad; andere pocket-tellingen: een kolom per soort.      */
+var A4_WACHT = 6000, A4_MAX_STRATEN = 20;
+var A4 = null;   // { kaart, tegelsKlaar }
+function a4Straat(sid, t) {
+  if (t.straat) return t.straat;
+  var w = t.wk && wayData[t.wk];
+  if (w) { var e = (w.sessions || []).filter(function (x) { return x.sid === sid; })[0] || (w.sessions || [])[0];
+    var n = w.osmName || (e && cleanNaam(e.naam)); if (n) return n; }
+  return '(zonder straat)';
+}
+function a4Gegevens(sid) {
+  var s = sessions[sid], sm = s.meta || {}, tikken = a4Tikken[sid] || [], cfg = APP_CONFIG.pocket;
+  var soorten = [], per = {}, tot = {};
+  tikken.forEach(function (t) {
+    if (soorten.indexOf(t.type) < 0) soorten.push(t.type);
+    var st = a4Straat(sid, t), x = per[st] || (per[st] = { straat: st, n: {}, totaal: 0 });
+    x.n[t.type] = (x.n[t.type] || 0) + 1; x.totaal++; tot[t.type] = (tot[t.type] || 0) + 1;
+  });
+  soorten.sort(function (a, b) { var ia = cfg.types.indexOf(a), ib = cfg.types.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || (a < b ? -1 : 1); });
+  var parkeren = (sm.modus || '').trim() === 'parkeren' || (soorten.length && soorten.every(function (t) { return t === 'leeg' || t === 'bezet'; }));
+  if (parkeren) soorten = ['bezet', 'leeg'];
+  var straten = Object.keys(per).map(function (k) { return per[k]; }).sort(function (a, b) { return b.totaal - a.totaal || (a.straat < b.straat ? -1 : 1); });
+  if (straten.length > A4_MAX_STRATEN) {          // past niet op één A4: de rest samen
+    var rest = straten.splice(A4_MAX_STRATEN - 1), o = { straat: 'overige straten (' + rest.length + ')', n: {}, totaal: 0, overig: true };
+    rest.forEach(function (x) { o.totaal += x.totaal; Object.keys(x.n).forEach(function (t) { o.n[t] = (o.n[t] || 0) + x.n[t]; }); });
+    straten.push(o);
+  }
+  var win = wxWindow(sid);
+  return { sm: sm, tikken: tikken, soorten: soorten, straten: straten, tot: tot, totaal: tikken.length, parkeren: parkeren, win: win, cfg: cfg };
+}
+function a4Pct(bezet, leeg) { return bezet + leeg ? Math.round(100 * bezet / (bezet + leeg)) + '%' : '–'; }
+function a4Html(sid, g) {
+  var sm = g.sm, cfg = g.cfg, lbl = function (t) { return cfg.labels[t] || t; };
+  var titel = g.parkeren ? 'Parkeertelling' : (sm.modus || '').trim() === 'winkelstraat' ? 'Winkelstraattelling' : 'Telling' + (sm.type ? ' · ' + (cfg.labels[sm.type] || sm.type) : '');
+  var p2 = function (n) { return String(n).padStart(2, '0'); }, hm = function (d) { return p2(d.getHours()) + ':' + p2(d.getMinutes()); };
+  var dag = g.win ? g.win.start.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : fmtDatum(sm.datum, sm.start_tijd);
+  var tijd = g.win ? hm(g.win.start) + '–' + hm(g.win.end) + ' (' + Math.max(1, Math.round((g.win.end - g.win.start) / 60000)) + ' min)' : '';
+  var namen = g.straten.filter(function (x) { return !x.overig && x.straat !== '(zonder straat)'; }).map(function (x) { return x.straat; });
+  var waar = namen.length ? namen.slice(0, 2).join(', ') + (namen.length > 2 ? ' en ' + (namen.length - 2) + ' andere straten' : '') : '';
+  var h = '<header><h1>' + escapeHtml(titel) + (waar ? ' <span style="font-weight:300">· ' + escapeHtml(waar) + '</span>' : '') + '</h1>' +
+    '<div class="a4-sub">' + escapeHtml(dag) + (tijd ? ' · ' + tijd : '') + (sm.teller ? ' · teller: ' + escapeHtml(sm.teller) : '') + '</div>' +
+    '<div class="a4-id">' + escapeHtml(sid) + '</div>' + weatherBlock(sid) + '</header>';
+  h += '<div id="a4-kaart"></div><div class="a4-legenda">' + g.soorten.map(function (t) {
+    return '<span><i style="background:' + (cfg.colors[t] || '#555') + '"></i>' + escapeHtml(lbl(t)) + '</span>'; }).join('') +
+    (gpsLayers[sid] ? '<span><i style="background:none;border:none;box-shadow:none;border-top:.5mm dashed #666;border-radius:0;height:0;width:5mm"></i>gelopen route</span>' : '') + '</div>';
+  // de tabel per straat
+  var kol = g.parkeren ? ['bezet', 'leeg'] : g.soorten;
+  h += '<table><thead><tr><th>straat</th>' + kol.map(function (t) { return '<th>' + escapeHtml(lbl(t)) + '</th>'; }).join('') +
+    '<th>' + (g.parkeren ? 'vakken' : 'totaal') + '</th>' + (g.parkeren ? '<th>bezet %</th>' : '') + '</tr></thead><tbody>';
+  g.straten.forEach(function (x) {
+    h += '<tr><td>' + escapeHtml(x.straat) + '</td>' + kol.map(function (t) { return '<td>' + (x.n[t] || 0) + '</td>'; }).join('') +
+      '<td>' + x.totaal + '</td>' + (g.parkeren ? '<td>' + a4Pct(x.n.bezet || 0, x.n.leeg || 0) + '</td>' : '') + '</tr>';
+  });
+  h += '<tr class="a4-som"><td>totaal</td>' + kol.map(function (t) { return '<td>' + (g.tot[t] || 0) + '</td>'; }).join('') +
+    '<td>' + g.totaal + '</td>' + (g.parkeren ? '<td>' + a4Pct(g.tot.bezet || 0, g.tot.leeg || 0) + '</td>' : '') + '</tr></tbody></table>';
+  // de totalen onderaan
+  var tegels = g.parkeren
+    ? [[g.tot.bezet || 0, 'bezette plaatsen'], [g.tot.leeg || 0, 'lege plaatsen'], [g.totaal, 'vakken geteld'], [a4Pct(g.tot.bezet || 0, g.tot.leeg || 0), 'bezettingsgraad']]
+    : g.soorten.slice(0, 4).map(function (t) { return [g.tot[t] || 0, lbl(t)]; }).concat([[g.totaal, 'totaal']]);
+  h += '<div class="a4-totaal">' + tegels.map(function (t) { return '<div class="a4-tegel"><b>' + t[0] + '</b><span>' + escapeHtml(t[1]) + '</span></div>'; }).join('') + '</div>';
+  var bron = BASEMAPS[currentBasemap] ? BASEMAPS[currentBasemap].attribution.replace(/<[^>]*>/g, '') : '';
+  h += '<footer><span>telonline.org · Telrapport</span><span>kaart: ' + escapeHtml(bron) + ' · weer: Open-Meteo</span></footer>';
+  return h;
+}
+function toonA4(sid) {
+  if (!sessions[sid] || !a4Tikken[sid]) return;
+  sluitA4();
+  var g = a4Gegevens(sid), el = document.createElement('div');
+  el.id = 'a4-scherm';
+  el.innerHTML = '<div class="a4-knoppen"><button class="hoofd" onclick="drukA4()">Afdrukken of als PDF</button><button onclick="sluitA4()">Sluiten</button>' +
+    '<span id="a4-status">Kies in het printvenster A4, staand, en zet marges op geen.</span></div><div class="a4-blad" id="a4">' + a4Html(sid, g) + '</div>';
+  document.body.appendChild(el);
+  document.body.classList.add('a4-print');
+  var k = L.map('a4-kaart', { zoomControl: false, attributionControl: false, zoomSnap: 0.25, fadeAnimation: false }), cfgB = BASEMAPS[currentBasemap] || BASEMAPS.osm;
+  A4 = { kaart: k, tegelsKlaar: false, sid: sid };
+  L.tileLayer(cfgB.url, { maxZoom: cfgB.maxZoom, subdomains: cfgB.subdomains }).on('load', function () { if (A4) A4.tegelsKlaar = true; }).addTo(k);
+  if (gpsLayers[sid]) L.polyline(gpsLayers[sid].getLatLngs(), { color: '#555', weight: 1.6, opacity: 0.7, dashArray: '4 4' }).addTo(k);
+  var pt = g.tikken.map(function (t) { return [t.lat, t.lon]; });
+  g.tikken.forEach(function (t) {
+    L.circleMarker([t.lat, t.lon], { radius: 4.5, color: '#fff', weight: 1.2, fillColor: g.cfg.colors[t.type] || '#555', fillOpacity: 0.95, className: 'a4-tik' }).addTo(k);
+  });
+  if (pt.length) k.fitBounds(L.latLngBounds(pt).pad(0.12), { maxZoom: 19 });
+}
+function drukA4() {
+  if (!A4) return;
+  var st = document.getElementById('a4-status'), t0 = Date.now();
+  (function wacht() {
+    if (!A4) return;
+    if (A4.tegelsKlaar || Date.now() - t0 > A4_WACHT) { if (st) st.textContent = ''; window.print(); return; }
+    if (st) st.textContent = 'kaart laden…';
+    setTimeout(wacht, 150);
+  })();
+}
+function sluitA4() {
+  if (A4) { A4.kaart.remove(); A4 = null; }
+  var el = document.getElementById('a4-scherm');
+  if (el) el.remove();
+  document.body.classList.remove('a4-print');
+}
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && A4) sluitA4(); });
+
 function toonKwaliteit(sid) {
   const kw = kwaliteit[sid], s = sessions[sid];
   if (!kw || !s) return;
@@ -4362,6 +4514,7 @@ function makeSessionRow(sid) {
           '<span>' + datum + '</span>' +
           (teller ? '<span class="stell">' + teller + '</span>' : '') +
           kwHtml +
+          (a4Tikken[sid] && a4Tikken[sid].length ? '<span class="session-a4" data-a4="' + sid + '" title="één A4 van deze telling: kaart, tabel per straat, totalen (afdrukken of als PDF bewaren)">A4</span>' : '') +
         '</div>' +
         '<div class="session-id">' + sid + '</div>' +
         dekHtml +
@@ -4478,6 +4631,8 @@ function applySessionVisibility(sid) {
 document.getElementById('sessions-list').addEventListener('click', e => {
   const kwEl = e.target.closest('.session-kwaliteit');   // v3.10: het rapport, geen aan/uit
   if (kwEl) { toonKwaliteit(kwEl.dataset.kw); return; }
+  const a4El = e.target.closest('.session-a4');           // v3.60: het A4, geen aan/uit
+  if (a4El) { toonA4(a4El.dataset.a4); return; }
   const row = e.target.closest('.session-row'); if (!row) return;
   const sid = row.dataset.sid; if (!sessions[sid]) return;
 
