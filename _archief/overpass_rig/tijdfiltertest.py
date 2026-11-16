@@ -220,6 +220,36 @@ with sync_playwright() as p:
     la = pg.evaluate(LAGEN)
     eis('per telling: tikken in de bollen = clusterDekking',
         all(x['inBollen'] == x['dekking'] and x['dekking'] > 0 for x in la.values()), la)
+    print('\n== J. Een A4 van de pocket-parkeertelling (v3.60) ==')
+    pk = pg.evaluate("Object.keys(sessions).filter(s => /_pkt_p$/.test(s))[0]")
+    knop = pg.evaluate("[...document.querySelectorAll('.session-a4')].map(e => e.dataset.a4)")
+    eis('het knopje A4 staat bij de pocket-tellingen, niet bij de parkeertelling', pk in knop and len(knop) == 4, knop)
+    pg.evaluate("window.GEPRINT = 0; window.print = () => { GEPRINT++; }; A4_WACHT = 300; sessions[%r].meta.teller = 'Proef Teller';" % pk)
+    pg.click('.session-a4[data-a4="%s"]' % pk); pg.wait_for_timeout(600)
+    a4 = pg.evaluate("""(sid => { const d = document.getElementById('a4'), r = [...d.querySelectorAll('tbody tr')].map(tr => [...tr.children].map(td => td.textContent));
+      const tel = t => (dotLayers[sid][t] || []).length;
+      return { titel: d.querySelector('h1').textContent, sub: d.querySelector('.a4-sub').textContent, rijen: r, bezet: tel('bezet'), leeg: tel('leeg'),
+               tegels: [...d.querySelectorAll('.a4-tegel')].map(t => [t.querySelector('b').textContent, t.querySelector('span').textContent]),
+               stippen: d.querySelectorAll('#a4-kaart path.a4-tik').length, weer: !!d.querySelector('.wx'), afdruk: document.body.classList.contains('a4-print'),
+               maat: [d.offsetWidth, d.offsetHeight], knop: !!document.querySelector('.session-row') }; })(%r)""" % pk)
+    som = a4['rijen'][-1]
+    eis('A4: Parkeertelling, datum, tijd en teller in de kop', a4['titel'].startswith('Parkeertelling') and 'Proef Teller' in a4['sub'] and ' min)' in a4['sub'], a4['sub'])
+    eis('A4: elke tik op het kaartje, in de kleur van zijn soort', a4['stippen'] == a4['bezet'] + a4['leeg'] == 8, a4['stippen'])
+    eis('A4: de tabel per straat telt op tot het totaal (bezet, leeg, vakken, %)',
+        som[0] == 'totaal' and som[1:4] == [str(a4['bezet']), str(a4['leeg']), '8'] and som[4] == '%d%%' % round(100 * a4['bezet'] / 8)
+        and sum(int(r[3]) for r in a4['rijen'][:-1]) == 8, a4['rijen'])
+    eis('A4: onderaan bezette en lege plaatsen, vakken en bezettingsgraad',
+        a4['tegels'] == [[str(a4['bezet']), 'bezette plaatsen'], [str(a4['leeg']), 'lege plaatsen'], ['8', 'vakken geteld'], [som[4], 'bezettingsgraad']], a4['tegels'])
+    eis('A4: het weer, en het blad is 210 \u00d7 297 mm (794 \u00d7 1123 px)', a4['weer'] and abs(a4['maat'][0] - 794) <= 1 and abs(a4['maat'][1] - 1123) <= 1, a4['maat'])
+    if os.environ.get('A4_SCHERM'):
+        pg.set_viewport_size({'width': 1000, 'height': 1250}); pg.wait_for_timeout(300)
+        pg.locator('#a4').screenshot(path=os.environ['A4_SCHERM'])
+    pg.click('#a4-scherm button.hoofd'); pg.wait_for_timeout(700)
+    eis('A4: afdrukken roept de printdialoog aan (na de tegels, of na het wachten)', pg.evaluate("GEPRINT") == 1)
+    pr = pg.evaluate("""[...document.styleSheets].some(sh => { try { return [...sh.cssRules].some(r => r.media && r.media.mediaText === 'print' && /a4-print/.test(r.cssText)); } catch (e) { return false; } })""")
+    eis('A4: bij afdrukken alleen het blad (@media print)', pr)
+    pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
+    eis('A4: Escape sluit; de pagina is weer zoals hij was', pg.evaluate("!document.getElementById('a4-scherm') && !document.body.classList.contains('a4-print') && A4 === null"))
     eis('geen JS-fouten in telrapport', not fouten, fouten)
     b.close()
 
