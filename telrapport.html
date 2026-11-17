@@ -492,6 +492,9 @@
     #drawer-backdrop.show { display: block; }
   }
   /* ── A4 van één telling (v3.60) ─────────────────────────────── */
+  .bol-wegvak { display: block; width: 100%; margin: 0 0 10px; padding: 7px 10px; font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+    background: rgba(255,255,255,0.08); color: inherit; border: 1px solid rgba(255,255,255,0.25); border-radius: 4px; }   /* v3.61 */
+  .bol-wegvak:hover { background: rgba(255,255,255,0.16); }
   .session-a4 { flex-shrink: 0; font-size: 9.5px; line-height: 1.2; padding: 1px 4px; margin-left: 4px; border: 1px solid currentColor;
     border-radius: 3px; opacity: .75; cursor: pointer; letter-spacing: .04em; }
   .session-a4:hover { opacity: 1; background: rgba(255,255,255,0.1); }
@@ -2959,7 +2962,7 @@ function drawClusters(sid) {
   const groups = {};
   bp.punten.forEach(p => {
     const gkey=`${p.k}|${p.zijde}`;
-    if (!groups[gkey]) groups[gkey]={ wid:p.wid, segIdx:p.segIdx, zijde:p.zijde, items:[] };
+    if (!groups[gkey]) groups[gkey]={ k:p.k, wid:p.wid, segIdx:p.segIdx, zijde:p.zijde, items:[] };
     groups[gkey].items.push({
       pos: projectOnPolyline(p.lat,p.lon,p.geometry),
       lat:p.lat, lon:p.lon,
@@ -2967,7 +2970,7 @@ function drawClusters(sid) {
     });
   });
 
-  Object.values(groups).forEach(({items}) => {
+  Object.values(groups).forEach(({k, items}) => {
     gapCluster(items, gapThreshold).forEach(group => {
       const centLat=group.reduce((a,p)=>a+p.lat,0)/group.length;
       const centLon=group.reduce((a,p)=>a+p.lon,0)/group.length;
@@ -2995,7 +2998,7 @@ function drawClusters(sid) {
         .on('mousedown', shiftBoxZoomBlokkeren)
         .on('click', (e)=>{
           if (clusterShiftSolo(e, [sid])) return;
-          showClusterDetail(counts, total, sid, appType);
+          showClusterDetail(counts, total, sid, appType, k);   // v3.61: met het wegvak eronder
         })
         // v3.48: dimmen zoals bij een rij in de sessielijst (setSessionEmphasis),
         // dus nu ook de route en de capaciteit van de andere tellingen
@@ -3031,7 +3034,8 @@ function drawClusters(sid) {
       });
       const zm = L.marker([cLat, cLon], { icon: icon, pane: 'cluster-badges' })
         .bindTooltip(cleanNaam(wd.osmName || '') + ' · bezocht, geen waarnemingen',
-                     { direction:'top', className:'cluster-label' });
+                     { direction:'top', className:'cluster-label' })
+        .on('click', function () { showWegvakDetail(k); });   // v3.61: het "0"-bolletje ligt op het wegvak
       zm.addTo(map);
       clusterLayers[sid].push(zm);
     });
@@ -3694,7 +3698,18 @@ function showPolygonSummary(verts) {
 document.getElementById('polygon-cancel').addEventListener('click', cancelPolygonDraw);
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && polyDrawing) cancelPolygonDraw(); });
 
-function showClusterDetail(counts, total, sid, appType) {
+/* v3.61: een bol ligt op zijn wegvak, en bij parkeren liggen ze in een rij over de straat:
+   het wegvak zelf is dan bijna niet te raken. Jay: "In de laatste versie van telrapport.html
+   liggen de linkjes onder de stippen en de lokatie cluster bollen. Daarom kan ik de link niet
+   meer aanklikken"; op het voorstel: "Je voorstel bij 2 is erg slim, maak maar!". Het paneel
+   van een bol krijgt daarom een knop naar het wegvak eronder (k, uit het segmentpad).      */
+function wegvakKnop(k) {
+  const wd = k && wayData[k];
+  if (!wd) return '';
+  const naam = cleanNaam(wd.osmName || (wd.sessions[0] && wd.sessions[0].naam) || '') || wd.wayId || k;
+  return '<button class="bol-wegvak" data-wegvak="' + escapeHtml(k) + '" title="de tellingen, bezoeken en het weekprofiel van dit wegvak">wegvak: ' + escapeHtml(naam) + ' \u2192</button>';
+}
+function showClusterDetail(counts, total, sid, appType, k) {
   const datum=fmtDatum(sessions[sid]?.meta?.datum, sessions[sid]?.meta?.start_tijd);
   const cfg=APP_CONFIG[appType]||APP_CONFIG.fiets;
   document.getElementById('detail-title').textContent=`Parkeerlocatie · ${total} stuks`;
@@ -3710,9 +3725,13 @@ function showClusterDetail(counts, total, sid, appType) {
       <td style="color:var(--muted)">${Math.round(100*p.n/total)}%</td></tr>`;
   });
   html+=`<tr class="sum-row"><td>totaal</td><td>${total}</td><td></td></tr></table>`;
-  document.getElementById('detail-body').innerHTML=html + weatherBlock(sid);
+  document.getElementById('detail-body').innerHTML=wegvakKnop(k) + html + weatherBlock(sid);
   document.getElementById('detail-panel').classList.remove('hidden');
 }
+document.getElementById('detail-body').addEventListener('click', function (e) {   // v3.61
+  const b = e.target.closest('.bol-wegvak');
+  if (b) showWegvakDetail(b.dataset.wegvak);
+});
 
 document.getElementById('detail-close').addEventListener('click',()=>
   document.getElementById('detail-panel').classList.add('hidden'));
