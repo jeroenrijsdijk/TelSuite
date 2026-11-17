@@ -2836,7 +2836,21 @@ function getSessionColor(sid) {
   return SESSION_COLORS[sid];
 }
 
-function showPtClusterDetail(counts, sessionCounts, total, appType) {
+/* v3.62: een bol uit het gap-pad (een pocket-telling zonder eigen wegvakken) weet niet bij welk
+   wegvak hij hoort. Jay, na v3.61: "ik zie geen linkje als ik op een bol klik". Neem dan het
+   dichtstbijzijnde wegvak met een eigen lijn (geteld of bezocht, dus niet het grijze net) binnen
+   WEGVAK_BIJ_M meter van het midden van de bol.                                            */
+var WEGVAK_BIJ_M = 25;
+function wegvakBij(lat, lon) {
+  let best = null, bd = WEGVAK_BIJ_M;
+  Object.keys(wayLayers).forEach(function (k) {
+    if (!map.hasLayer(wayLayers[k]) || !wayData[k]) return;
+    const d = nearestWayDist(lat, lon, wayData[k].geometry);
+    if (d < bd) { bd = d; best = k; }
+  });
+  return best;
+}
+function showPtClusterDetail(counts, sessionCounts, total, appType, k) {
   document.getElementById('detail-title').textContent = 'Pocket telling';   // v3.30: alleen nog pocket (was ook het losse transect)
   var html2 = '';
   // Per sessie
@@ -2863,7 +2877,7 @@ function showPtClusterDetail(counts, sessionCounts, total, appType) {
     html2 += '<tr class="sum-row"><td>totaal</td><td style="text-align:right">'+total+'</td></tr></table>';
   }
   document.getElementById('detail-sub').textContent = total + ' observaties';
-  document.getElementById('detail-body').innerHTML = html2;
+  document.getElementById('detail-body').innerHTML = wegvakKnop(k) + html2;   // v3.62
   document.getElementById('detail-panel').classList.remove('hidden');
 }
 
@@ -2946,7 +2960,7 @@ function drawClusters(sid) {
         .on('mousedown', shiftBoxZoomBlokkeren)
         .on('click', function(e){
           if (clusterShiftSolo(e, [sid])) return;
-          showPtClusterDetail(counts, {[sid]:counts}, total, appType);
+          showPtClusterDetail(counts, {[sid]:counts}, total, appType, wegvakBij(gLat, gLon));   // v3.62
         });
       m._cluster = { counts: counts, total: total };   // v3.1: voor de GeoPackage-export
       m.addTo(map);
