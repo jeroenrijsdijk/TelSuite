@@ -250,6 +250,18 @@ with sync_playwright() as p:
     eis('A4: bij afdrukken alleen het blad (@media print)', pr)
     pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
     eis('A4: Escape sluit; de pagina is weer zoals hij was', pg.evaluate("!document.getElementById('a4-scherm') && !document.body.classList.contains('a4-print') && A4 === null"))
+    print('\n== K. Een bol op een wegvak: de knop naar het wegvak (v3.61) ==')
+    bk = pg.evaluate("""(sid => {
+      const m = (clusterLayers[sid] || []).filter(m => m._cluster)[0]; if (!m) return null;
+      m.fire('click', { originalEvent: new MouseEvent('click') });
+      const knop = document.querySelector('#detail-body .bol-wegvak'); if (!knop) return { knop: false };
+      const k = knop.dataset.wegvak, titel = document.getElementById('detail-title').textContent;
+      knop.click();
+      return { knop: true, k, opWegvak: !!(wayData[k] && wayData[k].sessions.some(s => s.sid === sid)), voor: titel,
+               na: document.getElementById('detail-title').textContent, tekst: knop.textContent };
+    })(%r)""" % pk)
+    eis('een bol van de parkeertelling: in zijn paneel een knop naar het wegvak eronder', bk and bk['knop'] and bk['opWegvak'] and bk['tekst'].startswith('wegvak: '), bk)
+    eis('de knop opent de details van dat wegvak', bk and bk['knop'] and bk['na'] != bk['voor'] and not bk['na'].startswith('Parkeerlocatie'), bk)
     eis('geen JS-fouten in telrapport', not fouten, fouten)
     b.close()
 
