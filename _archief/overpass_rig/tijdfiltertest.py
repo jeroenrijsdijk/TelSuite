@@ -262,6 +262,20 @@ with sync_playwright() as p:
     })(%r)""" % pk)
     eis('een bol van de parkeertelling: in zijn paneel een knop naar het wegvak eronder', bk and bk['knop'] and bk['opWegvak'] and bk['tekst'].startswith('wegvak: '), bk)
     eis('de knop opent de details van dat wegvak', bk and bk['knop'] and bk['na'] != bk['voor'] and not bk['na'].startswith('Parkeerlocatie'), bk)
+    print('\n== L. Een bol zonder eigen wegvak: het dichtstbijzijnde (v3.62) ==')
+    gp = pg.evaluate("""(sid => {
+      const echt = window.heeftWegvakken; window.heeftWegvakken = () => false;   // als een pocket-telling zonder eigen wegvakken
+      drawClusters(sid);
+      const m = (clusterLayers[sid] || []).filter(m => m._cluster)[0], ll = m && m.getLatLng();
+      m.fire('click', { originalEvent: new MouseEvent('click') });
+      const titel = document.getElementById('detail-title').textContent, knop = document.querySelector('#detail-body .bol-wegvak');
+      const k = knop && knop.dataset.wegvak, d = k ? nearestWayDist(ll.lat, ll.lng, wayData[k].geometry) : null;
+      const ver = wegvakBij(ll.lat + 0.01, ll.lng);   // ruim een kilometer verder: geen wegvak
+      window.heeftWegvakken = echt; drawClusters(sid);
+      return { titel, knop: !!knop, k, d, ver, eigen: k && wayData[k].sessions.some(s => s.sid === sid) };
+    })(%r)""" % pk)
+    eis('een bol uit het afstandspad ("Pocket telling") krijgt de knop naar het dichtstbijzijnde wegvak, binnen 25 m', gp['titel'] == 'Pocket telling' and gp['knop'] and gp['d'] is not None and gp['d'] < 25, gp)
+    eis('ver van elk wegvak: geen knop', gp['ver'] is None, gp)
     eis('geen JS-fouten in telrapport', not fouten, fouten)
     b.close()
 
