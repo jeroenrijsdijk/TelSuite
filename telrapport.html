@@ -3760,7 +3760,7 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
   if (!capCSV && !terCSV) { renderSessions(); updateUI(); return; }
 
   // Lees parkeer-polygonen uit netwerk.csv (highway='parking', WKT=POLYGON)
-  const polyMap = {};
+  const polyMap = {}, lineMap = {};
   if (netCSV) {
     parseCSV(netCSV).forEach(r => {
       if (r.highway === 'parking' && r.geometrie_wkt && r.geometrie_wkt.trim().startsWith('POLYGON')) {
@@ -3771,6 +3771,11 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
         });
         polyMap[r.osm_way_id] = coords;
         globalPolyMap[r.osm_way_id] = coords;
+      } else if (r.geometrie_wkt && r.geometrie_wkt.trim().startsWith('LINESTRING')) {
+        // v3.63: ook de straten. Tot nu toe kwamen die altijd van Overpass,
+        // terwijl de app ze in dit bestand meegeeft.
+        const lijn = capLijnWkt(r.geometrie_wkt);
+        if (lijn.length >= 2) lineMap[r.osm_way_id] = lijn;
       }
     });
   }
@@ -3780,7 +3785,9 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
   // _capaciteit.csv (straten) en _terrein.csv hebben sinds v2.11 een
   // identiek schema, dus beide door dezelfde parser; terrein-rijen
   // voegen we gewoon toe aan dezelfde groups-structuur.
-  const rows = (capCSV ? parseCSV(capCSV) : [])
+  // v3.63: een rij uit _capaciteit.csv is een straat (_straat), een uit
+  // _terrein.csv een terrein.
+  const rows = (capCSV ? parseCSV(capCSV).map(r => { r._straat = true; return r; }) : [])
     .concat(terCSV ? parseCSV(terCSV) : []);
   const groups = {};
   rows.forEach(r => {
@@ -3796,7 +3803,7 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
       cap  = parseInt(r.capaciteit) || 0;
     }
     const key = r.osm_way_id || '_onbekend';
-    if (!groups[key]) groups[key] = { naam, osmType:'way', soorten:{}, wayId:key };
+    if (!groups[key]) groups[key] = { naam, osmType:'way', soorten:{}, wayId:key, straat:!!r._straat };
     if (cap > 0 && soort) groups[key].soorten[soort] = (groups[key].soorten[soort]||0) + cap;
   });
 
@@ -3816,6 +3823,14 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
   const wayIds = Object.values(groups)
     .filter(g=>g.osmType==='way' && g.wayId && g.wayId!=='_onbekend')
     .map(g=>g.wayId);
+  // v3.63: een straat beslaat alle wegen van zijn eigen tikken; de way-id in
+  // _capaciteit.csv is er maar één van (de eerste onder die naam).
+  const capTik = capTikkenPerGroep(capTelData[sid] || [], groups);
+  Object.values(groups).forEach(g => {
+    if (!g.straat || polyMap[g.wayId]) return;
+    g.wegen = capWegen(g, capTik[g.wayId] || []);
+    g.wegen.forEach(id => { if (!wayIds.includes(id)) wayIds.push(id); });
+  });
 
   const drawGroups = (geomMap) => {
     const zonderGeom = [];   // v2.60: groepen zonder bruikbare geometrie
@@ -3823,6 +3838,36 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
       const total = Object.values(g.soorten).reduce((a,n)=>a+n,0);
       const geom  = polyMap[g.wayId] || geomMap[g.wayId];
       const labelHtml = '<div style="font-family:Oswald,sans-serif;background:#8e44ad;color:#fff;border-radius:50%;width:36px;height:36px;line-height:36px;text-align:center;font-size:18px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.4);transform:translate(-50%,-50%);cursor:pointer;">' + total + '</div>';
+
+      // v3.63: een straat als lijn, met het getal op het midden van de eigen
+      // tikken. Tot nu toe werd ook een straat een vlak (L.polygon sluit de lijn),
+      // met het getal op het zwaartepunt. Van een rechte straat is dat vlak
+      // bijna nul groot, en dan rekent getCenter een punt kilometers verderop:
+      // fitBounds zoomde uit tot de straten onzichtbaar waren.
+      if (g.straat && !polyMap[g.wayId]) {
+        const lijnen = (g.wegen || []).map(id => lineMap[id] || geomMap[id]).filter(l => l && l.length >= 2);
+        const midden = capMidden(capTik[g.wayId] || []) || capLijnMidden(lijnen);
+        if (!midden) { zonderGeom.push(g.naam || g.wayId || 'onbekende straat'); return; }
+        const teller = sm.teller ? ' · ' + sm.teller : '';
+        const capStr = Object.entries(g.soorten).sort((a,b)=>b[1]-a[1]).map(([s,n]) => s+':'+n).join(' · ');
+        const tip = '<strong>' + g.naam + '</strong><br>' + datum + teller + ' — capaciteit: ' + total + (capStr ? ' (' + capStr + ')' : '');
+        lijnen.forEach(l => {
+          const pl = L.polyline(l, { color:'#8e44ad', weight:5, opacity:0.8, pane:'capaciteit' })
+            .bindTooltip(tip, {sticky:true, direction:'top', className:'way-hover-tip'})
+            .on('mouseover', function(){ this.setStyle({weight:8}); })
+            .on('mouseout', function(){ this.setStyle({weight:5}); })
+            .on('click', ()=>showCapDetail(g, datum, sm.teller||'', sid));
+          pl.addTo(map);
+          capLayers[sid].push(pl);
+        });
+        const lbl = L.marker(midden, {
+          icon: L.divIcon({ className:'', html:labelHtml, iconSize:[0,0], iconAnchor:[0,0] })
+        }).bindTooltip(tip, {direction:'top', offset:[0,-18], className:'way-hover-tip'})
+          .on('click', ()=>showCapDetail(g, datum, sm.teller||'', sid));
+        lbl.addTo(map);
+        capLayers[sid].push(lbl);
+        return;
+      }
 
       if (geom && geom.length > 2) {
         // Polygoon tekenen
@@ -3915,13 +3960,73 @@ function loadCapaciteitZip(sid, sm, capCSV, gpsCSV, netCSV, telCSV, terCSV) {
 
   };
 
-  // Filteren: alleen IDs ophalen die NIET in polyMap zitten
-  const missingIds = wayIds.filter(id => !polyMap[id]);
+  // Filteren: alleen IDs ophalen die NIET in polyMap of (v3.63) lineMap zitten
+  const missingIds = wayIds.filter(id => !polyMap[id] && !lineMap[id]);
   if (!missingIds.length) { drawGroups({}); return; }
 
   // Overpass: haal geometrie op voor ontbrekende way-IDs. Lukt dat niet, dan
   // tekenen we de groepen alsnog — zonder weggeometrie, maar wel zichtbaar.
   haalWayGeometrie(missingIds, drawGroups, function(){ drawGroups({}); });
+}
+
+/* v3.63: hulpjes voor de straten van een capaciteitstelling. */
+function capLijnWkt(wkt) {          // 'LINESTRING (lon lat, …)' → [[lat, lon], …]
+  const m = /\(([^()]*)\)/.exec(wkt || '');
+  if (!m) return [];
+  return m[1].split(',').map(p => p.trim().split(/\s+/).map(Number))
+    .filter(q => isFinite(q[0]) && isFinite(q[1])).map(q => [q[1], q[0]]);
+}
+// De naam waaronder de app een tik in _capaciteit.csv zet (buildStratenCsvString).
+function capTikNaam(r) {
+  if (r.snapped === '0') return '(niet gesnapped)';
+  return (r.straat && r.straat !== '—') ? r.straat : '(onbekend)';
+}
+// De tikken per groep (sleutel wayId). Eerst op de way-id: de app groepeert op
+// de OSM-naam van de weg waarop een tik gesnapt is, en die staat niet in de
+// telregels. Bij een kruising is dat soms de dwarsstraat, terwijl in 'straat'
+// de straat staat die je liep. Valt de way-id met geen groep samen, dan op de
+// naam. Een groep uit _terrein.csv heeft geen tikken.
+function capTikkenPerGroep(tikken, groups) {
+  const perWeg = {}, perNaam = {}, uit = {};
+  Object.values(groups).forEach(g => {
+    if (!g.straat) return;
+    if (g.wayId !== '_onbekend') perWeg[g.wayId] = g.wayId;
+    if (!(g.naam in perNaam)) perNaam[g.naam] = g.wayId;
+  });
+  tikken.forEach(r => {
+    const w = r.snapped === '0' ? undefined : perWeg[String(r.osm_way_id || '')];
+    const k = w !== undefined ? w : perNaam[capTikNaam(r)];
+    if (k !== undefined) (uit[k] = uit[k] || []).push(r);
+  });
+  return uit;
+}
+function capWegen(g, tikken) {     // de wegen van een straat: die van zijn tikken, en zijn eigen way-id
+  const ids = [];
+  [g.wayId].concat(tikken.map(r => r.osm_way_id)).forEach(id => {
+    id = String(id || '');
+    if (id && id !== '_onbekend' && !ids.includes(id)) ids.push(id);
+  });
+  return ids;
+}
+function capMidden(tikken) {        // het gemiddelde van de vakken
+  let la = 0, lo = 0, n = 0;
+  tikken.forEach(r => { const a = parseFloat(r.lat_marker), o = parseFloat(r.lon_marker);
+    if (isFinite(a) && isFinite(o)) { la += a; lo += o; n++; } });
+  return n ? [la / n, lo / n] : null;
+}
+function capLijnMidden(lijnen) {    // zonder tikken: halverwege de langste lijn
+  let best = null, bestL = -1;
+  lijnen.forEach(l => { let s = 0; for (let i = 1; i < l.length; i++) s += map.distance(l[i - 1], l[i]);
+    if (s > bestL) { bestL = s; best = l; } });
+  if (!best) return null;
+  let rest = bestL / 2;
+  for (let i = 1; i < best.length; i++) {
+    const d = map.distance(best[i - 1], best[i]);
+    if (d >= rest && d > 0) { const f = rest / d;
+      return [best[i - 1][0] + f * (best[i][0] - best[i - 1][0]), best[i - 1][1] + f * (best[i][1] - best[i - 1][1])]; }
+    rest -= d;
+  }
+  return best[0];
 }
 
 function showCapDetail(g, datum, teller, sid) {
@@ -6643,6 +6748,8 @@ function gpkgLagen() {
   // ── terreinen: de capaciteitsvlakken zoals op de kaart (v3.28), met de
   // capaciteit per soort. Ook een straat uit een capaciteitstelling staat op de
   // kaart als vlak (L.polygon sluit zijn lijn); die gaat dus zo mee.
+  // v3.63: niet meer. Een straat is nu een lijn zonder _capGroep, en staat dus
+  // niet meer in deze laag; alleen de terreinen.
   var CAP_SOORTEN = ['regulier', 'gehandicapt', 'laadpaal', 'gereserveerd'];
   var tRijen = [];
   Object.keys(capLayers).forEach(function (sid) {
