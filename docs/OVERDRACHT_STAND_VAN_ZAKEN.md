@@ -237,6 +237,10 @@ Opgeruimd op 21 oktober 2026.
   - **Indeling (besloten):**
     - straten per OSM-straatnaam, zoals de app (`_capaciteit.csv`);
     - plekken binnen een OSM-vlak `amenity=parking` alleen als aantal per terrein in `_terrein.csv`, met het vlak als POLYGON in `_netwerk.csv`. Zo blijft de som van `capaciteit` gelijk aan `n_waarnemingen`.
+  - **Regels uit de proef** (20 nov, 19 vlakken; voorgelegd, nog niet bevestigd):
+    - **`parking=street_side`.** Liggen de plekken van zo'n vlak op een straat met naam, dan tellen ze bij die straat (de strook langs de Klipper is geen terrein). Liggen ze op een weg zonder naam, dan is het vlak een terrein: een hofje van tien losse vlakken werd tien kleine terreinen.
+    - **Net buiten een vlak.** Een plek op een weg zonder naam binnen 5 m van een vlak hoort bij dat vlak. De markers staan 4 m opzij van het looppad.
+    - **Uitkomst:** 310 plekken aan negen straten, 523 op 19 terreinen, en niets meer onder "(onbekend)".
   - **Open:**
     - de ontdubbelde plekken eerst op de kaart laten zien (één keer of vaker geteld) voor je de ZIP bewaart;
     - wat er gebeurt met een terrein dat niet in OSM staat.
