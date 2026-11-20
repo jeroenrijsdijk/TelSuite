@@ -228,6 +228,19 @@ Opgeruimd op 21 oktober 2026.
 - "Save as .png" in telrapport: het kaartbeeld exporteren. De knop is triviaal, het plaatje niet. Tegels zijn niet CORS-schoon (`L.tileLayer` zet geen `crossOrigin`), vectoren zitten in vijf SVG-panes, labels zijn acht `divIcon`-varianten. Drie routes: handgetekend canvas zonder ondergrond (patroon van de veld-apps), eigen tegel-compositor (~150 regels, geen afhankelijkheid), of `html2canvas` van een CDN. Voorstel: tegel-compositor met automatische terugval naar zonder-ondergrond bij een SecurityError. Eerst de CORS-test draaien op OSM/CARTO/PDOK; de bronvermelding moet sowieso in de PNG gebakken worden.
   *v3.1:* voor het rapportpad is er nu de GeoPackage voor QGIS (daar zitten ondergrond, schaalstok en PDF-export al in). Een PNG uit telrapport blijft nuttig voor het snelle plaatje.
 - ~~GeoPackage: capaciteitsterreinen als eigen laag~~ — gedaan in v3.28: laag `terreinen` (POLYGON, capaciteit per soort), in het project *Capaciteit*.
+- **Capaciteits-ZIP uit pocket-parkeertellingen** (Jay, 20 nov 2026: "uit een goede pocket telling zou je later natuurlijk prima een capaciteits-zip kunnen maken"; "we kijken er later naar"). In telrapport: de pocket-parkeertellingen van een buurt laden, en daar één `_cap.zip` van maken. Proef met vier tellingen (1.076 tikken, met dubbele stukken), met de hand gedaan buiten de suite:
+  - **Ontdubbelen.**
+    - Een doorgang is een reeks tikken van één telling, zonder tijdgat boven 60 s of sprong boven 25 m.
+    - Tikken uit verschillende doorgangen die binnen 5 m van elkaar liggen, zijn één plek. Elke plek telt hooguit één tik per doorgang (één op één koppelen, de kortste afstand eerst).
+    - Uitkomst: 833 plekken. Bij 4–7 m is het plateau 837–828. Een tweede methode, per straatkant en langs de as met het gemiddelde van de doorgangen, gaf 808.
+    - Op stukken die twee keer gelopen zijn, telden de tellingen vrijwel even veel plekken (23/23, 21/21, 15/14). Ook binnen één telling stond een rij dubbel (heen en terug).
+  - **Indeling (besloten):**
+    - straten per OSM-straatnaam, zoals de app (`_capaciteit.csv`);
+    - plekken binnen een OSM-vlak `amenity=parking` alleen als aantal per terrein in `_terrein.csv`, met het vlak als POLYGON in `_netwerk.csv`. Zo blijft de som van `capaciteit` gelijk aan `n_waarnemingen`.
+  - **Open:**
+    - de ontdubbelde plekken eerst op de kaart laten zien (één keer of vaker geteld) voor je de ZIP bewaart;
+    - wat er gebeurt met een terrein dat niet in OSM staat.
+- **Capaciteit in telrapport: de vakken als stippen** (punt 3 bij v3.63, niet gebouwd). Een capaciteitstelling zonder enige geometrie is nu onzichtbaar; de vakken verschijnen alleen na een klik op een straat.
 - **Deelversie van een ZIP** (uit v3.29, niet besloten): begin en eind van het GPS-spoor weglaten, zoals de privacyzone van Strava, voor wie vanuit huis start. Verandert bezocht, aanwezigheid en p/m·u, dus alleen als aparte ZIP naast de echte, nooit voor KNIME. Static afronden helpt niet: de plek is de meting. v3.29 waarschuwt alleen.
 - **Archief, stap 2** (afgesproken bij v3.33, Jay: "Goed plan!"):
   - alleen nieuwe of veranderde ZIP's lezen, met `catalogus.csv` als geheugen (pad, `bytes`, `gewijzigd`; let op: na een kopie-verplaatsing verandert de wijzigdatum, na `move()` niet);
