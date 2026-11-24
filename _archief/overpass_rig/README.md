@@ -71,6 +71,7 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/capaciteittest.py    # v3.63: telrapport, de straten van een capaciteitstelling als lijn uit _netwerk.csv, het getal op het midden van de eigen tikken; uit de app, gemaakt en oud, 26 tests
     python3 _archief/overpass_rig/knipplantest.py      # v3.64: telplanning, een deel van een weg plannen (knippen op gedeelde knopen, stukken in de planning, de link heen en terug), 40 tests
     python3 _archief/overpass_rig/ophaaltest.py        # v3.65: Overpass vaker laten slagen: rechthoek met maxsize, out of memory, zelf opnieuw met aftelling, Nu proberen/Stoppen; maxsize in de telapps, 30 tests
+    python3 _archief/overpass_rig/cachetest.py         # v3.66: telplanning, de cache als terugval (eigen antwoorden en de tegels van de telapps, alleen bij volledige dekking), Vernieuwen, opruimen, 29 tests
     python3 _archief/overpass_rig/snelheidtest.py      # v3.49: telrapport met 150 gemaakte tellingen: laden met voortgang, de opzoeklijsten tegen alles langs lopen, bollen/tellers/kwaliteit, hover, de acties binnen ruime tijdgrenzen; v3.50: het kale net als één laag, 27 tests
                                                        # (playwright + leaflet/jszip/papaparse/fontsource in node_modules)
     python3 _archief/overpass_rig/tekstgelijk.py oud.html nieuw.html  # zelfde tekst, woord voor woord (bij opmaakwijzigingen)

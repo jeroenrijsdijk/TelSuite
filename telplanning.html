@@ -1159,6 +1159,7 @@ function clearAll() {
   knoopTel = {};       // v3.64
   tekenKnippen();
   ophaalWacht.splice(0).forEach(function (w) { clearTimeout(w.timer); });   // v3.65: geen nieuwe poging voor een gewiste contour
+  ophaalGen++; ophaalCache = null;                                          // v3.66
   toonOphalen();
   updateStats(); updateCounts();
   document.getElementById('btn-clear').style.display = 'none';
@@ -1177,14 +1178,18 @@ function clearAll() {
 // Overpass "out of memory" en vraagt telplanning het één keer zonder (groot).
 var OPHAAL_MARGE_M   = 100;
 var OPHAAL_MAXSIZE   = 64 * 1024 * 1024;
-function buildQuery(geojsonPoly, groot) {
+// [zuid, west, noord, oost] van de contour, met marge in meters (v3.66: ook voor de cache)
+function contourBbox(geojsonPoly, margeM) {
   var ring = geojsonPoly.coordinates[0].slice(0, -1);
   var lats = ring.map(function(c){ return c[1]; }), lons = ring.map(function(c){ return c[0]; });
   var s = Math.min.apply(null, lats), n = Math.max.apply(null, lats);
   var w = Math.min.apply(null, lons), o = Math.max.apply(null, lons);
-  var dLat = OPHAAL_MARGE_M / 111320;
-  var dLon = OPHAAL_MARGE_M / (111320 * Math.cos((s + n) / 2 * Math.PI / 180));
-  var bb = [s - dLat, w - dLon, n + dLat, o + dLon].map(function(g){ return g.toFixed(6); }).join(',');
+  var dLat = margeM / 111320;
+  var dLon = margeM / (111320 * Math.cos((s + n) / 2 * Math.PI / 180));
+  return [s - dLat, w - dLon, n + dLat, o + dLon];
+}
+function buildQuery(geojsonPoly, groot) {
+  var bb = contourBbox(geojsonPoly, OPHAAL_MARGE_M).map(function(g){ return g.toFixed(6); }).join(',');
   return '[out:json][timeout:25]' + (groot ? '' : '[maxsize:' + OPHAAL_MAXSIZE + ']') +
          ';(way["highway"]["area"!="yes"](' + bb + '););out body geom;';
 }
@@ -1208,6 +1213,8 @@ var OPHAAL_WACHT_MS = 30000;     // de wiki: na een 429 een halve minuut wachten
 var OPHAAL_RONDES   = 3;
 var OPHAAL_HERHAAL  = ['tijd', 'fout', 'limiet'];
 var ophalen = [];                // lopende verzoeken: { start, bytes, server }
+var ophaalGen = 0;               // v3.66: Wis alles hoogt hem op; een late cache-uitkomst voor een gewiste contour vervalt
+var ophaalCache = null;          // v3.66: de wegen kwamen uit de cache: { geom, ts, redenen }
 var ophaalWacht = [];            // v3.65: contouren die wachten op een nieuwe poging: { geom, ronde, tot, timer, redenen }
 var ophaalMislukt = [];          // contouren die mislukten: { geom, redenen }
 var ophaalLeeg = false;          // laatste antwoord: geldig, maar geen wegen
@@ -1262,8 +1269,10 @@ function fetchWaysForPolygon(geojsonPoly, endpointIdx, redenen, poging) {
       }
       afmelden();
       ophaalLeeg = (klasse === OVP_LEEG);
+      ophaalCache = null;
       toonOphalen();
       processWays(data.elements || [], geojsonPoly);   // ook bij leeg: de status klopt dan
+      if (klasse === OVP_OK) bewaarGebied(contourBbox(geojsonPoly, OPHAAL_MARGE_M), data.elements);   // v3.66
     })
     .catch(function (e) {
       if (job.klaar) { console.error('[Overpass] verwerken:', e); return; }   // fout ná een goed antwoord
@@ -1278,13 +1287,23 @@ function fetchWaysForPolygon(geojsonPoly, endpointIdx, redenen, poging) {
       redenen.push({ server: job.server, reden: reden, detail: e.message });
       if (endpointIdx < OVERPASS_ENDPOINTS.length - 1) {
         fetchWaysForPolygon(geojsonPoly, endpointIdx + 1, redenen, poging);
-      } else if (poging.ronde < OPHAAL_RONDES && redenen.every(function (r) { return OPHAAL_HERHAAL.indexOf(r.reden) >= 0; })) {
-        ophaalLater(geojsonPoly, poging.ronde + 1, redenen);
-      } else {
-        ophaalMislukt.push({ geom: geojsonPoly, redenen: redenen, rondes: poging.ronde });
-        setStatus('Wegen ophalen mislukt \u2014 zie de melding op de kaart');
-        toonOphalen();
+        return;
       }
+      // v3.66: geen server lukte. Dekt de cache de hele contour, dan die.
+      var gen = ophaalGen;
+      job.cache = true; ophalen.push(job);   // de melding blijft "ophalen" zolang de cache zoekt
+      cacheVoor(geojsonPoly).then(function (c) { return c; }, function () { return null; }).then(function (c) {
+        ophalen.splice(ophalen.indexOf(job), 1);
+        if (gen !== ophaalGen) return;      // intussen gewist
+        if (c && c.compleet) { gebruikCache(geojsonPoly, c, redenen); return; }
+        if (poging.ronde < OPHAAL_RONDES && redenen.every(function (r) { return OPHAAL_HERHAAL.indexOf(r.reden) >= 0; })) {
+          ophaalLater(geojsonPoly, poging.ronde + 1, redenen);
+        } else {
+          ophaalMislukt.push({ geom: geojsonPoly, redenen: redenen, rondes: poging.ronde });
+          setStatus('Wegen ophalen mislukt \u2014 zie de melding op de kaart');
+          toonOphalen();
+        }
+      });
     });
 }
 
@@ -1345,6 +1364,16 @@ function toonOphalen() {
     return;
   }
   if (ophaalKlok) { clearInterval(ophaalKlok); ophaalKlok = null; }
+  if (ophaalCache && !ophaalMislukt.length) {   // v3.66
+    el.className = 'melding';
+    el.innerHTML = '<strong>Overpass lukte niet; de wegen komen uit de cache.</strong><br>' +
+      ophaalCache.redenen.map(function (r) { return 'Server ' + r.server + ': ' + ophaalReden(r.reden) + '.'; }).join('<br>') +
+      '<br>Opgehaald ' + cacheDatum(ophaalCache.ts) + '. Wat daarna in OpenStreetMap veranderde, zie je niet.' +
+      '<div class="knoppen"><button type="button" class="hoofd" onclick="cacheVernieuwen()">\u21BB Vernieuwen</button>' +
+      '<button type="button" onclick="ophaalSluiten()">Sluiten</button></div>';
+    el.style.display = 'block';
+    return;
+  }
   if (ophaalMislukt.length) {
     var redenen = ophaalMislukt[ophaalMislukt.length - 1].redenen;
     var soorten = redenen.map(function (r) { return r.reden; });
@@ -1371,6 +1400,138 @@ function toonOphalen() {
   }
   el.className = '';
   el.style.display = 'none';
+}
+
+/* ── De cache als terugval (v3.66) ──
+   Jay: "En uit de lokale cache halen, als ophalen niet lukt?" Gekozen: telplanning
+   onthoudt zijn eigen antwoorden en leest ook de tegels van de telapps; alleen
+   als de cache de hele contour dekt.
+   - Altijd eerst Overpass. Pas als een hele ronde (alle servers) mislukt, kijkt
+     telplanning in de cache. Anders zie je een knoop die je net in OSM toevoegde
+     niet terug.
+   - Eigen antwoorden: database CACHE_DB, per opgehaald gebied { ts, bbox,
+     elements } (de Overpass-elementen, met knopen, dus knippen werkt).
+     Gebieden ouder dan CACHE_WEG_NA_MS en gebieden die een nieuw gebied helemaal
+     bevat, gaan weg; hooguit CACHE_MAX.
+   - De tegels van de telapps (TILE_DB, schema >= 3): alleen lezen. De database
+     opent met precies de aanmaak van de telapps (_tileDb daar), zodat telplanning
+     hem nooit half aanmaakt. Daarin alleen de wegtypen van HIGHWAY_RE.
+   - Gedekt: elk punt van een raster over de rechthoek van de contour ligt in een
+     eigen gebied of in een tegel. Dan gaan alle wegen uit die bronnen die de
+     rechthoek met marge raken door processWays, met uitCache. Een latere
+     Vernieuwen die lukt, vervangt ze (herstelUitOverpass, met de knippen). */
+var CACHE_DB = 'telsuite_planning', CACHE_STORE = 'gebieden';
+var CACHE_WEG_NA_MS = 90 * 24 * 3600 * 1000;
+var CACHE_MAX = 40;
+var CACHE_RASTER = 40;                 // punten per zijde bij de dekkingstoets
+var TILE_DEG_SHARED = 0.01, TILE_DB = 'telsuite_osm', TILE_STORE = 'tiles', TEGEL_SCHEMA_MIN = 3;
+
+function idbOpen(naam, maak) {
+  return new Promise(function (res, rej) {
+    if (typeof indexedDB === 'undefined' || !indexedDB) return rej(new Error('geen IndexedDB'));
+    var q = indexedDB.open(naam, 1);
+    q.onupgradeneeded = function (e) { maak(e.target.result); };
+    q.onsuccess = function (e) { res(e.target.result); };
+    q.onerror = function () { rej(q.error); };
+  });
+}
+function cacheDb() {
+  return idbOpen(CACHE_DB, function (db) {
+    if (!db.objectStoreNames.contains(CACHE_STORE)) db.createObjectStore(CACHE_STORE, { keyPath: 'id', autoIncrement: true });
+  });
+}
+function tegelDb() {   // precies als _tileDb in de telapps
+  return idbOpen(TILE_DB, function (db) {
+    if (!db.objectStoreNames.contains(TILE_STORE))  db.createObjectStore(TILE_STORE, { keyPath: 'key' });
+    if (!db.objectStoreNames.contains('handoff'))   db.createObjectStore('handoff', { keyPath: 'key' });
+  });
+}
+function idbAlles(db, store) {
+  return new Promise(function (res) {
+    var q = db.transaction(store, 'readonly').objectStore(store).getAll();
+    q.onsuccess = function () { res(q.result || []); };
+    q.onerror = function () { res([]); };
+  });
+}
+function bboxBevat(a, b) { return a[0] <= b[0] && a[1] <= b[1] && a[2] >= b[2] && a[3] >= b[3]; }
+function bboxRaakt(a, b) { return a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3]; }
+
+// Een goed antwoord bewaren
+function bewaarGebied(bbox, elements) {
+  if (!elements || !elements.length) return Promise.resolve();
+  return cacheDb().then(function (db) {
+    return idbAlles(db, CACHE_STORE).then(function (oud) {
+      var nu = Date.now();
+      var st = db.transaction(CACHE_STORE, 'readwrite').objectStore(CACHE_STORE);
+      var blijft = oud.filter(function (g) {
+        var weg = g.ts < nu - CACHE_WEG_NA_MS || bboxBevat(bbox, g.bbox);
+        if (weg) st.delete(g.id);
+        return !weg;
+      }).sort(function (a, b) { return a.ts - b.ts; });
+      while (blijft.length >= CACHE_MAX) st.delete(blijft.shift().id);
+      st.add({ ts: nu, bbox: bbox, elements: elements });
+    });
+  }).catch(function (e) { console.warn('[cache] bewaren:', e); });
+}
+
+// Dekt de cache de contour? { compleet, elements, ts (de oudste bron) }
+function cacheVoor(geojsonPoly) {
+  var kern = contourBbox(geojsonPoly, 0), ruim = contourBbox(geojsonPoly, OPHAAL_MARGE_M);
+  var grens = Date.now() - CACHE_WEG_NA_MS;
+  var eigen = cacheDb().then(function (db) { return idbAlles(db, CACHE_STORE); }, function () { return []; });
+  var tegels = tegelDb().then(function (db) {
+    var ty0 = Math.floor(ruim[0] / TILE_DEG_SHARED), ty1 = Math.floor(ruim[2] / TILE_DEG_SHARED);
+    var tx0 = Math.floor(ruim[1] / TILE_DEG_SHARED), tx1 = Math.floor(ruim[3] / TILE_DEG_SHARED);
+    var st = db.transaction(TILE_STORE, 'readonly').objectStore(TILE_STORE), vraag = [];
+    for (var ty = ty0; ty <= ty1; ty++) for (var tx = tx0; tx <= tx1; tx++) {
+      vraag.push(new Promise(function (res) {
+        var q = st.get('t_' + ty + '_' + tx), bb = [ty * TILE_DEG_SHARED, tx * TILE_DEG_SHARED, (ty + 1) * TILE_DEG_SHARED, (tx + 1) * TILE_DEG_SHARED];
+        q.onsuccess = function () { var r = q.result; res(r && r.ts && (r.v || 1) >= TEGEL_SCHEMA_MIN ? { ts: r.ts, bbox: bb, elements: r.ways || [] } : null); };
+        q.onerror = function () { res(null); };
+      }));
+    }
+    return Promise.all(vraag);
+  }, function () { return []; });
+  return Promise.all([eigen, tegels]).then(function (r) {
+    var bronnen = r[0].concat(r[1]).filter(function (b) { return b && b.ts >= grens && bboxRaakt(b.bbox, ruim); });
+    // de dekkingstoets: een raster over de rechthoek van de contour
+    for (var i = 0; i <= CACHE_RASTER; i++) for (var j = 0; j <= CACHE_RASTER; j++) {
+      var la = kern[0] + (kern[2] - kern[0]) * i / CACHE_RASTER, lo = kern[1] + (kern[3] - kern[1]) * j / CACHE_RASTER;
+      if (!bronnen.some(function (b) { return la >= b.bbox[0] && la <= b.bbox[2] && lo >= b.bbox[1] && lo <= b.bbox[3]; }))
+        return { compleet: false };
+    }
+    // de wegen: per id de nieuwste, en alleen wat de ruime rechthoek raakt
+    var perId = {};
+    bronnen.sort(function (a, b) { return a.ts - b.ts; }).forEach(function (b) {
+      b.elements.forEach(function (el) {
+        if (!el || el.type !== 'way' || !el.geometry) return;
+        if (!el.geometry.some(function (n) { return n.lat >= ruim[0] && n.lat <= ruim[2] && n.lon >= ruim[1] && n.lon <= ruim[3]; })) return;
+        perId[el.id] = el;
+      });
+    });
+    var elements = Object.keys(perId).map(function (k) { return perId[k]; });
+    return { compleet: true, elements: elements, ts: Math.min.apply(null, bronnen.map(function (b) { return b.ts; })) };
+  });
+}
+
+function gebruikCache(geojsonPoly, c, redenen) {
+  ophaalCache = { geom: geojsonPoly, ts: c.ts, redenen: redenen };
+  ophaalMislukt = [];
+  processWays(c.elements, geojsonPoly, true);
+  setStatus('Overpass lukte niet — ' + ways.length + ' wegen uit de cache, opgehaald ' + cacheDatum(c.ts));
+  toonOphalen();
+}
+function cacheVernieuwen() {
+  var c = ophaalCache;
+  ophaalCache = null;
+  toonOphalen();
+  if (c) fetchWaysForPolygon(c.geom);
+}
+function cacheDatum(ts) {   // "op 12-11-2026 (12 dagen geleden)"
+  var d = new Date(ts), p = function (x) { return (x < 10 ? '0' : '') + x; };
+  var dagen = Math.floor((Date.now() - ts) / 86400000);
+  return 'op ' + p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + d.getFullYear() +
+    ' (' + (dagen <= 0 ? 'vandaag' : dagen === 1 ? 'gisteren' : dagen + ' dagen geleden') + ')';
 }
 
 // v3.65: een nieuwe poging over OPHAAL_WACHT_MS
@@ -1407,6 +1568,7 @@ function ophaalOpnieuw() {
 function ophaalSluiten() {
   ophaalMislukt = [];
   ophaalLeeg = false;
+  ophaalCache = null;   // v3.66
   toonOphalen();
 }
 
@@ -1425,7 +1587,7 @@ function wayToWkt(geom) {
   }).join(', ') + ')';
 }
 
-function processWays(elements, geojsonPoly) {
+function processWays(elements, geojsonPoly, uitCache) {   // v3.66: uitCache = de wegen komen uit de cache
   // Bestaande way-IDs bijhouden
   var existingIds = {};
   ways.forEach(function(w){ existingIds[w.id] = true; });
@@ -1442,7 +1604,7 @@ function processWays(elements, geojsonPoly) {
     if (existingIds[el.id]) {     // al aanwezig
       // v3.64: kwam hij uit een link of hertelling (zonder knopen), dan nu de
       // echte weg, met de knippen terug
-      if (el.nodes) herstelUitOverpass(el);
+      if (el.nodes) herstelUitOverpass(el, !!uitCache);
       return;
     }
 
@@ -1475,7 +1637,8 @@ function processWays(elements, geojsonPoly) {
       visible:   true,
       layer:     null,
       segLayers: [],   // sub-segment polylines, alleen actief in dekking-modus
-      segHits:   []    // brede klikzones per segment
+      segHits:   [],   // brede klikzones per segment
+      uitCache:  !!uitCache   // v3.66: vervangen zodra Overpass de weg weer geeft
     };
 
     way.layer = makeWayLayer(way);
@@ -1492,7 +1655,8 @@ function processWays(elements, geojsonPoly) {
 
   var nIn  = ways.filter(function(w){ return w.selected; }).length;
   var nBuf = ways.filter(function(w){ return !w.selected; }).length;
-  setStatus(ways.length + ' wegen — ' + nIn + ' geselecteerd, ' + nBuf + ' in buffer (klik om toe te voegen)');
+  setStatus(ways.length + ' wegen — ' + nIn + ' geselecteerd, ' + nBuf + ' in buffer (klik om toe te voegen)' +
+            (uitCache ? ' \u2014 uit de cache' : ''));
 
   // Zoom alleen bij eerste lading
   if (newWays.length > 0 && ways.length === newWays.length) {
@@ -1564,7 +1728,7 @@ function maakStuk(proto, heel, van, tot, gekozen) {
     coords: coords, segments: stukSegmenten(heel, van, tot),
     wkt: heelStuk ? heel.wkt : coordsWkt(coords),
     heel: heel, van: van, tot: tot,
-    selected: gekozen, visible: proto.visible,
+    selected: gekozen, visible: proto.visible, uitCache: !!proto.uitCache,
     layer: null, segLayers: [], segHits: []
   };
   stuk.layer = makeWayLayer(stuk);
@@ -1703,9 +1867,11 @@ function knoopIndex(heel, pt, na) {
 }
 // Een weg uit een link of hertelling (zonder knopen) komt nu van Overpass:
 // leg de stukken op de knopen en zet de rest van de weg er niet-gekozen bij.
-function herstelUitOverpass(el) {
+// v3.66: ook een weg uit de cache wordt zo vervangen door de verse (de knippen
+// blijven, via de knopen); uitCache: de nieuwe komt zelf uit de cache.
+function herstelUitOverpass(el, uitCache) {
   var oud = ways.filter(function (w) { return w.id === String(el.id); });
-  if (!oud.length || oud.some(function (w) { return w.heel && w.heel.nodes; })) return false;
+  if (!oud.length || oud.some(function (w) { return w.heel && w.heel.nodes && !(w.uitCache && !uitCache); })) return false;
   var coords = el.geometry.map(function (n) { return [n.lat, n.lon]; });
   var heel = heelVan(el, coords, wayToWkt(el.geometry));
   telKnopen(heel);
@@ -1724,7 +1890,9 @@ function herstelUitOverpass(el) {
   for (var g = 0; g + 1 < grenzen.length; g++) {
     var a = grenzen[g], b = grenzen[g + 1];
     var gekozen = stukken.some(function (s) { return s.gekozen && s.van <= a && b <= s.tot; });
-    nieuw.push(maakStuk(oud[0], heel, a, b, gekozen));
+    var stuk = maakStuk(oud[0], heel, a, b, gekozen);
+    stuk.uitCache = !!uitCache;
+    nieuw.push(stuk);
   }
   vervangStukken(oud, nieuw);
   return true;
