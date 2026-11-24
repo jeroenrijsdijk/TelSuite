@@ -272,7 +272,16 @@ with sync_playwright() as p:
     ctx, pg, f = planning({'1': '429', '2': '429'})
     pg.wait_for_timeout(800)
     m = pg.evaluate(MELDING_PL)
-    eis('overbelast: advies om even te wachten', 'overbelast' in m['tekst'] and 'halve minuut' in m['tekst'], m)
+    # v3.65: eerst zelf opnieuw (na 30 s, tot 3 pogingen), met aftelling
+    eis('overbelast: eerst een nieuwe poging, met aftelling',
+        'lukt nog niet' in m['tekst'] and 'overbelast' in m['tekst'] and 'Nieuwe poging over' in m['tekst']
+        and 'poging 2 van 3' in m['tekst'] and m['wegen'] == 0, m)
+    pg.evaluate('OPHAAL_WACHT_MS = 200; ophaalNu()')     # de rest van de pogingen snel
+    pg.wait_for_timeout(1500)
+    m = pg.evaluate(MELDING_PL)
+    eis('na 3 pogingen: mislukt, met advies om even te wachten',
+        'overbelast' in m['tekst'] and 'halve minuut' in m['tekst'] and 'ook na 3 pogingen' in m['tekst']
+        and TELLER['1'] == 3 and TELLER['2'] == 3, (TELLER, m))
     eis('geen JS-fouten', not f, f)
     ctx.close()
 

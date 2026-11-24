@@ -1421,7 +1421,10 @@ function fetchRoads(lat, lon, endpointIdx) {
   snap.status = 'fetching';
   setSnapBadge();
 
-  var query = '[out:json][timeout:8];('
+// v3.65: maxsize 32 MiB. Overpass laat een vraag pas toe als er geheugen vrij is voor
+  // wat je opgeeft (standaard 512 MiB): klein vragen komt eerder aan de beurt. Rond je
+  // positie (een paar honderd meter) is 32 MiB ruim.
+  var query = '[out:json][timeout:8][maxsize:33554432];('
             + 'way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
             + 'way["tunnel"="building_passage"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
             + ');out body geom;';   // v3.20: met knooppunten, voor de tegelcache (schema 3)
@@ -3042,7 +3045,7 @@ function zoekTerreinen(zoekLat, zoekLon) {
   var plek = { lat: lat, lon: lon };
   terreinBezig = plek;
   terreinVerzoeken++;
-  var query = '[out:json][timeout:10];(node[amenity=parking](around:'+TERREIN_ZOEK_M+','+lat.toFixed(6)+','+lon.toFixed(6)+');way[amenity=parking](around:'+TERREIN_ZOEK_M+','+lat.toFixed(6)+','+lon.toFixed(6)+'););out geom tags;';
+  var query = '[out:json][timeout:10][maxsize:33554432];(node[amenity=parking](around:'+TERREIN_ZOEK_M+','+lat.toFixed(6)+','+lon.toFixed(6)+');way[amenity=parking](around:'+TERREIN_ZOEK_M+','+lat.toFixed(6)+','+lon.toFixed(6)+'););out geom tags;';
   var klaar = function () { if (terreinBezig === plek) terreinBezig = null; };
   var tryEp = function(idx) {
     if (idx >= OVERPASS_ENDPOINTS.length) { klaar(); return; }

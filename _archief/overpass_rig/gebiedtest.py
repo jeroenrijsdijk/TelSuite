@@ -324,7 +324,8 @@ with sync_playwright() as p:
         (v['naam'], v['datum'], v['tijd'], v['teller'], v['teltype']) == ('Wijk Noord', '2026-10-24', '09:30', 'T07', 'auto'), v)
     eis('de geplande straten gekozen, en alleen die', v['gekozen'] == sorted(str(w) for w in GEPLAND), v['gekozen'])
     eis('de omgeving erbij, niet gekozen (%d straten)' % v['alle'], v['alle'] == len(RASTER), v['alle'])
-    eis('één verzoek voor de omgeving', [x[0] for x in REQ] == ['poly'], [x[:2] for x in REQ])
+    # v3.65: telplanning vraagt een rechthoek (de contour plus 100 m) met maxsize, geen poly meer
+    eis('één verzoek voor de omgeving, een rechthoek met maxsize', [x[0] for x in REQ] == ['bbox'] and 'maxsize' in REQ[0][2], [x[:2] for x in REQ])
     eis('Deel als link en Wis alles staan aan', v['link'] and v['wis'], v)
     terug = pg.evaluate("planlinkInpakken(maakPlanning()).then(planlinkUitpakken)")
     eis('Deel als link geeft dezelfde planning', sorted(w['osm_way_id'] for w in terug['wegen']) == sorted(str(w) for w in GEPLAND) and
