@@ -981,6 +981,15 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <p>Acht wegtype-knoppen (primary t/m footway) tonen of verbergen wegcategorieën. De teller rechts toont het aantal zichtbare wegen per type. Werkt in beide modi.</p>
 <h4>Selectie (Maken-modus)</h4>
 <p>Klik op een weg om hem in of uit de planning te zetten. Bulkknoppen: <strong>Alles aan</strong>, <strong>Alles uit</strong>, <strong>Omkeren</strong> (handig om een subset te selecteren: eerst alles aan, uitzonderingen aanklikken, dan omkeren).</p>
+<h4>Een deel van een weg (sinds v3.64)</h4>
+<p>Een OSM-weg loopt soms verder dan het stuk dat je wilt tellen. Met <strong>✂ Knippen</strong> knip je hem op een knoop, en kies je de stukken los.</p>
+<ul>
+<li><strong>Alleen op een knoop die de weg deelt met een andere weg</strong>: een kruising, een inrit of een pad. Dat is buiten bijna altijd een zichtbare grens, en zo is een volgende telling van hetzelfde stuk vergelijkbaar met de vorige. In knipmodus staan die knopen als open stip op de kaart.</li>
+<li><strong>Klik op de weg bij een open stip</strong>: daar wordt hij geknipt, en de knip wordt een zwarte stip. Bij een kruising kiest telplanning de weg waarvan de lijn het dichtst bij je klik ligt. Klik bij een zwarte stip om de knip weer weg te halen.</li>
+<li>Zet <strong>✂ Knippen</strong> weer uit en klik op een stuk om het te kiezen of uit te zetten, net als een hele weg. Het overzicht telt dan stukken.</li>
+<li>Ligt er geen gedeelde knoop waar je wilt knippen, voeg hem dan in OpenStreetMap toe (bijvoorbeeld de inrit). Na opnieuw ophalen staat hij er.</li>
+</ul>
+<p>In de link gaat elk gekozen stuk als eigen regel mee, met het nummer van de hele weg; stukken die aan elkaar liggen worden één regel. De telapps tekenen het stuk in paars. Snappen en de ZIP blijven over de hele weg gaan. Open je de link weer in telplanning, dan komen de knippen terug zodra de wegen eromheen zijn opgehaald.</p>
 <h4>Sessiegegevens</h4>
 <p>Vul naam, datum, tijdstip, teller-ID en teltype in. Het teltype bepaalt met welke app er geteld wordt: <em>Autoparkeren</em> (parkeertelling), <em>Fietsparkeren</em> of <em>Pocket-parkeren</em> (sinds v3.14). Daarna: <strong>Deel als link</strong>.</p>
 </section>
