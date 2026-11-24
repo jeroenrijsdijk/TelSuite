@@ -1000,7 +1000,9 @@ function gebiedQuery(tegels) {
              + 'way["tunnel"="building_passage"]' + bb + ';');
     i = j + 1;
   }
-  return '[out:json][timeout:25];(' + delen.join('') + ');out body geom;';
+  // v3.65: maxsize 128 MiB, een kwart van de standaard: eerder aan de beurt op een
+  // volle server, en ruim voor GEBIED_MAX_TEGELS tegels wegen.
+  return '[out:json][timeout:25][maxsize:134217728];(' + delen.join('') + ');out body geom;';
 }
 
 // Welke tegels moeten (opnieuw) worden opgehaald?
@@ -1830,7 +1832,10 @@ function fetchRoads(lat, lon, endpointIdx) {
   snap.status = 'fetching';
   setSnapBadge();
 
-  var query = '[out:json][timeout:8];('
+// v3.65: maxsize 32 MiB. Overpass laat een vraag pas toe als er geheugen vrij is voor
+  // wat je opgeeft (standaard 512 MiB): klein vragen komt eerder aan de beurt. Rond je
+  // positie (een paar honderd meter) is 32 MiB ruim.
+  var query = '[out:json][timeout:8][maxsize:33554432];('
             + 'way["highway"~"'+HIGHWAY_RE+'"]["area"!="yes"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
             + 'way["tunnel"="building_passage"](around:'+ROAD_FETCH_RADIUS+','+lat.toFixed(6)+','+lon.toFixed(6)+');'
             + ');out body geom;';   // v3.20: met knooppunten, voor de tegelcache (schema 3)

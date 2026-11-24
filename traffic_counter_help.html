@@ -977,6 +977,14 @@ p/m·u = tikken ÷ ( segmentlengte_m × aanwezigheidstijd_uur )
 <h4>Contour tekenen</h4>
 <p>Klik op <strong>Teken contour</strong> en teken een polygoon op de kaart. De app haalt alle wegen op via Overpass — exact binnen de contour én een buffer van 50m eromheen. Wegen binnen de contour starten geselecteerd (gekleurd), bufferwegen starten niet-geselecteerd (grijs) maar zijn klikbaar om snel toe te voegen. Je kunt meerdere contouren tekenen om gebieden samen te voegen.</p>
 <p>Tijdens het ophalen staat midden op de kaart een melding met de verstreken tijd en de ontvangen kB (sinds v3.9). Krijgt de app geen antwoord, of een antwoord dat Overpass halverwege afbrak, dan probeert hij de tweede server. Lukt het daar ook niet, dan zegt een melding waarom, met <strong>Opnieuw</strong>. Een onvolledig antwoord gebruikt de app niet, want dan zou de planning stil wegen missen. Een te groot gebied kan Overpass afbreken: teken dan kleinere contouren.</p>
+<h4>Wegen ophalen (sinds v3.65)</h4>
+<p>Na het tekenen haalt telplanning de wegen bij Overpass, een gratis dienst van vrijwilligers die vaak overbelast is. Daarom:</p>
+<ul>
+<li><strong>Een kleine vraag.</strong> Telplanning vraagt een rechthoek om je contour (plus 100 m) en geeft op hoeveel geheugen de vraag mag gebruiken. Een kleine vraag komt op een volle server eerder aan de beurt. Is het gebied daar te groot voor, dan vraagt telplanning het meteen nog een keer zonder die grens.</li>
+<li><strong>Zelf opnieuw proberen.</strong> Geven beide servers geen antwoord, een storing of "overbelast", dan probeert telplanning het na een halve minuut nog eens, tot drie keer. De melding op de kaart telt af; met <strong>Nu proberen</strong> wacht je niet, met <strong>Stoppen</strong> houdt het op.</li>
+<li>Brak Overpass de vraag af, of heeft hij alleen oude kaartdata, dan helpt wachten niet: dan komt de melding meteen. Teken dan een kleiner gebied.</li>
+</ul>
+<p>De telapps vragen in het veld ook met zo'n geheugengrens, rond je positie en bij het klaarzetten van het gebied uit een link. Open een link het liefst thuis, op wifi: dan staan de wegen in de cache als je in het veld geen netwerk hebt.</p>
 <h4>Wegtype-filters</h4>
 <p>Acht wegtype-knoppen (primary t/m footway) tonen of verbergen wegcategorieën. De teller rechts toont het aantal zichtbare wegen per type. Werkt in beide modi.</p>
 <h4>Selectie (Maken-modus)</h4>
