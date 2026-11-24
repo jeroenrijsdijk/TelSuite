@@ -380,6 +380,12 @@
     transition: border-color 0.1s, color 0.1s;
   }
   .sel-btn:hover { border-color: var(--text); color: var(--text); }
+  /* v3.64: knippen */
+  .sel-btn.aan { border-color: var(--text); color: var(--surface); background: var(--text); }
+  #btn-knip { width: 100%; margin-top: 6px; flex: none; }
+  #knip-uitleg { display: none; margin-top: 6px; font-family: var(--mono); font-size: 0.68rem; line-height: 1.35; color: var(--dim); }
+  body.knippen #knip-uitleg { display: block; }
+  body.knippen #map .leaflet-interactive { cursor: crosshair; }
 
   /* ── Metadata ── */
   .meta-field {
@@ -648,6 +654,8 @@
         <button class="sel-btn" onclick="selectNone()">Alles uit</button>
         <button class="sel-btn" onclick="invertSelection()">Omkeren</button>
       </div>
+      <button class="sel-btn" id="btn-knip" onclick="toggleKnip()">&#9986; Knippen</button>
+      <div id="knip-uitleg">Klik op een weg bij een open stip: daar wordt hij geknipt, en de stukken kies je los. Klik bij een zwarte knip om hem weg te halen. Knippen kan alleen op een knoop die de weg deelt met een andere weg (kruising, inrit, pad).</div>
     </div>
 
     <!-- Stats — alleen in Maken -->
@@ -900,7 +908,7 @@ function coverageForWay(wid) {
   var way = ways.find(function(w){ return w.id === wid; });
   if (!way) return (coverage[segKey(wid,0)] && coverage[segKey(wid,0)][selectedCell]) || 0;
   var best = 0;
-  way.segments.forEach(function(s) {
+  (way.heel ? way.heel.segments : way.segments).forEach(function(s) {   // v3.64: de hele weg
     var v = coverageForSeg(wid, s.idx);
     if (v > best) best = v;
   });
@@ -1148,6 +1156,8 @@ function clearAll() {
     if (w.segHits)   w.segHits.forEach(  function(l){ if (map.hasLayer(l)) map.removeLayer(l); });
   });
   ways = [];
+  knoopTel = {};       // v3.64
+  tekenKnippen();
   updateStats(); updateCounts();
   document.getElementById('btn-clear').style.display = 'none';
   document.getElementById('btn-draw').textContent = '\u270E Teken contour';
@@ -1362,15 +1372,25 @@ function processWays(elements, geojsonPoly) {
   var seen = {};
   elements.forEach(function(el) {
     if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) return;
-    if (seen[el.id]) return;
-    seen[el.id] = true;
-    if (existingIds[el.id]) return; // al aanwezig
+    // v3.64: een link kan twee stukken van één weg bevatten (el.deel)
+    if (!el.deel) {
+      if (seen[el.id]) return;
+      seen[el.id] = true;
+    }
+    if (existingIds[el.id]) {     // al aanwezig
+      // v3.64: kwam hij uit een link of hertelling (zonder knopen), dan nu de
+      // echte weg, met de knippen terug
+      if (el.nodes) herstelUitOverpass(el);
+      return;
+    }
 
     var hw    = (el.tags && el.tags.highway) ? el.tags.highway : '';
     var naam  = (el.tags && el.tags.name)    ? el.tags.name    : '(' + hw + ')';
     var group = hwGroup(hw);
     var coords = el.geometry.map(function(n){ return [n.lat, n.lon]; });
     var wkt   = wayToWkt(el.geometry);
+    var heel  = heelVan(el, coords, wkt);   // v3.64
+    telKnopen(heel);
 
     // Bepaal of weg binnen de getekende polygoon valt. De omgeving van een
     // planning uit een link (v3.19) komt er nooit gekozen bij.
@@ -1384,8 +1404,11 @@ function processWays(elements, geojsonPoly) {
       highway:   hw,
       group:     group,
       coords:    coords,
-      segments:  splitWayIntoSegments(coords),
+      segments:  heel.segments,
       wkt:       wkt,
+      heel:      heel,     // v3.64: de hele weg; dit object is het stuk van..tot
+      van:       0,
+      tot:       coords.length - 1,
       selected:  inPoly,   // buffer-wegen standaard niet geselecteerd
       visible:   true,
       layer:     null,
@@ -1401,6 +1424,7 @@ function processWays(elements, geojsonPoly) {
   applyVisibility();
   updateCounts();
   updateStats();
+  tekenKnippen();
   document.getElementById('btn-link').disabled =
     (ways.filter(function(w){ return w.visible && w.selected; }).length === 0);
 
@@ -1413,6 +1437,235 @@ function processWays(elements, geojsonPoly) {
     var grp = L.featureGroup(ways.map(function(w){ return w.layer; }));
     map.fitBounds(grp.getBounds().pad(0.1));
   }
+}
+
+/* ── Een deel van een weg plannen (v3.64) ──
+   Jay: "in telplanning kun je alleen een compleet osm link selecteren", en voor
+   de knip: "Alleen op een knoop - dat is bijna altijd een logisch zichtbare
+   grens buiten. zo hou je elke volgende klus daar vergelijkbaar met de vorige
+   tellingen"; "Alleen knopen die de weg deelt met een andere weg".
+   - Elk element van `ways` is een stuk van..tot (knoopnummers) van zijn hele
+     weg `heel`. Zonder knip is dat 0..n-1: de hele weg, zoals voor v3.64.
+   - Knippen kan op een knoop die ook in een andere opgehaalde weg zit
+     (knoopTel > 1). Overpass geeft de knopen mee (out body geom).
+   - De planning: één regel per gekozen stuk, aangrenzende stukken samen, met
+     dezelfde osm_way_id. Het planlink-formaat verandert niet.
+   - Een link of hertelling heeft geen knopen. Komt de weg later van Overpass,
+     dan legt herstelUitOverpass de stukken op de knopen terug. */
+var knipModus = false;
+var knoopTel  = {};      // knoop-id → in hoeveel opgehaalde wegen hij zit
+var KNIP_PX   = 18;      // zo dicht bij een knoop moet je klikken
+var KNOOP_M   = 3;       // een stuk uit een link ligt binnen ±1 m op zijn knopen
+
+function cumVan(coords) {
+  var cum = [0];
+  for (var i = 1; i < coords.length; i++) cum.push(cum[i - 1] + polyLengthM([coords[i - 1], coords[i]]));
+  return cum;
+}
+function heelVan(el, coords, wkt) {
+  var nodes = (el.nodes && el.nodes.length === coords.length) ? el.nodes.map(String) : null;
+  return { id: String(el.id), coords: coords, nodes: nodes, wkt: wkt,
+           segments: splitWayIntoSegments(coords), cum: cumVan(coords) };
+}
+function telKnopen(heel) {
+  if (!heel.nodes) return;
+  var gezien = {};
+  heel.nodes.forEach(function (n) {
+    if (gezien[n]) return;
+    gezien[n] = 1;
+    knoopTel[n] = (knoopTel[n] || 0) + 1;
+  });
+}
+function knipbaar(heel, i) {
+  return !!heel.nodes && i > 0 && i < heel.coords.length - 1 && knoopTel[heel.nodes[i]] > 1;
+}
+function isDeel(w) { return !!w.heel && (w.van > 0 || w.tot < w.heel.coords.length - 1); }
+function coordsWkt(coords) {
+  return 'LINESTRING (' + coords.map(function (c) {
+    return c[1].toFixed(6) + ' ' + c[0].toFixed(6);
+  }).join(', ') + ')';
+}
+// De segmenten (±40 m, voor de dekking) van de hele weg die midden in dit stuk liggen
+function stukSegmenten(heel, van, tot) {
+  if (van === 0 && tot === heel.coords.length - 1) return heel.segments;
+  var L = heel.cum[heel.cum.length - 1], a = heel.cum[van], b = heel.cum[tot];
+  return heel.segments.filter(function (s) {
+    var m = (s.idx + 0.5) * L / s.count;
+    return m >= a && m < b;
+  });
+}
+function maakStuk(proto, heel, van, tot, gekozen) {
+  var heelStuk = van === 0 && tot === heel.coords.length - 1;
+  var coords = heel.coords.slice(van, tot + 1);
+  var stuk = {
+    id: heel.id, naam: proto.naam, highway: proto.highway, group: proto.group,
+    coords: coords, segments: stukSegmenten(heel, van, tot),
+    wkt: heelStuk ? heel.wkt : coordsWkt(coords),
+    heel: heel, van: van, tot: tot,
+    selected: gekozen, visible: proto.visible,
+    layer: null, segLayers: [], segHits: []
+  };
+  stuk.layer = makeWayLayer(stuk);
+  applyWayStyle(stuk);
+  return stuk;
+}
+function verwijderLagen(w) {
+  if (w.layer && map.hasLayer(w.layer)) map.removeLayer(w.layer);
+  if (w.layer && w.layer._hitLayer && map.hasLayer(w.layer._hitLayer)) map.removeLayer(w.layer._hitLayer);
+  (w.segLayers || []).forEach(function (l) { if (map.hasLayer(l)) map.removeLayer(l); });
+  (w.segHits || []).forEach(function (l) { if (map.hasLayer(l)) map.removeLayer(l); });
+}
+function vervangStukken(oud, nieuw) {   // oud: stukken in ways; nieuw komt op de plek van het eerste
+  var i = ways.indexOf(oud[0]);
+  oud.forEach(function (w) { verwijderLagen(w); var j = ways.indexOf(w); if (j >= 0) ways.splice(j, 1); });
+  Array.prototype.splice.apply(ways, [Math.max(0, Math.min(i, ways.length)), 0].concat(nieuw));
+}
+
+// Bij een kruising liggen de klikzones (18 px breed) over elkaar: de bovenste
+// is niet per se de straat die je bedoelt. Kies het stuk waarvan de lijn het
+// dichtst bij de klik ligt.
+function stukBij(latlng) {
+  var p = map.latLngToContainerPoint(latlng), best = null, bestD = KNIP_PX;
+  ways.forEach(function (w) {
+    if (!w.visible || !w.heel) return;
+    for (var i = 1; i < w.coords.length; i++) {
+      var d = L.LineUtil.pointToSegmentDistance(p, map.latLngToContainerPoint(w.coords[i - 1]),
+                                                   map.latLngToContainerPoint(w.coords[i]));
+      if (d < bestD) { bestD = d; best = w; }
+    }
+  });
+  return best;
+}
+
+// Een klik in knipmodus: de dichtstbijzijnde knoop op dit stuk
+function knipBij(w, latlng) {
+  var heel = w.heel, p = map.latLngToContainerPoint(latlng), best = null;
+  if (!heel) return;
+  for (var i = w.van; i <= w.tot; i++) {
+    var knip = (i > w.van && i < w.tot && knipbaar(heel, i)) ? 'knip' :
+               ((i === w.van && w.van > 0) || (i === w.tot && w.tot < heel.coords.length - 1)) ? 'plak' : null;
+    if (!knip) continue;
+    var d = p.distanceTo(map.latLngToContainerPoint(heel.coords[i]));
+    if (d <= KNIP_PX && (!best || d < best.d)) best = { i: i, d: d, wat: knip };
+  }
+  if (!best) {
+    setStatus(heel.nodes
+      ? 'Hier is geen knoop om te knippen: alleen op een knoop die de weg deelt met een andere weg (de open stippen).'
+      : 'Deze weg heeft nog geen knopen (uit een link of hertelling): teken een contour eromheen om hem op te halen.');
+    return;
+  }
+  if (best.wat === 'knip') {
+    vervangStukken([w], [maakStuk(w, heel, w.van, best.i, w.selected), maakStuk(w, heel, best.i, w.tot, w.selected)]);
+    setStatus('✂ ' + w.naam + ' geknipt — klik in gewone modus op een stuk om het te kiezen of uit te zetten.');
+  } else {
+    var buur = ways.find(function (x) {
+      return x !== w && x.heel === heel && (best.i === w.van ? x.tot === w.van : x.van === w.tot);
+    });
+    if (!buur) return;
+    var a = best.i === w.van ? buur : w, b = best.i === w.van ? w : buur;
+    vervangStukken([a, b], [maakStuk(a, heel, a.van, b.tot, a.selected || b.selected)]);
+    setStatus('Knip in ' + w.naam + ' weggehaald.');
+  }
+  tekenKnippen();
+  updateStats();
+}
+
+function toggleKnip() {
+  knipModus = !knipModus;
+  document.body.classList.toggle('knippen', knipModus);
+  document.getElementById('btn-knip').classList.toggle('aan', knipModus);
+  tekenKnippen();
+  setStatus(knipModus ? '✂ Knippen: klik op een weg bij een open stip' : 'Knippen uit');
+}
+
+// Zwart: een knip (altijd te zien in Maken). Open: waar je kunt knippen (alleen in knipmodus).
+var knipLaag = null;
+function tekenKnippen() {
+  if (!knipLaag) knipLaag = L.layerGroup().addTo(map);
+  knipLaag.clearLayers();
+  if (currentMode !== 'maken') return;
+  var kan = [], knip = {};
+  ways.forEach(function (w) {
+    if (!w.visible || !w.heel) return;
+    var heel = w.heel;
+    for (var i = w.van; i <= w.tot; i++) {
+      if ((i === w.van && w.van > 0) || (i === w.tot && w.tot < heel.coords.length - 1)) knip[heel.id + ':' + i] = heel.coords[i];
+      else if (knipModus && i > w.van && i < w.tot && knipbaar(heel, i)) kan.push(heel.coords[i]);
+    }
+  });
+  // eerst de open stippen, dan de knippen erover (een kruisende weg heeft op een knip een open stip)
+  kan.forEach(function (c) {
+    L.circleMarker(c, { radius: 4, color: '#1a1918', weight: 1.5, fillColor: '#ffffff',
+      fillOpacity: 1, interactive: false, className: 'knip-kan' }).addTo(knipLaag);
+  });
+  Object.keys(knip).forEach(function (k) {
+    L.circleMarker(knip[k], { radius: 5, color: '#ffffff', weight: 2, fillColor: '#1a1918',
+      fillOpacity: 1, interactive: false, className: 'knip-punt' }).addTo(knipLaag);
+  });
+}
+
+// De planning: per weg de gekozen stukken, aangrenzende samen (in de volgorde van ways)
+function planStukken(gekozen) {
+  var perWeg = {}, volgorde = [];
+  gekozen.forEach(function (w) {
+    var k = w.heel || w;
+    if (volgorde.indexOf(k) < 0) { volgorde.push(k); perWeg[volgorde.length - 1] = []; }
+    perWeg[volgorde.indexOf(k)].push(w);
+  });
+  var uit = [];
+  volgorde.forEach(function (k, n) {
+    var stukken = perWeg[n].slice().sort(function (a, b) { return (a.van || 0) - (b.van || 0); });
+    var cur = null;
+    stukken.forEach(function (s) {
+      if (cur && s.heel && cur.heel === s.heel && cur.tot === s.van) { cur.tot = s.tot; return; }
+      cur = { w: s, heel: s.heel, van: s.van, tot: s.tot };
+      uit.push(cur);
+    });
+  });
+  return uit.map(function (r) {
+    if (!r.heel || (r.van === r.w.van && r.tot === r.w.tot)) return r.w;
+    var coords = r.heel.coords.slice(r.van, r.tot + 1);
+    var heelStuk = r.van === 0 && r.tot === r.heel.coords.length - 1;
+    return { id: r.w.id, naam: r.w.naam, highway: r.w.highway, wkt: heelStuk ? r.heel.wkt : coordsWkt(coords) };
+  });
+}
+
+// De knoop van de hele weg waar dit punt op ligt (binnen KNOOP_M), vanaf index `na`
+function knoopIndex(heel, pt, na) {
+  var best = -1, bestD = KNOOP_M;
+  for (var i = na + 1; i < heel.coords.length; i++) {
+    var d = polyLengthM([pt, heel.coords[i]]);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+// Een weg uit een link of hertelling (zonder knopen) komt nu van Overpass:
+// leg de stukken op de knopen en zet de rest van de weg er niet-gekozen bij.
+function herstelUitOverpass(el) {
+  var oud = ways.filter(function (w) { return w.id === String(el.id); });
+  if (!oud.length || oud.some(function (w) { return w.heel && w.heel.nodes; })) return false;
+  var coords = el.geometry.map(function (n) { return [n.lat, n.lon]; });
+  var heel = heelVan(el, coords, wayToWkt(el.geometry));
+  telKnopen(heel);
+  if (!heel.nodes) return false;
+  var stukken = [];
+  for (var k = 0; k < oud.length; k++) {
+    var c = oud[k].coords, van = knoopIndex(heel, c[0], -1);
+    var tot = van < 0 ? -1 : knoopIndex(heel, c[c.length - 1], van);
+    if (van < 0 || tot < 0) return false;   // de weg is veranderd: laat het stuk zoals het is
+    stukken.push({ van: van, tot: tot, gekozen: oud[k].selected });
+  }
+  var grenzen = [0, coords.length - 1];
+  stukken.forEach(function (s) { grenzen.push(s.van, s.tot); });
+  grenzen = grenzen.filter(function (g, i) { return grenzen.indexOf(g) === i; }).sort(function (a, b) { return a - b; });
+  var nieuw = [];
+  for (var g = 0; g + 1 < grenzen.length; g++) {
+    var a = grenzen[g], b = grenzen[g + 1];
+    var gekozen = stukken.some(function (s) { return s.gekozen && s.van <= a && b <= s.tot; });
+    nieuw.push(maakStuk(oud[0], heel, a, b, gekozen));
+  }
+  vervangStukken(oud, nieuw);
+  return true;
 }
 
 function makeWayLayer(way) {
@@ -1432,7 +1685,10 @@ function makeWayLayer(way) {
   hitLayer.bindTooltip(way.naam + ' (' + way.highway + ')', {
     direction: 'top', className: 'way-tip'
   });
-  hitLayer.on('click', function() { toggleWaySelect(way); });
+  hitLayer.on('click', function(e) {
+    if (knipModus && currentMode === 'maken') knipBij(stukBij(e.latlng) || way, e.latlng);   // v3.64
+    else toggleWaySelect(way);
+  });
   layer.addTo(map);
   hitLayer.addTo(map);
   // Bewaar beide lagen zodat we ze kunnen verwijderen/stylen
@@ -1531,6 +1787,7 @@ function applyVisibility() {
     w.visible = hwVisible[w.group];
     applyWayStyle(w);  // regelt visibility + styling op basis van modus
   });
+  tekenKnippen();
 }
 
 // ── Highway-type toggles ──────────────────────────────────────────────────────
@@ -1545,7 +1802,8 @@ function toggleHw(el) {
 function updateCounts() {
   var counts = {};
   Object.keys(HW_GROUPS).forEach(function(g){ counts[g] = 0; });
-  ways.forEach(function(w){ if (hwVisible[w.group]) counts[w.group]++; });
+  var geteld = {};   // v3.64: een geknipte weg telt één keer
+  ways.forEach(function(w){ if (hwVisible[w.group] && !geteld[w.id]) { geteld[w.id] = 1; counts[w.group]++; } });
   Object.keys(counts).forEach(function(g) {
     var el = document.getElementById('cnt-' + g);
     if (el) el.textContent = counts[g];
@@ -1585,8 +1843,16 @@ function updateStats() {
   var visible  = ways.filter(function(w){ return w.visible; }).length;
   var selected = ways.filter(function(w){ return w.visible && w.selected; }).length;
   var el = document.getElementById('stats-line');
+  // v3.64: met knippen tellen de stukken, en staat het aantal wegen erbij
+  var geknipt = ways.some(function(w){ return w.visible && isDeel(w); });
+  var uniek = {};
+  ways.forEach(function(w){ if (w.visible) uniek[w.id] = 1; });
   if (ways.length === 0) {
     el.textContent = 'Nog geen wegen geladen.';
+  } else if (geknipt) {
+    el.innerHTML = Object.keys(uniek).length + ' wegen zichtbaar, in ' + visible + ' stukken<br>'
+      + selected + ' stukken geselecteerd voor telling<br>'
+      + (visible - selected) + ' uitgesloten';
   } else {
     el.innerHTML = visible + ' wegen zichtbaar<br>'
       + selected + ' geselecteerd voor telling<br>'
@@ -1627,8 +1893,8 @@ function maakPlanning() {
     teller:       teller,
     tel_type:     teltype,
     aangemaakt:   aangemaakt,
-    n_wegen:      selected.length,
-    wegen: selected.map(function(w) {
+    n_wegen:      0,
+    wegen: planStukken(selected).map(function(w) {
       return {
         osm_way_id:   w.id,
         naam:         w.naam,
@@ -1637,6 +1903,7 @@ function maakPlanning() {
       };
     })
   };
+  planning.n_wegen = planning.wegen.length;
 
   return planning;
 }
@@ -1856,6 +2123,7 @@ function setMode(mode) {
   document.getElementById('tab-dekking').classList.toggle('active', mode === 'dekking');
   // Re-style alle wegen
   ways.forEach(applyWayStyle);
+  tekenKnippen();
   if (mode === 'dekking') {
     renderDekkingMatrix();
     setStatus('Selecteer een dagdeel om de dekking te zien');
@@ -1922,9 +2190,10 @@ function updateCoverageStats() {
     el.innerHTML = header;
     return;
   }
-  var n0 = 0, n1 = 0, n2 = 0;
+  var n0 = 0, n1 = 0, n2 = 0, geteld = {};
   ways.forEach(function(w) {
-    if (!w.visible) return;
+    if (!w.visible || geteld[w.id]) return;   // v3.64: een geknipte weg één keer
+    geteld[w.id] = 1;
     var v = coverageForWay(w.id);
     if (v === 0) n0++;
     else if (v === 1) n1++;
@@ -2265,7 +2534,7 @@ function openPlanningUitLink(tekst) {
     var elements = planning.wegen.map(function (w) {
       var coords = parseWktLine(w.geometrie_wkt);
       return {
-        type: 'way', id: String(w.osm_way_id),
+        type: 'way', id: String(w.osm_way_id), deel: true,   // v3.64: een stuk; dezelfde weg mag twee keer
         tags: { highway: w.highway || '', name: w.naam || ('(' + (w.highway || '') + ')') },
         geometry: coords.map(function (p) { return { lat: p[0], lon: p[1] }; })
       };
