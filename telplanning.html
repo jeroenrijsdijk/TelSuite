@@ -1158,6 +1158,8 @@ function clearAll() {
   ways = [];
   knoopTel = {};       // v3.64
   tekenKnippen();
+  ophaalWacht.splice(0).forEach(function (w) { clearTimeout(w.timer); });   // v3.65: geen nieuwe poging voor een gewiste contour
+  toonOphalen();
   updateStats(); updateCounts();
   document.getElementById('btn-clear').style.display = 'none';
   document.getElementById('btn-draw').textContent = '\u270E Teken contour';
@@ -1166,21 +1168,25 @@ function clearAll() {
 }
 
 // ── Overpass ophalen ──────────────────────────────────────────────────────────
-function buildQuery(geojsonPoly) {
-  var coords = geojsonPoly.coordinates[0];
-  var ring = coords.slice(0, -1);
-  var polyStr = ring.map(function(c){ return c[1].toFixed(6)+' '+c[0].toFixed(6); }).join(' ');
-  // Centroid berekenen voor around-buffer
-  var sumLat=0, sumLon=0;
-  ring.forEach(function(c){ sumLon+=c[0]; sumLat+=c[1]; });
-  var cLat=(sumLat/ring.length).toFixed(6), cLon=(sumLon/ring.length).toFixed(6);
-  // Radius inschatting: halve diagonaal van bounding box + 50m buffer
-  var lats=ring.map(function(c){return c[1];}), lons=ring.map(function(c){return c[0];});
-  var dLat=(Math.max.apply(null,lats)-Math.min.apply(null,lats))*111320/2;
-  var dLon=(Math.max.apply(null,lons)-Math.min.apply(null,lons))*111320*Math.cos(parseFloat(cLat)*Math.PI/180)/2;
-  var radius=Math.round(Math.sqrt(dLat*dLat+dLon*dLon)+50);
-  // Poly voor exact gebied, around voor buffer
-  return '[out:json][timeout:25];(way["highway"]["area"!="yes"](poly:"'+polyStr+'");way["highway"]["area"!="yes"](around:'+radius+','+cLat+','+cLon+'););out body geom;';
+// v3.65: een rechthoek (de contour plus OPHAAL_MARGE_M) in plaats van poly plus
+// een cirkel eromheen. Een bbox is voor Overpass de goedkoopste vraag; welke
+// wegen binnen de contour vallen, rekent processWays zelf uit.
+// En een kleine maxsize: Overpass laat een vraag pas toe als er geheugen vrij is
+// voor wat je opgeeft (standaard 512 MiB). Met minder komt hij eerder aan de
+// beurt op een volle server. Is het te weinig (een heel groot gebied), dan meldt
+// Overpass "out of memory" en vraagt telplanning het één keer zonder (groot).
+var OPHAAL_MARGE_M   = 100;
+var OPHAAL_MAXSIZE   = 64 * 1024 * 1024;
+function buildQuery(geojsonPoly, groot) {
+  var ring = geojsonPoly.coordinates[0].slice(0, -1);
+  var lats = ring.map(function(c){ return c[1]; }), lons = ring.map(function(c){ return c[0]; });
+  var s = Math.min.apply(null, lats), n = Math.max.apply(null, lats);
+  var w = Math.min.apply(null, lons), o = Math.max.apply(null, lons);
+  var dLat = OPHAAL_MARGE_M / 111320;
+  var dLon = OPHAAL_MARGE_M / (111320 * Math.cos((s + n) / 2 * Math.PI / 180));
+  var bb = [s - dLat, w - dLon, n + dLat, o + dLon].map(function(g){ return g.toFixed(6); }).join(',');
+  return '[out:json][timeout:25]' + (groot ? '' : '[maxsize:' + OPHAAL_MAXSIZE + ']') +
+         ';(way["highway"]["area"!="yes"](' + bb + '););out body geom;';
 }
 
 // ── Ophalen met voortgang en foutmelding (v3.9) ─────────────────────────────
@@ -1195,16 +1201,24 @@ function buildQuery(geojsonPoly) {
 //     remark is afgebroken en wordt niet gebruikt, ook niet als er wegen in zitten;
 //   - lukt het bij geen enkele server: een melding met de reden en Opnieuw.
 var OPHAAL_TIMEOUT_MS = 45000;   // per server; de query zelf mag 25 s rekenen
+// v3.65: lukt het bij geen enkele server door een storing, een time-out of een
+// volle server, dan na OPHAAL_WACHT_MS zelf opnieuw, tot OPHAAL_RONDES keer.
+// Niet bij een afgebroken vraag of verouderde data: daar helpt wachten niet.
+var OPHAAL_WACHT_MS = 30000;     // de wiki: na een 429 een halve minuut wachten
+var OPHAAL_RONDES   = 3;
+var OPHAAL_HERHAAL  = ['tijd', 'fout', 'limiet'];
 var ophalen = [];                // lopende verzoeken: { start, bytes, server }
+var ophaalWacht = [];            // v3.65: contouren die wachten op een nieuwe poging: { geom, ronde, tot, timer, redenen }
 var ophaalMislukt = [];          // contouren die mislukten: { geom, redenen }
 var ophaalLeeg = false;          // laatste antwoord: geldig, maar geen wegen
 var ophaalKlok = null;
 
-function fetchWaysForPolygon(geojsonPoly, endpointIdx, redenen) {
+function fetchWaysForPolygon(geojsonPoly, endpointIdx, redenen, poging) {
   if (!geojsonPoly) return;
   endpointIdx = endpointIdx || 0;
   redenen = redenen || [];
-  var job = { start: Date.now(), bytes: 0, server: endpointIdx + 1, klaar: false };
+  poging = poging || { ronde: 1, groot: false };   // v3.65
+  var job = { start: Date.now(), bytes: 0, server: endpointIdx + 1, klaar: false, ronde: poging.ronde };
   ophalen.push(job);
   ophaalLeeg = false;
   setStatus('Wegen ophalen via server ' + (endpointIdx + 1) + '\u2026');
@@ -1219,7 +1233,7 @@ function fetchWaysForPolygon(geojsonPoly, endpointIdx, redenen) {
     ophalen.splice(ophalen.indexOf(job), 1);
   }
 
-  var query = buildQuery(geojsonPoly);
+  var query = buildQuery(geojsonPoly, poging.groot);
   console.log('[Overpass] query:', query);
   console.log('[Overpass] endpoint:', OVERPASS_ENDPOINTS[endpointIdx]);
   fetch(OVERPASS_ENDPOINTS[endpointIdx], {
@@ -1243,6 +1257,7 @@ function fetchWaysForPolygon(geojsonPoly, endpointIdx, redenen) {
       if (klasse !== OVP_OK && klasse !== OVP_LEEG) {
         var f = new Error(data && data.remark ? ('' + data.remark).slice(0, 160) : klasse);
         f.klasse = (klasse === OVP_FOUT && data && data.remark) ? 'afgebroken' : klasse;
+        f.geheugen = !!(data && /out of memory/i.test('' + data.remark));   // v3.65: maxsize te klein
         throw f;
       }
       afmelden();
@@ -1253,13 +1268,20 @@ function fetchWaysForPolygon(geojsonPoly, endpointIdx, redenen) {
     .catch(function (e) {
       if (job.klaar) { console.error('[Overpass] verwerken:', e); return; }   // fout ná een goed antwoord
       afmelden();
+      if (e.geheugen && !poging.groot) {   // v3.65: dezelfde server, zonder maxsize
+        console.warn('[Overpass] server ' + job.server + ': maxsize te klein, opnieuw zonder');
+        fetchWaysForPolygon(geojsonPoly, endpointIdx, redenen, { ronde: poging.ronde, groot: true });
+        return;
+      }
       var reden = job.tijdOp ? 'tijd' : (e.klasse || OVP_FOUT);
       console.error('[Overpass] server ' + job.server + ':', reden, e.message);
       redenen.push({ server: job.server, reden: reden, detail: e.message });
       if (endpointIdx < OVERPASS_ENDPOINTS.length - 1) {
-        fetchWaysForPolygon(geojsonPoly, endpointIdx + 1, redenen);
+        fetchWaysForPolygon(geojsonPoly, endpointIdx + 1, redenen, poging);
+      } else if (poging.ronde < OPHAAL_RONDES && redenen.every(function (r) { return OPHAAL_HERHAAL.indexOf(r.reden) >= 0; })) {
+        ophaalLater(geojsonPoly, poging.ronde + 1, redenen);
       } else {
-        ophaalMislukt.push({ geom: geojsonPoly, redenen: redenen });
+        ophaalMislukt.push({ geom: geojsonPoly, redenen: redenen, rondes: poging.ronde });
         setStatus('Wegen ophalen mislukt \u2014 zie de melding op de kaart');
         toonOphalen();
       }
@@ -1303,8 +1325,22 @@ function toonOphalen() {
     if (server > 1) extra.push('server ' + server);
     if (ophalen.length > 1) extra.push(ophalen.length + ' gebieden');
     if (ophaalMislukt.length) extra.push(ophaalMislukt.length + ' mislukt');
+    if (ophaalWacht.length) extra.push(ophaalWacht.length + ' wacht');
+    if (ophalen.some(function (j) { return j.ronde > 1; })) extra.push('poging ' + Math.max.apply(null, ophalen.map(function (j) { return j.ronde || 1; })) + ' van ' + OPHAAL_RONDES);
     el.className = '';
     el.innerHTML = 'Wegen ophalen\u2026<span class="sub">' + extra.join(' \u00b7 ') + '</span>';
+    el.style.display = 'block';
+    return;
+  }
+  if (ophaalWacht.length) {   // v3.65: wachten op een nieuwe poging, met aftelling
+    if (!ophaalKlok) ophaalKlok = setInterval(toonOphalen, 500);
+    var w = ophaalWacht[0], s = Math.max(0, Math.ceil((w.tot - Date.now()) / 1000));
+    el.className = 'melding';
+    el.innerHTML = '<strong>Wegen ophalen lukt nog niet.</strong><br>' +
+      w.redenen.map(function (r) { return 'Server ' + r.server + ': ' + ophaalReden(r.reden) + '.'; }).join('<br>') +
+      '<br>Nieuwe poging over ' + s + ' s (poging ' + w.ronde + ' van ' + OPHAAL_RONDES + ').' +
+      '<div class="knoppen"><button type="button" class="hoofd" onclick="ophaalNu()">\u21BB Nu proberen</button>' +
+      '<button type="button" onclick="ophaalStoppen()">Stoppen</button></div>';
     el.style.display = 'block';
     return;
   }
@@ -1317,7 +1353,8 @@ function toonOphalen() {
       : (soorten.indexOf('limiet') >= 0 ? 'Wacht een halve minuut en probeer het opnieuw.' : 'Probeer het opnieuw.');
     el.className = 'melding fout';
     el.innerHTML = '<strong>Wegen ophalen mislukt' +
-      (ophaalMislukt.length > 1 ? ' voor ' + ophaalMislukt.length + ' gebieden' : '') + '.</strong><br>' +
+      (ophaalMislukt.length > 1 ? ' voor ' + ophaalMislukt.length + ' gebieden' : '') +
+      ((ophaalMislukt[ophaalMislukt.length - 1].rondes || 1) > 1 ? ', ook na ' + ophaalMislukt[ophaalMislukt.length - 1].rondes + ' pogingen' : '') + '.</strong><br>' +
       redenen.map(function (r) { return 'Server ' + r.server + ': ' + ophaalReden(r.reden) + '.'; }).join('<br>') +
       '<br>' + advies +
       '<div class="knoppen"><button type="button" class="hoofd" onclick="ophaalOpnieuw()">\u21BB Opnieuw</button>' +
@@ -1334,6 +1371,31 @@ function toonOphalen() {
   }
   el.className = '';
   el.style.display = 'none';
+}
+
+// v3.65: een nieuwe poging over OPHAAL_WACHT_MS
+function ophaalLater(geom, ronde, redenen) {
+  var w = { geom: geom, ronde: ronde, tot: Date.now() + OPHAAL_WACHT_MS, redenen: redenen };
+  w.timer = setTimeout(function () { ophaalStart(w); }, OPHAAL_WACHT_MS);
+  ophaalWacht.push(w);
+  setStatus('Wegen ophalen lukt nog niet \u2014 nieuwe poging over ' + Math.round(OPHAAL_WACHT_MS / 1000) + ' s');
+  toonOphalen();
+}
+function ophaalStart(w) {
+  clearTimeout(w.timer);
+  var i = ophaalWacht.indexOf(w);
+  if (i < 0) return;
+  ophaalWacht.splice(i, 1);
+  fetchWaysForPolygon(w.geom, 0, [], { ronde: w.ronde, groot: false });
+}
+function ophaalNu() { ophaalWacht.slice().forEach(ophaalStart); }
+function ophaalStoppen() {
+  ophaalWacht.splice(0).forEach(function (w) {
+    clearTimeout(w.timer);
+    ophaalMislukt.push({ geom: w.geom, redenen: w.redenen, rondes: w.ronde - 1 });
+  });
+  setStatus('Wegen ophalen gestopt');
+  toonOphalen();
 }
 
 function ophaalOpnieuw() {

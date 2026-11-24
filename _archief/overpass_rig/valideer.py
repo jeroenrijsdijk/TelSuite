@@ -19,10 +19,10 @@ NIEUW_DIR = os.environ.get('VALIDEER_NIEUW', '/home/claude/build')
 ZONDER_RELEASE = os.environ.get('VALIDEER_ZONDER_RELEASE') == '1'
 # Per release bijwerken. RELEASE moet overeenkomen met index.html, de stand van
 # zaken en de naam van de overdracht; zie de sectie 'releasenummer' onderaan.
-RELEASE = 'v3.64'
+RELEASE = 'v3.65'
 # v3.51: Passanten, de dagcurve 3 keer zo snel (union-find en schatting op
 # vaste nummers per waarneming; dezelfde uitkomst).
-VERWACHT_GEWIJZIGD = {'telplanning.html', 'index.html', 'traffic_counter_help.html'}
+VERWACHT_GEWIJZIGD = {'telplanning.html', 'parkeertelling.html', 'fietsparkeren.html', 'capaciteitstelling.html', 'pocket_count.html', 'index.html', 'traffic_counter_help.html'}
 VERWACHT_VERWIJDERD = set()
 
 # Interne pagina's: niet in de sitemap, geen eisen aan titel en description

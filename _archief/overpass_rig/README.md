@@ -44,7 +44,7 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/opruimtest.py        # noodopslag weg na bevestigde download, en alleen dan; twee vensters (v3.8), 139 tests
     node _archief/overpass_rig/functest_kwaliteit.js   # v3.10: kwaliteitsrapport in telrapport, 33 tests (papaparse)
     python3 _archief/overpass_rig/logicatest.py        # v3.10: pocket-id bij Start, kwaliteitsrapport in Chromium, sessierij compact (v3.11/v3.12), 30 tests
-    python3 _archief/overpass_rig/robuusttest.py       # v3.9: volle opslag, persist, schermslot pocket, voorpagina, telplanning ophalen, 87 tests
+    python3 _archief/overpass_rig/robuusttest.py       # v3.9: volle opslag, persist, schermslot pocket, voorpagina, telplanning ophalen (v3.65: eerst zelf opnieuw), 90 tests
     node _archief/overpass_rig/functest_planlink.js    # v3.14: planning als link, inpakken en uitpakken, 29 tests (Node 18+)
     python3 _archief/overpass_rig/planlinktest.py      # v3.14: link maken in telplanning, openen in parkeertelling/fiets/pocket; v3.15: zonder server; v3.16: capaciteitscontouren standaard uit, 51 tests
     node _archief/overpass_rig/functest_bbox.js        # v3.17: bbox-filter van telrapport, ook voor verzamelingen, 11 tests (jszip papaparse)
@@ -70,6 +70,7 @@ Draaien vanuit de suite-map:
     python3 _archief/overpass_rig/tijdfiltertest.py    # v3.47: telrapport, de stippen na het tijdfilter, de typeknopjes en de sessielijst, en de GeoPackage; v3.48: route en rij in het tijdfilter, een eigen soort in de tabel van een clusterbol, dimmen bij een bol, clusterDekking = bollen; v3.60: het A4 van een pocket-parkeertelling; v3.61: van een bol naar zijn wegvak; v3.62: ook voor een bol zonder eigen wegvak, 43 tests
     python3 _archief/overpass_rig/capaciteittest.py    # v3.63: telrapport, de straten van een capaciteitstelling als lijn uit _netwerk.csv, het getal op het midden van de eigen tikken; uit de app, gemaakt en oud, 26 tests
     python3 _archief/overpass_rig/knipplantest.py      # v3.64: telplanning, een deel van een weg plannen (knippen op gedeelde knopen, stukken in de planning, de link heen en terug), 40 tests
+    python3 _archief/overpass_rig/ophaaltest.py        # v3.65: Overpass vaker laten slagen: rechthoek met maxsize, out of memory, zelf opnieuw met aftelling, Nu proberen/Stoppen; maxsize in de telapps, 30 tests
     python3 _archief/overpass_rig/snelheidtest.py      # v3.49: telrapport met 150 gemaakte tellingen: laden met voortgang, de opzoeklijsten tegen alles langs lopen, bollen/tellers/kwaliteit, hover, de acties binnen ruime tijdgrenzen; v3.50: het kale net als één laag, 27 tests
                                                        # (playwright + leaflet/jszip/papaparse/fontsource in node_modules)
     python3 _archief/overpass_rig/tekstgelijk.py oud.html nieuw.html  # zelfde tekst, woord voor woord (bij opmaakwijzigingen)
