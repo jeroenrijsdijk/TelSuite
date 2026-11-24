@@ -164,6 +164,10 @@ Opgeruimd op 21 oktober 2026.
 ## 5. Backlog (niets besloten)
 
 **Klein / afgebakend**
+- **Nederlandse datum en tijd in telplanning** (Jay, 24 nov 2026: "in telplanning staat 11:16AM en 11/24/2026, de Amerikaanse notaties. Wil je die de volgende keer aanpassen naar Nederlandse?").
+  - **Oorzaak.** `#meta-datum` en `#meta-tijd` zijn `<input type="date">` en `type="time"`. De browser toont die in de taal van de browser zelf, niet in die van de pagina (`lang="nl"` helpt niet). In Jay's browser is dat Engels (VS).
+  - **Plan.** Tekstvelden `dd-mm-jjjj` en `uu:mm` (24 uur), met controle en de kalender of klok van de browser achter een knopje. Intern blijft het ISO: `planning.datum` `JJJJ-MM-DD`, `tijdstip` `UU:MM`. De planlink verandert dus niet.
+  - **Ook doen:** de periodevelden in `telarchief.html` (`#f-van`, `#f-tot`).
 - ~~Kop van de handleiding~~ — aangepast door Jay (de bovenste kop). Boven de inhoudsopgave staat nog een tweede kop "Traffic Counter Help", met daaronder "Contents". Zichtbare tekst, dus Jay's keuze.
 - ~~Reconstructiescript een kaart-PNG bij de `_recon.zip`~~ — gedaan in v3.28: `<sid>_kaart.png` in de ZIP (Jay's keuze), netwerk, spoor en tikken, zonder ondergrond.
 - ~~Het losse transect-formaat (`*_trn.zip`)~~ — weg in v3.30 (Jay: geen `_trn`-ZIP's meer): leescode en Overpass-terugval uit telrapport, sectie uit de referentie; een `_trn.zip` geeft een melding.
